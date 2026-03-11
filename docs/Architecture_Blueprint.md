@@ -1,0 +1,646 @@
+# LeaferGraph 架构蓝图
+
+## 文档信息
+
+- 日期：`2026-03-11`
+- 适用对象：`leafergraph` 新实验工程
+- 目标：
+  - 参考 `litegraph.js` 中已验证过的 Leafer 使用方式
+  - 为新的 `leafergraph` 提供一份不背历史兼容包袱的架构设计
+  - 把“该继承什么”和“该舍弃什么”明确写清楚
+
+## 参考输入
+
+- `./Scope_and_Design_Options.md`
+- `../../litegraph.js/guides/Architecture_Overview.md`
+- `../../litegraph.js/src/ts-migration/leafer/README.md`
+- `../../litegraph.js/src/ts-migration/leafer/LeaferAppHost.ts`
+- `../../litegraph.js/src/ts-migration/leafer/GraphMutationBus.ts`
+- `../../litegraph.js/src/ts-migration/leafer/SceneSyncController.ts`
+- `../../litegraph.js/src/ts-migration/leafer/ViewportController.ts`
+- `../../litegraph.js/src/ts-migration/leafer/NodePortAdapter.ts`
+- `../../litegraph.js/src/ts-migration/leafer/ModernNodeHost.ts`
+
+---
+
+## First Principles Analysis: LeaferGraph 架构
+
+### 1. Problem Essence
+
+**Core problem:**  
+要设计的不是“把 `litegraph.js` 的 Leafer 代码拆一份过来”，而是“为新的 Leafer-first 节点图建立一套最小但可扩展的分层，使图模型、场景同步、交互控制和编辑器壳层长期可维护”。
+
+**Success criteria:**
+
+1. `packages/leafergraph` 可以在没有 Preact editor UI 的情况下独立创建、编辑、运行一张图
+2. 图模型不依赖具体 UI 壳层，不依赖 DOM 面板，不依赖历史 LiteGraph API
+3. Leafer scene graph 同步是单向、增量、可分层的
+4. 节点、端口、连线、分组、overlay 都有明确宿主和边界
+5. 外部节点 authoring 和后续模板化扩展从第一版就有落点
+
+### 2. Assumptions Challenged
+
+| Assumption | Challenge | Verdict |
+|------------|-----------|---------|
+| “要复用 `litegraph.js` 的 Leafer 成果，就应该保留它的大部分目录结构” | `litegraph.js` 的结构同时承担迁移、兼容、发布和历史包袱；新工程不需要继承这些非目标复杂度 | Discard |
+| “节点编辑器一定要有一个巨大总控类” | `litegraph.js` 已经证明把视口、选择、拉线、scene sync 拆成专门控制器更清晰 | Discard |
+| “场景树就是数据源，直接改 Leafer 对象就够了” | 节点图长期演进需要稳定的图模型、命令边界和序列化能力，场景树应是投影层 | Discard |
+| “既然参考 `litegraph.js`，就要同时准备 legacy host 和 modern host” | 新工程没有历史节点兼容包袱，第一阶段应只做 Leafer-native host；保留适配缝，不默认实现 legacy host | Modify |
+| “交互、渲染、节点布局应该绑在一起做” | 端口几何、命中测试、连线曲线、shell layout 都可以拆成契约，分层后更利于扩展和性能优化 | Discard |
+
+### 3. Ground Truths
+
+- 节点图产品的核心真相是：图模型、图变更、场景投影、交互控制、执行调度。
+- Leafer 的强项是 retained-mode scene graph、局部渲染、分层和插件生态，不是临时 imperative 绘图。
+- 编辑器 UI 壳层和图运行时不是一回事；前者服务用户操作，后者服务图系统自身。
+- 端口命中、连线曲线、节点尺寸、视口变换共享同一套几何语义，必须有统一适配层。
+- 未来如果要支持外部节点，节点 authoring 契约必须先于具体编辑器面板存在。
+
+### 4. Reasoning Chain
+
+Ground Truth  
+-> 图模型必须先独立于场景树  
+-> 图变更应先进入统一 mutation / command 通道  
+-> Leafer scene 应只负责承接图模型投影  
+-> 视口、选择、拉线、命中测试应拆成专门控制器  
+-> 节点 authoring 与宿主渲染应拆开  
+-> 最终形成“核心库 + editor 壳层 + 节点扩展接口”的清晰结构
+
+### 5. Conclusion
+
+**Recommended approach:**  
+为 `leafergraph` 采用“纯图模型内核 + Leafer AppHost/SceneSync + 专门交互控制器 + 可扩展节点 authoring + 轻编辑器壳层”的双层架构。
+
+**Key insight:**  
+真正值得从 `litegraph.js` 继承的不是旧目录形状，而是以下五个原则：
+
+- AppHost 与 layer tree 独立
+- mutation 驱动的 scene sync
+- 统一端口几何适配
+- 交互控制器拆分
+- 节点 authoring / host 分离
+
+**Trade-offs acknowledged:**  
+前期会比“直接在 demo 上叠功能”多一些抽象成本，但能避免后续再次经历一次“大重构”。
+
+---
+
+## 一、从 `litegraph.js` 应提炼的设计，而不是直接复制的实现
+
+### 应保留的模式
+
+| 来源 | 提炼出的模式 | 在 `leafergraph` 中的处理 |
+|------|--------------|---------------------------|
+| `LeaferAppHost.ts` | 用一个独立宿主管理 `App`、layer tree、背景、测量层、性能参数 | 保留，作为核心库中的 `app/` 基础设施 |
+| `GraphMutationBus.ts` | 让图结构变化先变成统一事件，再驱动 scene sync | 保留，但事件面收敛到新项目自己的图模型语义 |
+| `SceneSyncController.ts` | 领域模型到场景树的单向投影和 host 缓存 | 保留，作为新项目最关键的运行时骨架 |
+| `ViewportController.ts` | 视口变换独立于节点编辑逻辑 | 保留，并直接基于 Leafer 官方 `viewport/view` 能力 |
+| `NodePortAdapter.ts` | 端口命中、锚点、连线几何走统一适配器 | 保留，作为链接、选择、连线反馈的共享基础 |
+| `ModernNodeHost.ts` | 节点 authoring 契约与可视宿主分离 | 保留，但第一阶段先做更小的 Leafer-native 节点壳 |
+
+### 不应带入的复杂度
+
+| 来源 | 复杂度类型 | 在 `leafergraph` 中的处理 |
+|------|------------|---------------------------|
+| `compat/*` | 历史兼容层、别名、桥接 | 不带入 |
+| `canvas/*` 的 legacy 部分 | 旧 Canvas runtime 的过渡逻辑 | 不带入 |
+| `LegacyNodeHost.ts` / `LegacyPointerEventAdapter.ts` | 旧节点绘制与旧输入适配 | 第一阶段不实现 |
+| `cjs/global bridge` | 分发与历史全局挂载 | 不带入 |
+| `ts-migration` 的迁移层结构 | 为迁移服务的中间目录 | 不照搬 |
+
+一句话约束：
+
+- **继承模式，不继承包袱。**
+
+---
+
+## 二、LeaferGraph 的目标架构
+
+### 1. 仓库级结构
+
+```text
+leafergraph/
+  packages/
+    leafergraph/
+      src/
+        app/
+        model/
+        runtime/
+        scene/
+        interaction/
+        authoring/
+        registry/
+        serialization/
+        settings/
+        utils/
+        index.ts
+    editor/
+      src/
+        app/
+        state/
+        toolbar/
+        panels/
+        search/
+        shortcuts/
+        adapters/
+        components/
+        main.tsx
+  docs/
+    Scope_and_Design_Options.md
+    Architecture_Blueprint.md
+```
+
+### 2. 各层职责
+
+#### `packages/leafergraph/src/app`
+
+负责创建和管理 Leafer 运行宿主：
+
+- `LeaferGraphAppHost`
+- `LeaferLayerRegistry`
+- 背景层、测量层、overlay 层
+- 画布级配置与销毁
+
+#### `packages/leafergraph/src/model`
+
+纯图模型层，不直接依赖 Preact 和 editor 面板：
+
+- `GraphModel`
+- `GraphNodeModel`
+- `GraphLinkModel`
+- `GraphGroupModel`
+- selection 数据
+- runtime 状态快照
+
+#### `packages/leafergraph/src/runtime`
+
+负责图命令、变更分发与执行调度：
+
+- `GraphCommandBus`
+- `GraphMutationBus`
+- `GraphRuntime`
+- `ExecutionScheduler`
+- runtime event stream
+
+#### `packages/leafergraph/src/scene`
+
+负责把图模型投影到 Leafer scene graph：
+
+- `SceneSyncController`
+- `NodeViewHost`
+- `LinkViewHost`
+- `GroupViewHost`
+- `OverlayPrimitives`
+- `TextMetricsService`
+- 可选 `TaskWorker`
+
+#### `packages/leafergraph/src/interaction`
+
+负责编辑交互，但不直接承担 editor 壳层 UI：
+
+- `ViewportController`
+- `HitTestService`
+- `SelectionController`
+- `ConnectionController`
+- `PointerRouter`
+- `KeyboardRouter`
+
+#### `packages/leafergraph/src/authoring`
+
+负责节点 authoring 契约：
+
+- `NodeDefinition`
+- `NodeShellState`
+- `PortSchema`
+- `WidgetSchema`
+- `ModernNodeBase`
+- `NodeHostFactory`
+
+#### `packages/leafergraph/src/registry`
+
+负责节点、widget、模块安装与查询：
+
+- `NodeRegistry`
+- `WidgetRegistry`
+- `NodeModuleInstaller`
+
+#### `packages/leafergraph/src/serialization`
+
+负责图保存与恢复：
+
+- `GraphSerializer`
+- `GraphDeserializer`
+- `SchemaVersion`
+
+#### `packages/editor/src/*`
+
+只承担 editor UI 和用户工作流：
+
+- Preact 组件树
+- 工具栏、侧栏、搜索、菜单、面板
+- 快捷键和命令绑定
+- 对核心库的组合与驱动
+
+---
+
+## 三、核心运行时链路
+
+### 1. 组合入口
+
+新的公共入口建议从“直接 new 一个 demo App”升级为“组装运行时系统”：
+
+```ts
+const graph = createLeaferGraph(container, options)
+```
+
+其内部应完成：
+
+1. 创建 `GraphModel`
+2. 创建 `LeaferGraphAppHost`
+3. 创建 `GraphMutationBus`
+4. 创建 `SceneSyncController`
+5. 创建 `ViewportController`
+6. 创建 `SelectionController`
+7. 创建 `ConnectionController`
+8. 绑定公开 API、命令接口和销毁逻辑
+
+### 2. 数据流
+
+```text
+Editor / API Command
+  -> GraphModel mutation
+  -> GraphMutationBus emit
+  -> SceneSyncController consume
+  -> ensure node/link/group/overlay hosts
+  -> Leafer scene incremental update
+  -> local render
+```
+
+### 3. 交互流
+
+```text
+Pointer / keyboard input
+  -> HitTestService / NodePortAdapter
+  -> SelectionController / ConnectionController / ViewportController
+  -> Graph commands
+  -> mutation events
+  -> scene sync
+```
+
+### 4. 执行流
+
+```text
+Runtime start / step / stop
+  -> ExecutionScheduler
+  -> Node execution lifecycle
+  -> runtime state changed
+  -> active node/link presentation update
+  -> SceneSyncController refresh affected views
+```
+
+---
+
+## 四、推荐的 Leafer 层级模型
+
+相比 `litegraph.js` 中为兼容历史而存在的更多层，新项目第一阶段建议使用更简单的 layer tree：
+
+```text
+App
+  ground
+    backgroundLayer
+  tree
+    worldRoot
+      groupLayer
+      linkLayer
+      nodeLayer
+      overlayWorldLayer
+  sky
+    overlayScreenLayer
+    measurementLayer
+```
+
+### 各层职责
+
+- `backgroundLayer`
+  - 背景色、网格、纹理
+- `groupLayer`
+  - 分组框、分组标题
+- `linkLayer`
+  - 常规连线、箭头、执行态链路反馈
+- `nodeLayer`
+  - 节点壳、端口、节点内容
+- `overlayWorldLayer`
+  - 拉线预览、框选框、世界坐标系辅助线
+- `overlayScreenLayer`
+  - 屏幕坐标系 UI 覆盖层
+- `measurementLayer`
+  - 隐藏文本测量和布局辅助对象
+
+### 明确不做
+
+第一阶段不拆：
+
+- `legacyNodeLayer`
+- `modernNodeLayer`
+
+原因很简单：
+
+- `leafergraph` 没有历史节点兼容负担
+- 第一版应只维护一种 Leafer-native 节点宿主
+
+如果后续确实需要接入非 Leafer-native 自绘节点，再引入可选的 raster host 层。
+
+---
+
+## 五、关键控制器设计
+
+### 1. `GraphMutationBus`
+
+职责：
+
+- 统一承接图级变化
+- 为 scene sync、selection、search、history 提供一致事件源
+- 把“命令成功执行”与“场景如何更新”解耦
+
+建议事件面：
+
+- `graph:hydrated`
+- `graph:cleared`
+- `node:added`
+- `node:removed`
+- `node:changed`
+- `node:moved`
+- `link:added`
+- `link:removed`
+- `link:changed`
+- `group:added`
+- `group:removed`
+- `selection:changed`
+
+### 2. `SceneSyncController`
+
+职责：
+
+- 缓存 `nodeId -> NodeViewHost`
+- 缓存 `linkId -> LinkViewHost`
+- 按 mutation 只更新受影响对象
+- 维护 host 生命周期
+
+设计约束：
+
+- scene sync 只读模型，不拥有业务真相
+- 不允许 editor UI 直接篡改 host 内部状态作为主数据源
+
+### 3. `NodePortAdapter`
+
+职责：
+
+- 统一端口锚点
+- 统一端口方向
+- 统一 hit test
+- 统一连线曲线几何
+
+设计约束：
+
+- 所有“拉线、重连、hover 端口、连线预览”都依赖同一套几何协议
+- 不允许每个控制器各自重新算一套端口位置
+
+### 4. `ViewportController`
+
+职责：
+
+- 封装 pan / zoom
+- 同步背景和世界层变换
+- 暴露 `fit / reset / focus` 等高层命令
+
+推荐依赖：
+
+- `@leafer-in/viewport`
+- `@leafer-in/view`
+
+### 5. `SelectionController`
+
+职责：
+
+- 管理单选、多选、框选
+- 维护 selection model
+- 驱动节点选中态和 overlay
+
+### 6. `ConnectionController`
+
+职责：
+
+- 处理从端口开始的拉线
+- 管理预览曲线
+- 处理命中验证、连接提交、断线与重连
+
+---
+
+## 六、节点 authoring 架构
+
+### 第一阶段建议
+
+虽然 `litegraph.js` 已经有较完整的 `ModernNodeHost + ModernNodeContracts`，但在 `leafergraph` 中第一阶段应先做更小的 authoring 面。
+
+### 目标拆分
+
+#### `NodeDefinition`
+
+描述节点的静态信息：
+
+- `type`
+- `title`
+- `category`
+- `keywords`
+- 默认尺寸
+- 端口 schema
+- widget schema
+
+#### `NodeShellState`
+
+描述节点壳的视觉状态：
+
+- 标题
+- 副标题
+- accent
+- 选中态
+- hover 态
+- disabled 态
+- 执行高亮态
+
+#### `NodeViewHost`
+
+负责真实挂载和 patch：
+
+- `mount()`
+- `patch()`
+- `destroy()`
+- `hitPortAt()`
+- `getPortAnchor()`
+
+### 路线建议
+
+- Phase 1:
+  - 先做统一卡片壳
+  - 支持标题、摘要、输入输出端口、选中态
+- Phase 2:
+  - 增加 widget schema
+  - 增加 action part
+  - 增加节点内部自定义内容挂载
+- Phase 3:
+  - 增加模块安装与外部节点包 authoring helper
+
+---
+
+## 七、对 editor 的边界要求
+
+`packages/editor` 不应该知道或承担以下内容：
+
+- 图模型内部如何序列化
+- 端口锚点如何计算
+- 连线曲线如何生成
+- 节点执行调度如何进行
+- scene host 如何 patch
+
+`packages/editor` 应只负责：
+
+- 命令触发
+- 布局组织
+- 用户流程
+- 面板状态
+- 工具栏和快捷键
+- 调试展示
+
+推荐模式：
+
+- editor 通过 `GraphViewport` 挂载 `leafergraph`
+- editor 与核心库通过 command / event / selector API 通信
+- editor 不直接依赖私有 scene host 类型
+
+---
+
+## 八、官方 Leafer 生态在本架构中的落点
+
+### 默认组合
+
+- `leafer-ui`
+  - 基础渲染底座
+- `@leafer-in/state`
+  - 节点和端口的 hover / selected / disabled / press 状态
+- `@leafer-in/viewport`
+  - 工作区 pan / zoom
+- `@leafer-in/view`
+  - fit、focus、reset
+- `@leafer-in/arrow`
+  - 连线箭头
+- `@leafer-in/find`
+  - 查找 diff 节点、批量筛选节点、局部高亮
+- `@leafer-in/resize`
+  - 节点或分组尺寸调整
+
+### 按需补充
+
+- `@leafer-in/flow`
+  - 面板和 editor 壳层自动布局
+- `@leafer-in/scroll`
+  - 大画布滚动反馈
+- `@leafer-in/export`
+  - 快照、截图、导出
+- `@leafer-in/text-editor`
+  - 文本内联编辑
+- `@leafer-ui/worker`
+  - 只有在主线程明确成为瓶颈后再评估
+
+---
+
+## 九、阶段路线图
+
+### Phase 0: 从当前 demo 骨架升级到系统骨架
+
+目标：
+
+- 把当前 `src/index.ts` 中的 demo 绘制拆成：
+  - `LeaferGraphAppHost`
+  - `GraphModel`
+  - `SceneSyncController`
+  - `NodeViewHost`
+  - `LinkViewHost`
+
+产出：
+
+- 能根据模型渲染静态节点和静态连线
+- 外部 API 仍保持最小可用
+
+### Phase 1: 建立最小可编辑图
+
+目标：
+
+- mutation bus
+- viewport
+- selection
+- connection preview
+- connect / disconnect
+- serialization v1
+
+### Phase 2: 建立最小可运行图
+
+目标：
+
+- node registry
+- runtime start / stop / step
+- 基础执行状态反馈
+- graph IO
+
+### Phase 3: 建立节点 authoring 能力
+
+目标：
+
+- `NodeDefinition`
+- widget schema
+- action part
+- node module install
+
+### Phase 4: 建立完整 editor 壳层
+
+目标：
+
+- 搜索与节点创建
+- 属性面板
+- 快捷键
+- 复制粘贴
+- 分组
+- 后续插件化接入
+
+---
+
+## 十、当前就应坚持的设计红线
+
+- 不引入 `compat/*`
+- 不引入 legacy node host
+- 不让 editor 直接改 Leafer scene 作为业务真相
+- 不把搜索、菜单、对话框写回核心库
+- 不把节点查找、端口几何、连线曲线散落到多个模块重复实现
+- 不因为参考 `litegraph.js` 就复制它的迁移层目录
+
+---
+
+## 最终建议
+
+一句话结论：
+
+- `leafergraph` 应该继承 `litegraph.js` 的 Leafer 核心经验，但不继承它为迁移和兼容付出的结构成本
+- 新架构最重要的五个支点是：
+  - `AppHost + LayerRegistry`
+  - `GraphMutationBus`
+  - `SceneSyncController`
+  - `NodePortAdapter`
+  - `拆分式交互控制器`
+- 第一阶段不应追求“大而全”，而应先把“模型 -> mutation -> scene sync -> 交互控制 -> editor 壳层”的主链搭稳
+
+如果后续继续实现，建议优先顺序是：
+
+1. `GraphModel + GraphMutationBus`
+2. `LeaferGraphAppHost + SceneSyncController`
+3. `ViewportController + SelectionController + ConnectionController`
+4. `NodeRegistry + Runtime`
+5. editor 面板与搜索

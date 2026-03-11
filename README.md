@@ -38,3 +38,9 @@ bun run build
   - 范围划定
   - 三个设计方案
   - 推荐结构与后续优先级
+- `docs/Architecture_Blueprint.md`
+  - 参考 `litegraph.js` Leafer 运行层提炼出的新架构
+  - 分层、主链路、层级模型与阶段路线
+- `docs/Node_Shell_Design.md`
+  - 现代化轻量节点外壳设计
+  - 视觉 token、performance 预算与后续状态预留
