@@ -1,0 +1,20 @@
+{
+  "name": "leafergraph-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "bun@1.2.21",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:editor": "bun run --filter leafergraph-editor dev",
+    "build:leafergraph": "bun run --filter leafergraph build",
+    "build:editor": "bun run --filter leafergraph-editor build",
+    "build": "bun run build:leafergraph && bun run build:editor",
+    "preview:editor": "bun run --filter leafergraph-editor preview"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}
