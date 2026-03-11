@@ -21,6 +21,7 @@
     "build": "tsc -p tsconfig.build.json && vite build"
   },
   "dependencies": {
+    "@leafer-in/arrow": "^2.0.3",
     "leafer-ui": "2.0.2"
   }
 }

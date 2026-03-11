@@ -1,5 +1,7 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap");
+
 :root {
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: "Inter", "Segoe UI", sans-serif;
   color: #e6eef8;
   background:
     radial-gradient(circle at top left, rgba(125, 211, 252, 0.18), transparent 24%),
@@ -22,7 +24,7 @@ body {
 }
 
 code {
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "JetBrains Mono", "IBM Plex Mono", "Consolas", monospace;
   font-size: 0.95em;
 }
 
