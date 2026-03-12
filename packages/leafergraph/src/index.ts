@@ -1,4 +1,6 @@
-import { App, Group, Path, Rect, Text } from "leafer-ui";
+import { App, Group, Rect, Text } from "leafer-ui";
+import { Arrow } from '@leafer-in/arrow'
+import type { LeaferGraphNodeData, LeaferGraphOptions } from "@leafergraph/node";
 import {
   PORT_DIRECTION_LEFT,
   PORT_DIRECTION_RIGHT,
@@ -48,36 +50,13 @@ interface DemoNodeViewState {
 interface DemoLinkViewState {
   sourceId: string;
   targetId: string;
-  view: Path;
+  view: Arrow;
 }
 
 interface DemoDragState {
   nodeId: string;
   offsetX: number;
   offsetY: number;
-}
-
-export interface LeaferGraphNodeData {
-  id: string;
-  title: string;
-  subtitle?: string;
-  x: number;
-  y: number;
-  width?: number;
-  height?: number;
-  accent?: string;
-  category?: string;
-  status?: string;
-  inputs?: string[];
-  outputs?: string[];
-  controlLabel?: string;
-  controlValue?: string;
-  controlProgress?: number;
-}
-
-export interface LeaferGraphOptions {
-  fill?: string;
-  nodes?: LeaferGraphNodeData[];
 }
 
 const DEFAULT_NODES: LeaferGraphNodeData[] = [
@@ -240,7 +219,7 @@ export class LeaferGraph {
   private createLink(
     source: LeaferGraphNodeData,
     target: LeaferGraphNodeData
-  ): Path {
+  ): Arrow {
     const sourceWidth = source.width ?? DEFAULT_NODE_WIDTH;
     const endpoints = resolveLinkEndpoints({
       sourceX: source.x,
@@ -253,7 +232,7 @@ export class LeaferGraph {
       portSize: PORT_SIZE
     });
 
-    return new Path({
+    return new Arrow({
       path: buildLinkPath(
         endpoints.start,
         endpoints.end,

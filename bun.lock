@@ -25,8 +25,13 @@
       "name": "leafergraph",
       "version": "0.1.0",
       "dependencies": {
+        "@leafergraph/node": "0.1.0",
         "leafer-ui": "2.0.2",
       },
+    },
+    "packages/node": {
+      "name": "@leafergraph/node",
+      "version": "0.1.0",
     },
   },
   "packages": {
@@ -231,6 +236,8 @@
     "@leafer/watcher": ["@leafer/watcher@2.0.2", "", { "dependencies": { "@leafer/data": "2.0.2", "@leafer/event": "2.0.2", "@leafer/list": "2.0.2" } }, "sha512-NUxZ2k6jypzdN9v5bKrz7Pvdx8aXNCc0b7klkR7lhcekJwkr/kEEdhYTVzdsxgBHXaFzLjKBPoW58GvZsKfknw=="],
 
     "@leafer/web-core": ["@leafer/web-core@2.0.2", "", { "dependencies": { "@leafer/canvas-web": "2.0.2", "@leafer/core": "2.0.2", "@leafer/image-web": "2.0.2", "@leafer/interface": "2.0.2", "@leafer/partner": "2.0.2" } }, "sha512-WHlyR423FMW9Y5TjQcl5eIjKgVbwzPfmN1iOno4hsR+o0ih35IBXU0FyCfnaUVRX9sC3W7oX/QYdo69Bhb65ew=="],
+
+    "@leafergraph/node": ["@leafergraph/node@workspace:packages/node"],
 
     "@preact/preset-vite": ["@preact/preset-vite@2.10.3", "", { "dependencies": { "@babel/plugin-transform-react-jsx": "^7.27.1", "@babel/plugin-transform-react-jsx-development": "^7.27.1", "@prefresh/vite": "^2.4.11", "@rollup/pluginutils": "^5.0.0", "babel-plugin-transform-hook-names": "^1.0.2", "debug": "^4.4.3", "picocolors": "^1.1.1", "vite-prerender-plugin": "^0.5.8" }, "peerDependencies": { "@babel/core": "7.x", "vite": "2.x || 3.x || 4.x || 5.x || 6.x || 7.x" } }, "sha512-1SiS+vFItpkNdBs7q585PSAIln0wBeBdcpJYbzPs1qipsb/FssnkUioNXuRsb8ZnU8YEQHr+3v8+/mzWSnTQmg=="],
 
