@@ -2,16 +2,28 @@ import type { NodeDefinition, NodeModule, NodeModuleScope, WidgetDefinition } fr
 import type { NodeRegistry, RegisterNodeOptions } from "./registry";
 import { cloneDefinition } from "./utils";
 
+/**
+ * 安装节点模块时的控制项。
+ * 它继承节点注册选项，并额外允许传入一次性的作用域覆写。
+ */
 export interface InstallNodeModuleOptions extends RegisterNodeOptions {
   scope?: NodeModuleScope;
 }
 
+/**
+ * 模块解析后的标准结构。
+ * 宿主拿到它之后就可以明确知道最终生效的 scope / nodes / widgets。
+ */
 export interface ResolvedNodeModule {
   scope: NodeModuleScope;
   nodes: NodeDefinition[];
   widgets: WidgetDefinition[];
 }
 
+/**
+ * 将一个模块安装到节点注册表中。
+ * 安装前会先解析并标准化模块作用域，再批量注册 Widget 和节点定义。
+ */
 export function installNodeModule(
   registry: NodeRegistry,
   module: NodeModule,
@@ -32,6 +44,10 @@ export function installNodeModule(
   return resolved;
 }
 
+/**
+ * 解析模块，得到最终可安装结构，但不直接写入注册表。
+ * 这个函数适合宿主在真正安装前先做日志、校验或调试展示。
+ */
 export function resolveNodeModule(
   module: NodeModule,
   options: InstallNodeModuleOptions = {}
@@ -45,6 +61,10 @@ export function resolveNodeModule(
   };
 }
 
+/**
+ * 合并模块自身作用域与安装时覆写作用域。
+ * 安装参数优先级高于模块内默认值。
+ */
 export function resolveNodeModuleScope(
   baseScope?: NodeModuleScope,
   overrideScope?: NodeModuleScope
@@ -58,6 +78,10 @@ export function resolveNodeModuleScope(
   };
 }
 
+/**
+ * 将模块作用域应用到单个节点定义上。
+ * 它会补全最终 `type`，并在缺少 `category` 时继承模块默认分组。
+ */
 export function applyNodeModuleScope(
   definition: NodeDefinition,
   scope: NodeModuleScope
@@ -74,6 +98,10 @@ export function applyNodeModuleScope(
   return next;
 }
 
+/**
+ * 计算节点最终类型。
+ * 如果节点本身已经显式带命名空间，则不会重复拼接模块前缀。
+ */
 export function resolveScopedNodeType(type: string, namespace?: string): string {
   const safeType = type.trim();
   const safeNamespace = normalizeNamespace(namespace);
@@ -85,15 +113,26 @@ export function resolveScopedNodeType(type: string, namespace?: string): string 
   return `${safeNamespace}/${safeType}`;
 }
 
+/**
+ * 判断节点类型是否已经带作用域前缀。
+ * 当前把 `/` 和 `:` 都视为已作用域化的分隔符。
+ */
 export function isScopedNodeType(type: string): boolean {
   return /[/:]/.test(type);
 }
 
+/**
+ * 标准化命名空间文本。
+ * 它会统一路径分隔符，并裁掉首尾多余斜杠。
+ */
 function normalizeNamespace(namespace?: string): string | undefined {
   const value = namespace?.trim().replace(/[/\\]+/g, "/").replace(/^\/+|\/+$/g, "");
   return value || undefined;
 }
 
+/**
+ * 标准化模块默认分组名称。
+ */
 function normalizeGroup(group?: string): string | undefined {
   const value = group?.trim();
   return value || undefined;

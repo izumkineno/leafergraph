@@ -63,7 +63,7 @@
 在开始实现前，至少优先阅读以下内容：
 
 1. `README.md`
-2. `docs/Scope_and_Design_Options.md`
+2. `docs/范围与设计选项.md`
 3. 目标子包的 `package.json`
 4. 目标入口文件与直接依赖文件
 

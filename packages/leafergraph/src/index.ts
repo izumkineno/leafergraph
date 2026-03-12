@@ -42,6 +42,15 @@ import {
   resolveLinkEndpoints
 } from "./link";
 
+/**
+ * 主包当前 demo 渲染实现。
+ * 这个文件同时承担三层职责：
+ * 1. 宿主初始化与插件接入
+ * 2. 节点与连线的 Leafer 渲染
+ * 3. Widget renderer 的生命周期调度
+ */
+
+// 节点视觉常量：当前阶段保持集中定义，便于后续抽离成主题系统。
 const DEFAULT_NODE_WIDTH = 288;
 const DEFAULT_NODE_MIN_HEIGHT = 184;
 const NODE_RADIUS = 18;
@@ -76,6 +85,8 @@ const TRACK_FILL = "rgba(255, 255, 255, 0.10)";
 const INPUT_PORT_FILL = "#3B82F6";
 const OUTPUT_PORT_FILL = "#8B5CF6";
 const LINK_STROKE = "#60A5FA";
+
+/** 节点视图状态，负责把运行时节点和实际 Leafer 图元绑定在一起。 */
 interface NodeViewState {
   state: GraphNodeState;
   view: Group;
@@ -83,18 +94,21 @@ interface NodeViewState {
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
 }
 
+/** 连线视图状态。 */
 interface DemoLinkViewState {
   sourceId: string;
   targetId: string;
   view: Arrow;
 }
 
+/** 拖拽中的节点状态。 */
 interface DemoDragState {
   nodeId: string;
   offsetX: number;
   offsetY: number;
 }
 
+/** 当前 demo 节点额外属性。 */
 interface DemoNodeProperties {
   subtitle?: string;
   accent?: string;
@@ -102,11 +116,13 @@ interface DemoNodeProperties {
   status?: string;
 }
 
+/** demo widget 附加配置。 */
 interface DemoWidgetOptions {
   label?: string;
   displayValue?: string;
 }
 
+/** 已安装插件的登记信息。 */
 interface InstalledPluginRecord {
   name: string;
   version?: string;
@@ -114,6 +130,7 @@ interface InstalledPluginRecord {
   widgetTypes: string[];
 }
 
+/** 主包当前使用的节点运行时状态别名。 */
 type GraphNodeState = NodeRuntimeState & {
   properties: DemoNodeProperties;
 };
@@ -169,6 +186,7 @@ const DEFAULT_NODES: LeaferGraphNodeData[] = [
   }
 ];
 
+/** 主包默认内建节点定义，用于当前 demo 和回归验证。 */
 const DEMO_NODE_DEFINITION: NodeDefinition = {
   type: DEMO_NODE_TYPE,
   title: "Category Node",
@@ -192,12 +210,17 @@ const DEMO_NODE_DEFINITION: NodeDefinition = {
   ]
 };
 
+/** 创建主包默认注册表，并预装 demo 节点。 */
 function createDemoNodeRegistry(): NodeRegistry {
   const registry = new NodeRegistry();
   registry.registerNode(DEMO_NODE_DEFINITION);
   return registry;
 }
 
+/**
+ * 创建默认 slider renderer。
+ * Mount 阶段创建图元，Update 阶段只更新进度条宽度和显示值。
+ */
 function createSliderWidgetRenderer(): LeaferGraphWidgetRenderer {
   return ({ ui, group, node, widget, value, bounds }) => {
     const options = widget.options as DemoWidgetOptions | undefined;
@@ -276,6 +299,10 @@ function createSliderWidgetRenderer(): LeaferGraphWidgetRenderer {
   };
 }
 
+/**
+ * 创建一个通用的“只读值展示” renderer。
+ * 当某个 Widget 没有专门 renderer 时，主包会回退到它。
+ */
 function createValueWidgetRenderer(): LeaferGraphWidgetRenderer {
   return ({ ui, group, widget, value, bounds }) => {
     const options = widget.options as DemoWidgetOptions | undefined;
@@ -316,11 +343,13 @@ function createValueWidgetRenderer(): LeaferGraphWidgetRenderer {
   };
 }
 
+/** 把任意输入值压缩到 0~1 区间。 */
 function clampProgress(value: unknown): number {
   const progress = typeof value === "number" ? value : Number(value ?? 0.5);
   return Math.min(1, Math.max(0, Number.isFinite(progress) ? progress : 0.5));
 }
 
+/** 根据 widget 配置和当前值生成显示文本。 */
 function resolveWidgetDisplayValue(widget: { value?: unknown; options?: Record<string, unknown> }, value: unknown): string {
   const options = widget.options as DemoWidgetOptions | undefined;
 
@@ -335,6 +364,7 @@ function resolveWidgetDisplayValue(widget: { value?: unknown; options?: Record<s
   return formatWidgetValue(value);
 }
 
+/** 将任意 widget 值格式化为稳定字符串。 */
 function formatWidgetValue(value: unknown): string {
   if (value === undefined) {
     return "";
@@ -355,11 +385,16 @@ function formatWidgetValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** 读取节点强调色，未提供时回退到默认输出端口颜色。 */
 function readNodeAccent(node: NodeRuntimeState): string {
   const accent = node.properties?.accent;
   return typeof accent === "string" && accent ? accent : OUTPUT_PORT_FILL;
 }
 
+/**
+ * LeaferGraph 主包运行时。
+ * 当前既提供插件安装入口，也负责 demo 级节点图渲染与交互。
+ */
 export class LeaferGraph {
   readonly container: HTMLElement;
   readonly app: App;
@@ -399,6 +434,7 @@ export class LeaferGraph {
     this.app.forceRender();
   };
 
+  /** 创建图宿主，并在内部异步完成模块与插件安装。 */
   constructor(container: HTMLElement, options: LeaferGraphOptions = {}) {
     this.container = container;
     this.prepareContainer(options.fill);
@@ -429,6 +465,7 @@ export class LeaferGraph {
     });
   }
 
+  /** 销毁宿主实例，并清理全部全局事件与 widget 生命周期。 */
   destroy(): void {
     for (const state of this.nodeViews.values()) {
       this.destroyNodeWidgets(state);
@@ -440,6 +477,7 @@ export class LeaferGraph {
     this.app.destroy();
   }
 
+  /** 安装一个外部节点插件。 */
   async use(plugin: LeaferGraphNodePlugin): Promise<void> {
     if (this.installedPlugins.has(plugin.name)) {
       return;
@@ -493,18 +531,22 @@ export class LeaferGraph {
     });
   }
 
+  /** 安装一个静态节点模块。 */
   installModule(module: NodeModule, options?: InstallNodeModuleOptions): void {
     this.installModuleInternal(module, options);
   }
 
+  /** 注册单个节点定义。 */
   registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void {
     this.nodeRegistry.registerNode(definition, options);
   }
 
+  /** 注册单个 Widget 定义。 */
   registerWidget(definition: WidgetDefinition, options?: RegisterWidgetOptions): void {
     this.nodeRegistry.registerWidget(definition, options);
   }
 
+  /** 注册 Widget renderer。 */
   registerWidgetRenderer(type: string, renderer: LeaferGraphWidgetRenderer): void {
     const safeType = type.trim();
 
@@ -515,14 +557,17 @@ export class LeaferGraph {
     this.widgetRenderers.set(safeType, renderer);
   }
 
+  /** 读取 Widget renderer。 */
   getWidgetRenderer(type: string): LeaferGraphWidgetRenderer | undefined {
     return this.widgetRenderers.get(type);
   }
 
+  /** 列出当前已注册节点。 */
   listNodes(): NodeDefinition[] {
     return this.nodeRegistry.listNodes();
   }
 
+  /** 执行启动期安装流程，然后渲染初始 demo 数据。 */
   private async initialize(options: LeaferGraphOptions): Promise<void> {
     for (const module of options.modules ?? []) {
       this.installModule(module);
@@ -535,6 +580,7 @@ export class LeaferGraph {
     this.renderDemo(options.nodes ?? DEFAULT_NODES);
   }
 
+  /** 模块安装的内部统一入口。 */
   private installModuleInternal(
     module: NodeModule,
     options?: InstallNodeModuleOptions
@@ -542,6 +588,7 @@ export class LeaferGraph {
     return installNodeModule(this.nodeRegistry, module, options);
   }
 
+  /** 注册主包默认内建 Widget renderer。 */
   private registerBuiltinWidgetRenderers(): void {
     this.registerWidgetRenderer("slider", createSliderWidgetRenderer());
     this.registerWidgetRenderer("number", createValueWidgetRenderer());
@@ -551,6 +598,7 @@ export class LeaferGraph {
     this.registerWidgetRenderer("custom", createValueWidgetRenderer());
   }
 
+  /** 规范化容器样式与背景。 */
   private prepareContainer(fill?: string): void {
     this.container.replaceChildren();
     if (!this.container.style.position) {
@@ -574,6 +622,7 @@ export class LeaferGraph {
     this.container.style.backgroundSize = "auto, auto, 20px 20px, auto";
   }
 
+  /** 根据输入数据重建整个 demo 场景。 */
   private renderDemo(nodes: LeaferGraphNodeData[]): void {
     for (const state of this.nodeViews.values()) {
       this.destroyNodeWidgets(state);
@@ -602,6 +651,7 @@ export class LeaferGraph {
     }
   }
 
+  /** 创建两个节点之间的连线图元。 */
   private createLink(
     source: GraphNodeState,
     target: GraphNodeState
@@ -635,6 +685,7 @@ export class LeaferGraph {
     });
   }
 
+  /** 绑定节点拖拽交互。 */
   private bindNodeDragging(nodeId: string, view: Group): void {
     view.on("pointer.enter", () => {
       if (!this.dragState) {
@@ -661,6 +712,7 @@ export class LeaferGraph {
     });
   }
 
+  /** 同步拖拽后的节点位置，并刷新相关连线。 */
   private syncDraggedNode(nodeId: string, x: number, y: number): void {
     const state = this.nodeViews.get(nodeId);
     if (!state) {
@@ -675,6 +727,7 @@ export class LeaferGraph {
     this.updateConnectedLinks(nodeId);
   }
 
+  /** 只更新与某个节点相连的连线，避免全量重算。 */
   private updateConnectedLinks(nodeId: string): void {
     for (const link of this.linkViews) {
       if (link.sourceId !== nodeId && link.targetId !== nodeId) {
@@ -708,6 +761,7 @@ export class LeaferGraph {
     }
   }
 
+  /** 将窗口指针坐标转换为容器局部坐标。 */
   private getContainerPoint(event: PointerEvent): { x: number; y: number } {
     const rect = this.container.getBoundingClientRect();
 
@@ -717,6 +771,7 @@ export class LeaferGraph {
     };
   }
 
+  /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
   setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
     const state = this.nodeViews.get(nodeId);
     const widget = state?.state.widgets[widgetIndex];
@@ -730,6 +785,7 @@ export class LeaferGraph {
     this.app.forceRender();
   }
 
+  /** 将页面层 demo 数据转换为真正的节点运行时实例。 */
   private createGraphNodeState(node: LeaferGraphNodeData): GraphNodeState {
     const type = node.type ?? DEMO_NODE_TYPE;
     const properties: Record<string, unknown> = {
@@ -781,6 +837,7 @@ export class LeaferGraph {
     }) as GraphNodeState;
   }
 
+  /** 根据节点运行时状态创建完整的 Leafer 节点视图。 */
   private createNode(node: GraphNodeState): NodeViewState {
     const width = node.layout.width ?? DEFAULT_NODE_WIDTH;
     const inputs = this.resolveInputs(node);
@@ -988,6 +1045,7 @@ export class LeaferGraph {
     };
   }
 
+  /** 渲染节点内部全部 Widget，并保存 renderer 返回实例。 */
   private renderNodeWidgets(
     node: GraphNodeState,
     widgetLayer: Group,
@@ -1016,6 +1074,7 @@ export class LeaferGraph {
     return instances;
   }
 
+  /** 销毁节点内部全部 Widget 实例。 */
   private destroyNodeWidgets(state: NodeViewState): void {
     for (const instance of state.widgetInstances) {
       instance?.destroy?.();
@@ -1025,6 +1084,7 @@ export class LeaferGraph {
     state.widgetLayer.removeAll();
   }
 
+  /** 计算节点最终高度。 */
   private resolveNodeHeight(node: GraphNodeState): number {
     const slotCount = Math.max(
       this.resolveInputs(node).length,
@@ -1042,10 +1102,12 @@ export class LeaferGraph {
     return Math.max(node.layout.height ?? 0, computedHeight, DEFAULT_NODE_MIN_HEIGHT);
   }
 
+  /** 计算默认主端口的纵向锚点。 */
   private resolvePrimaryPortY(_node: GraphNodeState): number {
     return HEADER_HEIGHT + SECTION_PADDING_Y + SLOT_ROW_HEIGHT / 2;
   }
 
+  /** 计算槽位区域高度。 */
   private resolveSlotsHeight(slotCount: number): number {
     if (slotCount <= 1) {
       return SLOT_ROW_HEIGHT;
@@ -1054,22 +1116,26 @@ export class LeaferGraph {
     return slotCount * SLOT_ROW_HEIGHT + (slotCount - 1) * SLOT_ROW_GAP;
   }
 
+  /** 提取输入槽位显示文本。 */
   private resolveInputs(node: GraphNodeState): string[] {
     return node.inputs.length
       ? node.inputs.map((input) => input.label ?? input.name)
       : ["Input"];
   }
 
+  /** 提取输出槽位显示文本。 */
   private resolveOutputs(node: GraphNodeState): string[] {
     return node.outputs.length
       ? node.outputs.map((output) => output.label ?? output.name)
       : ["Output"];
   }
 
+  /** 计算 Widget 区块总高度。 */
   private resolveWidgetSectionHeight(node: GraphNodeState): number {
     return node.widgets.length * WIDGET_HEIGHT;
   }
 
+  /** 计算 Widget 区域起始 Y 坐标。 */
   private resolveWidgetTop(node: GraphNodeState): number {
     const slotCount = Math.max(
       this.resolveInputs(node).length,
@@ -1080,6 +1146,7 @@ export class LeaferGraph {
     return HEADER_HEIGHT + SECTION_PADDING_Y + this.resolveSlotsHeight(slotCount) + SECTION_PADDING_Y;
   }
 
+  /** 计算单个 Widget 的布局边界。 */
   private resolveWidgetBounds(
     node: GraphNodeState,
     widgetIndex: number,
@@ -1093,6 +1160,7 @@ export class LeaferGraph {
     };
   }
 
+  /** 解析节点分类文本。 */
   private resolveNodeCategory(node: GraphNodeState): string {
     const category = node.properties.category;
 
@@ -1103,6 +1171,7 @@ export class LeaferGraph {
     return this.nodeRegistry.getNode(node.type)?.category ?? this.startCase(node.type);
   }
 
+  /** 解析节点状态灯颜色。 */
   private resolveSignalColor(node: GraphNodeState): string {
     switch ((node.properties.status ?? "READY").toUpperCase()) {
       case "LIVE":
@@ -1120,11 +1189,13 @@ export class LeaferGraph {
     }
   }
 
+  /** 将字符串数组快速转换成槽位声明。 */
   private toSlotSpecs(names: string[]) {
     const list = names.length ? names : ["Value"];
     return list.map((name) => ({ name }));
   }
 
+  /** 把类型名或分类名转换成更友好的首字母大写显示文本。 */
   private startCase(value: string): string {
     return value
       .replace(/[-_]/g, " ")
@@ -1132,6 +1203,7 @@ export class LeaferGraph {
   }
 }
 
+/** 创建 `LeaferGraph` 的便捷工厂函数。 */
 export function createLeaferGraph(
   container: HTMLElement,
   options?: LeaferGraphOptions

@@ -1,15 +1,25 @@
+/**
+ * 端口方向常量。
+ * 当前主包的连线控制柄会依据这个方向做贝塞尔外扩。
+ */
 export const PORT_DIRECTION_LEFT = 1;
 export const PORT_DIRECTION_RIGHT = 2;
 export const PORT_DIRECTION_UP = 3;
 export const PORT_DIRECTION_DOWN = 4;
 
+/** 二维点坐标。 */
 export type LinkPoint = readonly [number, number];
+
+/** 端口方向类型。 */
 export type PortDirection =
   | typeof PORT_DIRECTION_LEFT
   | typeof PORT_DIRECTION_RIGHT
   | typeof PORT_DIRECTION_UP
   | typeof PORT_DIRECTION_DOWN;
 
+/**
+ * 计算连线端点时需要的节点与端口布局输入。
+ */
 export interface LinkEndpointInput {
   sourceX: number;
   sourceY: number;
@@ -21,6 +31,7 @@ export interface LinkEndpointInput {
   portSize: number;
 }
 
+/** 最终计算出的起点和终点。 */
 export interface LinkEndpoints {
   start: LinkPoint;
   end: LinkPoint;

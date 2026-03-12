@@ -8,6 +8,10 @@ import type {
   SlotType
 } from "./types";
 
+/**
+ * 节点实例在运行时可调用的结构性 API。
+ * 这些方法主要复刻旧版节点系统里高频使用的实例操作能力。
+ */
 export interface NodeApi {
   addInput(name: string, type?: SlotType, extra?: Partial<NodeSlotSpec>): NodeSlotSpec;
   addOutput(name: string, type?: SlotType, extra?: Partial<NodeSlotSpec>): NodeSlotSpec;
@@ -21,11 +25,20 @@ export interface NodeApi {
   findOutputSlot(name: string): number;
 }
 
+/**
+ * 节点生命周期钩子集合。
+ * 该接口只描述宿主会在什么阶段调用，具体调度策略由上层图运行时决定。
+ */
 export interface NodeLifecycle {
+  /** 节点实例初次创建完成后触发。 */
   onCreate?(node: NodeRuntimeState, api: NodeApi): void;
+  /** 节点被配置或反序列化时触发。 */
   onConfigure?(node: NodeRuntimeState, data: NodeSerializeResult, api: NodeApi): void;
+  /** 节点序列化前触发，可覆写最终输出内容。 */
   onSerialize?(node: NodeRuntimeState, data: NodeSerializeResult, api: NodeApi): void;
+  /** 节点执行阶段钩子。 */
   onExecute?(node: NodeRuntimeState, context?: unknown, api?: NodeApi): void;
+  /** 节点属性变化后触发，可返回 `false` 拦截后续宿主默认行为。 */
   onPropertyChanged?(
     node: NodeRuntimeState,
     name: string,
@@ -33,8 +46,11 @@ export interface NodeLifecycle {
     prevValue: unknown,
     api: NodeApi
   ): boolean | void;
+  /** 新增输入槽位后触发。 */
   onInputAdded?(node: NodeRuntimeState, input: NodeSlotSpec, api: NodeApi): void;
+  /** 新增输出槽位后触发。 */
   onOutputAdded?(node: NodeRuntimeState, output: NodeSlotSpec, api: NodeApi): void;
+  /** 连接状态变化后触发。 */
   onConnectionsChange?(
     node: NodeRuntimeState,
     type: SlotDirection,
@@ -42,6 +58,7 @@ export interface NodeLifecycle {
     connected: boolean,
     api: NodeApi
   ): void;
+  /** 动作消息入口，通常由宿主 UI 或快捷命令触发。 */
   onAction?(
     node: NodeRuntimeState,
     action: string,
@@ -49,6 +66,7 @@ export interface NodeLifecycle {
     options: Record<string, unknown> | undefined,
     api: NodeApi
   ): void;
+  /** 触发型消息入口，语义上更偏事件广播。 */
   onTrigger?(
     node: NodeRuntimeState,
     action: string,

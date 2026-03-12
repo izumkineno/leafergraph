@@ -13,9 +13,17 @@ import {
 } from "./utils";
 import { normalizeWidgetSpecs } from "./widget";
 
+/**
+ * 重新配置节点实例时允许传入的数据结构。
+ * 它要求至少提供 `type`，其余字段都可以按需增量覆盖。
+ */
 export type NodeConfigureInput = Partial<NodeSerializeResult> &
   Pick<NodeSerializeResult, "type">;
 
+/**
+ * 按节点定义和覆写数据重新配置一个既有节点实例。
+ * 该函数会同步刷新属性、槽位、Widget 和运行时缓存，并触发 `onConfigure`。
+ */
 export function configureNode(
   registry: NodeRegistry,
   node: NodeRuntimeState,
@@ -26,6 +34,7 @@ export function configureNode(
     data.propertySpecs ?? node.propertySpecs ?? definition.properties
   );
 
+  // 先根据传入数据与定义回填静态结构，再重建运行时缓存。
   node.id = data.id ?? node.id;
   node.type = definition.type;
   node.title = data.title ?? node.title ?? definition.title ?? createDefaultTitle(definition.type);
@@ -51,6 +60,7 @@ export function configureNode(
     widgetRegistry: registry.widgetRegistry
   });
 
+  // 传给生命周期钩子的结构必须是安全副本，避免用户回调无意污染宿主状态。
   definition.onConfigure?.(
     node,
     {

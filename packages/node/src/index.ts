@@ -1,3 +1,7 @@
+/**
+ * `@leafergraph/node` 的统一公共入口。
+ * 这里导出节点定义、注册表、序列化工具和模块安装能力，供主包与外部插件共用。
+ */
 export type {
   NodeFlags,
   NodeInit,

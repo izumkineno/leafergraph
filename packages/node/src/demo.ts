@@ -3,6 +3,10 @@ import type { NodeWidgetSpec } from "./types";
 
 // 这组类型只服务当前 demo / editor 接入，后续可再迁回主包或专门的 demo 包。
 
+/**
+ * Demo 节点输入结构。
+ * 这里偏向演示用途，字段比正式 `NodeInit` 更接近页面层数据源。
+ */
 export interface LeaferGraphNodeData {
   id: string;
   type?: string;
@@ -25,6 +29,9 @@ export interface LeaferGraphNodeData {
   data?: Record<string, unknown>;
 }
 
+/**
+ * 主包 demo 初始化配置。
+ */
 export interface LeaferGraphOptions {
   fill?: string;
   nodes?: LeaferGraphNodeData[];

@@ -15,11 +15,19 @@ import {
 } from "./utils";
 import { type WidgetRegistry, normalizeWidgetSpec } from "./widget";
 
+/**
+ * 创建 `NodeApi` 时的额外上下文。
+ * 宿主可以按需注入定义对象和 Widget 注册表，让 API 在运行时补充校验与钩子。
+ */
 export interface CreateNodeApiOptions {
   definition?: NodeDefinition;
   widgetRegistry?: WidgetRegistry;
 }
 
+/**
+ * 为节点运行时状态创建一组可操作 API。
+ * 这些 API 会被生命周期钩子和宿主逻辑共同复用。
+ */
 export function createNodeApi(
   node: NodeRuntimeState,
   options: CreateNodeApiOptions = {}
@@ -29,6 +37,7 @@ export function createNodeApi(
       const input = createSlotSpec(name, type, extra);
       node.inputs.push(input);
       node.inputValues = resizeRuntimeValues(node.inputValues, node.inputs.length);
+      // 槽位结构变化后立即同步运行时输入缓存，避免索引错位。
       options.definition?.onInputAdded?.(node, input, api);
       return input;
     },
@@ -36,6 +45,7 @@ export function createNodeApi(
       const output = createSlotSpec(name, type, extra);
       node.outputs.push(output);
       node.outputValues = resizeRuntimeValues(node.outputValues, node.outputs.length);
+      // 输出端同样需要保持缓存长度和槽位数量一致。
       options.definition?.onOutputAdded?.(node, output, api);
       return output;
     },
@@ -62,6 +72,7 @@ export function createNodeApi(
       const index = node.propertySpecs.findIndex((item) => item.name === nextSpec.name);
 
       if (index >= 0) {
+        // 同名属性视为覆写声明，避免同一实例里出现重复定义。
         node.propertySpecs[index] = nextSpec;
       } else {
         node.propertySpecs.push(nextSpec);
@@ -102,6 +113,9 @@ export function createNodeApi(
   return api;
 }
 
+/**
+ * 以宿主统一的拷贝规则创建槽位声明。
+ */
 function createSlotSpec(
   name: string,
   type?: SlotType,

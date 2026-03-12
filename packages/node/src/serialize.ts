@@ -10,6 +10,10 @@ import {
 } from "./utils";
 import { serializeWidgetSpecs } from "./widget";
 
+/**
+ * 将节点运行时状态转成可持久化结构。
+ * 它会主动剔除输入输出缓存，只保留可恢复的静态与配置状态。
+ */
 export function serializeNode(
   registry: NodeRegistry,
   node: NodeRuntimeState
@@ -34,6 +38,7 @@ export function serializeNode(
     widgetRegistry: registry.widgetRegistry
   });
 
+  // 允许节点在最终输出前做一次补充或裁剪。
   definition.onSerialize?.(node, data, api);
   return data;
 }

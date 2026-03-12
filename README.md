@@ -34,16 +34,16 @@ bun run build
 
 ## 设计文档
 
-- `docs/Scope_and_Design_Options.md`
+- `docs/范围与设计选项.md`
   - 范围划定
   - 三个设计方案
   - 推荐结构与后续优先级
-- `docs/Architecture_Blueprint.md`
+- `docs/架构蓝图.md`
   - 参考 `litegraph.js` Leafer 运行层提炼出的新架构
   - 分层、主链路、层级模型与阶段路线
-- `docs/Node_Plugin_Integration.md`
+- `docs/节点插件接入方案.md`
   - 外部节点包接入方案
   - Vite external、宿主注入与主包节点池注册流程
-- `docs/Node_API_Proposal.md`
+- `docs/节点API方案.md`
   - 节点 API 与节点外壳整合方案
   - 生命周期、注册机制、节点结构与外壳设计说明

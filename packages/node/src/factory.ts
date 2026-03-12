@@ -14,6 +14,10 @@ import {
 } from "./utils";
 import { normalizeWidgetSpecs } from "./widget";
 
+/**
+ * 根据注册表中的节点定义创建一个新的节点运行时实例。
+ * 这是宿主从静态定义走向真实运行时状态的核心入口。
+ */
 export function createNodeState(
   registry: NodeRegistry,
   init: NodeInit
@@ -27,6 +31,7 @@ export function createNodeState(
     init.widgets ?? definition.widgets
   );
 
+  // 创建阶段只做数据整形与默认值回填，不包含任何渲染逻辑。
   const node: NodeRuntimeState = {
     id: init.id ?? createNodeId(definition.type),
     type: definition.type,
@@ -48,6 +53,7 @@ export function createNodeState(
     widgetRegistry: registry.widgetRegistry
   });
 
+  // 生命周期在实例结构就绪后再触发，保证回调可安全访问全部字段。
   definition.onCreate?.(node, api);
   return node;
 }
