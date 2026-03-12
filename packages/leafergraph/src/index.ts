@@ -1,6 +1,40 @@
 import { App, Group, Rect, Text } from "leafer-ui";
-import { Arrow } from '@leafer-in/arrow'
-import type { LeaferGraphNodeData, LeaferGraphOptions } from "@leafergraph/node";
+import * as LeaferUI from "leafer-ui";
+import { Arrow } from "@leafer-in/arrow";
+import * as NodeSDK from "@leafergraph/node";
+import {
+  installNodeModule,
+  NodeRegistry,
+  createNodeState,
+  type LeaferGraphNodeData,
+  type InstallNodeModuleOptions,
+  type NodeDefinition,
+  type NodeModule,
+  type NodeRuntimeState,
+  type RegisterNodeOptions,
+  type RegisterWidgetOptions,
+  type ResolvedNodeModule,
+  type WidgetDefinition
+} from "@leafergraph/node";
+export { LeaferUI };
+export type { LeaferGraphNodeData } from "@leafergraph/node";
+export type {
+  LeaferGraphNodePlugin,
+  LeaferGraphNodePluginContext,
+  LeaferGraphOptions,
+  LeaferGraphWidgetBounds,
+  LeaferGraphWidgetRenderInstance,
+  LeaferGraphWidgetRenderer,
+  LeaferGraphWidgetRendererContext
+} from "./plugin";
+import type {
+  LeaferGraphNodePlugin,
+  LeaferGraphNodePluginContext,
+  LeaferGraphOptions,
+  LeaferGraphWidgetBounds,
+  LeaferGraphWidgetRenderInstance,
+  LeaferGraphWidgetRenderer
+} from "./plugin";
 import {
   PORT_DIRECTION_LEFT,
   PORT_DIRECTION_RIGHT,
@@ -42,9 +76,11 @@ const TRACK_FILL = "rgba(255, 255, 255, 0.10)";
 const INPUT_PORT_FILL = "#3B82F6";
 const OUTPUT_PORT_FILL = "#8B5CF6";
 const LINK_STROKE = "#60A5FA";
-interface DemoNodeViewState {
-  data: LeaferGraphNodeData;
+interface NodeViewState {
+  state: GraphNodeState;
   view: Group;
+  widgetLayer: Group;
+  widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
 }
 
 interface DemoLinkViewState {
@@ -58,6 +94,32 @@ interface DemoDragState {
   offsetX: number;
   offsetY: number;
 }
+
+interface DemoNodeProperties {
+  subtitle?: string;
+  accent?: string;
+  category?: string;
+  status?: string;
+}
+
+interface DemoWidgetOptions {
+  label?: string;
+  displayValue?: string;
+}
+
+interface InstalledPluginRecord {
+  name: string;
+  version?: string;
+  nodeTypes: string[];
+  widgetTypes: string[];
+}
+
+type GraphNodeState = NodeRuntimeState & {
+  properties: DemoNodeProperties;
+};
+
+const DEMO_NODE_TYPE = "demo/category-node";
+const DEMO_CONTROL_WIDGET = "primary-control";
 
 const DEFAULT_NODES: LeaferGraphNodeData[] = [
   {
@@ -107,15 +169,211 @@ const DEFAULT_NODES: LeaferGraphNodeData[] = [
   }
 ];
 
+const DEMO_NODE_DEFINITION: NodeDefinition = {
+  type: DEMO_NODE_TYPE,
+  title: "Category Node",
+  category: "Demo",
+  size: [DEFAULT_NODE_WIDTH, DEFAULT_NODE_MIN_HEIGHT],
+  minWidth: DEFAULT_NODE_WIDTH,
+  minHeight: DEFAULT_NODE_MIN_HEIGHT,
+  properties: [
+    { name: "subtitle", type: "string" },
+    { name: "accent", type: "string", default: OUTPUT_PORT_FILL },
+    { name: "category", type: "string" },
+    { name: "status", type: "string", default: "READY" }
+  ],
+  widgets: [
+    {
+      type: "slider",
+      name: DEMO_CONTROL_WIDGET,
+      value: 0.5,
+      options: { label: "Value" }
+    }
+  ]
+};
+
+function createDemoNodeRegistry(): NodeRegistry {
+  const registry = new NodeRegistry();
+  registry.registerNode(DEMO_NODE_DEFINITION);
+  return registry;
+}
+
+function createSliderWidgetRenderer(): LeaferGraphWidgetRenderer {
+  return ({ ui, group, node, widget, value, bounds }) => {
+    const options = widget.options as DemoWidgetOptions | undefined;
+    const accent = readNodeAccent(node);
+    const progress = clampProgress(value);
+
+    const label = new ui.Text({
+      x: bounds.x,
+      y: bounds.y + 12,
+      text: (options?.label ?? widget.name).toUpperCase(),
+      fill: WIDGET_LABEL_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 10,
+      fontWeight: "600",
+      hittable: false
+    });
+
+    const valueText = new ui.Text({
+      x: bounds.x + bounds.width - 38,
+      y: bounds.y + 12,
+      width: 38,
+      text: resolveWidgetDisplayValue(widget, progress),
+      textAlign: "right",
+      fill: WIDGET_VALUE_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 11,
+      fontWeight: "600",
+      hittable: false
+    });
+
+    const track = new ui.Rect({
+      x: bounds.x,
+      y: bounds.y + 36,
+      width: bounds.width,
+      height: WIDGET_TRACK_HEIGHT,
+      fill: TRACK_FILL,
+      cornerRadius: 999,
+      hittable: false
+    });
+
+    const active = new ui.Rect({
+      x: bounds.x,
+      y: bounds.y + 36,
+      width: bounds.width * progress,
+      height: WIDGET_TRACK_HEIGHT,
+      fill: accent,
+      cornerRadius: 999,
+      hittable: false
+    });
+
+    const thumb = new ui.Rect({
+      x: bounds.x + bounds.width * progress - 7,
+      y: bounds.y + 31,
+      width: 14,
+      height: 14,
+      fill: accent,
+      stroke: "rgba(255, 255, 255, 0.10)",
+      strokeWidth: 1,
+      cornerRadius: 999,
+      hittable: false
+    });
+
+    group.add([label, valueText, track, active, thumb]);
+
+    return {
+      update(newValue: unknown) {
+        const nextProgress = clampProgress(newValue);
+        active.width = bounds.width * nextProgress;
+        thumb.x = bounds.x + bounds.width * nextProgress - 7;
+        valueText.text = resolveWidgetDisplayValue(widget, nextProgress);
+      },
+      destroy() {
+        group.removeAll();
+      }
+    };
+  };
+}
+
+function createValueWidgetRenderer(): LeaferGraphWidgetRenderer {
+  return ({ ui, group, widget, value, bounds }) => {
+    const options = widget.options as DemoWidgetOptions | undefined;
+
+    const label = new ui.Text({
+      x: bounds.x,
+      y: bounds.y + 12,
+      text: (options?.label ?? widget.name).toUpperCase(),
+      fill: WIDGET_LABEL_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 10,
+      fontWeight: "600",
+      hittable: false
+    });
+
+    const valueText = new ui.Text({
+      x: bounds.x,
+      y: bounds.y + 30,
+      width: bounds.width,
+      text: formatWidgetValue(value),
+      fill: WIDGET_VALUE_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 11,
+      fontWeight: "500",
+      hittable: false
+    });
+
+    group.add([label, valueText]);
+
+    return {
+      update(newValue: unknown) {
+        valueText.text = formatWidgetValue(newValue);
+      },
+      destroy() {
+        group.removeAll();
+      }
+    };
+  };
+}
+
+function clampProgress(value: unknown): number {
+  const progress = typeof value === "number" ? value : Number(value ?? 0.5);
+  return Math.min(1, Math.max(0, Number.isFinite(progress) ? progress : 0.5));
+}
+
+function resolveWidgetDisplayValue(widget: { value?: unknown; options?: Record<string, unknown> }, value: unknown): string {
+  const options = widget.options as DemoWidgetOptions | undefined;
+
+  if (options?.displayValue) {
+    return options.displayValue;
+  }
+
+  if (typeof value === "number") {
+    return (value * 5).toFixed(2);
+  }
+
+  return formatWidgetValue(value);
+}
+
+function formatWidgetValue(value: unknown): string {
+  if (value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "True" : "False";
+  }
+
+  return JSON.stringify(value);
+}
+
+function readNodeAccent(node: NodeRuntimeState): string {
+  const accent = node.properties?.accent;
+  return typeof accent === "string" && accent ? accent : OUTPUT_PORT_FILL;
+}
+
 export class LeaferGraph {
   readonly container: HTMLElement;
   readonly app: App;
   readonly root: Group;
   readonly linkLayer: Group;
   readonly nodeLayer: Group;
+  readonly ready: Promise<void>;
 
-  private readonly nodeViews = new Map<string, DemoNodeViewState>();
+  private readonly nodeRegistry: NodeRegistry;
+  private readonly nodeViews = new Map<string, NodeViewState>();
   private readonly linkViews: DemoLinkViewState[] = [];
+  private readonly widgetRenderers = new Map<string, LeaferGraphWidgetRenderer>();
+  private readonly defaultWidgetRenderer = createValueWidgetRenderer();
+  private readonly installedPlugins = new Map<string, InstalledPluginRecord>();
   private dragState: DemoDragState | null = null;
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
     if (!this.dragState) {
@@ -144,6 +402,7 @@ export class LeaferGraph {
   constructor(container: HTMLElement, options: LeaferGraphOptions = {}) {
     this.container = container;
     this.prepareContainer(options.fill);
+    this.nodeRegistry = createDemoNodeRegistry();
 
     this.app = new App({
       view: container,
@@ -163,15 +422,133 @@ export class LeaferGraph {
     window.addEventListener("pointermove", this.handleWindowPointerMove);
     window.addEventListener("pointerup", this.handleWindowPointerUp);
     window.addEventListener("pointercancel", this.handleWindowPointerUp);
-
-    this.renderDemo(options.nodes ?? DEFAULT_NODES);
+    this.registerBuiltinWidgetRenderers();
+    this.ready = this.initialize(options);
+    this.ready.catch((error) => {
+      console.error("[leafergraph] 初始化失败", error);
+    });
   }
 
   destroy(): void {
+    for (const state of this.nodeViews.values()) {
+      this.destroyNodeWidgets(state);
+    }
+
     window.removeEventListener("pointermove", this.handleWindowPointerMove);
     window.removeEventListener("pointerup", this.handleWindowPointerUp);
     window.removeEventListener("pointercancel", this.handleWindowPointerUp);
     this.app.destroy();
+  }
+
+  async use(plugin: LeaferGraphNodePlugin): Promise<void> {
+    if (this.installedPlugins.has(plugin.name)) {
+      return;
+    }
+
+    const nodeTypes: string[] = [];
+    const widgetTypes: string[] = [];
+    const recordType = (list: string[], type: string): void => {
+      const safeType = type.trim();
+      if (safeType && !list.includes(safeType)) {
+        list.push(safeType);
+      }
+    };
+
+    const context: LeaferGraphNodePluginContext = {
+      sdk: NodeSDK,
+      ui: LeaferUI,
+      installModule: (module, options) => {
+        const resolved = this.installModuleInternal(module, options);
+        for (const node of resolved.nodes) {
+          recordType(nodeTypes, node.type);
+        }
+        for (const widget of resolved.widgets) {
+          recordType(widgetTypes, widget.type);
+        }
+      },
+      registerNode: (definition, options) => {
+        this.registerNode(definition, options);
+        recordType(nodeTypes, definition.type);
+      },
+      registerWidget: (definition, options) => {
+        this.registerWidget(definition, options);
+        recordType(widgetTypes, definition.type);
+      },
+      registerWidgetRenderer: (type, renderer) => {
+        this.registerWidgetRenderer(type, renderer);
+      },
+      hasNode: (type) => this.nodeRegistry.hasNode(type),
+      hasWidget: (type) => this.nodeRegistry.widgetRegistry.has(type),
+      getNode: (type) => this.nodeRegistry.getNode(type),
+      listNodes: () => this.nodeRegistry.listNodes()
+    };
+
+    await plugin.install(context);
+
+    this.installedPlugins.set(plugin.name, {
+      name: plugin.name,
+      version: plugin.version,
+      nodeTypes,
+      widgetTypes
+    });
+  }
+
+  installModule(module: NodeModule, options?: InstallNodeModuleOptions): void {
+    this.installModuleInternal(module, options);
+  }
+
+  registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void {
+    this.nodeRegistry.registerNode(definition, options);
+  }
+
+  registerWidget(definition: WidgetDefinition, options?: RegisterWidgetOptions): void {
+    this.nodeRegistry.registerWidget(definition, options);
+  }
+
+  registerWidgetRenderer(type: string, renderer: LeaferGraphWidgetRenderer): void {
+    const safeType = type.trim();
+
+    if (!safeType) {
+      throw new Error("Widget 渲染器类型不能为空");
+    }
+
+    this.widgetRenderers.set(safeType, renderer);
+  }
+
+  getWidgetRenderer(type: string): LeaferGraphWidgetRenderer | undefined {
+    return this.widgetRenderers.get(type);
+  }
+
+  listNodes(): NodeDefinition[] {
+    return this.nodeRegistry.listNodes();
+  }
+
+  private async initialize(options: LeaferGraphOptions): Promise<void> {
+    for (const module of options.modules ?? []) {
+      this.installModule(module);
+    }
+
+    for (const plugin of options.plugins ?? []) {
+      await this.use(plugin);
+    }
+
+    this.renderDemo(options.nodes ?? DEFAULT_NODES);
+  }
+
+  private installModuleInternal(
+    module: NodeModule,
+    options?: InstallNodeModuleOptions
+  ): ResolvedNodeModule {
+    return installNodeModule(this.nodeRegistry, module, options);
+  }
+
+  private registerBuiltinWidgetRenderers(): void {
+    this.registerWidgetRenderer("slider", createSliderWidgetRenderer());
+    this.registerWidgetRenderer("number", createValueWidgetRenderer());
+    this.registerWidgetRenderer("string", createValueWidgetRenderer());
+    this.registerWidgetRenderer("combo", createValueWidgetRenderer());
+    this.registerWidgetRenderer("toggle", createValueWidgetRenderer());
+    this.registerWidgetRenderer("custom", createValueWidgetRenderer());
   }
 
   private prepareContainer(fill?: string): void {
@@ -198,13 +575,22 @@ export class LeaferGraph {
   }
 
   private renderDemo(nodes: LeaferGraphNodeData[]): void {
-    const localNodes = nodes.map((node) => this.cloneNodeData(node));
+    for (const state of this.nodeViews.values()) {
+      this.destroyNodeWidgets(state);
+    }
+
+    this.nodeViews.clear();
+    this.linkViews.length = 0;
+    this.nodeLayer.removeAll();
+    this.linkLayer.removeAll();
+
+    const localNodes = nodes.map((node) => this.createGraphNodeState(node));
 
     for (const node of localNodes) {
-      const view = this.createNode(node);
-      this.nodeViews.set(node.id, { data: node, view });
-      this.nodeLayer.add(view);
-      this.bindNodeDragging(node.id, view);
+      const state = this.createNode(node);
+      this.nodeViews.set(node.id, state);
+      this.nodeLayer.add(state.view);
+      this.bindNodeDragging(node.id, state.view);
     }
 
     for (let index = 0; index < localNodes.length - 1; index += 1) {
@@ -217,16 +603,16 @@ export class LeaferGraph {
   }
 
   private createLink(
-    source: LeaferGraphNodeData,
-    target: LeaferGraphNodeData
+    source: GraphNodeState,
+    target: GraphNodeState
   ): Arrow {
-    const sourceWidth = source.width ?? DEFAULT_NODE_WIDTH;
+    const sourceWidth = source.layout.width ?? DEFAULT_NODE_WIDTH;
     const endpoints = resolveLinkEndpoints({
-      sourceX: source.x,
-      sourceY: source.y,
+      sourceX: source.layout.x,
+      sourceY: source.layout.y,
       sourceWidth,
-      targetX: target.x,
-      targetY: target.y,
+      targetX: target.layout.x,
+      targetY: target.layout.y,
       sourcePortY: this.resolvePrimaryPortY(source),
       targetPortY: this.resolvePrimaryPortY(target),
       portSize: PORT_SIZE
@@ -239,6 +625,7 @@ export class LeaferGraph {
         PORT_DIRECTION_RIGHT,
         PORT_DIRECTION_LEFT
       ),
+      endArrow: "none",
       fill: "transparent",
       stroke: LINK_STROKE,
       strokeWidth: 3,
@@ -267,8 +654,8 @@ export class LeaferGraph {
 
       this.dragState = {
         nodeId,
-        offsetX: event.x - state.data.x,
-        offsetY: event.y - state.data.y
+        offsetX: event.x - state.state.layout.x,
+        offsetY: event.y - state.state.layout.y
       };
       this.container.style.cursor = "grabbing";
     });
@@ -280,8 +667,8 @@ export class LeaferGraph {
       return;
     }
 
-    state.data.x = x;
-    state.data.y = y;
+    state.state.layout.x = x;
+    state.state.layout.y = y;
     state.view.x = x;
     state.view.y = y;
 
@@ -294,19 +681,19 @@ export class LeaferGraph {
         continue;
       }
 
-      const source = this.nodeViews.get(link.sourceId)?.data;
-      const target = this.nodeViews.get(link.targetId)?.data;
+      const source = this.nodeViews.get(link.sourceId)?.state;
+      const target = this.nodeViews.get(link.targetId)?.state;
       if (!source || !target) {
         continue;
       }
 
-      const sourceWidth = source.width ?? DEFAULT_NODE_WIDTH;
+      const sourceWidth = source.layout.width ?? DEFAULT_NODE_WIDTH;
       const endpoints = resolveLinkEndpoints({
-        sourceX: source.x,
-        sourceY: source.y,
+        sourceX: source.layout.x,
+        sourceY: source.layout.y,
         sourceWidth,
-        targetX: target.x,
-        targetY: target.y,
+        targetX: target.layout.x,
+        targetY: target.layout.y,
         sourcePortY: this.resolvePrimaryPortY(source),
         targetPortY: this.resolvePrimaryPortY(target),
         portSize: PORT_SIZE
@@ -321,14 +708,6 @@ export class LeaferGraph {
     }
   }
 
-  private cloneNodeData(node: LeaferGraphNodeData): LeaferGraphNodeData {
-    return {
-      ...node,
-      inputs: node.inputs ? [...node.inputs] : undefined,
-      outputs: node.outputs ? [...node.outputs] : undefined
-    };
-  }
-
   private getContainerPoint(event: PointerEvent): { x: number; y: number } {
     const rect = this.container.getBoundingClientRect();
 
@@ -338,13 +717,74 @@ export class LeaferGraph {
     };
   }
 
-  private createNode(node: LeaferGraphNodeData): Group {
-    const width = node.width ?? DEFAULT_NODE_WIDTH;
+  setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
+    const state = this.nodeViews.get(nodeId);
+    const widget = state?.state.widgets[widgetIndex];
+
+    if (!state || !widget) {
+      return;
+    }
+
+    widget.value = newValue;
+    state.widgetInstances[widgetIndex]?.update?.(newValue);
+    this.app.forceRender();
+  }
+
+  private createGraphNodeState(node: LeaferGraphNodeData): GraphNodeState {
+    const type = node.type ?? DEMO_NODE_TYPE;
+    const properties: Record<string, unknown> = {
+      ...(node.properties ?? {})
+    };
+
+    if (node.subtitle !== undefined) {
+      properties.subtitle = node.subtitle;
+    }
+    if (node.accent !== undefined) {
+      properties.accent = node.accent;
+    }
+    if (node.category !== undefined) {
+      properties.category = node.category;
+    }
+    if (node.status !== undefined) {
+      properties.status = node.status;
+    }
+
+    return createNodeState(this.nodeRegistry, {
+      id: node.id,
+      type,
+      title: node.title,
+      layout: {
+        x: node.x,
+        y: node.y,
+        width: node.width,
+        height: node.height
+      },
+      properties,
+      inputs: node.inputs ? this.toSlotSpecs(node.inputs) : undefined,
+      outputs: node.outputs ? this.toSlotSpecs(node.outputs) : undefined,
+      widgets:
+        node.widgets ??
+        (type === DEMO_NODE_TYPE
+          ? [
+              {
+                type: "slider",
+                name: DEMO_CONTROL_WIDGET,
+                value: node.controlProgress ?? 0.5,
+                options: {
+                  label: node.controlLabel ?? "Value",
+                  displayValue: node.controlValue
+                }
+              }
+            ]
+          : undefined),
+      data: node.data
+    }) as GraphNodeState;
+  }
+
+  private createNode(node: GraphNodeState): NodeViewState {
+    const width = node.layout.width ?? DEFAULT_NODE_WIDTH;
     const inputs = this.resolveInputs(node);
     const outputs = this.resolveOutputs(node);
-    const slotCount = Math.max(inputs.length, outputs.length, 1);
-    const slotsHeight = this.resolveSlotsHeight(slotCount);
-    const widgetTop = HEADER_HEIGHT + SECTION_PADDING_Y + slotsHeight + SECTION_PADDING_Y;
     const height = this.resolveNodeHeight(node);
     const category = this.resolveNodeCategory(node);
     const categoryWidth = Math.max(
@@ -352,18 +792,13 @@ export class LeaferGraph {
       Math.round(category.length * CATEGORY_CHAR_WIDTH + 24)
     );
     const categoryX = width - categoryWidth - 16;
-    const accent = node.accent ?? OUTPUT_PORT_FILL;
     const signalColor = this.resolveSignalColor(node);
-    const controlLabel = this.resolveControlLabel(node);
-    const controlProgress = this.resolveControlProgress(node);
-    const controlValue = this.resolveControlValue(node, controlProgress);
-    const trackWidth = width - SECTION_PADDING_X * 2;
-    const activeTrackWidth = trackWidth * controlProgress;
-    const thumbX = SECTION_PADDING_X + trackWidth * controlProgress - 7;
+    const hasWidgets = node.widgets.length > 0;
+    const widgetTop = this.resolveWidgetTop(node);
 
     const group = new Group({
-      x: node.x,
-      y: node.y,
+      x: node.layout.x,
+      y: node.layout.y,
       name: `node-${node.id}`
     });
 
@@ -447,79 +882,6 @@ export class LeaferGraph {
       hittable: false
     });
 
-    const widgetPanel = new Rect({
-      y: widgetTop,
-      width,
-      height: height - widgetTop,
-      fill: WIDGET_FILL,
-      cornerRadius: [0, 0, NODE_RADIUS, NODE_RADIUS],
-      hittable: false
-    });
-
-    const widgetDivider = new Rect({
-      y: widgetTop,
-      width,
-      height: 1,
-      fill: HEADER_DIVIDER_FILL,
-      hittable: false
-    });
-
-    const widgetLabel = new Text({
-      x: SECTION_PADDING_X,
-      y: widgetTop + 12,
-      text: controlLabel.toUpperCase(),
-      fill: WIDGET_LABEL_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 10,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const widgetValue = new Text({
-      x: width - SECTION_PADDING_X - 38,
-      y: widgetTop + 12,
-      width: 38,
-      text: controlValue,
-      textAlign: "right",
-      fill: WIDGET_VALUE_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 11,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const sliderTrack = new Rect({
-      x: SECTION_PADDING_X,
-      y: widgetTop + 36,
-      width: trackWidth,
-      height: WIDGET_TRACK_HEIGHT,
-      fill: TRACK_FILL,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const sliderActive = new Rect({
-      x: SECTION_PADDING_X,
-      y: widgetTop + 36,
-      width: activeTrackWidth,
-      height: WIDGET_TRACK_HEIGHT,
-      fill: accent,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const sliderThumb = new Rect({
-      x: thumbX,
-      y: widgetTop + 31,
-      width: 14,
-      height: 14,
-      fill: accent,
-      stroke: "rgba(255, 255, 255, 0.10)",
-      strokeWidth: 1,
-      cornerRadius: 999,
-      hittable: false
-    });
-
     const parts = [
       card,
       header,
@@ -528,15 +890,28 @@ export class LeaferGraph {
       signalLight,
       title,
       categoryBadge,
-      categoryLabel,
-      widgetPanel,
-      widgetDivider,
-      widgetLabel,
-      widgetValue,
-      sliderTrack,
-      sliderActive,
-      sliderThumb
+      categoryLabel
     ];
+
+    if (hasWidgets) {
+      parts.push(
+        new Rect({
+          y: widgetTop,
+          width,
+          height: height - widgetTop,
+          fill: WIDGET_FILL,
+          cornerRadius: [0, 0, NODE_RADIUS, NODE_RADIUS],
+          hittable: false
+        }),
+        new Rect({
+          y: widgetTop,
+          width,
+          height: 1,
+          fill: HEADER_DIVIDER_FILL,
+          hittable: false
+        })
+      );
+    }
 
     const slotStartY = HEADER_HEIGHT + SECTION_PADDING_Y;
 
@@ -600,12 +975,57 @@ export class LeaferGraph {
       );
     }
 
-    group.add(parts);
+    const widgetLayer = new Group({ name: `widgets-${node.id}` });
+    const widgetInstances = hasWidgets ? this.renderNodeWidgets(node, widgetLayer, width) : [];
 
-    return group;
+    group.add([...parts, widgetLayer]);
+
+    return {
+      state: node,
+      view: group,
+      widgetLayer,
+      widgetInstances
+    };
   }
 
-  private resolveNodeHeight(node: LeaferGraphNodeData): number {
+  private renderNodeWidgets(
+    node: GraphNodeState,
+    widgetLayer: Group,
+    width: number
+  ): Array<LeaferGraphWidgetRenderInstance | null> {
+    const instances: Array<LeaferGraphWidgetRenderInstance | null> = [];
+
+    for (let index = 0; index < node.widgets.length; index += 1) {
+      const widget = node.widgets[index];
+      const group = new Group({ name: `widget-${node.id}-${index}` });
+      const renderer = this.getWidgetRenderer(widget.type) ?? this.defaultWidgetRenderer;
+      const bounds = this.resolveWidgetBounds(node, index, width);
+      const instance = renderer({
+        ui: LeaferUI,
+        group,
+        node,
+        widget,
+        value: widget.value,
+        bounds
+      });
+
+      instances.push(instance ?? null);
+      widgetLayer.add(group);
+    }
+
+    return instances;
+  }
+
+  private destroyNodeWidgets(state: NodeViewState): void {
+    for (const instance of state.widgetInstances) {
+      instance?.destroy?.();
+    }
+
+    state.widgetInstances = [];
+    state.widgetLayer.removeAll();
+  }
+
+  private resolveNodeHeight(node: GraphNodeState): number {
     const slotCount = Math.max(
       this.resolveInputs(node).length,
       this.resolveOutputs(node).length,
@@ -613,12 +1033,16 @@ export class LeaferGraph {
     );
     const slotsHeight = this.resolveSlotsHeight(slotCount);
     const computedHeight =
-      HEADER_HEIGHT + SECTION_PADDING_Y + slotsHeight + SECTION_PADDING_Y + WIDGET_HEIGHT;
+      HEADER_HEIGHT +
+      SECTION_PADDING_Y +
+      slotsHeight +
+      SECTION_PADDING_Y +
+      this.resolveWidgetSectionHeight(node);
 
-    return Math.max(node.height ?? 0, computedHeight, DEFAULT_NODE_MIN_HEIGHT);
+    return Math.max(node.layout.height ?? 0, computedHeight, DEFAULT_NODE_MIN_HEIGHT);
   }
 
-  private resolvePrimaryPortY(_node: LeaferGraphNodeData): number {
+  private resolvePrimaryPortY(_node: GraphNodeState): number {
     return HEADER_HEIGHT + SECTION_PADDING_Y + SLOT_ROW_HEIGHT / 2;
   }
 
@@ -630,40 +1054,57 @@ export class LeaferGraph {
     return slotCount * SLOT_ROW_HEIGHT + (slotCount - 1) * SLOT_ROW_GAP;
   }
 
-  private resolveInputs(node: LeaferGraphNodeData): string[] {
-    return node.inputs?.length ? node.inputs : ["Input"];
+  private resolveInputs(node: GraphNodeState): string[] {
+    return node.inputs.length
+      ? node.inputs.map((input) => input.label ?? input.name)
+      : ["Input"];
   }
 
-  private resolveOutputs(node: LeaferGraphNodeData): string[] {
-    return node.outputs?.length ? node.outputs : ["Output"];
+  private resolveOutputs(node: GraphNodeState): string[] {
+    return node.outputs.length
+      ? node.outputs.map((output) => output.label ?? output.name)
+      : ["Output"];
   }
 
-  private resolveNodeCategory(node: LeaferGraphNodeData): string {
-    return node.category ?? this.startCase(node.id);
+  private resolveWidgetSectionHeight(node: GraphNodeState): number {
+    return node.widgets.length * WIDGET_HEIGHT;
   }
 
-  private resolveControlLabel(node: LeaferGraphNodeData): string {
-    return node.controlLabel ?? "Value";
+  private resolveWidgetTop(node: GraphNodeState): number {
+    const slotCount = Math.max(
+      this.resolveInputs(node).length,
+      this.resolveOutputs(node).length,
+      1
+    );
+
+    return HEADER_HEIGHT + SECTION_PADDING_Y + this.resolveSlotsHeight(slotCount) + SECTION_PADDING_Y;
   }
 
-  private resolveControlValue(
-    node: LeaferGraphNodeData,
-    progress: number
-  ): string {
-    if (node.controlValue) {
-      return node.controlValue;
+  private resolveWidgetBounds(
+    node: GraphNodeState,
+    widgetIndex: number,
+    width: number
+  ): LeaferGraphWidgetBounds {
+    return {
+      x: SECTION_PADDING_X,
+      y: this.resolveWidgetTop(node) + widgetIndex * WIDGET_HEIGHT,
+      width: width - SECTION_PADDING_X * 2,
+      height: WIDGET_HEIGHT
+    };
+  }
+
+  private resolveNodeCategory(node: GraphNodeState): string {
+    const category = node.properties.category;
+
+    if (typeof category === "string" && category) {
+      return category;
     }
 
-    return (progress * 5).toFixed(2);
+    return this.nodeRegistry.getNode(node.type)?.category ?? this.startCase(node.type);
   }
 
-  private resolveControlProgress(node: LeaferGraphNodeData): number {
-    const progress = node.controlProgress ?? 0.5;
-    return Math.min(1, Math.max(0, progress));
-  }
-
-  private resolveSignalColor(node: LeaferGraphNodeData): string {
-    switch ((node.status ?? "READY").toUpperCase()) {
+  private resolveSignalColor(node: GraphNodeState): string {
+    switch ((node.properties.status ?? "READY").toUpperCase()) {
       case "LIVE":
       case "RUNNING":
         return "#34D399";
@@ -675,8 +1116,13 @@ export class LeaferGraph {
       case "WARNING":
         return "#FBBF24";
       default:
-        return node.accent ?? "#60A5FA";
+        return readNodeAccent(node);
     }
+  }
+
+  private toSlotSpecs(names: string[]) {
+    const list = names.length ? names : ["Value"];
+    return list.map((name) => ({ name }));
   }
 
   private startCase(value: string): string {

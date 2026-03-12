@@ -41,6 +41,9 @@ bun run build
 - `docs/Architecture_Blueprint.md`
   - 参考 `litegraph.js` Leafer 运行层提炼出的新架构
   - 分层、主链路、层级模型与阶段路线
-- `docs/Node_Shell_Design.md`
-  - 现代化轻量节点外壳设计
-  - 视觉 token、performance 预算与后续状态预留
+- `docs/Node_Plugin_Integration.md`
+  - 外部节点包接入方案
+  - Vite external、宿主注入与主包节点池注册流程
+- `docs/Node_API_Proposal.md`
+  - 节点 API 与节点外壳整合方案
+  - 生命周期、注册机制、节点结构与外壳设计说明

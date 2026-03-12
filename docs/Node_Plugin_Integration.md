@@ -1,0 +1,1030 @@
+# 外部节点包接入方案
+
+## 文档信息
+
+- 日期：`2026-03-12`
+- 适用对象：`@leafergraph/node`、`leafergraph` 主包、未来外部节点包
+- 当前阶段：`设计阶段 / 文档先行`
+- 相关目标：
+  - 支持节点作为独立 npm 包开发、构建、发布
+  - 外部节点包在使用 Vite 构建时默认不打包宿主 SDK
+  - 外部节点包在运行时通过主包注入的上下文接入同一份 SDK 与同一份节点池
+  - 外部节点最终统一注册到主包持有的 `NodeRegistry`
+  - 自定义 Widget 可以通过主包暴露的绘图库绘制 UI
+
+---
+
+## 1. 结论先行
+
+推荐采用下面这条接入链路：
+
+1. 外部节点包只导出 `plugin` 或 `module`，不自己持有宿主。
+2. 外部节点包构建时将 `leafergraph`、`@leafergraph/node`、`leafer-ui` 标记为 `external`。
+3. `leafergraph` 主包持有唯一生效的 `NodeRegistry` / `WidgetRegistry`。
+4. 主包通过 `graph.use(plugin)` 或 `graph.installModule(module)` 安装外部节点。
+5. 主包在安装时向插件注入：
+   - `sdk`
+   - `ui`
+   - `registerNode`
+   - `registerWidget`
+   - `registerWidgetRenderer`
+   - 查询类接口
+6. 外部节点和 Widget 统一注册进主包自己的节点池。
+
+一句话总结：
+
+- **外部节点包负责声明与安装，主包负责注入、注册与持有。**
+
+---
+
+## 2. 问题定义
+
+当前 `@leafergraph/node` 已经具备：
+
+- `NodeDefinition`
+- `WidgetDefinition`
+- `NodeRegistry`
+- `WidgetRegistry`
+- `createNodeState`
+- `configureNode`
+- `serializeNode`
+
+这意味着“节点 SDK”本身已经可以支撑包外定义节点。
+
+但从“SDK 可用”到“外部节点包能真正接入主包运行时”，中间还差四件事情：
+
+1. 外部节点包如何避免把 SDK 再打进自己的构建产物里
+2. 主包如何把自己持有的 SDK 能力和注册口注入给外部节点包
+3. 外部节点包如何把节点注册到主包的唯一节点池，而不是偷偷创建本地副本
+4. 自定义 Widget 需要绘制 UI 时，应该使用哪一份绘图库
+
+---
+
+## 3. 设计目标
+
+- 外部节点包可以单独开发、单独构建、单独发布
+- 外部节点包构建产物中不应包含第二份 `leafergraph`、`@leafergraph/node` 或 `leafer-ui`
+- 主包运行时只存在一份真正生效的 `NodeRegistry`
+- 外部节点包只能通过主包暴露的注册口进入节点池
+- 自定义 Widget 的绘制能力必须由主包暴露并注入，不能默认要求插件自行绑定渲染库
+- 节点、Widget、模块安装过程可追踪、可校验、可扩展
+- 后续可以平滑升级到动态 `import()`、远程插件安装、插件市场等更完整的生态方案
+
+---
+
+## 4. 非目标
+
+当前阶段先不做以下内容：
+
+- 历史 LiteGraph 兼容格式的插件入口
+- 插件沙箱与权限隔离
+- 远程市场、签名校验、版本锁定
+- 浏览器内自动扫描 npm 包
+- 运行时卸载后完整回滚所有已创建节点实例
+- 第一阶段就定义复杂的 Widget 交互生命周期系统
+
+这里的约束是：
+
+- 当前阶段不追求一次性设计完整 Widget 框架
+- 但建议先约定最小的 `mount / update / destroy` 渲染协议
+- 这样主包后续补运行时调度时，不需要再推翻插件侧 renderer 形态
+
+---
+
+## 5. 核心原则
+
+### 5.1 主包持有唯一 SDK 实例
+
+`leafergraph` 主包必须持有唯一生效的：
+
+- `NodeRegistry`
+- `WidgetRegistry`
+- 节点定义缓存
+- 后续搜索索引与节点菜单数据源
+
+外部节点包不能各自创建并持有“独立注册表”后再试图同步。
+
+### 5.2 外部节点包只导出插件描述，不直接拥有宿主
+
+外部节点包的职责是：
+
+- 声明节点定义
+- 声明 Widget 定义
+- 在 `install()` 时调用主包提供的注册接口
+
+外部节点包不负责：
+
+- 创建 `LeaferGraph`
+- 创建 `NodeRegistry`
+- 操作 Leafer scene
+- 决定节点最终如何渲染
+
+### 5.3 构建时 external，运行时 injection
+
+这是整个方案最重要的一条：
+
+- **构建时**：把宿主 SDK 和绘图库排除出外部节点包
+- **运行时**：由主包把自己的 SDK 能力注入给外部节点包
+
+一句话约束：
+
+- **不复制 SDK，只消费宿主 SDK。**
+
+### 5.4 绘图库由宿主统一暴露
+
+自定义 Widget 的绘制能力必须遵守同样的原则：
+
+- 插件不应自带一份自己的 Leafer 绘图库入口
+- 插件不应直接假设宿主内部的 scene 结构
+- 宿主必须暴露“当前支持的绘图库命名空间”给插件使用
+
+一句话约束：
+
+- **Widget 可以自定义绘制，但绘制能力必须走宿主提供的图形入口。**
+
+---
+
+## 6. 总体架构
+
+```text
+外部节点包
+  -> 导出 plugin / module
+  -> 构建时 external 掉 leafergraph / @leafergraph/node / leafer-ui
+
+主包 leafergraph
+  -> 创建唯一 NodeRegistry
+  -> 暴露 use(plugin) / installModule(module)
+  -> 暴露 registerNode() / registerWidget()
+  -> 暴露统一绘图库入口给自定义 widget
+  -> 将插件注册到主包自己的节点池
+
+editor / 页面层
+  -> new LeaferGraph(...)
+  -> graph.use(plugin)
+  -> graph 根据主包节点池创建节点
+```
+
+---
+
+## 7. 推荐的接入模型
+
+### 7.1 插件对象
+
+推荐外部节点包导出统一的插件对象，而不是散落函数：
+
+```ts
+export interface LeaferGraphNodePlugin {
+  name: string
+  version?: string
+  install(context: LeaferGraphNodePluginContext): void | Promise<void>
+}
+```
+
+这样做的好处是：
+
+- 安装入口清晰
+- 便于记录来源和版本
+- 便于动态加载与调试
+- 便于未来做插件级日志和错误归因
+
+### 7.2 模块对象
+
+对于只想静态声明节点的外部包，也可以保留更轻量的模块结构：
+
+```ts
+export interface NodeModuleScope {
+  namespace?: string
+  group?: string
+}
+
+export interface NodeModule {
+  scope?: NodeModuleScope
+  nodes?: NodeDefinition[]
+  widgets?: WidgetDefinition[]
+}
+```
+
+主包内部可以直接走：
+
+```ts
+installNodeModule(registry, module)
+```
+
+也就是说，主包最终建议同时支持：
+
+- `graph.use(plugin)`
+- `graph.installModule(module)`
+
+这里推荐把“同一个包里的默认命名空间与默认分组”收敛到 `scope`：
+
+- `scope.namespace`
+  - 用来给包内节点统一补全最终 `type`
+  - 例如节点文件里只写 `compare`，安装后解析成 `image/compare`
+- `scope.group`
+  - 用来给包内节点统一提供默认 UI 分组
+  - 只有节点自己显式写了 `category` 时，才覆盖这个默认值
+
+这样做的好处是：
+
+- 节点定义文件更短，不必每个文件都重复写 `image/...`
+- 同一个包里的节点可以天然归到同一组
+- `type` 的唯一性仍然保留在“安装后的最终类型”这一层
+
+### 7.3 包级作用域的推荐约束
+
+推荐把包级作用域理解成“安装时补默认值”，而不是“替代节点自身定义”：
+
+- 节点文件里的 `type: "compare"` 是局部类型
+- 安装到主包 registry 后的最终类型是 `image/compare`
+- 节点文件如果没写 `category`，则默认继承 `scope.group`
+- 节点文件如果显式写了 `category`，则认为它要覆盖包级默认分组
+
+一句话总结：
+
+- **包级 `scope` 负责批量收口，节点级字段负责按需覆盖。**
+
+---
+
+## 8. 插件上下文设计
+
+推荐由主包向插件注入如下上下文：
+
+```ts
+export interface LeaferGraphNodePluginContext {
+  sdk: typeof import("@leafergraph/node")
+  ui: typeof import("leafergraph").LeaferUI
+  installModule: (module: NodeModule, options?: InstallNodeModuleOptions) => void
+  registerNode: (definition: NodeDefinition, options?: RegisterNodeOptions) => void
+  registerWidget: (definition: WidgetDefinition, options?: RegisterWidgetOptions) => void
+  registerWidgetRenderer: (
+    type: string,
+    renderer: LeaferGraphWidgetRenderer
+  ) => void
+  hasNode: (type: string) => boolean
+  hasWidget: (type: string) => boolean
+  getNode: (type: string) => NodeDefinition | undefined
+  listNodes: () => NodeDefinition[]
+}
+```
+
+这里有三个关键点：
+
+1. 插件既可以直接调用 `registerNode`，也可以优先用 `installModule` 一次性安装整包节点
+2. 自定义 Widget 如果需要绘制 UI，应通过 `registerWidgetRenderer()` 和 `context.ui` 使用宿主暴露的绘图库
+3. 即使注入了 `sdk`，真正应该长期依赖的仍是上下文暴露的注册口，而不是插件自己去 new 一份 registry
+
+---
+
+## 9. 绘图库暴露策略
+
+主包建议显式导出一组稳定入口，例如：
+
+```ts
+export * as LeaferUI from "leafer-ui";
+```
+
+这样外部插件至少有两种使用方式：
+
+1. 编译时从主包导入命名空间
+
+```ts
+import { LeaferUI } from "leafergraph";
+```
+
+2. 运行时从插件上下文中读取宿主注入的绘图库
+
+```ts
+install(ctx) {
+  const { Group, Rect, Text } = ctx.ui;
+}
+```
+
+推荐优先使用第二种：
+
+- 它更明确表明“绘制能力来自当前宿主”
+- 后面如果主包要换成受控 facade，也更容易迁移
+
+要支持真正的自定义 Widget UI 绘制，至少要同时补齐两段链路：
+
+1. 插件安装阶段通过 `graph.registerWidgetRenderer(...)` 注册绘制器
+2. 主包节点渲染阶段按 `widget.type` 查找绘制器并主动执行
+
+这里要特别强调：
+
+- `registerWidgetRenderer()` 只负责“登记一份可用绘制器”
+- 真正让 Widget 出现在节点里的，是宿主在渲染阶段显式调用该绘制器
+- 如果宿主只注册了 `WidgetDefinition`，却没有执行 renderer，那么 Widget 仍然只有 `normalize / serialize` 能力，不会产生可见 UI
+
+推荐的渲染器形态可以保持足够小，但要从一开始就支持最小生命周期返回值，例如：
+
+```ts
+export interface LeaferGraphWidgetRenderInstance {
+  /**
+   * Update 阶段：当节点计算结果变化，或外部交互让 widget.value 改变时，
+   * 由宿主主动调用，只做轻量属性更新。
+   */
+  update?: (newValue: unknown) => void
+  /**
+   * Destroy 阶段：节点删除、图卸载、或 widget 被重建时，
+   * 由宿主主动调用，供插件释放事件与引用。
+   */
+  destroy?: () => void
+}
+
+export interface LeaferGraphWidgetRenderer {
+  (context: {
+    ui: typeof import("leafergraph").LeaferUI
+    group: InstanceType<typeof import("leafergraph").LeaferUI.Group>
+    node: NodeRuntimeState
+    widget: NodeWidgetSpec
+    value: unknown
+    bounds: { x: number; y: number; width: number; height: number }
+  }): LeaferGraphWidgetRenderInstance | void
+}
+```
+
+这里建议明确区分两个阶段：
+
+- Mount
+  - renderer 首次执行时创建图元，并挂进 `group`
+- Update
+  - 后续数值变化时只修改已有图元属性，不重新 `add()`
+
+这样做的原因是：
+
+- Leafer retained-mode 场景里，频繁重建图元比轻量更新属性更贵
+- 节点图里 widget 可能随着执行结果高频刷新
+- 把 Mount 和 Update 拆开，宿主才能稳定掌控调度节奏
+
+---
+
+## 10. 外部节点包推荐结构
+
+```text
+my-leafergraph-nodes/
+  src/
+    nodes/
+      rotate.ts
+      noise.ts
+    widgets/
+      angle.ts
+    index.ts
+  package.json
+  tsconfig.json
+  vite.config.ts
+```
+
+`src/index.ts` 推荐形态：
+
+```ts
+import type { LeaferGraphNodePlugin } from "leafergraph";
+import { rotateNode } from "./nodes/rotate";
+import { angleWidget } from "./widgets/angle";
+
+const plugin: LeaferGraphNodePlugin = {
+  name: "@demo/math-nodes",
+  version: "0.1.0",
+  install(ctx) {
+    const { Group, Rect, Text } = ctx.ui;
+
+    ctx.registerWidget(angleWidget);
+    ctx.registerNode(rotateNode);
+  }
+};
+
+export default plugin;
+```
+
+---
+
+## 11. Vite 构建策略
+
+### 11.1 为什么必须 external
+
+如果外部节点包把 `leafergraph`、`@leafergraph/node` 或 `leafer-ui` 一起打包进去，会带来几个问题：
+
+- 宿主与插件之间出现两份不同的类型运行时来源
+- 插件里注册的定义可能进了“另一份 registry 逻辑”
+- 未来版本升级时更容易出现宿主与插件协议漂移
+- 自定义 Widget 可能绑定了另一份绘图库实现，导致宿主渲染上下文不一致
+
+因此必须明确要求：
+
+- 外部节点包构建时把宿主 SDK 排除
+- 外部节点包不要再自行打包一份 `leafer-ui`
+
+### 11.2 package.json 建议
+
+推荐把宿主依赖写成 `peerDependencies`：
+
+```json
+{
+  "name": "@demo/math-nodes",
+  "version": "0.1.0",
+  "type": "module",
+  "peerDependencies": {
+    "leafergraph": "^0.1.0"
+  },
+  "devDependencies": {
+    "leafergraph": "workspace:*",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}
+```
+
+如果未来决定让外部包只依赖 `@leafergraph/node` 类型面，也可以写成：
+
+```json
+{
+  "peerDependencies": {
+    "@leafergraph/node": "^0.1.0",
+    "leafergraph": "^0.1.0"
+  }
+}
+```
+
+但从长期维护看，我更推荐对插件作者暴露 `leafergraph` 的统一入口，而不是让每个插件作者自己区分主包和 SDK 包。
+
+### 11.3 vite.config.ts 建议
+
+```ts
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  build: {
+    lib: {
+      entry: "src/index.ts",
+      formats: ["es"]
+    },
+    rollupOptions: {
+      external: ["leafergraph", "@leafergraph/node", "leafer-ui"]
+    }
+  }
+});
+```
+
+这样外部节点包在构建后只保留自己的节点定义与插件安装逻辑，不把宿主依赖打进去。
+
+如果插件完全只通过 `ctx.ui` 使用绘图库，那么它甚至不需要直接 import `leafer-ui`。
+
+### 11.4 后续可补的工具化封装
+
+后面可以在仓库里提供一个帮助函数，减少每个插件包重复写配置：
+
+```ts
+defineLeaferGraphNodePackage({
+  entry: "src/index.ts"
+})
+```
+
+其内部自动处理：
+
+- `external`
+- ESM 输出
+- sourcemap
+- 推荐文件结构
+
+---
+
+## 12. 主包需要开放的接口
+
+当前主包内部已经持有自己的 `NodeRegistry`，但还没有对外暴露插件安装口。
+
+### 12.1 构造参数
+
+```ts
+interface LeaferGraphOptions {
+  fill?: string
+  nodes?: LeaferGraphNodeData[]
+  plugins?: LeaferGraphNodePlugin[]
+  modules?: NodeModule[]
+}
+```
+
+含义：
+
+- `plugins`
+  - 面向真正的外部插件对象
+- `modules`
+  - 面向静态声明型节点包
+
+### 12.2 实例方法
+
+```ts
+class LeaferGraph {
+  use(plugin: LeaferGraphNodePlugin): Promise<void>
+  installModule(module: NodeModule): void
+  registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void
+  registerWidget(definition: WidgetDefinition, options?: RegisterWidgetOptions): void
+  registerWidgetRenderer(type: string, renderer: LeaferGraphWidgetRenderer): void
+  getWidgetRenderer(type: string): LeaferGraphWidgetRenderer | undefined
+  listNodes(): NodeDefinition[]
+}
+```
+
+同时主包公共入口应导出：
+
+```ts
+export * as LeaferUI from "leafer-ui"
+```
+
+并在 `use(plugin)` 时注入：
+
+```ts
+{
+  ui: LeaferUI
+}
+```
+
+### 12.3 插件安装行为
+
+`graph.use(plugin)` 内部建议做以下事情：
+
+1. 检查插件是否已安装
+2. 构造 `PluginContext`
+3. 把主包绘图库命名空间注入给插件
+4. 调用 `plugin.install(context)`
+5. 如果插件内部调用 `installModule(module)`，则先解析 `module.scope`
+6. 将 `scope.namespace` 和 `scope.group` 批量应用到模块内节点
+7. 把插件来源、版本、已注册节点类型记录到内部表
+8. 必要时刷新搜索索引或节点菜单
+
+---
+
+## 13. 主包接入顺序
+
+建议主包按下面顺序演进：
+
+### 第一步
+
+把当前内部的 demo registry 创建逻辑，从“私有 demo 初始化”改成“宿主 registry 初始化 + 插件安装入口”。
+
+### 第二步
+
+为 `LeaferGraph` 增加：
+
+- `this.nodeRegistry`
+- `use(plugin)`
+- `installModule(module)`
+- `registerNode()`
+- `registerWidget()`
+
+### 第三步
+
+在构造函数中支持：
+
+- 先注册内建 demo 节点
+- 再安装 `options.modules`
+- 再安装 `options.plugins`
+
+### 第四步
+
+让节点创建逻辑从“只识别 demo 类型”逐步推进到“按 type 在 registry 中查定义并创建状态”。
+
+### 第五步
+
+为自定义 Widget 补受控绘制上下文，至少包含：
+
+- `ui`
+- 节点实例状态
+- widget spec
+- widget 容器 group
+- 可选布局 bounds
+
+---
+
+## 14. 推荐的运行时流程
+
+1. 页面侧创建 `LeaferGraph`
+2. 主包内部创建唯一 `NodeRegistry`
+3. 主包注册自己的内建节点
+4. 主包安装外部模块或插件
+5. 外部插件通过主包注入的上下文调用 `registerNode` / `registerWidget`
+6. 自定义 Widget 通过主包注入的 `ui` 绘制自己的 UI
+7. 节点定义进入主包唯一节点池
+8. editor 搜索、菜单、序列化、创建实例都统一从这个节点池读取
+
+---
+
+## 15. 为什么不推荐让外部包自己持有 registry
+
+如果外部包自己创建 registry，再试图把结果同步给主包，会有以下风险：
+
+- 节点类型重复冲突更难排查
+- Widget 类型来源不清楚
+- 搜索索引和节点池状态可能不一致
+- 调试时无法确定某个节点定义到底来自哪一份上下文
+
+所以这里必须坚持一个约束：
+
+- **注册中心只能由宿主持有，插件只能通过宿主注册。**
+
+---
+
+## 16. 错误处理建议
+
+插件接入阶段建议至少覆盖以下错误：
+
+- 节点类型重复注册
+- Widget 类型重复注册
+- 插件声明了未注册的 Widget 类型
+- 插件安装函数抛错
+- 插件重复安装
+
+推荐主包记录：
+
+- 插件名
+- 插件版本
+- 注册的节点类型列表
+- 注册的 Widget 类型列表
+- 安装时间
+
+这样后面排查“某个节点从哪来的”会非常省力。
+
+---
+
+## 17. 一个更贴近真实项目的示例
+
+下面这个示例刻意同时体现五件事：
+
+1. 节点包是独立包
+2. 节点包通过插件入口安装
+3. 同一个包里的节点通过 `module.scope` 批量收口命名空间和分组
+4. 插件通过 `ctx.registerWidgetRenderer()` 注册 Widget 绘制逻辑，再通过 `ctx.installModule()` 批量安装模块
+5. Widget renderer 不只负责 Mount，还要把 Update / Destroy 协议交还给宿主
+
+### 17.1 包内结构
+
+```text
+@demo/image-tools/
+  src/
+    module.ts
+    nodes/
+      image-compare.ts
+      image-blend.ts
+    widgets/
+      threshold.ts
+    index.ts
+```
+
+### 17.2 `src/widgets/threshold.ts`
+
+```ts
+import type { WidgetDefinition } from "@leafergraph/node";
+import type { LeaferGraphWidgetRenderer } from "leafergraph";
+
+export const thresholdWidget: WidgetDefinition = {
+  type: "threshold",
+  title: "Threshold",
+  normalize(value) {
+    const next = typeof value === "number" ? value : Number(value ?? 0.5);
+    return Math.min(1, Math.max(0, Number.isFinite(next) ? next : 0.5));
+  },
+  serialize(value) {
+    return typeof value === "number" ? value : 0.5;
+  }
+};
+
+export const renderThresholdWidget: LeaferGraphWidgetRenderer = ({
+  ui,
+  group,
+  widget,
+  value,
+  bounds
+}) => {
+  // 1. Mount 阶段：只在节点实例首次创建时执行一次
+  const progress = typeof value === "number" ? value : 0;
+  const fillWidth = bounds.width * progress;
+
+  const titleText = new ui.Text({
+    x: bounds.x,
+    y: bounds.y - 2,
+    text: String(widget.name),
+    fontSize: 10,
+    fill: "#71717A"
+  });
+
+  const trackRect = new ui.Rect({
+    x: bounds.x,
+    y: bounds.y + 12,
+    width: bounds.width,
+    height: 4,
+    cornerRadius: 999,
+    fill: "rgba(255,255,255,0.12)"
+  });
+
+  const fillRect = new ui.Rect({
+    x: bounds.x,
+    y: bounds.y + 12,
+    width: fillWidth,
+    height: 4,
+    cornerRadius: 999,
+    fill: "#3B82F6"
+  });
+
+  group.add(titleText, trackRect, fillRect);
+
+  // 如果后续这里要支持拖拽、点击或 hover 交互，也应在 Mount 阶段绑定事件。
+  // const onDrag = (event: unknown) => { ... };
+  // fillRect.on("drag", onDrag);
+
+  // 2. 返回最小生命周期对象给宿主
+  return {
+    update(newValue: unknown) {
+      const newProgress = typeof newValue === "number" ? newValue : 0;
+      fillRect.width = bounds.width * newProgress;
+    },
+    destroy() {
+      // 如果 Mount 阶段绑定了事件，这里应同步解绑。
+      // fillRect.off("drag", onDrag);
+      group.removeAll();
+    }
+  };
+};
+```
+
+这个示例里的重点是：
+
+- `thresholdWidget` 负责值规范化与序列化
+- `renderThresholdWidget` 负责真正绘制 UI，并返回最小生命周期实例
+- Widget 的“数据契约”和“绘制契约”被明确拆开
+- 图元创建只发生在 Mount 阶段，后续数值变化只走 Update
+
+### 17.3 `src/nodes/image-compare.ts`
+
+```ts
+import type { NodeDefinition } from "@leafergraph/node";
+
+export const imageCompareNode: NodeDefinition = {
+  type: "compare",
+  title: "Image Compare",
+  inputs: [
+    { name: "Left" },
+    { name: "Right" }
+  ],
+  outputs: [
+    { name: "Mask" }
+  ],
+  properties: [
+    { name: "mode", type: "string", default: "difference" }
+  ],
+  widgets: [
+    { type: "threshold", name: "threshold", value: 0.42 }
+  ]
+};
+```
+
+### 17.4 `src/nodes/image-blend.ts`
+
+```ts
+import type { NodeDefinition } from "@leafergraph/node";
+
+export const imageBlendNode: NodeDefinition = {
+  type: "blend",
+  title: "Image Blend",
+  inputs: [
+    { name: "Foreground" },
+    { name: "Background" }
+  ],
+  outputs: [
+    { name: "Image" }
+  ],
+  properties: [
+    { name: "mode", type: "string", default: "overlay" }
+  ],
+  widgets: [
+    { type: "threshold", name: "opacity", value: 0.78 }
+  ]
+};
+```
+
+### 17.5 `src/module.ts`
+
+```ts
+import type { NodeModule } from "@leafergraph/node";
+import { imageBlendNode } from "./nodes/image-blend";
+import { imageCompareNode } from "./nodes/image-compare";
+import { thresholdWidget } from "./widgets/threshold";
+
+export const imageToolsModule: NodeModule = {
+  scope: {
+    namespace: "image",
+    group: "Image"
+  },
+  nodes: [imageCompareNode, imageBlendNode],
+  widgets: [thresholdWidget]
+};
+```
+
+这里刻意把 `namespace` 和 `group` 提到模块层，是因为这个示例里：
+
+- `compare` / `blend` 都属于同一个包
+- 它们天然应该共享 `image/*` 命名空间
+- 它们天然应该共享 `Image` 这一组菜单分组
+- 这类默认值如果分散写在每个节点里，会产生重复劳动
+
+也就是说，这里推荐把两者职责明确拆开：
+
+- `type`
+  - 必填
+  - 在节点文件里可以是局部类型
+  - 安装后会被解析成最终唯一类型
+  - 用于注册、查找、序列化、反序列化
+  - 例如 `compare` 在 `namespace: "image"` 下会解析成 `image/compare`
+- `category`
+  - 选填
+  - 只作为单个节点的 UI 分组覆盖项
+  - 不参与节点唯一性判断
+  - 不建议和模块级 `group` 重复表达同一层含义
+- `scope.group`
+  - 是包级默认分组
+  - 用来批量把同包节点收口到同一组
+  - 节点只有在需要特殊归类时才单独写 `category`
+
+标准建议是：
+
+- 同一个包的大多数节点共享一套菜单分组时，优先写模块级 `scope.group`
+- 同一个包的大多数节点共享一套命名空间时，优先写模块级 `scope.namespace`
+- 只有当单个节点需要例外分组时，才额外写 `category`
+
+### 17.6 `src/index.ts`
+
+```ts
+import type { LeaferGraphNodePlugin } from "leafergraph";
+import { imageToolsModule } from "./module";
+import { renderThresholdWidget } from "./widgets/threshold";
+
+const imageToolsPlugin: LeaferGraphNodePlugin = {
+  name: "@demo/image-tools",
+  version: "0.1.0",
+  install(ctx) {
+    ctx.registerWidgetRenderer("threshold", renderThresholdWidget);
+    ctx.installModule(imageToolsModule);
+  }
+};
+
+export default imageToolsPlugin;
+```
+
+这里体现的是完整注册链路：
+
+1. 模块里统一声明包级 `scope`
+2. 模块里批量声明节点和 Widget
+3. 插件只负责注册 renderer 并安装整个模块
+4. 主包在安装模块时统一补全命名空间和分组
+
+### 17.7 安装后的最终效果
+
+上面这个模块安装到主包后，推荐解析成下面这样的最终结果：
+
+- `compare` -> `image/compare`
+- `blend` -> `image/blend`
+- 两个节点默认都落入 `Image` 组
+
+这样同一个包里的节点就可以批量进入同一组，而不是每个节点都重复写：
+
+- `type: "image/..."`
+- `category: "Image"`
+
+### 17.8 主包内部渲染链路
+
+上面的插件示例只完成了“注册”，还没有体现“宿主怎么真正调用绘制器并管理生命周期”。
+
+主包内部至少需要有一段类似这样的逻辑：
+
+```ts
+function renderNodeWidgets(node: NodeRuntimeState, widgetLayer: Group): void {
+  node._widgetInstances = node._widgetInstances || [];
+
+  for (const widget of node.widgets) {
+    const renderer = this.getWidgetRenderer(widget.type);
+
+    if (!renderer) {
+      node._widgetInstances.push(null);
+      continue;
+    }
+
+    const group = new this.ui.Group();
+    const instance = renderer({
+      ui: this.ui,
+      group,
+      node,
+      widget,
+      value: widget.value,
+      bounds: this.resolveWidgetBounds(node, widget)
+    });
+
+    node._widgetInstances.push(instance || null);
+    widgetLayer.add(group);
+  }
+}
+
+function updateNodeWidgetValue(
+  node: NodeRuntimeState,
+  widgetIndex: number,
+  newValue: unknown
+): void {
+  node.widgets[widgetIndex].value = newValue;
+  const instance = node._widgetInstances?.[widgetIndex];
+
+  if (instance?.update) {
+    instance.update(newValue);
+  }
+}
+
+function destroyNodeWidgets(node: NodeRuntimeState): void {
+  if (!node._widgetInstances) {
+    return;
+  }
+
+  for (const instance of node._widgetInstances) {
+    instance?.destroy?.();
+  }
+
+  node._widgetInstances = [];
+}
+```
+
+这里的 `node._widgetInstances` 只是宿主内部伪字段示意：
+
+- 可以落在节点运行时私有状态里
+- 也可以由主包放进独立的 `WeakMap<NodeRuntimeState, WidgetInstance[]>`
+- 重点不是字段名，而是“宿主必须持有 renderer 返回实例”
+
+这段链路的意义是：
+
+1. `ctx.registerWidgetRenderer("threshold", renderThresholdWidget)` 只是把 renderer 存进主包
+2. 节点首次渲染时，宿主要按 `widget.type` 取回 renderer 并执行 Mount
+3. 宿主要把 renderer 返回的实例存起来，供后续 Update 和 Destroy 使用
+4. 当数据流执行或外部交互让值变化时，宿主调用 `instance.update(newValue)`
+5. 当节点被删除、图卸载、或 widget 被重建时，宿主调用 `instance.destroy()`
+
+如果缺少这一步，就会出现这些问题：
+
+- Widget 已注册，但没有任何绘制内容
+- 每次更新都重新建图元，导致不必要的性能开销
+- 节点删除后仍残留事件引用，增加内存泄漏风险
+
+### 17.9 页面侧接入
+
+```ts
+import { createLeaferGraph } from "leafergraph";
+import imageToolsPlugin from "@demo/image-tools";
+
+const graph = createLeaferGraph(container, {
+  plugins: [imageToolsPlugin]
+});
+```
+
+### 17.10 主包内部效果
+
+- `image/compare` 和 `image/blend` 会被注册到主包唯一节点池
+- `threshold` 会被注册到主包唯一 Widget 池
+- `threshold` 的绘制逻辑会通过 `registerWidgetRenderer("threshold", ...)` 进入主包
+- 节点渲染阶段会通过 `getWidgetRenderer("threshold")` 取回 renderer 并执行
+- 后续搜索、菜单、创建实例都会统一从主包 registry 读取
+- 如果主包按模块级 `scope.group` 收口分组，这两个节点会自然落到 `Image` 组
+
+---
+
+## 18. 阶段性落地建议
+
+建议按下面顺序实现，不要一次做满：
+
+1. 先在 `@leafergraph/node` 中定义 `LeaferGraphNodePlugin` 与 `PluginContext` 类型
+2. 再在 `leafergraph` 中实现 `registerNode / registerWidget / installModule / use`
+3. 再让 `LeaferGraphOptions` 支持 `modules` 和 `plugins`
+4. 再把 `LeaferUI` 作为主包稳定导出，并注入给插件
+5. 最后再补外部节点包模板与 `vite.config.ts` 模板
+
+这样做的好处是：
+
+- 先把协议定住
+- 再把主包入口打开
+- 再把绘制上下文对齐
+- 最后才做脚手架和生态体验
+
+---
+
+## 19. 当前结论
+
+当前最合理的外部节点生态方向是：
+
+- 节点包独立发布
+- Vite 构建时 external 宿主 SDK
+- 主包注入运行时上下文
+- 主包统一暴露绘图库给自定义 Widget
+- 插件只通过主包暴露的注册口进入节点池
+
+这条链路可以同时满足：
+
+- SDK 唯一性
+- 宿主边界清晰
+- 外部节点包可复用
+- 自定义 Widget 的绘制上下文一致
+- 后续 editor 搜索、创建、序列化的一致性
+
+一句话总结：
+
+- **外部节点包负责声明与安装，主包负责注入、注册与持有。**

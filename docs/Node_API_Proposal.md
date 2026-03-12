@@ -1,4 +1,146 @@
-# LeaferGraph 节点外壳设计
+# 节点 API 与节点外壳设计
+
+本文合并了节点 API 方案与节点外壳设计文档，便于后续统一维护与引用。
+设计目标是：保留旧版高频能力，但不做兼容层，避免历史包袱。
+
+## 1. 设计目标
+
+- 保留输入/输出槽位、属性、Widget、生命周期、序列化等核心能力
+- 结构清晰、边界明确，不依赖全局原型扩展
+- 运行时与渲染宿主解耦，便于替换或扩展
+- 便于测试与序列化，避免隐式状态
+
+## 2. 结构定义（概念层）
+
+### 2.1 NodeDefinition（节点类型定义）
+
+- `type`：类型 ID
+  - 无模块作用域时，直接使用完整类型，例如 `math/add`
+  - 有模块作用域时，允许在节点文件里只写局部类型，例如 `compare`，安装时再补成 `image/compare`
+- `title`：默认标题
+- `category`：分类
+  - 默认只作为单节点的 UI 分组覆盖项
+  - 如果同包节点共享同一组，优先放到模块级默认作用域里统一声明
+- `inputs` / `outputs`：槽位声明
+- `properties`：属性声明
+- `widgets`：UI 控件声明
+- `size` / `minWidth` / `minHeight`：视觉建议
+- `lifecycle hooks`：生命周期回调
+
+### 2.2 NodeRuntimeState（节点实例状态）
+
+- `id`：实例唯一 ID
+- `type` / `title`
+- `layout`：位置与尺寸（x/y/width/height）
+- `properties`：实例属性值
+- `inputs` / `outputs`：槽位实例
+- `widgets`：控件实例
+- `flags`：collapsed / pinned / disabled 等状态
+
+### 2.3 GraphModel（图模型）
+
+- `nodes`：节点实例数组
+- `links`：连线数据
+- `groups`：分组（可选）
+- `metadata`：版本、作者、时间、扩展字段
+
+### 2.4 Slot / Link（槽位与连线）
+
+- `Slot`：name/type/optional/label/shape/color
+- `Link`：sourceNodeId/sourceSlot/targetNodeId/targetSlot
+
+## 3. 生命周期（对齐旧版语义）
+
+- `onCreate(node)`
+- `onConfigure(node, data)`
+- `onSerialize(node, data)`
+- `onExecute(node, context)`
+- `onPropertyChanged(node, name, value, prevValue)`
+- `onConnectionsChange(node, type, slot, connected)`
+- `onAction(node, action, param)`
+- `onTrigger(node, action, param)`
+
+## 4. 结构性 API（参考旧版命名）
+
+- `addInput` / `addOutput`
+- `removeInput` / `removeOutput`
+- `addProperty`
+- `addWidget`
+- `getInputData` / `setOutputData`
+- `findInputSlot` / `findOutputSlot`
+
+## 5. 注册与实例化机制
+
+### 5.1 NodeRegistry
+
+- `register(definition)`
+- `unregister(type)`
+- `get(type)`
+- `has(type)`
+- `list()`
+
+要求：`type` 唯一，重复注册必须明确报错或覆盖策略。
+
+### 5.2 Factory
+
+- `createNodeState(definition, init)`
+  - 合并 definition 默认值
+  - 应用 `layout` / `properties` / `inputs` / `outputs` / `widgets`
+  - 仅做数据整形，不做渲染或执行
+
+### 5.3 ModuleScope（包级注册作用域）
+
+如果节点以“独立节点包”的形式发布，推荐增加包级作用域概念：
+
+- `namespace`
+  - 给同包节点批量补全最终 `type`
+  - 例如 `compare`、`blend` 安装后分别变成 `image/compare`、`image/blend`
+- `group`
+  - 给同包节点批量指定默认 UI 分组
+  - 只有单个节点需要特殊归类时，才单独写 `category`
+
+推荐原则：
+
+- 同一包内共享的命名空间，不要重复写在每个节点文件里
+- 同一包内共享的 UI 分组，不要重复写在每个节点定义里
+- 包级作用域负责批量默认值，节点级字段负责个别覆盖
+
+## 6. 数据与执行模型
+
+- 数据流从输入槽读取，写入输出槽
+- 执行模式保留旧版语义：`ALWAYS / ONCE / EVENT`
+- `Graph.execute()` 负责统一调度
+
+## 7. 序列化与反序列化
+
+- `serializeNode(state)` 输出最小可恢复结构
+- `configureNode(state, data)` 回填并触发 `onConfigure`
+- 必要时提供版本字段用于升级策略
+
+## 8. 渲染同步协议
+
+运行时只维护状态，渲染层订阅变化：
+
+- 节点更新 → 对应 UI 层更新
+- 连线更新 → 仅更新相关路径
+
+## 9. 非目标（当前不做）
+
+- 旧版全量兼容层
+- 全局原型扩展
+- DOM UI 细节与编辑器壳层
+
+---
+
+## 下一步建议
+
+1. 新建 `@leafergraph/node` 包，只实现类型与最小工具
+2. 再在主包中选择性接入（可保持独立）
+3. 最后才进入渲染与交互层落地
+
+---
+
+# 节点外壳设计
 
 ## 文档信息
 
@@ -161,40 +303,40 @@
 
 ### 颜色
 
-| Token | Value | 用途 |
-|------|-------|------|
-| `node.bg` | `rgba(28, 28, 33, 0.76)` | 节点主背景 |
-| `node.stroke` | `rgba(255, 255, 255, 0.10)` | 节点边框 |
-| `node.header` | `rgba(255, 255, 255, 0.05)` | header 背景 |
-| `node.shadow` | `rgba(0, 0, 0, 0.34)` | 单层阴影 |
-| `node.divider` | `rgba(255, 255, 255, 0.08)` | 区域分隔线 |
-| `badge.bg` | `rgba(255, 255, 255, 0.08)` | 分类标签背景 |
+| Token            | Value                         | 用途         |
+| ---------------- | ----------------------------- | ------------ |
+| `node.bg`      | `rgba(28, 28, 33, 0.76)`    | 节点主背景   |
+| `node.stroke`  | `rgba(255, 255, 255, 0.10)` | 节点边框     |
+| `node.header`  | `rgba(255, 255, 255, 0.05)` | header 背景  |
+| `node.shadow`  | `rgba(0, 0, 0, 0.34)`       | 单层阴影     |
+| `node.divider` | `rgba(255, 255, 255, 0.08)` | 区域分隔线   |
+| `badge.bg`     | `rgba(255, 255, 255, 0.08)` | 分类标签背景 |
 | `badge.stroke` | `rgba(255, 255, 255, 0.05)` | 分类标签边框 |
-| `text.title` | `#F4F4F5` | 标题 |
-| `text.slot` | `#A1A1AA` | 插槽文字 |
-| `text.meta` | `#71717A` | widget label |
-| `port.input` | `#3B82F6` | 输入端口 |
-| `port.output` | `#8B5CF6` | 输出端口 |
+| `text.title`   | `#F4F4F5`                   | 标题         |
+| `text.slot`    | `#A1A1AA`                   | 插槽文字     |
+| `text.meta`    | `#71717A`                   | widget label |
+| `port.input`   | `#3B82F6`                   | 输入端口     |
+| `port.output`  | `#8B5CF6`                   | 输出端口     |
 
 ### 字体
 
-| Token | Value | 用途 |
-|------|-------|------|
+| Token            | Value                             | 用途                    |
+| ---------------- | --------------------------------- | ----------------------- |
 | `font.primary` | `Inter / Segoe UI / sans-serif` | 标题、标签、widget 文本 |
-| `font.code` | `JetBrains Mono / monospace` | 编辑器代码字体保留用 |
+| `font.code`    | `JetBrains Mono / monospace`    | 编辑器代码字体保留用    |
 
 ### 尺寸
 
-| Token | Value | 用途 |
-|------|-------|------|
-| `node.width.default` | `288` | 默认节点宽度 |
-| `node.height.min` | `184` | 默认最小高度 |
-| `node.radius` | `18` | 节点圆角 |
-| `node.header.height` | `46` | header 高度 |
-| `slot.row.height` | `20` | 单个插槽行高度 |
-| `slot.row.gap` | `16` | 插槽行间距 |
-| `port.size` | `12` | 端口尺寸 |
-| `widget.height` | `60` | widget area 高度 |
+| Token                  | Value   | 用途             |
+| ---------------------- | ------- | ---------------- |
+| `node.width.default` | `288` | 默认节点宽度     |
+| `node.height.min`    | `184` | 默认最小高度     |
+| `node.radius`        | `18`  | 节点圆角         |
+| `node.header.height` | `46`  | header 高度      |
+| `slot.row.height`    | `20`  | 单个插槽行高度   |
+| `slot.row.gap`       | `16`  | 插槽行间距       |
+| `port.size`          | `12`  | 端口尺寸         |
+| `widget.height`      | `60`  | widget area 高度 |
 
 ---
 
@@ -241,13 +383,13 @@
 
 ### 状态建议
 
-| 状态 | 视觉变化建议 |
-|------|--------------|
-| `hover` | 提亮边框、端口和 header，不做 scale |
-| `selected` | 外描边增强，端口与 slider accent 同步增强 |
-| `running` | signal light 与当前 widget accent 提亮 |
-| `collapsed` | 仅保留 header，高度收起 |
-| `error` | signal light 切换到 error 色，并允许 category badge 同步警示 |
+| 状态          | 视觉变化建议                                                 |
+| ------------- | ------------------------------------------------------------ |
+| `hover`     | 提亮边框、端口和 header，不做 scale                          |
+| `selected`  | 外描边增强，端口与 slider accent 同步增强                    |
+| `running`   | signal light 与当前 widget accent 提亮                       |
+| `collapsed` | 仅保留 header，高度收起                                      |
+| `error`     | signal light 切换到 error 色，并允许 category badge 同步警示 |
 
 ### 关键原则
 
