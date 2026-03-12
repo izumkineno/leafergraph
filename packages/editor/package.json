@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@leafer-in/arrow": "^2.0.3",
     "leafergraph": "0.1.0",
     "preact": "^10.26.9"
   },

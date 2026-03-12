@@ -25,6 +25,11 @@ export type { RegisterWidgetOptions } from "./widget";
 export type { InstallNodeModuleOptions, ResolvedNodeModule } from "./module";
 export type { NodeConfigureInput } from "./configure";
 export type { LeaferGraphNodeData, LeaferGraphOptions } from "./demo";
+export type {
+  LeaferGraphData,
+  LeaferGraphLinkData,
+  LeaferGraphLinkEndpoint
+} from "./graph";
 
 export { NodeRegistry } from "./registry";
 export { WidgetRegistry, BUILTIN_WIDGET_TYPES } from "./widget";

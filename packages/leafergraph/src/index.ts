@@ -1,23 +1,37 @@
 import { App, Group, Rect, Text } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import { Arrow } from "@leafer-in/arrow";
+import "@leafer-in/state";
+import { addViewport } from "@leafer-in/viewport";
+import "@leafer-in/view";
 import * as NodeSDK from "@leafergraph/node";
 import {
+  configureNode,
   installNodeModule,
   NodeRegistry,
   createNodeState,
+  serializeNode,
+  type LeaferGraphData,
+  type LeaferGraphLinkData,
   type LeaferGraphNodeData,
   type InstallNodeModuleOptions,
   type NodeDefinition,
   type NodeModule,
   type NodeRuntimeState,
+  type NodeSerializeResult,
+  type NodeSlotSpec,
   type RegisterNodeOptions,
   type RegisterWidgetOptions,
   type ResolvedNodeModule,
   type WidgetDefinition
 } from "@leafergraph/node";
 export { LeaferUI };
-export type { LeaferGraphNodeData } from "@leafergraph/node";
+export type {
+  LeaferGraphData,
+  LeaferGraphLinkData,
+  LeaferGraphLinkEndpoint,
+  LeaferGraphNodeData
+} from "@leafergraph/node";
 export {
   LEAFER_GRAPH_POINTER_MENU_EVENT,
   LeaferGraphContextMenuManager,
@@ -90,6 +104,10 @@ const SLOT_TEXT_WIDTH = 84;
 const NODE_FONT_FAMILY = '"Inter", "IBM Plex Sans", "Segoe UI", sans-serif';
 const CARD_FILL = "rgba(28, 28, 33, 0.76)";
 const CARD_STROKE = "rgba(255, 255, 255, 0.10)";
+const CARD_HOVER_FILL = "rgba(32, 32, 38, 0.82)";
+const CARD_HOVER_STROKE = "rgba(148, 163, 184, 0.30)";
+const CARD_PRESS_FILL = "rgba(24, 24, 29, 0.86)";
+const CARD_PRESS_STROKE = "rgba(59, 130, 246, 0.28)";
 const HEADER_FILL = "rgba(255, 255, 255, 0.05)";
 const HEADER_DIVIDER_FILL = "rgba(255, 255, 255, 0.08)";
 const TITLE_FILL = "#F4F4F5";
@@ -104,20 +122,57 @@ const TRACK_FILL = "rgba(255, 255, 255, 0.10)";
 const INPUT_PORT_FILL = "#3B82F6";
 const OUTPUT_PORT_FILL = "#8B5CF6";
 const LINK_STROKE = "#60A5FA";
+const DEFAULT_GRAPH_LINK_SLOT = 0;
+const SELECTED_RING_OUTSET = 4;
+const SELECTED_RING_STROKE_WIDTH = 3;
+const DEFAULT_FIT_VIEW_PADDING = 64;
+const VIEWPORT_MIN_SCALE = 0.2;
+const VIEWPORT_MAX_SCALE = 4;
+let graphLinkSeed = 1;
+
+/**
+ * `@leafer-in/view` 通过副作用扩展方式把 `zoom(...)` 方法挂到 Leafer 实例上。
+ * TypeScript 无法自动感知这个运行时扩展，因此这里补一个最小本地类型。
+ */
+interface LeaferGraphZoomableTree {
+  zoom(
+    zoomType: unknown,
+    optionsOrPadding?:
+      | {
+          padding?: number;
+          scroll?: "x" | "y" | boolean;
+          transition?: unknown;
+        }
+      | number,
+    scroll?: "x" | "y" | boolean,
+    transition?: unknown
+  ): unknown;
+}
 
 /** 节点视图状态，负责把运行时节点和实际 Leafer 图元绑定在一起。 */
 interface NodeViewState {
   state: GraphNodeState;
   view: Group;
+  card: Rect;
+  selectedRing: Rect;
   widgetLayer: Group;
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
 }
 
 /** 连线视图状态。 */
 interface DemoLinkViewState {
+  linkId: string;
   sourceId: string;
   targetId: string;
+  sourceSlot: number;
+  targetSlot: number;
   view: Arrow;
+}
+
+/** 主包内部统一图状态容器。 */
+interface GraphRuntimeState {
+  nodes: Map<string, GraphNodeState>;
+  links: Map<string, LeaferGraphLinkData>;
 }
 
 /** 拖拽中的节点状态。 */
@@ -153,6 +208,55 @@ interface InstalledPluginRecord {
 type GraphNodeState = NodeRuntimeState & {
   properties: DemoNodeProperties;
 };
+
+/**
+ * 主包允许的槽位输入结构。
+ * 既兼容旧的字符串数组，也兼容正式 `NodeSlotSpec`。
+ */
+export type LeaferGraphNodeSlotInput = string | NodeSlotSpec;
+
+/**
+ * 主包创建节点时使用的输入结构。
+ * 当前阶段仍然沿用 `LeaferGraphNodeData` 这组过渡层字段，但允许省略 `id`，
+ * 以便直接复用节点 SDK 的默认 ID 生成能力。
+ */
+export interface LeaferGraphCreateNodeInput
+  extends Omit<LeaferGraphNodeData, "id" | "title" | "inputs" | "outputs"> {
+  id?: string;
+  title?: string;
+  inputs?: LeaferGraphNodeSlotInput[];
+  outputs?: LeaferGraphNodeSlotInput[];
+}
+
+/**
+ * 主包更新节点时使用的输入结构。
+ * 这一轮先聚焦“内容与布局更新”，不支持在 `updateNode(...)` 中直接修改节点 ID。
+ */
+export interface LeaferGraphUpdateNodeInput
+  extends Partial<Omit<LeaferGraphNodeData, "id" | "inputs" | "outputs">> {
+  id?: string;
+  inputs?: LeaferGraphNodeSlotInput[];
+  outputs?: LeaferGraphNodeSlotInput[];
+}
+
+/**
+ * 主包移动节点时使用的位置结构。
+ * 之所以单独定义成对象，而不是直接传 `(x, y)`，
+ * 是为了给后续扩展吸附、来源信息、批量移动等元数据预留空间。
+ */
+export interface LeaferGraphMoveNodeInput {
+  x: number;
+  y: number;
+}
+
+/**
+ * 主包创建连线时使用的输入结构。
+ * 当前阶段允许省略连线 ID，由宿主生成稳定可读的默认值。
+ */
+export interface LeaferGraphCreateLinkInput
+  extends Omit<LeaferGraphLinkData, "id"> {
+  id?: string;
+}
 
 const DEMO_NODE_TYPE = "demo/category-node";
 const DEMO_CONTROL_WIDGET = "primary-control";
@@ -234,6 +338,87 @@ function createDemoNodeRegistry(): NodeRegistry {
   const registry = new NodeRegistry();
   registry.registerNode(DEMO_NODE_DEFINITION);
   return registry;
+}
+
+/**
+ * 为仍然只提供节点数组的旧入口补一份默认连线。
+ * 这样主包内部就可以统一走正式图数据结构，而不是在渲染阶段依赖数组顺序。
+ */
+function createSequentialDemoLinks(
+  nodes: LeaferGraphNodeData[]
+): LeaferGraphLinkData[] {
+  const links: LeaferGraphLinkData[] = [];
+
+  for (let index = 0; index < nodes.length - 1; index += 1) {
+    const source = nodes[index];
+    const target = nodes[index + 1];
+
+    links.push({
+      id: `demo-link:${source.id}->${target.id}:${index}`,
+      source: {
+        nodeId: source.id,
+        slot: DEFAULT_GRAPH_LINK_SLOT
+      },
+      target: {
+        nodeId: target.id,
+        slot: DEFAULT_GRAPH_LINK_SLOT
+      }
+    });
+  }
+
+  return links;
+}
+
+/**
+ * 归一化连线槽位序号。
+ * 当前阶段未提供或非法时统一回退到第一个槽位。
+ */
+function normalizeLinkSlotIndex(slot: number | undefined): number {
+  if (typeof slot !== "number" || !Number.isFinite(slot)) {
+    return DEFAULT_GRAPH_LINK_SLOT;
+  }
+
+  return Math.max(DEFAULT_GRAPH_LINK_SLOT, Math.floor(slot));
+}
+
+/** 生成默认连线 ID，保证在未显式指定时也能稳定进入图状态。 */
+function createGraphLinkId(link: LeaferGraphCreateLinkInput): string {
+  const sourceSlot = normalizeLinkSlotIndex(link.source.slot);
+  const targetSlot = normalizeLinkSlotIndex(link.target.slot);
+  const id = `link:${link.source.nodeId}:${sourceSlot}->${link.target.nodeId}:${targetSlot}:${graphLinkSeed}`;
+  graphLinkSeed += 1;
+  return id;
+}
+
+/**
+ * 归一化并拷贝连线数据。
+ * 宿主内部只保存这份标准化结果，避免外部对象后续修改直接污染运行时状态。
+ */
+function normalizeLinkData(link: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
+  return {
+    id: link.id?.trim() || createGraphLinkId(link),
+    source: {
+      nodeId: link.source.nodeId,
+      slot: normalizeLinkSlotIndex(link.source.slot)
+    },
+    target: {
+      nodeId: link.target.nodeId,
+      slot: normalizeLinkSlotIndex(link.target.slot)
+    },
+    label: link.label,
+    data: link.data ? structuredClone(link.data) : undefined
+  };
+}
+
+/** 为对外查询返回一份安全副本，避免外部绕过正式 API 直接改内部状态。 */
+function cloneLinkData(link: LeaferGraphLinkData): LeaferGraphLinkData {
+  return {
+    id: link.id,
+    source: { ...link.source },
+    target: { ...link.target },
+    label: link.label,
+    data: link.data ? structuredClone(link.data) : undefined
+  };
 }
 
 /**
@@ -423,6 +608,10 @@ export class LeaferGraph {
   readonly ready: Promise<void>;
 
   private readonly nodeRegistry: NodeRegistry;
+  private readonly graphState: GraphRuntimeState = {
+    nodes: new Map(),
+    links: new Map()
+  };
   private readonly nodeViews = new Map<string, NodeViewState>();
   private readonly linkViews: DemoLinkViewState[] = [];
   private readonly widgetRenderers = new Map<string, LeaferGraphWidgetRenderer>();
@@ -435,13 +624,11 @@ export class LeaferGraph {
     }
 
     const point = this.getContainerPoint(event);
-    this.syncDraggedNode(
-      this.dragState.nodeId,
-      point.x - this.dragState.offsetX,
-      point.y - this.dragState.offsetY
-    );
+    this.moveNode(this.dragState.nodeId, {
+      x: point.x - this.dragState.offsetX,
+      y: point.y - this.dragState.offsetY
+    });
     this.container.style.cursor = "grabbing";
-    this.app.forceRender();
   };
   private readonly handleWindowPointerUp = (): void => {
     if (!this.dragState) {
@@ -450,7 +637,6 @@ export class LeaferGraph {
 
     this.dragState = null;
     this.container.style.cursor = "";
-    this.app.forceRender();
   };
 
   /** 创建图宿主，并在内部异步完成模块与插件安装。 */
@@ -474,6 +660,7 @@ export class LeaferGraph {
 
     this.root.add([this.linkLayer, this.nodeLayer]);
     this.app.tree.add(this.root);
+    this.setupViewport();
     window.addEventListener("pointermove", this.handleWindowPointerMove);
     window.addEventListener("pointerup", this.handleWindowPointerUp);
     window.addEventListener("pointercancel", this.handleWindowPointerUp);
@@ -591,6 +778,228 @@ export class LeaferGraph {
     return this.nodeViews.get(nodeId)?.view;
   }
 
+  /**
+   * 让当前画布内容适配到可视区域内。
+   * 这是对 `@leafer-in/view` 的最小封装，优先以节点视图为参考对象，
+   * 避免把背景或未来的屏幕层 overlay 一起纳入适配范围。
+   */
+  fitView(padding = DEFAULT_FIT_VIEW_PADDING): boolean {
+    const views = [...this.nodeViews.values()].map((state) => state.view);
+    if (!views.length) {
+      return false;
+    }
+
+    (this.app.tree as typeof this.app.tree & LeaferGraphZoomableTree).zoom(views, {
+      padding
+    });
+    this.app.forceRender();
+    return true;
+  }
+
+  /**
+   * 读取一个可再次传入 `createNode(...)` 的节点快照。
+   * 它会主动去掉原节点 ID，避免复制或粘贴时把新节点错误地落到旧 ID 上。
+   */
+  getNodeSnapshot(nodeId: string): LeaferGraphCreateNodeInput | undefined {
+    const node = this.graphState.nodes.get(nodeId);
+    if (!node) {
+      return undefined;
+    }
+
+    return this.toCreateNodeInput(serializeNode(this.nodeRegistry, node));
+  }
+
+  /**
+   * 设置单个节点的选中态。
+   * 当前阶段的实现尽量轻量：只更新运行时 flag，并把视觉反馈直接同步到现有图元，
+   * 不触发整节点重建，从而避免菜单绑定和拖拽状态被打断。
+   */
+  setNodeSelected(nodeId: string, selected: boolean): boolean {
+    const state = this.nodeViews.get(nodeId);
+    if (!state) {
+      return false;
+    }
+
+    const nextSelected = Boolean(selected);
+    if (Boolean(state.state.flags.selected) === nextSelected) {
+      return true;
+    }
+
+    state.state.flags.selected = nextSelected;
+    this.applyNodeSelectionStyles(state);
+    this.app.forceRender();
+    return true;
+  }
+
+  /**
+   * 根据节点 ID 查询当前图中的所有关联连线。
+   * 这一步先提供最小查询能力，方便 editor 后续接入删除、复制和选中联动。
+   */
+  findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
+    const links: LeaferGraphLinkData[] = [];
+
+    for (const link of this.graphState.links.values()) {
+      if (link.source.nodeId === nodeId || link.target.nodeId === nodeId) {
+        links.push(cloneLinkData(link));
+      }
+    }
+
+    return links;
+  }
+
+  /**
+   * 创建一个新的节点实例并立即挂到主包场景中。
+   * 当前阶段仍然接受 demo 友好的节点输入结构，后续再逐步切到更正式的图模型输入。
+   */
+  createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState {
+    const node = this.createGraphNodeState(input);
+
+    if (this.graphState.nodes.has(node.id)) {
+      throw new Error(`节点已存在：${node.id}`);
+    }
+
+    this.graphState.nodes.set(node.id, node);
+    this.mountNodeView(node);
+    this.app.forceRender();
+    return node;
+  }
+
+  /**
+   * 删除一个节点，并同步清理它的全部关联连线与视图。
+   * 这是当前阶段最小但正式的节点移除入口。
+   */
+  removeNode(nodeId: string): boolean {
+    if (!this.graphState.nodes.has(nodeId)) {
+      return false;
+    }
+
+    for (const link of this.findLinksByNode(nodeId)) {
+      this.removeLinkInternal(link.id);
+    }
+
+    this.unmountNodeView(nodeId);
+    this.graphState.nodes.delete(nodeId);
+
+    if (this.dragState?.nodeId === nodeId) {
+      this.dragState = null;
+      this.container.style.cursor = "";
+    }
+
+    this.app.forceRender();
+    return true;
+  }
+
+  /**
+   * 更新一个既有节点的静态内容与布局。
+   * 这一轮先保持边界清晰：允许更新标题、布局、属性、槽位与 widget，
+   * 但不在这里处理“节点 ID / 类型切换”这类结构性重建。
+   */
+  updateNode(
+    nodeId: string,
+    input: LeaferGraphUpdateNodeInput
+  ): NodeRuntimeState | undefined {
+    const node = this.graphState.nodes.get(nodeId);
+    if (!node) {
+      return undefined;
+    }
+
+    if (input.id && input.id !== nodeId) {
+      throw new Error("当前阶段暂不支持通过 updateNode() 修改节点 ID");
+    }
+
+    if (input.type && input.type !== node.type) {
+      throw new Error("当前阶段暂不支持通过 updateNode() 切换节点类型");
+    }
+
+    configureNode(this.nodeRegistry, node, {
+      type: node.type,
+      title: input.title,
+      layout: this.resolvePatchedNodeLayout(node, input),
+      properties: this.resolvePatchedNodeProperties(node, input),
+      inputs: input.inputs !== undefined ? this.toSlotSpecs(input.inputs) : undefined,
+      outputs: input.outputs !== undefined ? this.toSlotSpecs(input.outputs) : undefined,
+      widgets: this.resolvePatchedNodeWidgets(node, input),
+      data: input.data
+    });
+
+    this.replaceNodeView(node);
+    this.updateConnectedLinks(nodeId);
+    this.app.forceRender();
+    return node;
+  }
+
+  /**
+   * 移动一个节点到新的图坐标。
+   * 现有拖拽逻辑也会统一复用这个入口，避免再出现“交互一套、正式 API 一套”的双路径。
+   */
+  moveNode(
+    nodeId: string,
+    position: LeaferGraphMoveNodeInput
+  ): NodeRuntimeState | undefined {
+    const node = this.graphState.nodes.get(nodeId);
+    if (!node) {
+      return undefined;
+    }
+
+    const state = this.nodeViews.get(nodeId);
+    const nextX = position.x;
+    const nextY = position.y;
+    if (node.layout.x === nextX && node.layout.y === nextY) {
+      return node;
+    }
+
+    node.layout.x = nextX;
+    node.layout.y = nextY;
+
+    if (state) {
+      state.view.x = nextX;
+      state.view.y = nextY;
+    }
+
+    this.updateConnectedLinks(nodeId);
+    this.app.forceRender();
+    return node;
+  }
+
+  /**
+   * 创建一条正式连线并加入当前图状态。
+   * 连线端点必须指向已存在的节点，否则直接抛错，避免悄悄生成半无效状态。
+   */
+  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
+    const link = normalizeLinkData(input);
+
+    if (this.graphState.links.has(link.id)) {
+      throw new Error(`连线已存在：${link.id}`);
+    }
+
+    if (!this.graphState.nodes.has(link.source.nodeId)) {
+      throw new Error(`连线起点节点不存在：${link.source.nodeId}`);
+    }
+
+    if (!this.graphState.nodes.has(link.target.nodeId)) {
+      throw new Error(`连线终点节点不存在：${link.target.nodeId}`);
+    }
+
+    const state = this.mountLinkView(link);
+    if (!state) {
+      throw new Error(`无法创建连线视图：${link.id}`);
+    }
+
+    this.app.forceRender();
+    return cloneLinkData(link);
+  }
+
+  /** 删除一条既有连线。 */
+  removeLink(linkId: string): boolean {
+    const removed = this.removeLinkInternal(linkId);
+
+    if (removed) {
+      this.app.forceRender();
+    }
+
+    return removed;
+  }
+
   /** 执行启动期安装流程，然后渲染初始 demo 数据。 */
   private async initialize(options: LeaferGraphOptions): Promise<void> {
     for (const module of options.modules ?? []) {
@@ -601,7 +1010,7 @@ export class LeaferGraph {
       await this.use(plugin);
     }
 
-    this.renderDemo(options.nodes ?? DEFAULT_NODES);
+    this.renderGraph(this.resolveInitialGraphData(options));
   }
 
   /** 模块安装的内部统一入口。 */
@@ -646,39 +1055,163 @@ export class LeaferGraph {
     this.container.style.backgroundSize = "auto, auto, 20px 20px, auto";
   }
 
-  /** 根据输入数据重建整个 demo 场景。 */
-  private renderDemo(nodes: LeaferGraphNodeData[]): void {
+  /**
+   * 接入 `@leafer-in/viewport` 的最小工作区视口能力。
+   * 当前阶段只打开最常用的能力：
+   * 1. 鼠标滚轮 / 触控板缩放与滚动
+   * 2. 按住空格或中键拖动画布
+   * 3. 视口缩放范围限制
+   *
+   * 这里仍然把节点拖拽保留在主包自己的逻辑里，两者职责互不覆盖。
+   */
+  private setupViewport(): void {
+    addViewport(this.app.tree, {
+      zoom: {
+        min: VIEWPORT_MIN_SCALE,
+        max: VIEWPORT_MAX_SCALE
+      },
+      move: {
+        holdSpaceKey: true,
+        holdMiddleKey: true,
+        scroll: "limit"
+      }
+    });
+  }
+
+  /**
+   * 解析启动时的图数据。
+   * 当前优先使用正式 `graph` 入口；若外部仍传入旧的 `nodes`，则自动补一份顺序连线作为兜底。
+   */
+  private resolveInitialGraphData(options: LeaferGraphOptions): LeaferGraphData {
+    if (options.graph) {
+      return {
+        nodes: options.graph.nodes,
+        links: options.graph.links ?? [],
+        meta: options.graph.meta
+      };
+    }
+
+    const nodes = options.nodes ?? DEFAULT_NODES;
+    return {
+      nodes,
+      links: createSequentialDemoLinks(nodes)
+    };
+  }
+
+  /** 根据图数据重建整个主包场景。 */
+  private renderGraph(graph: LeaferGraphData): void {
     for (const state of this.nodeViews.values()) {
       this.destroyNodeWidgets(state);
     }
 
+    this.graphState.nodes.clear();
+    this.graphState.links.clear();
     this.nodeViews.clear();
     this.linkViews.length = 0;
     this.nodeLayer.removeAll();
     this.linkLayer.removeAll();
 
-    const localNodes = nodes.map((node) => this.createGraphNodeState(node));
+    const localNodes = graph.nodes.map((node) => this.createGraphNodeState(node));
 
     for (const node of localNodes) {
-      const state = this.createNode(node);
-      this.nodeViews.set(node.id, state);
-      this.nodeLayer.add(state.view);
-      this.bindNodeDragging(node.id, state.view);
+      this.graphState.nodes.set(node.id, node);
+      this.mountNodeView(node);
     }
 
-    for (let index = 0; index < localNodes.length - 1; index += 1) {
-      const source = localNodes[index];
-      const target = localNodes[index + 1];
-      const view = this.createLink(source, target);
-      this.linkViews.push({ sourceId: source.id, targetId: target.id, view });
-      this.linkLayer.add(view);
+    for (const link of graph.links ?? []) {
+      this.mountLinkView(normalizeLinkData(link));
     }
   }
 
+  /** 将节点状态挂入节点层，并建立拖拽与视图映射。 */
+  private mountNodeView(node: GraphNodeState): NodeViewState {
+    const state = this.createNodeView(node);
+    this.nodeViews.set(node.id, state);
+    this.nodeLayer.add(state.view);
+    this.bindNodeDragging(node.id, state.view);
+    return state;
+  }
+
+  /** 卸载一个节点视图，同时安全销毁内部 widget 实例。 */
+  private unmountNodeView(nodeId: string): NodeViewState | undefined {
+    const state = this.nodeViews.get(nodeId);
+    if (!state) {
+      return undefined;
+    }
+
+    this.destroyNodeWidgets(state);
+    state.view.remove();
+    this.nodeViews.delete(nodeId);
+    return state;
+  }
+
+  /** 节点内容更新后，用新的 Leafer 图元替换旧视图。 */
+  private replaceNodeView(node: GraphNodeState): NodeViewState {
+    this.unmountNodeView(node.id);
+    return this.mountNodeView(node);
+  }
+
+  /** 将连线状态和连线视图一起挂入当前图。 */
+  private mountLinkView(link: LeaferGraphLinkData): DemoLinkViewState | null {
+    if (this.graphState.links.has(link.id)) {
+      console.warn("[leafergraph] 跳过重复连线 ID", link.id);
+      return null;
+    }
+
+    const state = this.createLinkView(link);
+    if (!state) {
+      return null;
+    }
+
+    this.graphState.links.set(link.id, link);
+    this.linkViews.push(state);
+    this.addLinkShapeToLayer(state.view);
+    return state;
+  }
+
+  /** 移除一条连线的图状态和视图，供正式 API 与节点删除复用。 */
+  private removeLinkInternal(linkId: string): boolean {
+    const linkIndex = this.linkViews.findIndex((item) => item.linkId === linkId);
+
+    if (linkIndex >= 0) {
+      const [state] = this.linkViews.splice(linkIndex, 1);
+      state.view.remove();
+    }
+
+    return this.graphState.links.delete(linkId) || linkIndex >= 0;
+  }
+
+  /**
+   * 根据正式连线数据创建连线视图。
+   * 当端点节点不存在时，当前阶段直接跳过并打印告警，避免半有效数据破坏整体渲染。
+   */
+  private createLinkView(link: LeaferGraphLinkData): DemoLinkViewState | null {
+    const source = this.graphState.nodes.get(link.source.nodeId);
+    const target = this.graphState.nodes.get(link.target.nodeId);
+    if (!source || !target) {
+      console.warn("[leafergraph] 跳过无效连线，未找到端点节点", link);
+      return null;
+    }
+
+    const sourceSlot = normalizeLinkSlotIndex(link.source.slot);
+    const targetSlot = normalizeLinkSlotIndex(link.target.slot);
+
+    return {
+      linkId: link.id,
+      sourceId: link.source.nodeId,
+      targetId: link.target.nodeId,
+      sourceSlot,
+      targetSlot,
+      view: this.createLinkShape(source, target, sourceSlot, targetSlot)
+    };
+  }
+
   /** 创建两个节点之间的连线图元。 */
-  private createLink(
+  private createLinkShape(
     source: GraphNodeState,
-    target: GraphNodeState
+    target: GraphNodeState,
+    sourceSlot = DEFAULT_GRAPH_LINK_SLOT,
+    targetSlot = DEFAULT_GRAPH_LINK_SLOT
   ): Arrow {
     const sourceWidth = source.layout.width ?? DEFAULT_NODE_WIDTH;
     const endpoints = resolveLinkEndpoints({
@@ -687,8 +1220,8 @@ export class LeaferGraph {
       sourceWidth,
       targetX: target.layout.x,
       targetY: target.layout.y,
-      sourcePortY: this.resolvePrimaryPortY(source),
-      targetPortY: this.resolvePrimaryPortY(target),
+      sourcePortY: this.resolvePortAnchorY(source, "output", sourceSlot),
+      targetPortY: this.resolvePortAnchorY(target, "input", targetSlot),
       portSize: PORT_SIZE
     });
 
@@ -707,6 +1240,17 @@ export class LeaferGraph {
       strokeJoin: "round",
       hittable: false
     });
+  }
+
+  /**
+   * 将 Arrow 图元挂入连线层。
+   *
+   * 当前 Bun 依赖树里同时残留了 Leafer UI 的 2.0.2 / 2.0.3 类型定义，
+   * 会让 `Arrow` 与 `Group.add(...)` 在 TypeScript 看来来自两套不同的类型宇宙。
+   * 运行时对象本身是兼容的，因此把这次适配集中在这一处，避免把类型断言扩散出去。
+   */
+  private addLinkShapeToLayer(view: Arrow): void {
+    this.linkLayer.add(view as unknown as Group);
   }
 
   /** 绑定节点拖拽交互。 */
@@ -736,21 +1280,6 @@ export class LeaferGraph {
     });
   }
 
-  /** 同步拖拽后的节点位置，并刷新相关连线。 */
-  private syncDraggedNode(nodeId: string, x: number, y: number): void {
-    const state = this.nodeViews.get(nodeId);
-    if (!state) {
-      return;
-    }
-
-    state.state.layout.x = x;
-    state.state.layout.y = y;
-    state.view.x = x;
-    state.view.y = y;
-
-    this.updateConnectedLinks(nodeId);
-  }
-
   /** 只更新与某个节点相连的连线，避免全量重算。 */
   private updateConnectedLinks(nodeId: string): void {
     for (const link of this.linkViews) {
@@ -758,31 +1287,40 @@ export class LeaferGraph {
         continue;
       }
 
-      const source = this.nodeViews.get(link.sourceId)?.state;
-      const target = this.nodeViews.get(link.targetId)?.state;
+      const source = this.graphState.nodes.get(link.sourceId);
+      const target = this.graphState.nodes.get(link.targetId);
       if (!source || !target) {
         continue;
       }
 
-      const sourceWidth = source.layout.width ?? DEFAULT_NODE_WIDTH;
-      const endpoints = resolveLinkEndpoints({
-        sourceX: source.layout.x,
-        sourceY: source.layout.y,
-        sourceWidth,
-        targetX: target.layout.x,
-        targetY: target.layout.y,
-        sourcePortY: this.resolvePrimaryPortY(source),
-        targetPortY: this.resolvePrimaryPortY(target),
-        portSize: PORT_SIZE
-      });
-
-      link.view.path = buildLinkPath(
-        endpoints.start,
-        endpoints.end,
-        PORT_DIRECTION_RIGHT,
-        PORT_DIRECTION_LEFT
-      );
+      this.refreshLinkPath(link, source, target);
     }
+  }
+
+  /** 按当前节点位置重算单条连线路径，供移动和节点更新共用。 */
+  private refreshLinkPath(
+    link: DemoLinkViewState,
+    source: GraphNodeState,
+    target: GraphNodeState
+  ): void {
+    const sourceWidth = source.layout.width ?? DEFAULT_NODE_WIDTH;
+    const endpoints = resolveLinkEndpoints({
+      sourceX: source.layout.x,
+      sourceY: source.layout.y,
+      sourceWidth,
+      targetX: target.layout.x,
+      targetY: target.layout.y,
+      sourcePortY: this.resolvePortAnchorY(source, "output", link.sourceSlot),
+      targetPortY: this.resolvePortAnchorY(target, "input", link.targetSlot),
+      portSize: PORT_SIZE
+    });
+
+    link.view.path = buildLinkPath(
+      endpoints.start,
+      endpoints.end,
+      PORT_DIRECTION_RIGHT,
+      PORT_DIRECTION_LEFT
+    );
   }
 
   /** 将窗口指针坐标转换为容器局部坐标。 */
@@ -809,8 +1347,135 @@ export class LeaferGraph {
     this.app.forceRender();
   }
 
+  /** 把节点补丁中的坐标与尺寸字段整理成 `configureNode()` 可消费的布局结构。 */
+  private resolvePatchedNodeLayout(
+    node: GraphNodeState,
+    input: LeaferGraphUpdateNodeInput
+  ): GraphNodeState["layout"] | undefined {
+    if (
+      input.x === undefined &&
+      input.y === undefined &&
+      input.width === undefined &&
+      input.height === undefined
+    ) {
+      return undefined;
+    }
+
+    return {
+      x: input.x ?? node.layout.x,
+      y: input.y ?? node.layout.y,
+      width: input.width ?? node.layout.width,
+      height: input.height ?? node.layout.height
+    };
+  }
+
+  /** 合并当前属性和外部补丁，保证 demo 属性字段仍能走正式更新链路。 */
+  private resolvePatchedNodeProperties(
+    node: GraphNodeState,
+    input: LeaferGraphUpdateNodeInput
+  ): Record<string, unknown> {
+    const properties: Record<string, unknown> = {
+      ...node.properties,
+      ...(input.properties ?? {})
+    };
+
+    if (input.subtitle !== undefined) {
+      properties.subtitle = input.subtitle;
+    }
+    if (input.accent !== undefined) {
+      properties.accent = input.accent;
+    }
+    if (input.category !== undefined) {
+      properties.category = input.category;
+    }
+    if (input.status !== undefined) {
+      properties.status = input.status;
+    }
+
+    return properties;
+  }
+
+  /**
+   * 解析节点 Widget 补丁。
+   * 如果外部直接传 `widgets`，则以显式输入为准；
+   * 否则继续兼容 demo 节点上的 `control*` 字段更新。
+   */
+  private resolvePatchedNodeWidgets(
+    node: GraphNodeState,
+    input: LeaferGraphUpdateNodeInput
+  ) {
+    if (input.widgets !== undefined) {
+      return input.widgets;
+    }
+
+    if (
+      node.type !== DEMO_NODE_TYPE ||
+      (
+        input.controlLabel === undefined &&
+        input.controlValue === undefined &&
+        input.controlProgress === undefined
+      )
+    ) {
+      return undefined;
+    }
+
+    const current = node.widgets[0];
+
+    return [
+      {
+        type: current?.type ?? "slider",
+        name: current?.name ?? DEMO_CONTROL_WIDGET,
+        value: input.controlProgress ?? current?.value ?? 0.5,
+        options: {
+          ...(current?.options ?? {}),
+          ...(input.controlLabel !== undefined ? { label: input.controlLabel } : {}),
+          ...(input.controlValue !== undefined
+            ? { displayValue: input.controlValue }
+            : {})
+        }
+      }
+    ];
+  }
+
+  /** 生成 demo 节点使用的默认 slider widget。 */
+  private createDemoControlWidget(
+    node: Pick<
+      LeaferGraphCreateNodeInput,
+      "controlLabel" | "controlProgress" | "controlValue"
+    >
+  ) {
+    return {
+      type: "slider" as const,
+      name: DEMO_CONTROL_WIDGET,
+      value: node.controlProgress ?? 0.5,
+      options: {
+        label: node.controlLabel ?? "Value",
+        displayValue: node.controlValue
+      }
+    };
+  }
+
+  /** 把已序列化节点结果转换回主包 `createNode(...)` 可消费的输入结构。 */
+  private toCreateNodeInput(
+    data: NodeSerializeResult
+  ): LeaferGraphCreateNodeInput {
+    return {
+      type: data.type,
+      title: data.title,
+      x: data.layout.x,
+      y: data.layout.y,
+      width: data.layout.width,
+      height: data.layout.height,
+      properties: data.properties,
+      inputs: data.inputs,
+      outputs: data.outputs,
+      widgets: data.widgets,
+      data: data.data
+    };
+  }
+
   /** 将页面层 demo 数据转换为真正的节点运行时实例。 */
-  private createGraphNodeState(node: LeaferGraphNodeData): GraphNodeState {
+  private createGraphNodeState(node: LeaferGraphCreateNodeInput): GraphNodeState {
     const type = node.type ?? DEMO_NODE_TYPE;
     const properties: Record<string, unknown> = {
       ...(node.properties ?? {})
@@ -840,29 +1505,17 @@ export class LeaferGraph {
         height: node.height
       },
       properties,
-      inputs: node.inputs ? this.toSlotSpecs(node.inputs) : undefined,
-      outputs: node.outputs ? this.toSlotSpecs(node.outputs) : undefined,
+      inputs: node.inputs !== undefined ? this.toSlotSpecs(node.inputs) : undefined,
+      outputs: node.outputs !== undefined ? this.toSlotSpecs(node.outputs) : undefined,
       widgets:
         node.widgets ??
-        (type === DEMO_NODE_TYPE
-          ? [
-              {
-                type: "slider",
-                name: DEMO_CONTROL_WIDGET,
-                value: node.controlProgress ?? 0.5,
-                options: {
-                  label: node.controlLabel ?? "Value",
-                  displayValue: node.controlValue
-                }
-              }
-            ]
-          : undefined),
+        (type === DEMO_NODE_TYPE ? [this.createDemoControlWidget(node)] : undefined),
       data: node.data
     }) as GraphNodeState;
   }
 
   /** 根据节点运行时状态创建完整的 Leafer 节点视图。 */
-  private createNode(node: GraphNodeState): NodeViewState {
+  private createNodeView(node: GraphNodeState): NodeViewState {
     const width = node.layout.width ?? DEFAULT_NODE_WIDTH;
     const inputs = this.resolveInputs(node);
     const outputs = this.resolveOutputs(node);
@@ -874,6 +1527,7 @@ export class LeaferGraph {
     );
     const categoryX = width - categoryWidth - 16;
     const signalColor = this.resolveSignalColor(node);
+    const selectedStroke = this.resolveSelectedNodeStroke(readNodeAccent(node));
     const hasWidgets = node.widgets.length > 0;
     const widgetTop = this.resolveWidgetTop(node);
 
@@ -883,13 +1537,43 @@ export class LeaferGraph {
       name: `node-${node.id}`
     });
 
+    const selectedRing = new Rect({
+      x: -SELECTED_RING_OUTSET,
+      y: -SELECTED_RING_OUTSET,
+      width: width + SELECTED_RING_OUTSET * 2,
+      height: height + SELECTED_RING_OUTSET * 2,
+      fill: "transparent",
+      stroke: readNodeAccent(node),
+      strokeWidth: SELECTED_RING_STROKE_WIDTH,
+      cornerRadius: NODE_RADIUS + SELECTED_RING_OUTSET,
+      opacity: 0,
+      selectedStyle: {
+        stroke: selectedStroke,
+        opacity: 0.92
+      },
+      hittable: false
+    });
+
     const card = new Rect({
       width,
       height,
       fill: CARD_FILL,
       stroke: CARD_STROKE,
       strokeWidth: 1,
-      cornerRadius: NODE_RADIUS
+      cornerRadius: NODE_RADIUS,
+      cursor: "grab",
+      hoverStyle: {
+        fill: CARD_HOVER_FILL,
+        stroke: CARD_HOVER_STROKE
+      },
+      pressStyle: {
+        fill: CARD_PRESS_FILL,
+        stroke: CARD_PRESS_STROKE
+      },
+      selectedStyle: {
+        stroke: selectedStroke,
+        strokeWidth: 1.5
+      }
     });
 
     const header = new Rect({
@@ -1059,14 +1743,20 @@ export class LeaferGraph {
     const widgetLayer = new Group({ name: `widgets-${node.id}` });
     const widgetInstances = hasWidgets ? this.renderNodeWidgets(node, widgetLayer, width) : [];
 
-    group.add([...parts, widgetLayer]);
+    group.add([selectedRing, ...parts, widgetLayer]);
 
-    return {
+    const state: NodeViewState = {
       state: node,
       view: group,
+      card,
+      selectedRing,
       widgetLayer,
       widgetInstances
     };
+
+    this.applyNodeSelectionStyles(state);
+
+    return state;
   }
 
   /** 渲染节点内部全部 Widget，并保存 renderer 返回实例。 */
@@ -1108,6 +1798,35 @@ export class LeaferGraph {
     state.widgetLayer.removeAll();
   }
 
+  /**
+   * 将运行时 `flags.selected` 同步成节点视觉状态。
+   * 这里采用“外圈 ring + 卡片描边增强”的组合：
+   * 1. 在亮色画布里足够清晰
+   * 2. 不依赖重阴影，性能和层次都更稳定
+   * 3. 不需要重建整节点视图
+   */
+  private applyNodeSelectionStyles(state: NodeViewState): void {
+    const selected = Boolean(state.state.flags.selected);
+    const accent = readNodeAccent(state.state);
+    const ringStroke = this.resolveSelectedNodeStroke(accent);
+
+    state.selectedRing.selectedStyle = {
+      stroke: ringStroke,
+      opacity: 0.92
+    };
+    state.card.selectedStyle = {
+      stroke: ringStroke,
+      strokeWidth: 1.5
+    };
+    state.selectedRing.selected = selected;
+    state.card.selected = selected;
+  }
+
+  /** 统一计算节点选中态的 ring 颜色，优先复用节点强调色。 */
+  private resolveSelectedNodeStroke(accent: string): string {
+    return accent || "#2563EB";
+  }
+
   /** 计算节点最终高度。 */
   private resolveNodeHeight(node: GraphNodeState): number {
     const slotCount = Math.max(
@@ -1126,9 +1845,27 @@ export class LeaferGraph {
     return Math.max(node.layout.height ?? 0, computedHeight, DEFAULT_NODE_MIN_HEIGHT);
   }
 
-  /** 计算默认主端口的纵向锚点。 */
-  private resolvePrimaryPortY(_node: GraphNodeState): number {
-    return HEADER_HEIGHT + SECTION_PADDING_Y + SLOT_ROW_HEIGHT / 2;
+  /**
+   * 计算某个槽位在节点中的纵向锚点。
+   * 当前连线系统已经开始吃正式 `link.slot` 数据，因此这里不能再只返回固定首端口位置。
+   */
+  private resolvePortAnchorY(
+    node: GraphNodeState,
+    direction: "input" | "output",
+    slotIndex = DEFAULT_GRAPH_LINK_SLOT
+  ): number {
+    const slots = direction === "input" ? node.inputs : node.outputs;
+    const safeIndex = Math.min(
+      Math.max(DEFAULT_GRAPH_LINK_SLOT, slotIndex),
+      Math.max(slots.length - 1, DEFAULT_GRAPH_LINK_SLOT)
+    );
+
+    return (
+      HEADER_HEIGHT +
+      SECTION_PADDING_Y +
+      safeIndex * (SLOT_ROW_HEIGHT + SLOT_ROW_GAP) +
+      SLOT_ROW_HEIGHT / 2
+    );
   }
 
   /** 计算槽位区域高度。 */
@@ -1213,10 +1950,19 @@ export class LeaferGraph {
     }
   }
 
-  /** 将字符串数组快速转换成槽位声明。 */
-  private toSlotSpecs(names: string[]) {
-    const list = names.length ? names : ["Value"];
-    return list.map((name) => ({ name }));
+  /**
+   * 将旧字符串数组或正式槽位声明统一转换成槽位输入。
+   * 这样主包可以同时兼容 demo 数据和后续更正式的节点复制、导入路径。
+   */
+  private toSlotSpecs(slots: LeaferGraphNodeSlotInput[]): NodeSlotSpec[] {
+    return slots.map((slot) =>
+      typeof slot === "string"
+        ? { name: slot }
+        : {
+            ...slot,
+            data: slot.data ? structuredClone(slot.data) : undefined
+          }
+    );
   }
 
   /** 把类型名或分类名转换成更友好的首字母大写显示文本。 */
