@@ -18,6 +18,25 @@ import {
 } from "@leafergraph/node";
 export { LeaferUI };
 export type { LeaferGraphNodeData } from "@leafergraph/node";
+export {
+  LEAFER_GRAPH_POINTER_MENU_EVENT,
+  LeaferGraphContextMenuManager,
+  createLeaferGraphContextMenu
+} from "./context_menu";
+export type {
+  LeaferGraphContextMenuActionItem,
+  LeaferGraphContextMenuBinding,
+  LeaferGraphContextMenuBindingKind,
+  LeaferGraphContextMenuBindingTarget,
+  LeaferGraphContextMenuContext,
+  LeaferGraphContextMenuItem,
+  LeaferGraphContextMenuOptions,
+  LeaferGraphContextMenuPoint,
+  LeaferGraphContextMenuResolver,
+  LeaferGraphContextMenuSeparatorItem,
+  LeaferGraphMenuOriginEvent,
+  LeaferGraphPointerMenuEvent
+} from "./context_menu";
 export type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
@@ -565,6 +584,11 @@ export class LeaferGraph {
   /** 列出当前已注册节点。 */
   listNodes(): NodeDefinition[] {
     return this.nodeRegistry.listNodes();
+  }
+
+  /** 获取某个节点对应的 Leafer 视图宿主，便于挂接节点级交互。 */
+  getNodeView(nodeId: string): Group | undefined {
+    return this.nodeViews.get(nodeId)?.view;
   }
 
   /** 执行启动期安装流程，然后渲染初始 demo 数据。 */
