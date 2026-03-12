@@ -1,11 +1,14 @@
-import "@leafer-in/arrow";
 import { App, Group, Path, Rect, Text } from "leafer-ui";
+import {
+  PORT_DIRECTION_LEFT,
+  PORT_DIRECTION_RIGHT,
+  buildLinkPath,
+  resolveLinkEndpoints
+} from "./link";
 
 const DEFAULT_NODE_WIDTH = 288;
 const DEFAULT_NODE_MIN_HEIGHT = 184;
 const NODE_RADIUS = 18;
-const NODE_SHADOW_INSET_X = 18;
-const NODE_SHADOW_OFFSET_Y = 12;
 const HEADER_HEIGHT = 46;
 const SECTION_PADDING_X = 18;
 const SECTION_PADDING_Y = 16;
@@ -25,7 +28,6 @@ const CARD_FILL = "rgba(28, 28, 33, 0.76)";
 const CARD_STROKE = "rgba(255, 255, 255, 0.10)";
 const HEADER_FILL = "rgba(255, 255, 255, 0.05)";
 const HEADER_DIVIDER_FILL = "rgba(255, 255, 255, 0.08)";
-const SHADOW_FILL = "rgba(0, 0, 0, 0.26)";
 const TITLE_FILL = "#F4F4F5";
 const SLOT_LABEL_FILL = "#A1A1AA";
 const CATEGORY_FILL = "rgba(255, 255, 255, 0.08)";
@@ -38,17 +40,22 @@ const TRACK_FILL = "rgba(255, 255, 255, 0.10)";
 const INPUT_PORT_FILL = "#3B82F6";
 const OUTPUT_PORT_FILL = "#8B5CF6";
 const LINK_STROKE = "#60A5FA";
-const PORT_DIRECTION_LEFT = 1;
-const PORT_DIRECTION_RIGHT = 2;
-const PORT_DIRECTION_UP = 3;
-const PORT_DIRECTION_DOWN = 4;
+interface DemoNodeViewState {
+  data: LeaferGraphNodeData;
+  view: Group;
+}
 
-type LinkPoint = readonly [number, number];
-type PortDirection =
-  | typeof PORT_DIRECTION_LEFT
-  | typeof PORT_DIRECTION_RIGHT
-  | typeof PORT_DIRECTION_UP
-  | typeof PORT_DIRECTION_DOWN;
+interface DemoLinkViewState {
+  sourceId: string;
+  targetId: string;
+  view: Path;
+}
+
+interface DemoDragState {
+  nodeId: string;
+  offsetX: number;
+  offsetY: number;
+}
 
 export interface LeaferGraphNodeData {
   id: string;
@@ -125,9 +132,35 @@ export class LeaferGraph {
   readonly container: HTMLElement;
   readonly app: App;
   readonly root: Group;
-  readonly nodeShadowLayer: Group;
   readonly linkLayer: Group;
   readonly nodeLayer: Group;
+
+  private readonly nodeViews = new Map<string, DemoNodeViewState>();
+  private readonly linkViews: DemoLinkViewState[] = [];
+  private dragState: DemoDragState | null = null;
+  private readonly handleWindowPointerMove = (event: PointerEvent): void => {
+    if (!this.dragState) {
+      return;
+    }
+
+    const point = this.getContainerPoint(event);
+    this.syncDraggedNode(
+      this.dragState.nodeId,
+      point.x - this.dragState.offsetX,
+      point.y - this.dragState.offsetY
+    );
+    this.container.style.cursor = "grabbing";
+    this.app.forceRender();
+  };
+  private readonly handleWindowPointerUp = (): void => {
+    if (!this.dragState) {
+      return;
+    }
+
+    this.dragState = null;
+    this.container.style.cursor = "";
+    this.app.forceRender();
+  };
 
   constructor(container: HTMLElement, options: LeaferGraphOptions = {}) {
     this.container = container;
@@ -143,17 +176,22 @@ export class LeaferGraph {
     });
 
     this.root = new Group({ name: "leafergraph-root" });
-    this.nodeShadowLayer = new Group({ name: "node-shadows", hittable: false });
     this.linkLayer = new Group({ name: "links", hittable: false });
     this.nodeLayer = new Group({ name: "nodes" });
 
-    this.root.add([this.nodeShadowLayer, this.linkLayer, this.nodeLayer]);
+    this.root.add([this.linkLayer, this.nodeLayer]);
     this.app.tree.add(this.root);
+    window.addEventListener("pointermove", this.handleWindowPointerMove);
+    window.addEventListener("pointerup", this.handleWindowPointerUp);
+    window.addEventListener("pointercancel", this.handleWindowPointerUp);
 
     this.renderDemo(options.nodes ?? DEFAULT_NODES);
   }
 
   destroy(): void {
+    window.removeEventListener("pointermove", this.handleWindowPointerMove);
+    window.removeEventListener("pointerup", this.handleWindowPointerUp);
+    window.removeEventListener("pointercancel", this.handleWindowPointerUp);
     this.app.destroy();
   }
 
@@ -172,52 +210,31 @@ export class LeaferGraph {
     this.container.style.background =
       fill ??
       [
-        "radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 22%)",
-        "radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.18), transparent 20%)",
-        "radial-gradient(circle at center, rgba(255, 255, 255, 0.03) 1px, transparent 1px)",
-        "linear-gradient(180deg, #09090b 0%, #111827 100%)"
+        "radial-gradient(circle at top left, rgba(56, 189, 248, 0.20), transparent 30%)",
+        "radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 28%)",
+        "radial-gradient(circle at center, rgba(15, 23, 42, 0.06) 1px, transparent 1px)",
+        "linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%)"
       ].join(", ");
     this.container.style.backgroundSize = "auto, auto, 20px 20px, auto";
   }
 
   private renderDemo(nodes: LeaferGraphNodeData[]): void {
-    for (const node of nodes) {
-      this.nodeShadowLayer.add(this.createNodeShadow(node));
+    const localNodes = nodes.map((node) => this.cloneNodeData(node));
+
+    for (const node of localNodes) {
+      const view = this.createNode(node);
+      this.nodeViews.set(node.id, { data: node, view });
+      this.nodeLayer.add(view);
+      this.bindNodeDragging(node.id, view);
     }
 
-    for (let index = 0; index < nodes.length - 1; index += 1) {
-      this.linkLayer.add(this.createLink(nodes[index], nodes[index + 1]));
+    for (let index = 0; index < localNodes.length - 1; index += 1) {
+      const source = localNodes[index];
+      const target = localNodes[index + 1];
+      const view = this.createLink(source, target);
+      this.linkViews.push({ sourceId: source.id, targetId: target.id, view });
+      this.linkLayer.add(view);
     }
-
-    for (const node of nodes) {
-      this.nodeLayer.add(this.createNode(node));
-    }
-  }
-
-  private createNodeShadow(node: LeaferGraphNodeData): Group {
-    const width = node.width ?? DEFAULT_NODE_WIDTH;
-    const height = this.resolveNodeHeight(node);
-
-    const group = new Group({
-      x: node.x,
-      y: node.y,
-      name: `node-shadow-${node.id}`,
-      hittable: false
-    });
-
-    group.add(
-      new Rect({
-        x: NODE_SHADOW_INSET_X,
-        y: NODE_SHADOW_OFFSET_Y,
-        width: Math.max(width - NODE_SHADOW_INSET_X * 2, width * 0.72),
-        height,
-        fill: SHADOW_FILL,
-        cornerRadius: Math.max(NODE_RADIUS - 2, 0),
-        hittable: false
-      })
-    );
-
-    return group;
   }
 
   private createLink(
@@ -225,89 +242,121 @@ export class LeaferGraph {
     target: LeaferGraphNodeData
   ): Path {
     const sourceWidth = source.width ?? DEFAULT_NODE_WIDTH;
-    const startX = source.x + sourceWidth + PORT_SIZE / 2;
-    const startY = source.y + this.resolvePrimaryPortY(source);
-    const endX = target.x - PORT_SIZE / 2;
-    const endY = target.y + this.resolvePrimaryPortY(target);
-    const path = this.buildLinkPath(
-      [startX, startY],
-      [endX, endY],
-      PORT_DIRECTION_RIGHT,
-      PORT_DIRECTION_LEFT
-    );
+    const endpoints = resolveLinkEndpoints({
+      sourceX: source.x,
+      sourceY: source.y,
+      sourceWidth,
+      targetX: target.x,
+      targetY: target.y,
+      sourcePortY: this.resolvePrimaryPortY(source),
+      targetPortY: this.resolvePrimaryPortY(target),
+      portSize: PORT_SIZE
+    });
 
     return new Path({
-      path,
-      fill: "none",
+      path: buildLinkPath(
+        endpoints.start,
+        endpoints.end,
+        PORT_DIRECTION_RIGHT,
+        PORT_DIRECTION_LEFT
+      ),
+      fill: "transparent",
       stroke: LINK_STROKE,
       strokeWidth: 3,
-      startArrow: "none",
-      endArrow: "none",
-      shadow: [],
-      innerShadow: [],
       strokeCap: "round",
       strokeJoin: "round",
       hittable: false
     });
   }
 
-  private buildLinkPath(
-    start: LinkPoint,
-    end: LinkPoint,
-    startDir: PortDirection,
-    endDir: PortDirection
-  ): string {
-    const safeStart: [number, number] = [start[0], start[1]];
-    const safeEnd: [number, number] = [end[0], end[1]];
-    const dist = Math.max(this.measureDistance(safeStart, safeEnd), 16);
-    const c1: [number, number] = [safeStart[0], safeStart[1]];
-    const c2: [number, number] = [safeEnd[0], safeEnd[1]];
-    const handle = dist * 0.25;
+  private bindNodeDragging(nodeId: string, view: Group): void {
+    view.on("pointer.enter", () => {
+      if (!this.dragState) {
+        this.container.style.cursor = "grab";
+      }
+    });
+    view.on("pointer.leave", () => {
+      if (!this.dragState) {
+        this.container.style.cursor = "";
+      }
+    });
+    view.on("pointer.down", (event: { x: number; y: number }) => {
+      const state = this.nodeViews.get(nodeId);
+      if (!state) {
+        return;
+      }
 
-    this.applyDirectionalHandle(c1, startDir, handle);
-    this.applyDirectionalHandle(c2, endDir, handle);
-
-    // 近距离且同列的左右端口，直接套普通 S 曲线会在终点前回折，
-    // 视觉上像多出一层阴影。这里借鉴 LiteGraph 的方向控制点思路，
-    // 但在水平间距过小时让两端控制点同向外扩，避免自叠。
-    if (
-      startDir === PORT_DIRECTION_RIGHT &&
-      endDir === PORT_DIRECTION_LEFT &&
-      safeEnd[0] <= safeStart[0] + handle * 1.2
-    ) {
-      const outward = Math.max(36, Math.min(dist * 0.3, 96));
-      c1[0] = safeStart[0] + outward;
-      c2[0] = safeEnd[0] + outward;
-    }
-
-    return `M ${safeStart[0]} ${safeStart[1]} C ${c1[0]} ${c1[1]}, ${c2[0]} ${c2[1]}, ${safeEnd[0]} ${safeEnd[1]}`;
+      this.dragState = {
+        nodeId,
+        offsetX: event.x - state.data.x,
+        offsetY: event.y - state.data.y
+      };
+      this.container.style.cursor = "grabbing";
+    });
   }
 
-  private applyDirectionalHandle(
-    point: [number, number],
-    dir: PortDirection,
-    distance: number
-  ): void {
-    switch (dir) {
-      case PORT_DIRECTION_LEFT:
-        point[0] -= distance;
-        break;
-      case PORT_DIRECTION_RIGHT:
-        point[0] += distance;
-        break;
-      case PORT_DIRECTION_UP:
-        point[1] -= distance;
-        break;
-      case PORT_DIRECTION_DOWN:
-        point[1] += distance;
-        break;
-      default:
-        break;
+  private syncDraggedNode(nodeId: string, x: number, y: number): void {
+    const state = this.nodeViews.get(nodeId);
+    if (!state) {
+      return;
+    }
+
+    state.data.x = x;
+    state.data.y = y;
+    state.view.x = x;
+    state.view.y = y;
+
+    this.updateConnectedLinks(nodeId);
+  }
+
+  private updateConnectedLinks(nodeId: string): void {
+    for (const link of this.linkViews) {
+      if (link.sourceId !== nodeId && link.targetId !== nodeId) {
+        continue;
+      }
+
+      const source = this.nodeViews.get(link.sourceId)?.data;
+      const target = this.nodeViews.get(link.targetId)?.data;
+      if (!source || !target) {
+        continue;
+      }
+
+      const sourceWidth = source.width ?? DEFAULT_NODE_WIDTH;
+      const endpoints = resolveLinkEndpoints({
+        sourceX: source.x,
+        sourceY: source.y,
+        sourceWidth,
+        targetX: target.x,
+        targetY: target.y,
+        sourcePortY: this.resolvePrimaryPortY(source),
+        targetPortY: this.resolvePrimaryPortY(target),
+        portSize: PORT_SIZE
+      });
+
+      link.view.path = buildLinkPath(
+        endpoints.start,
+        endpoints.end,
+        PORT_DIRECTION_RIGHT,
+        PORT_DIRECTION_LEFT
+      );
     }
   }
 
-  private measureDistance(start: LinkPoint, end: LinkPoint): number {
-    return Math.hypot(end[0] - start[0], end[1] - start[1]);
+  private cloneNodeData(node: LeaferGraphNodeData): LeaferGraphNodeData {
+    return {
+      ...node,
+      inputs: node.inputs ? [...node.inputs] : undefined,
+      outputs: node.outputs ? [...node.outputs] : undefined
+    };
+  }
+
+  private getContainerPoint(event: PointerEvent): { x: number; y: number } {
+    const rect = this.container.getBoundingClientRect();
+
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
   }
 
   private createNode(node: LeaferGraphNodeData): Group {
