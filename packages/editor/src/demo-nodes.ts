@@ -42,8 +42,26 @@ export const demoNodes: LeaferGraphNodeData[] = [
     status: "SYNC",
     inputs: ["Image"],
     outputs: ["Panel"],
-    controlLabel: "Zoom",
-    controlValue: "1.00",
-    controlProgress: 0.32
+    widgets: [
+      {
+        type: "slider",
+        name: "primary-control",
+        value: 0.32,
+        options: {
+          label: "Zoom",
+          displayValue: "1.00"
+        }
+      },
+      {
+        type: "toggle",
+        name: "live-preview",
+        value: true,
+        options: {
+          label: "Live Preview",
+          onText: "ON",
+          offText: "OFF"
+        }
+      }
+    ]
   }
 ];

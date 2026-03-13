@@ -105,7 +105,8 @@ export function cloneDefinition(definition: NodeDefinition): NodeDefinition {
     outputs: cloneSlotSpecs(definition.outputs),
     properties: clonePropertySpecs(definition.properties),
     widgets: cloneWidgetSpecs(definition.widgets),
-    size: definition.size ? [definition.size[0], definition.size[1]] : undefined
+    size: definition.size ? [definition.size[0], definition.size[1]] : undefined,
+    resize: definition.resize ? { ...definition.resize } : undefined
   };
 }
 

@@ -1,6 +1,8 @@
-import { App, Group, Rect } from "leafer-ui";
+import { App, Box, Group, Rect } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import { Arrow } from "@leafer-in/arrow";
+import "@leafer-in/flow";
+import "@leafer-in/resize";
 import "@leafer-in/state";
 import { addViewport } from "@leafer-in/viewport";
 import "@leafer-in/view";
@@ -17,6 +19,7 @@ import {
   type LeaferGraphNodeData,
   type InstallNodeModuleOptions,
   type NodeDefinition,
+  type NodeResizeConfig,
   type NodeModule,
   type NodeRuntimeState,
   type NodeSerializeResult,
@@ -38,6 +41,14 @@ export {
   LeaferGraphContextMenuManager,
   createLeaferGraphContextMenu
 } from "./context_menu";
+export {
+  LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
+  bindLinearWidgetDrag,
+  bindPressWidgetInteraction,
+  isWidgetInteractionTarget,
+  resolveLinearWidgetProgressFromEvent,
+  stopWidgetPointerEvent
+} from "./widget_interaction";
 export type {
   LeaferGraphContextMenuActionItem,
   LeaferGraphContextMenuBinding,
@@ -61,6 +72,14 @@ export type {
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetRendererContext
 } from "./plugin";
+export type {
+  LeaferGraphLinearWidgetDragOptions,
+  LeaferGraphPressWidgetInteractionOptions,
+  LeaferGraphWidgetEventSource,
+  LeaferGraphWidgetEventTargetLike,
+  LeaferGraphWidgetInteractionBinding,
+  LeaferGraphWidgetPointerEvent
+} from "./widget_interaction";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
@@ -79,7 +98,14 @@ import {
   resolveNodeShellLayout
 } from "./node_layout";
 import { resolveNodePortAnchorYForNode } from "./node_port";
-import { createNodeShell } from "./node_shell";
+import { createNodeShell, type NodeShellView } from "./node_shell";
+import {
+  LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
+  bindLinearWidgetDrag,
+  bindPressWidgetInteraction,
+  isWidgetInteractionTarget,
+  type LeaferGraphWidgetPointerEvent
+} from "./widget_interaction";
 
 /**
  * 主包当前 demo 渲染实现。
@@ -100,6 +126,8 @@ const SLOT_ROW_HEIGHT = 20;
 const SLOT_ROW_GAP = 16;
 const PORT_SIZE = 12;
 const WIDGET_HEIGHT = 60;
+const WIDGET_GAP = 12;
+const WIDGET_PADDING_Y = 16;
 const WIDGET_TRACK_HEIGHT = 4;
 const SIGNAL_SIZE = 8;
 const SIGNAL_GLOW_SIZE = 14;
@@ -150,6 +178,8 @@ const NODE_SHELL_LAYOUT_METRICS = {
   slotRowGap: SLOT_ROW_GAP,
   portSize: PORT_SIZE,
   widgetHeight: WIDGET_HEIGHT,
+  widgetGap: WIDGET_GAP,
+  widgetPaddingY: WIDGET_PADDING_Y,
   categoryPillHeight: CATEGORY_PILL_HEIGHT,
   categoryPillMinWidth: CATEGORY_PILL_MIN_WIDTH,
   categoryCharWidth: CATEGORY_CHAR_WIDTH,
@@ -223,13 +253,27 @@ interface LeaferGraphZoomableTree {
   ): unknown;
 }
 
+/**
+ * 主包当前依赖的 Leafer 宿主坐标转换能力。
+ * Leafer 文档中 `getWorldPointByClient(...)` 挂在 `App / Leafer` 实例上，
+ * 因此这里单独补一份最小本地类型。
+ */
+interface LeaferGraphCoordinateHost {
+  getWorldPointByClient(
+    clientPoint: { clientX: number; clientY: number },
+    updateClient?: boolean
+  ): { x: number; y: number };
+}
+
 /** 节点视图状态，负责把运行时节点和实际 Leafer 图元绑定在一起。 */
 interface NodeViewState {
   state: GraphNodeState;
   view: Group;
   card: Rect;
   selectedRing: Rect;
-  widgetLayer: Group;
+  widgetLayer: Box;
+  resizeHandle: Rect;
+  shellView: NodeShellView;
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
 }
 
@@ -256,6 +300,15 @@ interface DemoDragState {
   offsetY: number;
 }
 
+/** 拖拽 resize 句柄时的节点缩放状态。 */
+interface DemoResizeState {
+  nodeId: string;
+  startWidth: number;
+  startHeight: number;
+  startWorldX: number;
+  startWorldY: number;
+}
+
 /** 当前 demo 节点额外属性。 */
 interface DemoNodeProperties {
   subtitle?: string;
@@ -268,6 +321,8 @@ interface DemoNodeProperties {
 interface DemoWidgetOptions {
   label?: string;
   displayValue?: string;
+  onText?: string;
+  offText?: string;
 }
 
 /** 已安装插件的登记信息。 */
@@ -324,6 +379,32 @@ export interface LeaferGraphMoveNodeInput {
 }
 
 /**
+ * 主包调整节点尺寸时使用的输入结构。
+ * 当前阶段只开放显式宽高，后续如需保留锚点或按比例缩放，再扩展额外元数据。
+ */
+export interface LeaferGraphResizeNodeInput {
+  width: number;
+  height: number;
+}
+
+/**
+ * 主包对外暴露的节点 resize 约束。
+ * 它已经把节点定义中的默认值、兼容字段和宿主默认值统一解析完成，
+ * 适合 editor、命令层或调试工具直接读取。
+ */
+export interface LeaferGraphNodeResizeConstraint {
+  enabled: boolean;
+  lockRatio: boolean;
+  minWidth: number;
+  minHeight: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  snap?: number;
+  defaultWidth: number;
+  defaultHeight: number;
+}
+
+/**
  * 主包创建连线时使用的输入结构。
  * 当前阶段允许省略连线 ID，由宿主生成稳定可读的默认值。
  */
@@ -377,9 +458,27 @@ const DEFAULT_NODES: LeaferGraphNodeData[] = [
     status: "SYNC",
     inputs: ["Image"],
     outputs: ["Panel"],
-    controlLabel: "Zoom",
-    controlValue: "1.00",
-    controlProgress: 0.32
+    widgets: [
+      {
+        type: "slider",
+        name: DEMO_CONTROL_WIDGET,
+        value: 0.32,
+        options: {
+          label: "Zoom",
+          displayValue: "1.00"
+        }
+      },
+      {
+        type: "toggle",
+        name: "live-preview",
+        value: true,
+        options: {
+          label: "Live Preview",
+          onText: "ON",
+          offText: "OFF"
+        }
+      }
+    ]
   }
 ];
 
@@ -389,8 +488,12 @@ const DEMO_NODE_DEFINITION: NodeDefinition = {
   title: "Category Node",
   category: "Demo",
   size: [DEFAULT_NODE_WIDTH, DEFAULT_NODE_MIN_HEIGHT],
-  minWidth: DEFAULT_NODE_WIDTH,
-  minHeight: DEFAULT_NODE_MIN_HEIGHT,
+  resize: {
+    enabled: true,
+    minWidth: DEFAULT_NODE_WIDTH,
+    minHeight: DEFAULT_NODE_MIN_HEIGHT,
+    snap: 4
+  },
   properties: [
     { name: "subtitle", type: "string" },
     { name: "accent", type: "string", default: OUTPUT_PORT_FILL },
@@ -495,15 +598,39 @@ function cloneLinkData(link: LeaferGraphLinkData): LeaferGraphLinkData {
   };
 }
 
+/** 把任意输入约束成有限数字；非法时回退到给定值。 */
+function coerceFiniteNumber(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/** 将值限制在给定区间内；未提供最大值时只做下界限制。 */
+function clampToRange(value: number, min: number, max?: number): number {
+  if (typeof max === "number" && Number.isFinite(max)) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  return Math.max(value, min);
+}
+
+/** 按给定步长做吸附；非法或非正数步长会直接返回原值。 */
+function snapToStep(value: number, step?: number): number {
+  if (typeof step !== "number" || !Number.isFinite(step) || step <= 0) {
+    return value;
+  }
+
+  return Math.round(value / step) * step;
+}
+
 /**
  * 创建默认 slider renderer。
  * Mount 阶段创建图元，Update 阶段只更新进度条宽度和显示值。
  */
 function createSliderWidgetRenderer(): LeaferGraphWidgetRenderer {
-  return ({ ui, group, node, widget, value, bounds }) => {
+  return ({ ui, group, node, widget, value, bounds, setValue }) => {
     const options = widget.options as DemoWidgetOptions | undefined;
     const accent = readNodeAccent(node);
     const progress = clampProgress(value);
+    let useStaticDisplayValue = typeof options?.displayValue === "string";
 
     const label = new ui.Text({
       x: bounds.x,
@@ -561,16 +688,166 @@ function createSliderWidgetRenderer(): LeaferGraphWidgetRenderer {
       hittable: false
     });
 
+    const hitArea = new ui.Rect({
+      name: LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
+      x: bounds.x,
+      y: bounds.y + 24,
+      width: bounds.width,
+      height: 26,
+      fill: "rgba(255, 255, 255, 0.001)",
+      cornerRadius: 999,
+      cursor: "ew-resize"
+    });
+
+    /**
+     * 统一同步 slider 的视觉结果。
+     * 这里单独抽出来，便于 Mount / Update / 交互回写复用同一套展示逻辑。
+     */
+    const applyProgress = (nextProgress: number): void => {
+      active.width = bounds.width * nextProgress;
+      thumb.x = bounds.x + bounds.width * nextProgress - 7;
+      valueText.text = useStaticDisplayValue
+        ? options?.displayValue ?? ""
+        : resolveWidgetDisplayValue(
+            {
+              ...widget,
+              options: {
+                ...(widget.options ?? {}),
+                displayValue: undefined
+              }
+            },
+            nextProgress
+          );
+    };
+    const interaction = bindLinearWidgetDrag({
+      hitArea,
+      group,
+      bounds,
+      getNodeX: () => node.layout.x,
+      onValue(nextProgress) {
+        useStaticDisplayValue = false;
+        setValue(nextProgress);
+      }
+    });
+
     group.add([label, valueText, track, active, thumb]);
+    group.add(hitArea);
+    applyProgress(progress);
 
     return {
       update(newValue: unknown) {
         const nextProgress = clampProgress(newValue);
-        active.width = bounds.width * nextProgress;
-        thumb.x = bounds.x + bounds.width * nextProgress - 7;
-        valueText.text = resolveWidgetDisplayValue(widget, nextProgress);
+        if (useStaticDisplayValue && nextProgress !== progress) {
+          useStaticDisplayValue = false;
+        }
+        applyProgress(nextProgress);
       },
       destroy() {
+        interaction.destroy();
+        group.removeAll();
+      }
+    };
+  };
+}
+
+/**
+ * 创建默认 toggle renderer。
+ * 它作为第二种正式交互件，用来验证“按压触发型 Widget”也能复用统一宿主交互层。
+ */
+function createToggleWidgetRenderer(): LeaferGraphWidgetRenderer {
+  return ({ ui, group, node, widget, value, bounds, setValue }) => {
+    const options = widget.options as DemoWidgetOptions | undefined;
+    const accent = readNodeAccent(node);
+    let checked = Boolean(value);
+    const switchWidth = 42;
+    const switchHeight = 22;
+    const switchX = bounds.x + bounds.width - switchWidth;
+    const switchY = bounds.y + 27;
+
+    const label = new ui.Text({
+      x: bounds.x,
+      y: bounds.y + 12,
+      text: (options?.label ?? widget.name).toUpperCase(),
+      fill: WIDGET_LABEL_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 10,
+      fontWeight: "600",
+      hittable: false
+    });
+
+    const stateText = new ui.Text({
+      x: bounds.x,
+      y: bounds.y + 33,
+      text: resolveToggleDisplayValue(checked, options),
+      fill: checked ? accent : SLOT_LABEL_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 11,
+      fontWeight: "600",
+      hittable: false
+    });
+
+    const track = new ui.Rect({
+      x: switchX,
+      y: switchY,
+      width: switchWidth,
+      height: switchHeight,
+      fill: checked ? accent : TRACK_FILL,
+      stroke: checked ? "rgba(255, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.10)",
+      strokeWidth: 1,
+      cornerRadius: 999,
+      hittable: false
+    });
+
+    const thumb = new ui.Rect({
+      x: switchX + (checked ? switchWidth - 20 : 2),
+      y: switchY + 2,
+      width: 18,
+      height: 18,
+      fill: "#FFFFFF",
+      stroke: "rgba(15, 23, 42, 0.08)",
+      strokeWidth: 1,
+      cornerRadius: 999,
+      hittable: false
+    });
+
+    const hitArea = new ui.Rect({
+      name: LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
+      x: bounds.x,
+      y: bounds.y + 24,
+      width: bounds.width,
+      height: 28,
+      fill: "rgba(255, 255, 255, 0.001)",
+      cornerRadius: 999,
+      cursor: "pointer"
+    });
+
+    const applyChecked = (nextChecked: boolean): void => {
+      checked = nextChecked;
+      stateText.text = resolveToggleDisplayValue(nextChecked, options);
+      stateText.fill = nextChecked ? accent : SLOT_LABEL_FILL;
+      track.fill = nextChecked ? accent : TRACK_FILL;
+      track.stroke = nextChecked
+        ? "rgba(255, 255, 255, 0.08)"
+        : "rgba(255, 255, 255, 0.10)";
+      thumb.x = switchX + (nextChecked ? switchWidth - 20 : 2);
+    };
+
+    const interaction = bindPressWidgetInteraction({
+      hitArea,
+      onPress() {
+        setValue(!checked);
+      }
+    });
+
+    group.add([label, stateText, track, thumb, hitArea]);
+    applyChecked(checked);
+
+    return {
+      update(newValue: unknown) {
+        applyChecked(Boolean(newValue));
+      },
+      destroy() {
+        interaction.destroy();
         group.removeAll();
       }
     };
@@ -642,6 +919,14 @@ function resolveWidgetDisplayValue(widget: { value?: unknown; options?: Record<s
   return formatWidgetValue(value);
 }
 
+/** 根据 toggle 当前状态生成展示文本。 */
+function resolveToggleDisplayValue(
+  checked: boolean,
+  options?: DemoWidgetOptions
+): string {
+  return checked ? options?.onText ?? "ON" : options?.offText ?? "OFF";
+}
+
 /** 将任意 widget 值格式化为稳定字符串。 */
 function formatWidgetValue(value: unknown): string {
   if (value === undefined) {
@@ -692,12 +977,23 @@ export class LeaferGraph {
   private readonly defaultWidgetRenderer = createValueWidgetRenderer();
   private readonly installedPlugins = new Map<string, InstalledPluginRecord>();
   private dragState: DemoDragState | null = null;
+  private resizeState: DemoResizeState | null = null;
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
+    if (this.resizeState) {
+      const point = this.getWorldPointByClient(event);
+      const width = this.resizeState.startWidth + (point.x - this.resizeState.startWorldX);
+      const height = this.resizeState.startHeight + (point.y - this.resizeState.startWorldY);
+
+      this.resizeNode(this.resizeState.nodeId, { width, height });
+      this.container.style.cursor = "nwse-resize";
+      return;
+    }
+
     if (!this.dragState) {
       return;
     }
 
-    const point = this.getContainerPoint(event);
+    const point = this.getWorldPointByClient(event);
     this.moveNode(this.dragState.nodeId, {
       x: point.x - this.dragState.offsetX,
       y: point.y - this.dragState.offsetY
@@ -705,12 +1001,15 @@ export class LeaferGraph {
     this.container.style.cursor = "grabbing";
   };
   private readonly handleWindowPointerUp = (): void => {
-    if (!this.dragState) {
-      return;
+    if (this.resizeState) {
+      this.resizeState = null;
+      this.container.style.cursor = "";
     }
 
-    this.dragState = null;
-    this.container.style.cursor = "";
+    if (this.dragState) {
+      this.dragState = null;
+      this.container.style.cursor = "";
+    }
   };
 
   /** 创建图宿主，并在内部异步完成模块与插件安装。 */
@@ -751,6 +1050,8 @@ export class LeaferGraph {
       this.destroyNodeWidgets(state);
     }
 
+    this.dragState = null;
+    this.resizeState = null;
     window.removeEventListener("pointermove", this.handleWindowPointerMove);
     window.removeEventListener("pointerup", this.handleWindowPointerUp);
     window.removeEventListener("pointercancel", this.handleWindowPointerUp);
@@ -906,6 +1207,42 @@ export class LeaferGraph {
   }
 
   /**
+   * 读取某个节点的正式 resize 约束。
+   * 返回结果已经合并了节点定义中的 `resize` 配置、兼容字段和主包默认值。
+   */
+  getNodeResizeConstraint(
+    nodeId: string
+  ): LeaferGraphNodeResizeConstraint | undefined {
+    const node = this.graphState.nodes.get(nodeId);
+    if (!node) {
+      return undefined;
+    }
+
+    return this.resolveNodeResizeConstraint(node);
+  }
+
+  /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
+  canResizeNode(nodeId: string): boolean {
+    return Boolean(this.getNodeResizeConstraint(nodeId)?.enabled);
+  }
+
+  /**
+   * 把节点尺寸恢复到定义默认值。
+   * 如果定义没有显式提供默认尺寸，则回退到主包的基础节点尺寸。
+   */
+  resetNodeSize(nodeId: string): NodeRuntimeState | undefined {
+    const constraint = this.getNodeResizeConstraint(nodeId);
+    if (!constraint?.enabled) {
+      return undefined;
+    }
+
+    return this.resizeNode(nodeId, {
+      width: constraint.defaultWidth,
+      height: constraint.defaultHeight
+    });
+  }
+
+  /**
    * 根据节点 ID 查询当前图中的所有关联连线。
    * 这一步先提供最小查询能力，方便 editor 后续接入删除、复制和选中联动。
    */
@@ -958,6 +1295,10 @@ export class LeaferGraph {
       this.dragState = null;
       this.container.style.cursor = "";
     }
+    if (this.resizeState?.nodeId === nodeId) {
+      this.resizeState = null;
+      this.container.style.cursor = "";
+    }
 
     this.app.forceRender();
     return true;
@@ -996,7 +1337,14 @@ export class LeaferGraph {
       data: input.data
     });
 
-    this.replaceNodeView(node);
+    const state = this.nodeViews.get(nodeId);
+
+    if (state) {
+      this.refreshNodeView(state);
+    } else {
+      this.mountNodeView(node);
+    }
+
     this.updateConnectedLinks(nodeId);
     this.app.forceRender();
     return node;
@@ -1030,6 +1378,76 @@ export class LeaferGraph {
       state.view.y = nextY;
     }
 
+    this.updateConnectedLinks(nodeId);
+    this.app.forceRender();
+    return node;
+  }
+
+  /**
+   * 调整一个节点的显式宽高。
+   * 当前不做整体缩放，而是直接修改布局尺寸并局部重建节点壳，
+   * 以保持端口、Widget 和连线锚点语义稳定。
+   */
+  resizeNode(
+    nodeId: string,
+    size: LeaferGraphResizeNodeInput
+  ): NodeRuntimeState | undefined {
+    const node = this.graphState.nodes.get(nodeId);
+    const state = this.nodeViews.get(nodeId);
+
+    if (!node || !state) {
+      return node;
+    }
+
+    const constraint = this.resolveNodeResizeConstraint(node);
+    if (!constraint.enabled) {
+      return node;
+    }
+
+    const currentWidth = node.layout.width ?? constraint.defaultWidth;
+    const currentHeight = node.layout.height ?? constraint.defaultHeight;
+    let nextWidth = coerceFiniteNumber(size.width, currentWidth);
+    let nextHeight = coerceFiniteNumber(size.height, currentHeight);
+
+    if (constraint.lockRatio) {
+      const ratio =
+        constraint.defaultHeight > 0
+          ? constraint.defaultWidth / constraint.defaultHeight
+          : currentHeight > 0
+            ? currentWidth / currentHeight
+            : 1;
+      const widthDelta = Math.abs(nextWidth - currentWidth);
+      const heightDelta = Math.abs(nextHeight - currentHeight);
+      const widthDriven = widthDelta >= heightDelta;
+
+      if (widthDriven) {
+        nextHeight = nextWidth / ratio;
+      } else {
+        nextWidth = nextHeight * ratio;
+      }
+    }
+
+    nextWidth = snapToStep(nextWidth, constraint.snap);
+    nextHeight = snapToStep(nextHeight, constraint.snap);
+
+    nextWidth = clampToRange(
+      nextWidth,
+      constraint.minWidth,
+      constraint.maxWidth
+    );
+    nextHeight = clampToRange(
+      nextHeight,
+      constraint.minHeight,
+      constraint.maxHeight
+    );
+
+    if (node.layout.width === nextWidth && node.layout.height === nextHeight) {
+      return node;
+    }
+
+    node.layout.width = Math.round(nextWidth);
+    node.layout.height = Math.round(nextHeight);
+    this.refreshNodeView(state);
     this.updateConnectedLinks(nodeId);
     this.app.forceRender();
     return node;
@@ -1101,7 +1519,7 @@ export class LeaferGraph {
     this.registerWidgetRenderer("number", createValueWidgetRenderer());
     this.registerWidgetRenderer("string", createValueWidgetRenderer());
     this.registerWidgetRenderer("combo", createValueWidgetRenderer());
-    this.registerWidgetRenderer("toggle", createValueWidgetRenderer());
+    this.registerWidgetRenderer("toggle", createToggleWidgetRenderer());
     this.registerWidgetRenderer("custom", createValueWidgetRenderer());
   }
 
@@ -1178,6 +1596,8 @@ export class LeaferGraph {
       this.destroyNodeWidgets(state);
     }
 
+    this.dragState = null;
+    this.resizeState = null;
     this.graphState.nodes.clear();
     this.graphState.links.clear();
     this.nodeViews.clear();
@@ -1203,6 +1623,7 @@ export class LeaferGraph {
     this.nodeViews.set(node.id, state);
     this.nodeLayer.add(state.view);
     this.bindNodeDragging(node.id, state.view);
+    this.bindNodeResize(node.id, state);
     return state;
   }
 
@@ -1219,10 +1640,37 @@ export class LeaferGraph {
     return state;
   }
 
-  /** 节点内容更新后，用新的 Leafer 图元替换旧视图。 */
-  private replaceNodeView(node: GraphNodeState): NodeViewState {
-    this.unmountNodeView(node.id);
-    return this.mountNodeView(node);
+  /**
+   * 在同一个根 Group 内重建节点壳内容。
+   * 这样可以保留 editor 绑定在节点根视图上的菜单、选区和拖拽监听，
+   * 同时让端口、Widget 区和 resize 句柄按最新布局重新生成。
+   */
+  private refreshNodeView(state: NodeViewState): void {
+    const shellLayout = resolveNodeShellLayout(
+      state.state,
+      NODE_SHELL_LAYOUT_METRICS
+    );
+    const nextShellView = this.buildNodeShell(state.state, shellLayout);
+    const nextChildren = [...nextShellView.view.children];
+
+    this.destroyNodeWidgets(state);
+    state.view.x = state.state.layout.x;
+    state.view.y = state.state.layout.y;
+    state.view.name = nextShellView.view.name;
+    state.view.removeAll();
+    state.view.add(nextChildren as unknown as Group[]);
+
+    state.card = nextShellView.card;
+    state.selectedRing = nextShellView.selectedRing;
+    state.widgetLayer = nextShellView.widgetLayer;
+    state.resizeHandle = nextShellView.resizeHandle;
+    state.shellView = nextShellView;
+    state.widgetInstances = shellLayout.hasWidgets
+      ? this.renderNodeWidgets(state.state, nextShellView.widgetLayer, shellLayout)
+      : [];
+
+    this.bindNodeResize(state.state.id, state);
+    this.applyNodeSelectionStyles(state);
   }
 
   /** 将连线状态和连线视图一起挂入当前图。 */
@@ -1339,28 +1787,73 @@ export class LeaferGraph {
 
   /** 绑定节点拖拽交互。 */
   private bindNodeDragging(nodeId: string, view: Group): void {
-    view.on("pointer.enter", () => {
-      if (!this.dragState) {
+    view.on("pointer.enter", (event: LeaferGraphWidgetPointerEvent) => {
+      if (
+        !this.dragState &&
+        !this.resizeState &&
+        !this.isResizeHandleTarget(event.target)
+      ) {
         this.container.style.cursor = "grab";
       }
     });
     view.on("pointer.leave", () => {
-      if (!this.dragState) {
+      if (!this.dragState && !this.resizeState) {
         this.container.style.cursor = "";
       }
     });
-    view.on("pointer.down", (event: { x: number; y: number }) => {
+    view.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
       const state = this.nodeViews.get(nodeId);
+      if (
+        isWidgetInteractionTarget(event.target) ||
+        this.isResizeHandleTarget(event.target) ||
+        (state && this.isResizeHandleHit(event, state))
+      ) {
+        return;
+      }
+
       if (!state) {
         return;
       }
 
+      const point = this.getWorldPointFromGraphEvent(event);
+      this.resizeState = null;
       this.dragState = {
         nodeId,
-        offsetX: event.x - state.state.layout.x,
-        offsetY: event.y - state.state.layout.y
+        offsetX: point.x - state.state.layout.x,
+        offsetY: point.y - state.state.layout.y
       };
       this.container.style.cursor = "grabbing";
+    });
+  }
+
+  /**
+   * 绑定节点右下角 resize 句柄。
+   * 当前先做最小自定义实现，不直接缩放整个 Group，
+   * 而是把拖拽结果写回节点布局尺寸，再走局部刷新。
+   */
+  private bindNodeResize(nodeId: string, state: NodeViewState): void {
+    if (!this.canResizeNode(nodeId)) {
+      return;
+    }
+
+    state.resizeHandle.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
+      const node = this.graphState.nodes.get(nodeId);
+      if (!node) {
+        return;
+      }
+
+      event.stopNow?.();
+      event.stop?.();
+      this.dragState = null;
+      const point = this.getWorldPointFromGraphEvent(event);
+      this.resizeState = {
+        nodeId,
+        startWidth: node.layout.width ?? DEFAULT_NODE_WIDTH,
+        startHeight: node.layout.height ?? DEFAULT_NODE_MIN_HEIGHT,
+        startWorldX: point.x,
+        startWorldY: point.y
+      };
+      this.container.style.cursor = "nwse-resize";
     });
   }
 
@@ -1417,14 +1910,73 @@ export class LeaferGraph {
     );
   }
 
-  /** 将窗口指针坐标转换为容器局部坐标。 */
-  private getContainerPoint(event: PointerEvent): { x: number; y: number } {
-    const rect = this.container.getBoundingClientRect();
+  /**
+   * 判断当前事件命中是否来自节点 resize 句柄。
+   * 这样可以避免根节点拖拽监听误把 resize 手势识别成移动节点。
+   */
+  private isResizeHandleTarget(
+    target: LeaferGraphWidgetPointerEvent["target"]
+  ): boolean {
+    let current = target;
 
-    return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    };
+    while (current) {
+      if ((current.name ?? "").startsWith("node-resize-handle-")) {
+        return true;
+      }
+      current = current.parent ?? null;
+    }
+
+    return false;
+  }
+
+  /**
+   * 通过节点局部坐标兜底判断一次按下是否命中了 resize 热区。
+   * 有些 Leafer 事件在冒泡到根 Group 时，`target` 可能已经不是句柄本身，
+   * 因此这里再补一层几何判断，避免 resize 和拖拽同时起效。
+   */
+  private isResizeHandleHit(
+    event: LeaferGraphWidgetPointerEvent,
+    state: NodeViewState
+  ): boolean {
+    const width = state.state.layout.width ?? DEFAULT_NODE_WIDTH;
+    const height = state.state.layout.height ?? DEFAULT_NODE_MIN_HEIGHT;
+    const point = this.getWorldPointFromGraphEvent(event);
+    const localX = point.x - state.state.layout.x;
+    const localY = point.y - state.state.layout.y;
+
+    return localX >= width - 20 && localY >= height - 20;
+  }
+
+  /** 把浏览器 client 坐标换成 Leafer 世界坐标。 */
+  private getWorldPointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
+    x: number;
+    y: number;
+  } {
+    return (this.app as typeof this.app & LeaferGraphCoordinateHost).getWorldPointByClient(
+      {
+        clientX: event.clientX,
+        clientY: event.clientY
+      },
+      true
+    );
+  }
+
+  /**
+   * 把 Leafer 指针事件统一转换成世界坐标。
+   * 如果事件包含原始 DOM PointerEvent，则优先以它的 client 坐标为准，
+   * 这样可以和窗口级 pointermove 保持同一套坐标系。
+   */
+  private getWorldPointFromGraphEvent(
+    event: LeaferGraphWidgetPointerEvent
+  ): { x: number; y: number } {
+    const clientX = event.origin?.clientX;
+    const clientY = event.origin?.clientY;
+
+    if (typeof clientX === "number" && typeof clientY === "number") {
+      return this.getWorldPointByClient({ clientX, clientY });
+    }
+
+    return { x: event.x, y: event.y };
   }
 
   /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
@@ -1647,9 +2199,15 @@ export class LeaferGraph {
     }) as GraphNodeState;
   }
 
-  /** 根据节点运行时状态创建完整的 Leafer 节点视图。 */
-  private createNodeView(node: GraphNodeState): NodeViewState {
-    const shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS);
+  /**
+   * 根据节点当前运行时状态构建节点壳。
+   * 这里把“布局求解 + 分类徽标 + 主题色解析”收敛到一处，
+   * 便于首次挂载和后续局部刷新共用同一条逻辑。
+   */
+  private buildNodeShell(
+    node: GraphNodeState,
+    shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS)
+  ): NodeShellView {
     const category = this.resolveNodeCategory(node);
     const categoryLayout = resolveNodeCategoryBadgeLayout(
       category,
@@ -1659,7 +2217,8 @@ export class LeaferGraph {
     const accent = readNodeAccent(node);
     const signalColor = this.resolveSignalColor(node);
     const selectedStroke = this.resolveSelectedNodeStroke(accent);
-    const shellView = createNodeShell({
+
+    return createNodeShell({
       nodeId: node.id,
       x: node.layout.x,
       y: node.layout.y,
@@ -1671,6 +2230,12 @@ export class LeaferGraph {
       categoryLayout,
       theme: NODE_SHELL_RENDER_THEME
     });
+  }
+
+  /** 根据节点运行时状态创建完整的 Leafer 节点视图。 */
+  private createNodeView(node: GraphNodeState): NodeViewState {
+    const shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS);
+    const shellView = this.buildNodeShell(node, shellLayout);
     const widgetInstances = shellLayout.hasWidgets
       ? this.renderNodeWidgets(node, shellView.widgetLayer, shellLayout)
       : [];
@@ -1680,6 +2245,8 @@ export class LeaferGraph {
       view: shellView.view,
       card: shellView.card,
       selectedRing: shellView.selectedRing,
+      resizeHandle: shellView.resizeHandle,
+      shellView,
       widgetLayer: shellView.widgetLayer,
       widgetInstances
     };
@@ -1692,16 +2259,21 @@ export class LeaferGraph {
   /** 渲染节点内部全部 Widget，并保存 renderer 返回实例。 */
   private renderNodeWidgets(
     node: GraphNodeState,
-    widgetLayer: Group,
+    widgetLayer: Box,
     shellLayout: ReturnType<typeof resolveNodeShellLayout>
   ): Array<LeaferGraphWidgetRenderInstance | null> {
     const instances: Array<LeaferGraphWidgetRenderInstance | null> = [];
 
     for (let index = 0; index < node.widgets.length; index += 1) {
       const widget = node.widgets[index];
-      const group = new Group({ name: `widget-${node.id}-${index}` });
-      const renderer = this.getWidgetRenderer(widget.type) ?? this.defaultWidgetRenderer;
       const bounds = shellLayout.widgets[index].bounds;
+      const group = new Box({
+        name: `widget-${node.id}-${index}`,
+        width: bounds.width,
+        height: bounds.height,
+        resizeChildren: false
+      });
+      const renderer = this.getWidgetRenderer(widget.type) ?? this.defaultWidgetRenderer;
       const instance = renderer({
         ui: LeaferUI,
         group,
@@ -1709,7 +2281,12 @@ export class LeaferGraph {
         widget,
         widgetIndex: index,
         value: widget.value,
-        bounds,
+        bounds: {
+          x: 0,
+          y: 0,
+          width: bounds.width,
+          height: bounds.height
+        },
         setValue: (newValue) => {
           this.setNodeWidgetValue(node.id, index, newValue);
         },
@@ -1754,6 +2331,7 @@ export class LeaferGraph {
     const selected = Boolean(state.state.flags.selected);
     const accent = readNodeAccent(state.state);
     const ringStroke = this.resolveSelectedNodeStroke(accent);
+    const canResize = this.canResizeNode(state.state.id);
 
     state.selectedRing.selectedStyle = {
       stroke: ringStroke,
@@ -1765,11 +2343,54 @@ export class LeaferGraph {
     };
     state.selectedRing.selected = selected;
     state.card.selected = selected;
+    state.resizeHandle.visible = selected && canResize;
   }
 
   /** 统一计算节点选中态的 ring 颜色，优先复用节点强调色。 */
   private resolveSelectedNodeStroke(accent: string): string {
     return accent || "#2563EB";
+  }
+
+  /**
+   * 解析节点 resize 约束。
+   * 该结果统一吸收三类来源：
+   * 1. `NodeDefinition.resize`
+   * 2. 兼容字段 `minWidth / minHeight`
+   * 3. 主包默认节点尺寸
+   */
+  private resolveNodeResizeConstraint(
+    node: GraphNodeState
+  ): LeaferGraphNodeResizeConstraint {
+    const definition = this.nodeRegistry.getNode(node.type);
+    const resize: NodeResizeConfig | undefined = definition?.resize;
+    const defaultWidth = definition?.size?.[0] ?? DEFAULT_NODE_WIDTH;
+    const defaultHeight = definition?.size?.[1] ?? DEFAULT_NODE_MIN_HEIGHT;
+    const minWidth = resize?.minWidth ?? definition?.minWidth ?? defaultWidth;
+    const minHeight = resize?.minHeight ?? definition?.minHeight ?? defaultHeight;
+    const maxWidth =
+      typeof resize?.maxWidth === "number" && Number.isFinite(resize.maxWidth)
+        ? Math.max(minWidth, resize.maxWidth)
+        : undefined;
+    const maxHeight =
+      typeof resize?.maxHeight === "number" && Number.isFinite(resize.maxHeight)
+        ? Math.max(minHeight, resize.maxHeight)
+        : undefined;
+    const snap =
+      typeof resize?.snap === "number" && Number.isFinite(resize.snap) && resize.snap > 0
+        ? resize.snap
+        : undefined;
+
+    return {
+      enabled: resize?.enabled ?? true,
+      lockRatio: Boolean(resize?.lockRatio),
+      minWidth,
+      minHeight,
+      maxWidth,
+      maxHeight,
+      snap,
+      defaultWidth,
+      defaultHeight
+    };
   }
 
   /** 解析节点分类文本。 */

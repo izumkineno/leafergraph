@@ -1,4 +1,5 @@
-import { Group, Rect, Text } from "leafer-ui";
+import "@leafer-in/flow";
+import { Box, Group, Rect, Text } from "leafer-ui";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./node_layout";
 
 /**
@@ -74,7 +75,18 @@ export interface NodeShellView {
   view: Group;
   card: Rect;
   selectedRing: Rect;
-  widgetLayer: Group;
+  header: Rect;
+  headerDivider: Rect;
+  categoryBadge: Rect;
+  categoryLabel: Text;
+  widgetBackground: Rect | null;
+  widgetDivider: Rect | null;
+  resizeHandle: Rect;
+  portViews: Array<{
+    port: Rect;
+    label: Text;
+  }>;
+  widgetLayer: Box;
 }
 
 /**
@@ -221,65 +233,103 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     categoryBadge,
     categoryLabel
   ];
+  const portViews: NodeShellView["portViews"] = [];
+  let widgetBackground: Rect | null = null;
+  let widgetDivider: Rect | null = null;
 
   if (shellLayout.hasWidgets) {
-    parts.push(
-      new Rect({
-        y: shellLayout.widgetTop,
-        width: shellLayout.width,
-        height: shellLayout.height - shellLayout.widgetTop,
-        fill: theme.widgetFill,
-        cornerRadius: [0, 0, theme.nodeRadius, theme.nodeRadius],
-        hittable: false
-      }),
-      new Rect({
-        y: shellLayout.widgetTop,
-        width: shellLayout.width,
-        height: 1,
-        fill: theme.headerDividerFill,
-        hittable: false
-      })
-    );
+    widgetBackground = new Rect({
+      y: shellLayout.widgetTop,
+      width: shellLayout.width,
+      height: shellLayout.height - shellLayout.widgetTop,
+      fill: theme.widgetFill,
+      cornerRadius: [0, 0, theme.nodeRadius, theme.nodeRadius],
+      hittable: false
+    });
+    widgetDivider = new Rect({
+      y: shellLayout.widgetTop,
+      width: shellLayout.width,
+      height: 1,
+      fill: theme.headerDividerFill,
+      hittable: false
+    });
+    parts.push(widgetBackground, widgetDivider);
   }
 
   for (const port of shellLayout.ports) {
-    parts.push(
-      new Rect({
-        x: port.portX,
-        y: port.portY,
-        width: port.portWidth,
-        height: port.portHeight,
-        fill:
-          port.direction === "input"
-            ? theme.inputPortFill
-            : theme.outputPortFill,
-        stroke: theme.portStroke,
-        strokeWidth: theme.portStrokeWidth,
-        cornerRadius: 999,
-        hittable: false
-      }),
-      new Text({
-        x: port.labelX,
-        y: port.labelY,
-        width: port.labelWidth,
-        text: port.label,
-        textAlign: port.textAlign,
-        fill: theme.slotLabelFill,
-        fontFamily: theme.slotLabelFontFamily,
-        fontSize: theme.slotLabelFontSize,
-        fontWeight: theme.slotLabelFontWeight,
-        hittable: false
-      })
-    );
+    const portView = new Rect({
+      x: port.portX,
+      y: port.portY,
+      width: port.portWidth,
+      height: port.portHeight,
+      fill:
+        port.direction === "input"
+          ? theme.inputPortFill
+          : theme.outputPortFill,
+      stroke: theme.portStroke,
+      strokeWidth: theme.portStrokeWidth,
+      cornerRadius: 999,
+      hittable: false
+    });
+    const portLabel = new Text({
+      x: port.labelX,
+      y: port.labelY,
+      width: port.labelWidth,
+      text: port.label,
+      textAlign: port.textAlign,
+      fill: theme.slotLabelFill,
+      fontFamily: theme.slotLabelFontFamily,
+      fontSize: theme.slotLabelFontSize,
+      fontWeight: theme.slotLabelFontWeight,
+      hittable: false
+    });
+    portViews.push({
+      port: portView,
+      label: portLabel
+    });
+    parts.push(portView, portLabel);
   }
 
-  const widgetLayer = new Group({ name: `widgets-${nodeId}` });
-  group.add([selectedRing, ...parts, widgetLayer]);
+  const widgetLayer = new Box({
+    name: `widgets-${nodeId}`,
+    x: shellLayout.widgetBounds.x,
+    y: shellLayout.widgetBounds.y,
+    width: shellLayout.widgetBounds.width,
+    height: shellLayout.widgetBounds.height,
+    flow: "y",
+    gap: { y: shellLayout.widgetGap },
+    padding: [shellLayout.widgetPaddingY, 0, shellLayout.widgetPaddingY, 0],
+    resizeChildren: false
+  });
+
+  const resizeHandle = new Rect({
+    name: `node-resize-handle-${nodeId}`,
+    x: shellLayout.width - 16,
+    y: shellLayout.height - 16,
+    width: 12,
+    height: 12,
+    fill: selectedStroke,
+    stroke: "rgba(255, 255, 255, 0.14)",
+    strokeWidth: 1,
+    cornerRadius: 4,
+    cursor: "nwse-resize",
+    visible: false
+  });
+
+  group.add([selectedRing, ...parts, widgetLayer, resizeHandle]);
 
   return {
     view: group,
     card,
     selectedRing,
+    header,
+    headerDivider,
+    categoryBadge,
+    categoryLabel,
+    widgetBackground,
+    widgetDivider,
+    resizeHandle,
+    portViews,
     widgetLayer
   };
 }

@@ -19,7 +19,13 @@ export type {
   SlotType
 } from "./types";
 export type { NodeApi, NodeLifecycle } from "./lifecycle";
-export type { NodeDefinition, NodeModule, NodeModuleScope, WidgetDefinition } from "./definition";
+export type {
+  NodeDefinition,
+  NodeModule,
+  NodeModuleScope,
+  NodeResizeConfig,
+  WidgetDefinition
+} from "./definition";
 export type { RegisterNodeOptions } from "./registry";
 export type { RegisterWidgetOptions } from "./widget";
 export type { InstallNodeModuleOptions, ResolvedNodeModule } from "./module";

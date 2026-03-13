@@ -17,6 +17,8 @@ export interface NodeShellLayoutMetrics {
   slotRowGap: number;
   portSize: number;
   widgetHeight: number;
+  widgetGap: number;
+  widgetPaddingY: number;
   categoryPillHeight: number;
   categoryPillMinWidth: number;
   categoryCharWidth: number;
@@ -41,6 +43,7 @@ export interface NodeShellCategoryLayout {
  */
 export interface NodeShellWidgetLayout {
   index: number;
+  preferredHeight: number;
   bounds: LeaferGraphWidgetBounds;
 }
 
@@ -57,6 +60,9 @@ export interface NodeShellLayout {
   widgetTop: number;
   widgetSectionHeight: number;
   hasWidgets: boolean;
+  widgetBounds: LeaferGraphWidgetBounds;
+  widgetGap: number;
+  widgetPaddingY: number;
   inputs: string[];
   outputs: string[];
   ports: NodeShellPortLayout[];
@@ -84,12 +90,38 @@ export function resolveNodeSlotsHeight(
   );
 }
 
-/** 计算 Widget 区总高度。 */
-export function resolveNodeWidgetSectionHeight(
-  widgetCount: number,
+/** 计算单个 Widget 的首选高度。 */
+export function resolveNodeWidgetPreferredHeight(
+  widget: NodeLayoutSource["widgets"][number],
   metrics: NodeShellLayoutMetrics
 ): number {
-  return widgetCount * metrics.widgetHeight;
+  switch (widget.type) {
+    case "toggle":
+      return 68;
+    case "slider":
+      return 60;
+    default:
+      return metrics.widgetHeight;
+  }
+}
+
+/** 计算 Widget 区总高度。 */
+export function resolveNodeWidgetSectionHeight(
+  widgets: NodeLayoutSource["widgets"],
+  metrics: NodeShellLayoutMetrics
+): number {
+  if (!widgets.length) {
+    return 0;
+  }
+
+  return (
+    metrics.widgetPaddingY * 2 +
+    widgets.reduce(
+      (total, widget) => total + resolveNodeWidgetPreferredHeight(widget, metrics),
+      0
+    ) +
+    metrics.widgetGap * (widgets.length - 1)
+  );
 }
 
 /** 计算 Widget 区起始 Y。 */
@@ -145,10 +177,16 @@ export function resolveNodeShellLayout(
     resolveNodePortsLayout(node, width, metrics);
   const slotsHeight = resolveNodeSlotsHeight(slotCount, metrics);
   const widgetSectionHeight = resolveNodeWidgetSectionHeight(
-    node.widgets.length,
+    node.widgets,
     metrics
   );
   const widgetTop = resolveNodeWidgetTop(slotCount, metrics);
+  const widgetBounds: LeaferGraphWidgetBounds = {
+    x: metrics.sectionPaddingX,
+    y: widgetTop,
+    width: width - metrics.sectionPaddingX * 2,
+    height: Math.max(0, widgetSectionHeight)
+  };
   const height = Math.max(
     node.layout.height ?? 0,
     metrics.headerHeight +
@@ -168,16 +206,23 @@ export function resolveNodeShellLayout(
     widgetTop,
     widgetSectionHeight,
     hasWidgets: node.widgets.length > 0,
+    widgetBounds: {
+      ...widgetBounds,
+      height: Math.max(0, height - widgetTop)
+    },
+    widgetGap: metrics.widgetGap,
+    widgetPaddingY: metrics.widgetPaddingY,
     inputs,
     outputs,
     ports,
-    widgets: node.widgets.map((_, index) => ({
+    widgets: node.widgets.map((widget, index) => ({
       index,
+      preferredHeight: resolveNodeWidgetPreferredHeight(widget, metrics),
       bounds: {
-        x: metrics.sectionPaddingX,
-        y: widgetTop + index * metrics.widgetHeight,
-        width: width - metrics.sectionPaddingX * 2,
-        height: metrics.widgetHeight
+        x: 0,
+        y: 0,
+        width: widgetBounds.width,
+        height: resolveNodeWidgetPreferredHeight(widget, metrics)
       }
     }))
   };
