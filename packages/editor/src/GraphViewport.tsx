@@ -11,9 +11,15 @@ import {
   type LeaferGraphNodeData
 } from "leafergraph";
 import { createEditorNodeSelection } from "./selection";
+import {
+  GRAPH_VIEWPORT_BACKGROUND_SIZE,
+  resolveGraphViewportBackground,
+  type EditorTheme
+} from "./theme";
 
 interface GraphViewportProps {
   nodes: LeaferGraphNodeData[];
+  theme: EditorTheme;
 }
 
 /**
@@ -171,8 +177,14 @@ function shouldToggleSelectionByPointerEvent(
   return Boolean(event?.ctrlKey || event?.metaKey || event?.shiftKey);
 }
 
-export function GraphViewport({ nodes }: GraphViewportProps) {
+/**
+ * 把 editor 壳层和 LeaferGraph 实例连接起来。
+ * 除了负责图初始化，这里也承担画布背景与 editor 主题同步的职责。
+ */
+export function GraphViewport({ nodes, theme }: GraphViewportProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -180,7 +192,20 @@ export function GraphViewport({ nodes }: GraphViewportProps) {
       return;
     }
 
-    const graph = createLeaferGraph(host, { nodes });
+    host.style.background = resolveGraphViewportBackground(theme);
+    host.style.backgroundSize = GRAPH_VIEWPORT_BACKGROUND_SIZE;
+  }, [theme]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const graph = createLeaferGraph(host, {
+      nodes,
+      fill: resolveGraphViewportBackground(themeRef.current)
+    });
     const selection = createEditorNodeSelection(graph);
     const ownerWindow = host.ownerDocument.defaultView ?? window;
     let graphReady = false;

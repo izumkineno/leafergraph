@@ -1,9 +1,30 @@
+import { useEffect, useState } from "preact/hooks";
+
 import { GraphViewport } from "./GraphViewport";
 import { demoNodes } from "./demo-nodes";
+import {
+  EDITOR_THEME_STORAGE_KEY,
+  resolveInitialEditorTheme,
+  type EditorTheme
+} from "./theme";
+
+/** 切换到相反主题。 */
+function toggleEditorTheme(theme: EditorTheme): EditorTheme {
+  return theme === "dark" ? "light" : "dark";
+}
 
 export function App() {
+  const [theme, setTheme] = useState<EditorTheme>(() =>
+    resolveInitialEditorTheme()
+  );
+
+  useEffect(() => {
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
   return (
-    <div class="shell">
+    <div class="shell" data-theme={theme}>
       <aside class="sidebar">
         <p class="eyebrow">LeaferGraph</p>
         <h1>Editor Sandbox</h1>
@@ -38,10 +59,32 @@ export function App() {
             <p class="toolbar__label">Workspace</p>
             <h2>Leafer-first Node Graph</h2>
           </div>
-          <span class="badge">Preact editor to LeaferGraph library</span>
+          <div class="toolbar__actions">
+            <span class="badge">
+              {theme === "dark" ? "暗色工作区" : "亮色工作区"}
+            </span>
+            <button
+              type="button"
+              class="theme-toggle"
+              data-theme={theme}
+              aria-label={`切换到${theme === "dark" ? "亮色" : "暗色"}模式`}
+              title={`切换到${theme === "dark" ? "亮色" : "暗色"}模式`}
+              onClick={() => {
+                setTheme((currentTheme) => toggleEditorTheme(currentTheme));
+              }}
+            >
+              <span class="theme-toggle__thumb" aria-hidden="true" />
+              <span class="theme-toggle__option theme-toggle__option--light">
+                亮色
+              </span>
+              <span class="theme-toggle__option theme-toggle__option--dark">
+                暗色
+              </span>
+            </button>
+          </div>
         </header>
 
-        <GraphViewport nodes={demoNodes} />
+        <GraphViewport nodes={demoNodes} theme={theme} />
       </main>
     </div>
   );

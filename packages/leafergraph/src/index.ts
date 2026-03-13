@@ -1,4 +1,4 @@
-import { App, Group, Rect, Text } from "leafer-ui";
+import { App, Group, Rect } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import { Arrow } from "@leafer-in/arrow";
 import "@leafer-in/state";
@@ -9,6 +9,7 @@ import {
   configureNode,
   installNodeModule,
   NodeRegistry,
+  createNodeApi,
   createNodeState,
   serializeNode,
   type LeaferGraphData,
@@ -64,7 +65,6 @@ import type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,
-  LeaferGraphWidgetBounds,
   LeaferGraphWidgetRenderInstance,
   LeaferGraphWidgetRenderer
 } from "./plugin";
@@ -74,6 +74,12 @@ import {
   buildLinkPath,
   resolveLinkEndpoints
 } from "./link";
+import {
+  resolveNodeCategoryBadgeLayout,
+  resolveNodeShellLayout
+} from "./node_layout";
+import { resolveNodePortAnchorYForNode } from "./node_port";
+import { createNodeShell } from "./node_shell";
 
 /**
  * 主包当前 demo 渲染实现。
@@ -129,6 +135,74 @@ const DEFAULT_FIT_VIEW_PADDING = 64;
 const VIEWPORT_MIN_SCALE = 0.2;
 const VIEWPORT_MAX_SCALE = 4;
 let graphLinkSeed = 1;
+
+/**
+ * 节点壳布局的统一度量参数。
+ * 当前先由主包集中声明，后续可继续下沉为主题系统或节点壳配置。
+ */
+const NODE_SHELL_LAYOUT_METRICS = {
+  defaultNodeWidth: DEFAULT_NODE_WIDTH,
+  defaultNodeMinHeight: DEFAULT_NODE_MIN_HEIGHT,
+  headerHeight: HEADER_HEIGHT,
+  sectionPaddingX: SECTION_PADDING_X,
+  sectionPaddingY: SECTION_PADDING_Y,
+  slotRowHeight: SLOT_ROW_HEIGHT,
+  slotRowGap: SLOT_ROW_GAP,
+  portSize: PORT_SIZE,
+  widgetHeight: WIDGET_HEIGHT,
+  categoryPillHeight: CATEGORY_PILL_HEIGHT,
+  categoryPillMinWidth: CATEGORY_PILL_MIN_WIDTH,
+  categoryCharWidth: CATEGORY_CHAR_WIDTH,
+  slotTextWidth: SLOT_TEXT_WIDTH
+} as const;
+
+/**
+ * 节点壳渲染主题。
+ * 当前仍由主包直接持有，目的是先把“布局计算”和“图元创建”从大文件主体逻辑中拆开。
+ */
+const NODE_SHELL_RENDER_THEME = {
+  nodeRadius: NODE_RADIUS,
+  headerHeight: HEADER_HEIGHT,
+  selectedRingOutset: SELECTED_RING_OUTSET,
+  selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
+  selectedRingOpacity: 0.92,
+  cardFill: CARD_FILL,
+  cardStroke: CARD_STROKE,
+  cardHoverFill: CARD_HOVER_FILL,
+  cardHoverStroke: CARD_HOVER_STROKE,
+  cardPressFill: CARD_PRESS_FILL,
+  cardPressStroke: CARD_PRESS_STROKE,
+  headerFill: HEADER_FILL,
+  headerDividerFill: HEADER_DIVIDER_FILL,
+  titleFill: TITLE_FILL,
+  titleFontFamily: NODE_FONT_FAMILY,
+  titleFontSize: 13,
+  titleFontWeight: "600",
+  titleX: 38,
+  titleY: 15,
+  categoryFill: CATEGORY_FILL,
+  categoryStroke: CATEGORY_STROKE,
+  categoryTextFill: CATEGORY_TEXT_FILL,
+  categoryFontFamily: NODE_FONT_FAMILY,
+  categoryFontSize: 9.5,
+  categoryFontWeight: "600",
+  signalGlowX: 17,
+  signalGlowY: 16,
+  signalGlowSize: SIGNAL_GLOW_SIZE,
+  signalGlowOpacity: 0.24,
+  signalLightX: 20,
+  signalLightY: 19,
+  signalLightSize: SIGNAL_SIZE,
+  widgetFill: WIDGET_FILL,
+  inputPortFill: INPUT_PORT_FILL,
+  outputPortFill: OUTPUT_PORT_FILL,
+  portStroke: CARD_FILL,
+  portStrokeWidth: 2.5,
+  slotLabelFill: SLOT_LABEL_FILL,
+  slotLabelFontFamily: NODE_FONT_FAMILY,
+  slotLabelFontSize: 11,
+  slotLabelFontWeight: "500"
+} as const;
 
 /**
  * `@leafer-in/view` 通过副作用扩展方式把 `zoom(...)` 方法挂到 Leafer 实例上。
@@ -1220,8 +1294,18 @@ export class LeaferGraph {
       sourceWidth,
       targetX: target.layout.x,
       targetY: target.layout.y,
-      sourcePortY: this.resolvePortAnchorY(source, "output", sourceSlot),
-      targetPortY: this.resolvePortAnchorY(target, "input", targetSlot),
+      sourcePortY: resolveNodePortAnchorYForNode(
+        source,
+        "output",
+        sourceSlot,
+        NODE_SHELL_LAYOUT_METRICS
+      ),
+      targetPortY: resolveNodePortAnchorYForNode(
+        target,
+        "input",
+        targetSlot,
+        NODE_SHELL_LAYOUT_METRICS
+      ),
       portSize: PORT_SIZE
     });
 
@@ -1310,8 +1394,18 @@ export class LeaferGraph {
       sourceWidth,
       targetX: target.layout.x,
       targetY: target.layout.y,
-      sourcePortY: this.resolvePortAnchorY(source, "output", link.sourceSlot),
-      targetPortY: this.resolvePortAnchorY(target, "input", link.targetSlot),
+      sourcePortY: resolveNodePortAnchorYForNode(
+        source,
+        "output",
+        link.sourceSlot,
+        NODE_SHELL_LAYOUT_METRICS
+      ),
+      targetPortY: resolveNodePortAnchorYForNode(
+        target,
+        "input",
+        link.targetSlot,
+        NODE_SHELL_LAYOUT_METRICS
+      ),
       portSize: PORT_SIZE
     });
 
@@ -1345,6 +1439,45 @@ export class LeaferGraph {
     widget.value = newValue;
     state.widgetInstances[widgetIndex]?.update?.(newValue);
     this.app.forceRender();
+  }
+
+  /**
+   * 把 Widget 触发的动作转回节点生命周期 `onAction(...)`。
+   * 当前先提供最小桥接能力，便于自定义 Widget 把业务语义交回节点定义处理。
+   */
+  private emitNodeWidgetAction(
+    nodeId: string,
+    action: string,
+    param?: unknown,
+    options?: Record<string, unknown>
+  ): boolean {
+    const safeAction = action.trim();
+    if (!safeAction) {
+      return false;
+    }
+
+    const node = this.graphState.nodes.get(nodeId);
+    if (!node) {
+      return false;
+    }
+
+    const definition = this.nodeRegistry.getNode(node.type);
+    if (!definition?.onAction) {
+      return false;
+    }
+
+    definition.onAction(
+      node,
+      safeAction,
+      param,
+      options,
+      createNodeApi(node, {
+        definition,
+        widgetRegistry: this.nodeRegistry.widgetRegistry
+      })
+    );
+    this.app.forceRender();
+    return true;
   }
 
   /** 把节点补丁中的坐标与尺寸字段整理成 `configureNode()` 可消费的布局结构。 */
@@ -1516,241 +1649,38 @@ export class LeaferGraph {
 
   /** 根据节点运行时状态创建完整的 Leafer 节点视图。 */
   private createNodeView(node: GraphNodeState): NodeViewState {
-    const width = node.layout.width ?? DEFAULT_NODE_WIDTH;
-    const inputs = this.resolveInputs(node);
-    const outputs = this.resolveOutputs(node);
-    const height = this.resolveNodeHeight(node);
+    const shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS);
     const category = this.resolveNodeCategory(node);
-    const categoryWidth = Math.max(
-      CATEGORY_PILL_MIN_WIDTH,
-      Math.round(category.length * CATEGORY_CHAR_WIDTH + 24)
+    const categoryLayout = resolveNodeCategoryBadgeLayout(
+      category,
+      shellLayout.width,
+      NODE_SHELL_LAYOUT_METRICS
     );
-    const categoryX = width - categoryWidth - 16;
+    const accent = readNodeAccent(node);
     const signalColor = this.resolveSignalColor(node);
-    const selectedStroke = this.resolveSelectedNodeStroke(readNodeAccent(node));
-    const hasWidgets = node.widgets.length > 0;
-    const widgetTop = this.resolveWidgetTop(node);
-
-    const group = new Group({
+    const selectedStroke = this.resolveSelectedNodeStroke(accent);
+    const shellView = createNodeShell({
+      nodeId: node.id,
       x: node.layout.x,
       y: node.layout.y,
-      name: `node-${node.id}`
+      title: node.title,
+      accent,
+      signalColor,
+      selectedStroke,
+      shellLayout,
+      categoryLayout,
+      theme: NODE_SHELL_RENDER_THEME
     });
-
-    const selectedRing = new Rect({
-      x: -SELECTED_RING_OUTSET,
-      y: -SELECTED_RING_OUTSET,
-      width: width + SELECTED_RING_OUTSET * 2,
-      height: height + SELECTED_RING_OUTSET * 2,
-      fill: "transparent",
-      stroke: readNodeAccent(node),
-      strokeWidth: SELECTED_RING_STROKE_WIDTH,
-      cornerRadius: NODE_RADIUS + SELECTED_RING_OUTSET,
-      opacity: 0,
-      selectedStyle: {
-        stroke: selectedStroke,
-        opacity: 0.92
-      },
-      hittable: false
-    });
-
-    const card = new Rect({
-      width,
-      height,
-      fill: CARD_FILL,
-      stroke: CARD_STROKE,
-      strokeWidth: 1,
-      cornerRadius: NODE_RADIUS,
-      cursor: "grab",
-      hoverStyle: {
-        fill: CARD_HOVER_FILL,
-        stroke: CARD_HOVER_STROKE
-      },
-      pressStyle: {
-        fill: CARD_PRESS_FILL,
-        stroke: CARD_PRESS_STROKE
-      },
-      selectedStyle: {
-        stroke: selectedStroke,
-        strokeWidth: 1.5
-      }
-    });
-
-    const header = new Rect({
-      width,
-      height: HEADER_HEIGHT,
-      fill: HEADER_FILL,
-      cornerRadius: [NODE_RADIUS, NODE_RADIUS, 0, 0],
-      hittable: false
-    });
-
-    const headerDivider = new Rect({
-      y: HEADER_HEIGHT,
-      width,
-      height: 1,
-      fill: HEADER_DIVIDER_FILL,
-      hittable: false
-    });
-
-    const signalGlow = new Rect({
-      x: 17,
-      y: 16,
-      width: SIGNAL_GLOW_SIZE,
-      height: SIGNAL_GLOW_SIZE,
-      fill: signalColor,
-      opacity: 0.24,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const signalLight = new Rect({
-      x: 20,
-      y: 19,
-      width: SIGNAL_SIZE,
-      height: SIGNAL_SIZE,
-      fill: signalColor,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const title = new Text({
-      x: 38,
-      y: 15,
-      text: node.title,
-      fill: TITLE_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 13,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const categoryBadge = new Rect({
-      x: categoryX,
-      y: 12,
-      width: categoryWidth,
-      height: CATEGORY_PILL_HEIGHT,
-      fill: CATEGORY_FILL,
-      stroke: CATEGORY_STROKE,
-      strokeWidth: 1,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const categoryLabel = new Text({
-      x: categoryX + 12,
-      y: 16,
-      text: category.toUpperCase(),
-      fill: CATEGORY_TEXT_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 9.5,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const parts = [
-      card,
-      header,
-      headerDivider,
-      signalGlow,
-      signalLight,
-      title,
-      categoryBadge,
-      categoryLabel
-    ];
-
-    if (hasWidgets) {
-      parts.push(
-        new Rect({
-          y: widgetTop,
-          width,
-          height: height - widgetTop,
-          fill: WIDGET_FILL,
-          cornerRadius: [0, 0, NODE_RADIUS, NODE_RADIUS],
-          hittable: false
-        }),
-        new Rect({
-          y: widgetTop,
-          width,
-          height: 1,
-          fill: HEADER_DIVIDER_FILL,
-          hittable: false
-        })
-      );
-    }
-
-    const slotStartY = HEADER_HEIGHT + SECTION_PADDING_Y;
-
-    for (let index = 0; index < inputs.length; index += 1) {
-      const slotY = slotStartY + index * (SLOT_ROW_HEIGHT + SLOT_ROW_GAP);
-      parts.push(
-        new Rect({
-          x: -PORT_SIZE / 2,
-          y: slotY + SLOT_ROW_HEIGHT / 2 - PORT_SIZE / 2,
-          width: PORT_SIZE,
-          height: PORT_SIZE,
-          fill: INPUT_PORT_FILL,
-          stroke: CARD_FILL,
-          strokeWidth: 2.5,
-          cornerRadius: 999,
-          hittable: false
-        })
-      );
-      parts.push(
-        new Text({
-          x: SECTION_PADDING_X,
-          y: slotY + 4,
-          text: inputs[index],
-          fill: SLOT_LABEL_FILL,
-          fontFamily: NODE_FONT_FAMILY,
-          fontSize: 11,
-          fontWeight: "500",
-          hittable: false
-        })
-      );
-    }
-
-    for (let index = 0; index < outputs.length; index += 1) {
-      const slotY = slotStartY + index * (SLOT_ROW_HEIGHT + SLOT_ROW_GAP);
-      parts.push(
-        new Rect({
-          x: width - PORT_SIZE / 2,
-          y: slotY + SLOT_ROW_HEIGHT / 2 - PORT_SIZE / 2,
-          width: PORT_SIZE,
-          height: PORT_SIZE,
-          fill: OUTPUT_PORT_FILL,
-          stroke: CARD_FILL,
-          strokeWidth: 2.5,
-          cornerRadius: 999,
-          hittable: false
-        })
-      );
-      parts.push(
-        new Text({
-          x: width - SECTION_PADDING_X - SLOT_TEXT_WIDTH,
-          y: slotY + 4,
-          width: SLOT_TEXT_WIDTH,
-          text: outputs[index],
-          textAlign: "right",
-          fill: SLOT_LABEL_FILL,
-          fontFamily: NODE_FONT_FAMILY,
-          fontSize: 11,
-          fontWeight: "500",
-          hittable: false
-        })
-      );
-    }
-
-    const widgetLayer = new Group({ name: `widgets-${node.id}` });
-    const widgetInstances = hasWidgets ? this.renderNodeWidgets(node, widgetLayer, width) : [];
-
-    group.add([selectedRing, ...parts, widgetLayer]);
+    const widgetInstances = shellLayout.hasWidgets
+      ? this.renderNodeWidgets(node, shellView.widgetLayer, shellLayout)
+      : [];
 
     const state: NodeViewState = {
       state: node,
-      view: group,
-      card,
-      selectedRing,
-      widgetLayer,
+      view: shellView.view,
+      card: shellView.card,
+      selectedRing: shellView.selectedRing,
+      widgetLayer: shellView.widgetLayer,
       widgetInstances
     };
 
@@ -1763,7 +1693,7 @@ export class LeaferGraph {
   private renderNodeWidgets(
     node: GraphNodeState,
     widgetLayer: Group,
-    width: number
+    shellLayout: ReturnType<typeof resolveNodeShellLayout>
   ): Array<LeaferGraphWidgetRenderInstance | null> {
     const instances: Array<LeaferGraphWidgetRenderInstance | null> = [];
 
@@ -1771,14 +1701,29 @@ export class LeaferGraph {
       const widget = node.widgets[index];
       const group = new Group({ name: `widget-${node.id}-${index}` });
       const renderer = this.getWidgetRenderer(widget.type) ?? this.defaultWidgetRenderer;
-      const bounds = this.resolveWidgetBounds(node, index, width);
+      const bounds = shellLayout.widgets[index].bounds;
       const instance = renderer({
         ui: LeaferUI,
         group,
         node,
         widget,
+        widgetIndex: index,
         value: widget.value,
-        bounds
+        bounds,
+        setValue: (newValue) => {
+          this.setNodeWidgetValue(node.id, index, newValue);
+        },
+        requestRender: () => {
+          this.app.forceRender();
+        },
+        emitAction: (action, param, options) =>
+          this.emitNodeWidgetAction(node.id, action, param, {
+            ...(options ?? {}),
+            source: "widget",
+            widgetIndex: index,
+            widgetName: widget.name,
+            widgetType: widget.type
+          })
       });
 
       instances.push(instance ?? null);
@@ -1825,100 +1770,6 @@ export class LeaferGraph {
   /** 统一计算节点选中态的 ring 颜色，优先复用节点强调色。 */
   private resolveSelectedNodeStroke(accent: string): string {
     return accent || "#2563EB";
-  }
-
-  /** 计算节点最终高度。 */
-  private resolveNodeHeight(node: GraphNodeState): number {
-    const slotCount = Math.max(
-      this.resolveInputs(node).length,
-      this.resolveOutputs(node).length,
-      1
-    );
-    const slotsHeight = this.resolveSlotsHeight(slotCount);
-    const computedHeight =
-      HEADER_HEIGHT +
-      SECTION_PADDING_Y +
-      slotsHeight +
-      SECTION_PADDING_Y +
-      this.resolveWidgetSectionHeight(node);
-
-    return Math.max(node.layout.height ?? 0, computedHeight, DEFAULT_NODE_MIN_HEIGHT);
-  }
-
-  /**
-   * 计算某个槽位在节点中的纵向锚点。
-   * 当前连线系统已经开始吃正式 `link.slot` 数据，因此这里不能再只返回固定首端口位置。
-   */
-  private resolvePortAnchorY(
-    node: GraphNodeState,
-    direction: "input" | "output",
-    slotIndex = DEFAULT_GRAPH_LINK_SLOT
-  ): number {
-    const slots = direction === "input" ? node.inputs : node.outputs;
-    const safeIndex = Math.min(
-      Math.max(DEFAULT_GRAPH_LINK_SLOT, slotIndex),
-      Math.max(slots.length - 1, DEFAULT_GRAPH_LINK_SLOT)
-    );
-
-    return (
-      HEADER_HEIGHT +
-      SECTION_PADDING_Y +
-      safeIndex * (SLOT_ROW_HEIGHT + SLOT_ROW_GAP) +
-      SLOT_ROW_HEIGHT / 2
-    );
-  }
-
-  /** 计算槽位区域高度。 */
-  private resolveSlotsHeight(slotCount: number): number {
-    if (slotCount <= 1) {
-      return SLOT_ROW_HEIGHT;
-    }
-
-    return slotCount * SLOT_ROW_HEIGHT + (slotCount - 1) * SLOT_ROW_GAP;
-  }
-
-  /** 提取输入槽位显示文本。 */
-  private resolveInputs(node: GraphNodeState): string[] {
-    return node.inputs.length
-      ? node.inputs.map((input) => input.label ?? input.name)
-      : ["Input"];
-  }
-
-  /** 提取输出槽位显示文本。 */
-  private resolveOutputs(node: GraphNodeState): string[] {
-    return node.outputs.length
-      ? node.outputs.map((output) => output.label ?? output.name)
-      : ["Output"];
-  }
-
-  /** 计算 Widget 区块总高度。 */
-  private resolveWidgetSectionHeight(node: GraphNodeState): number {
-    return node.widgets.length * WIDGET_HEIGHT;
-  }
-
-  /** 计算 Widget 区域起始 Y 坐标。 */
-  private resolveWidgetTop(node: GraphNodeState): number {
-    const slotCount = Math.max(
-      this.resolveInputs(node).length,
-      this.resolveOutputs(node).length,
-      1
-    );
-
-    return HEADER_HEIGHT + SECTION_PADDING_Y + this.resolveSlotsHeight(slotCount) + SECTION_PADDING_Y;
-  }
-
-  /** 计算单个 Widget 的布局边界。 */
-  private resolveWidgetBounds(
-    node: GraphNodeState,
-    widgetIndex: number,
-    width: number
-  ): LeaferGraphWidgetBounds {
-    return {
-      x: SECTION_PADDING_X,
-      y: this.resolveWidgetTop(node) + widgetIndex * WIDGET_HEIGHT,
-      width: width - SECTION_PADDING_X * 2,
-      height: WIDGET_HEIGHT
-    };
   }
 
   /** 解析节点分类文本。 */
