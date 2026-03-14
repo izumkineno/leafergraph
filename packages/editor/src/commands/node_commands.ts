@@ -1,9 +1,5 @@
-import type {
-  LeaferGraph,
-  LeaferGraphContextMenuContext,
-  LeaferGraphCreateNodeInput
-} from "leafergraph";
-import type { EditorNodeSelectionController } from "./selection";
+import type { LeaferGraph, LeaferGraphCreateNodeInput } from "leafergraph";
+import type { EditorNodeSelectionController } from "../state/selection";
 
 /**
  * 一次批量节点命令的创建结果。
@@ -98,30 +94,6 @@ export interface CreateEditorNodeCommandControllerOptions {
   selection: EditorNodeSelectionController;
   bindNode(node: { id: string; title: string; type?: string }): void;
   unbindNode(nodeId: string): void;
-}
-
-/**
- * 生成一个用于右键快速创建的 demo 节点输入。
- * 当前先保持风格稳定，后续接入节点搜索器时再把这块替换成真实节点创建流程。
- */
-export function createQuickCreateNodeInput(
-  context: LeaferGraphContextMenuContext,
-  index: number
-): LeaferGraphCreateNodeInput {
-  return {
-    title: `节点 ${index}`,
-    subtitle: "Context menu quick create",
-    x: Math.round(context.pagePoint.x),
-    y: Math.round(context.pagePoint.y),
-    accent: index % 2 === 0 ? "#6366F1" : "#3B82F6",
-    category: "Demo / Quick",
-    status: "READY",
-    inputs: ["Input"],
-    outputs: ["Output"],
-    controlLabel: "Value",
-    controlValue: "0.50",
-    controlProgress: 0.5
-  };
 }
 
 /** 深拷贝一个节点创建输入，避免剪贴板对象被后续操作原地污染。 */

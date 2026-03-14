@@ -8,6 +8,15 @@
 - `packages/editor`
   - 编辑器工程
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
+  - 当前演示图数据和示例节点模块由 `packages/editor/src/demo/demo-setup.ts` 维护
+
+## 当前边界
+
+- `packages/leafergraph`
+  - 只保留核心图能力、节点运行时、渲染宿主与交互基础设施
+  - 不再内建默认 demo 节点、默认 demo 图数据或 editor 专属快速创建模板
+- `packages/editor`
+  - 承担 Sandbox、演示节点模块、默认图数据和 editor 壳层行为
 
 ## 常用命令
 

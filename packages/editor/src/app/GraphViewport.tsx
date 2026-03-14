@@ -4,25 +4,31 @@ import {
   createLeaferGraph,
   createLeaferGraphContextMenu,
   type LeaferGraph,
+  type LeaferGraphData,
   type LeaferGraphContextMenuContext,
   type LeaferGraphContextMenuItem,
   type LeaferGraphContextMenuManager,
-  type LeaferGraphNodeData
+  type LeaferGraphOptions
 } from "leafergraph";
 import {
   createEditorNodeCommandController,
-  createQuickCreateNodeInput,
   type EditorNodeCommandController
-} from "./node_commands";
-import { createEditorNodeSelection } from "./selection";
+} from "../commands/node_commands";
+import {
+  createEditorCanvasCommandController,
+  type EditorCanvasCommandController
+} from "../commands/canvas_commands";
+import { createEditorNodeSelection } from "../state/selection";
 import {
   GRAPH_VIEWPORT_BACKGROUND_SIZE,
   resolveGraphViewportBackground,
   type EditorTheme
-} from "./theme";
+} from "../theme";
 
 interface GraphViewportProps {
-  nodes: LeaferGraphNodeData[];
+  graph: LeaferGraphData;
+  modules?: LeaferGraphOptions["modules"];
+  plugins?: LeaferGraphOptions["plugins"];
   theme: EditorTheme;
 }
 
@@ -93,7 +99,7 @@ interface GraphViewportMarqueeState {
  * 节点菜单挂载元信息。
  * editor 当前还没有完整选区和命令系统，因此先把节点级菜单真正需要的最小信息集中到这里。
  */
-interface DemoNodeMenuBindingMeta extends Record<string, unknown> {
+interface GraphViewportNodeMenuBindingMeta extends Record<string, unknown> {
   nodeId: string;
   nodeTitle: string;
   nodeType?: string;
@@ -112,7 +118,7 @@ function createNodeMenuBindingMeta(node: {
   id: string;
   title: string;
   type?: string;
-}): DemoNodeMenuBindingMeta {
+}): GraphViewportNodeMenuBindingMeta {
   return {
     nodeId: node.id,
     nodeTitle: node.title,
@@ -221,9 +227,15 @@ function intersectsWorldBounds(
  * 把 editor 壳层和 LeaferGraph 实例连接起来。
  * 除了负责图初始化，这里也承担画布背景与 editor 主题同步的职责。
  */
-export function GraphViewport({ nodes, theme }: GraphViewportProps) {
+export function GraphViewport({
+  graph: graphData,
+  modules,
+  plugins,
+  theme
+}: GraphViewportProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const selectionBoxRef = useRef<HTMLDivElement | null>(null);
+  const graphRef = useRef<LeaferGraph | null>(null);
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -235,6 +247,7 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
 
     host.style.background = resolveGraphViewportBackground(theme);
     host.style.backgroundSize = GRAPH_VIEWPORT_BACKGROUND_SIZE;
+    graphRef.current?.setThemeMode(theme);
   }, [theme]);
 
   useEffect(() => {
@@ -244,13 +257,21 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
     }
 
     const graph = createLeaferGraph(host, {
-      nodes,
-      fill: resolveGraphViewportBackground(themeRef.current)
+      graph: graphData,
+      modules,
+      plugins,
+      fill: resolveGraphViewportBackground(themeRef.current),
+      themeMode: themeRef.current,
+      widgetEditing: {
+        enabled: true,
+        useOfficialTextEditor: true,
+        allowOptionsMenu: true
+      }
     });
+    graphRef.current = graph;
     const selection = createEditorNodeSelection(graph);
     const ownerWindow = host.ownerDocument.defaultView ?? window;
     let graphReady = false;
-    let quickCreateIndex = Math.max(nodes.length + 1, 1);
     let pointerDownSequence = 0;
     let hitNodePointerDownSequence = -1;
     let pendingCanvasSelectionFrame = 0;
@@ -264,6 +285,7 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
     const boundNodeIds = new Set<string>();
     let menu!: LeaferGraphContextMenuManager;
     let commands!: EditorNodeCommandController;
+    let canvasCommands!: EditorCanvasCommandController;
     let disposed = false;
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
@@ -508,23 +530,15 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
     };
     const pasteCopiedNodeAtLatestPointer = (): void => {
       const pointerPagePoint = resolveLatestPointerPagePoint();
-      if (pointerPagePoint) {
-        commands.pasteClipboardAt(
-          pointerPagePoint.x,
-          pointerPagePoint.y
-        );
-        return;
-      }
-
-      commands.pasteClipboardNearSelection();
+      canvasCommands.pasteClipboardAt(pointerPagePoint);
     };
     const pasteCopiedNodeByKeyboard = (): void => {
-      if (!graphReady || !commands.clipboard) {
+      if (!graphReady || !canvasCommands.canPaste) {
         return;
       }
 
       runAfterViewportSettle(() => {
-        if (!graphReady || !commands.clipboard) {
+        if (!graphReady || !canvasCommands.canPaste) {
           return;
         }
 
@@ -538,8 +552,7 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
         return;
       }
 
-      commands.createNode(createQuickCreateNodeInput(context, quickCreateIndex));
-      quickCreateIndex += 1;
+      canvasCommands.createNodeAt(context);
     };
     const copyNodeFromMenu = (nodeId: string): void => {
       if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
@@ -561,11 +574,11 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
     const pasteCopiedNodeFromMenu = (
       context: LeaferGraphContextMenuContext
     ): void => {
-      if (!graphReady || !commands.clipboard) {
+      if (!graphReady || !canvasCommands.canPaste) {
         return;
       }
 
-      commands.pasteClipboardAt(context.pagePoint.x, context.pagePoint.y);
+      canvasCommands.pasteClipboardAt(context.pagePoint);
     };
     const duplicateNodeFromMenu = (
       nodeId: string,
@@ -605,10 +618,9 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
         return;
       }
 
-      graph.fitView();
-      schedulePointerWorldPointRefresh();
+      canvasCommands.fitView();
     };
-    const resolveDemoMenuItems = (
+    const resolveContextMenuItems = (
       context: LeaferGraphContextMenuContext
     ): LeaferGraphContextMenuItem[] => {
       if (context.bindingKind === "node") {
@@ -711,7 +723,7 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
         }
       ];
 
-      if (commands.clipboard) {
+      if (canvasCommands.canPaste) {
         const selectedNodeId = selection.primarySelectedNodeId;
         items.splice(1, 0, {
           key: "paste-copied-node",
@@ -735,7 +747,7 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
     menu = createLeaferGraphContextMenu({
       app: graph.app,
       container: graph.container,
-      resolveItems: resolveDemoMenuItems,
+      resolveItems: resolveContextMenuItems,
       onBeforeOpen(context) {
         if (context.bindingKind === "node") {
           const nodeId = String(context.bindingMeta?.nodeId ?? context.bindingKey);
@@ -762,6 +774,12 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
         menu.unbindTarget(createNodeMenuBindingKey(nodeId));
       }
     });
+    canvasCommands = createEditorCanvasCommandController({
+      graph,
+      nodeCommands: commands,
+      startIndex: Math.max(graphData.nodes.length + 1, 1),
+      onAfterFitView: schedulePointerWorldPointRefresh
+    });
     (graph.app.tree as typeof graph.app.tree & GraphViewportViewEventHost).on(
       "leafer.transform",
       handleTreeTransform
@@ -774,7 +792,7 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
 
       graphReady = true;
 
-      for (const node of nodes) {
+      for (const node of graphData.nodes) {
         boundNodeIds.add(node.id);
         bindNodeContextMenu(graph, menu, handleNodePointerDown, node);
       }
@@ -1036,7 +1054,7 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
       }
 
       if (key === "v") {
-        if (!commands.clipboard || event.shiftKey) {
+        if (!canvasCommands.canPaste || event.shiftKey) {
           return;
         }
 
@@ -1085,9 +1103,10 @@ export function GraphViewport({ nodes, theme }: GraphViewportProps) {
       ownerWindow.removeEventListener("blur", handleWindowBlur);
       hideSelectionBox();
       menu.destroy();
+      graphRef.current = null;
       graph.destroy();
     };
-  }, [nodes]);
+  }, [graphData, modules, plugins]);
 
   return (
     <div class="graph-viewport">

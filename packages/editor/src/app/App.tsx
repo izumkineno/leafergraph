@@ -1,12 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
 
 import { GraphViewport } from "./GraphViewport";
-import { demoNodes } from "./demo-nodes";
+import { editorDemoGraph, editorDemoModules } from "../demo/demo-setup";
+import { editorDemoPlugins } from "../demo/external-widget-demo";
 import {
   EDITOR_THEME_STORAGE_KEY,
   resolveInitialEditorTheme,
   type EditorTheme
-} from "./theme";
+} from "../theme";
 
 /** 切换到相反主题。 */
 function toggleEditorTheme(theme: EditorTheme): EditorTheme {
@@ -84,7 +85,12 @@ export function App() {
           </div>
         </header>
 
-        <GraphViewport nodes={demoNodes} theme={theme} />
+        <GraphViewport
+          graph={editorDemoGraph}
+          modules={editorDemoModules}
+          plugins={editorDemoPlugins}
+          theme={theme}
+        />
       </main>
     </div>
   );

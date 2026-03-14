@@ -1,7 +1,7 @@
 import { render } from "preact";
 
-import { App } from "./App";
-import "./style.css";
+import { App } from "./app/App";
+import "./app/style.css";
 
 const host = document.querySelector<HTMLDivElement>("#app");
 
