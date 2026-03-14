@@ -8,7 +8,10 @@
 - `packages/editor`
   - 编辑器工程
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
-  - 当前演示图数据和示例节点模块由 `packages/editor/src/demo/demo-setup.ts` 维护
+  - 当前通过本地 `dist/*.iife.js` bundle 动态加载 demo、node、widget
+- `templates/`
+  - 可直接复制出去的外部节点 / Widget 模板工程
+  - 当前已提供 `templates/node-widget-plugin-template`
 
 ## 当前边界
 
@@ -16,7 +19,8 @@
   - 只保留核心图能力、节点运行时、渲染宿主与交互基础设施
   - 不再内建默认 demo 节点、默认 demo 图数据或 editor 专属快速创建模板
 - `packages/editor`
-  - 承担 Sandbox、演示节点模块、默认图数据和 editor 壳层行为
+  - 承担 Sandbox、本地 bundle 装载面板和 editor 壳层行为
+  - editor 不再源码直连模板工程，而是通过文件选择器读取本地 IIFE 产物
 
 ## 常用命令
 
@@ -60,3 +64,40 @@ bun run build
 - `docs/右键菜单管理方案.md`
   - 基于 Leafer `pointer.menu` 的右键菜单基础设施方案
   - 菜单管理器职责、坐标体系与宿主接入方式
+
+## Editor 本地 Bundle 加载
+
+editor 现在内建一个“本地 Bundle 加载面板”，固定有三个槽位：
+
+- `Widget Bundle`
+- `Node Bundle`
+- `Demo Bundle`
+
+加载方式不再依赖源码 alias，而是：
+
+1. 在模板工程里构建出 browser IIFE 文件
+2. 在 editor 页面用文件选择器选择本地 `dist/browser/*.iife.js`
+3. editor 通过 `<script>` 注入这些文件
+4. bundle 顶层调用 `LeaferGraphEditorBundleBridge.registerBundle(...)`
+5. editor 再把已激活 bundle 组装成 `graph + plugins`
+
+推荐加载顺序：
+
+1. `widget.iife.js`
+2. `node.iife.js`
+3. `demo.iife.js`
+
+这样可以避免 demo 图先落地时缺少依赖节点或 widget。
+
+## 模板工程产物
+
+`templates/node-widget-plugin-template` 当前会同时输出两条产物线：
+
+- ESM 包产物
+  - `dist/index.js`
+  - 适合被其它工程正常 `import`
+- browser IIFE 产物
+  - `dist/browser/demo.iife.js`
+  - `dist/browser/node.iife.js`
+  - `dist/browser/widget.iife.js`
+  - 适合被 editor 本地文件加载面板直接读取
