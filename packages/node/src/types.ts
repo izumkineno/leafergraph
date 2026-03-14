@@ -23,11 +23,82 @@ export type NodeSlotShape = "circle" | "box" | "arrow" | "grid";
 export type NodeWidgetType =
   | "number"
   | "string"
-  | "combo"
   | "toggle"
   | "slider"
+  | "input"
+  | "textarea"
+  | "select"
+  | "button"
+  | "checkbox"
+  | "radio"
   | "custom"
   | (string & {});
+
+/**
+ * 离散候选型 Widget 的标准选项条目。
+ * `select / radio` 一类控件都可以直接复用这组结构。
+ */
+export interface NodeWidgetOptionItem {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  description?: string;
+}
+
+/**
+ * 基础 Widget options 的公共字段。
+ * 这些字段不会改变序列化结构，只是给外部节点包补齐标准类型。
+ */
+export interface NodeBaseWidgetOptions {
+  label?: string;
+  description?: string;
+  disabled?: boolean;
+}
+
+/** 只读值 / 输入框类组件使用的 options。 */
+export interface NodeTextWidgetOptions extends NodeBaseWidgetOptions {
+  placeholder?: string;
+  readOnly?: boolean;
+  maxLength?: number;
+}
+
+/** 多行文本组件的 options。 */
+export interface NodeTextareaWidgetOptions extends NodeTextWidgetOptions {
+  rows?: number;
+}
+
+/** slider 组件的 options。 */
+export interface NodeSliderWidgetOptions extends NodeBaseWidgetOptions {
+  min?: number;
+  max?: number;
+  step?: number;
+  displayValue?: string;
+  formatValue?: string | ((value: number) => string);
+}
+
+/** toggle 组件的 options。 */
+export interface NodeToggleWidgetOptions extends NodeBaseWidgetOptions {
+  onText?: string;
+  offText?: string;
+}
+
+/** select / radio 组件的 options。 */
+export interface NodeOptionWidgetOptions extends NodeBaseWidgetOptions {
+  items?: Array<string | NodeWidgetOptionItem>;
+}
+
+/** button 组件的 options。 */
+export interface NodeButtonWidgetOptions extends NodeBaseWidgetOptions {
+  text?: string;
+  action?: string;
+  variant?: "primary" | "secondary" | "ghost";
+}
+
+/** checkbox 组件的 options。 */
+export interface NodeCheckboxWidgetOptions extends NodeBaseWidgetOptions {
+  onText?: string;
+  offText?: string;
+}
 
 /**
  * 节点属性类型。
@@ -66,7 +137,7 @@ export interface NodeSlotSpec {
  * Widget 既可以来自节点定义默认值，也可以来自实例覆盖值。
  */
 export interface NodeWidgetSpec {
-  /** Widget 类型，最终会在 `WidgetRegistry` 中解析。 */
+  /** Widget 类型，最终会在宿主提供的 Widget 定义表中解析。 */
   type: NodeWidgetType;
   /** Widget 名称，通常用于面板标签或属性映射。 */
   name: string;

@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@leafer-in/arrow": "^2.0.3",
+    "@leafer-in/editor": "^2.0.3",
     "@leafer-in/export": "^2.0.3",
     "@leafer-in/find": "^2.0.3",
     "@leafer-in/flow": "^2.0.3",

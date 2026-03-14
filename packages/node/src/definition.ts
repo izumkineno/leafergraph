@@ -69,9 +69,9 @@ export interface NodeModuleScope {
 
 /**
  * 可被主包批量安装的节点模块。
+ * 当前模块只承载节点定义，Widget 需要通过主包单独注册。
  */
 export interface NodeModule {
   scope?: NodeModuleScope;
   nodes?: NodeDefinition[];
-  widgets?: WidgetDefinition[];
 }

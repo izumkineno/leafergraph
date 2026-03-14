@@ -7,9 +7,129 @@ import type {
   NodeWidgetSpec,
   RegisterNodeOptions,
   RegisterWidgetOptions,
-  WidgetDefinition
+  WidgetDefinition,
+  NodeWidgetOptionItem
 } from "@leafergraph/node";
-import type { Group } from "leafer-ui";
+import type { Group, Text } from "leafer-ui";
+
+/** 主包当前支持的主题模式。 */
+export type LeaferGraphThemeMode = "light" | "dark";
+
+/**
+ * Widget 视觉 token。
+ * 主包与外部自定义 renderer 都可以基于它在亮色 / 暗色模式间切换。
+ */
+export interface LeaferGraphWidgetThemeTokens {
+  fontFamily: string;
+  labelFill: string;
+  valueFill: string;
+  mutedFill: string;
+  disabledFill: string;
+  fieldFill: string;
+  fieldHoverFill: string;
+  fieldFocusFill: string;
+  fieldStroke: string;
+  fieldHoverStroke: string;
+  fieldFocusStroke: string;
+  fieldDisabledFill: string;
+  fieldDisabledStroke: string;
+  fieldRadius: number;
+  fieldShadow: string;
+  focusRing: string;
+  separatorFill: string;
+  trackFill: string;
+  trackActiveFill: string;
+  thumbFill: string;
+  thumbStroke: string;
+  menuFill: string;
+  menuStroke: string;
+  menuShadow: string;
+  menuTextFill: string;
+  menuMutedFill: string;
+  menuActiveFill: string;
+  menuActiveTextFill: string;
+  menuDangerFill: string;
+  buttonPrimaryFill: string;
+  buttonPrimaryHoverFill: string;
+  buttonSecondaryFill: string;
+  buttonSecondaryHoverFill: string;
+  buttonGhostFill: string;
+  buttonGhostHoverFill: string;
+  buttonTextFill: string;
+  buttonGhostTextFill: string;
+  accentFallback: string;
+}
+
+/** Widget 渲染时可读取的主题上下文。 */
+export interface LeaferGraphWidgetThemeContext {
+  mode: LeaferGraphThemeMode;
+  tokens: LeaferGraphWidgetThemeTokens;
+}
+
+/** 文本编辑请求。 */
+export interface LeaferGraphWidgetTextEditFrame {
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
+  paddingTop?: number;
+  paddingRight?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+}
+
+/** 文本编辑请求。 */
+export interface LeaferGraphWidgetTextEditRequest {
+  nodeId: string;
+  widgetIndex: number;
+  target: Text;
+  frame?: LeaferGraphWidgetTextEditFrame;
+  value: string;
+  multiline?: boolean;
+  placeholder?: string;
+  readOnly?: boolean;
+  maxLength?: number;
+  onCommit(value: string): void;
+  onCancel?(value: string): void;
+}
+
+/** 候选菜单请求。 */
+export interface LeaferGraphWidgetOptionsMenuRequest {
+  nodeId: string;
+  widgetIndex: number;
+  anchorClientX: number;
+  anchorClientY: number;
+  value?: string;
+  options: NodeWidgetOptionItem[];
+  onSelect(value: string): void;
+  onClose?(): void;
+}
+
+/** Widget 焦点与键盘转发绑定。 */
+export interface LeaferGraphWidgetFocusBinding {
+  key: string;
+  onFocusChange?(focused: boolean): void;
+  onKeyDown?(event: KeyboardEvent): boolean;
+}
+
+/** Widget 编辑宿主配置。 */
+export interface LeaferGraphWidgetEditingOptions {
+  enabled?: boolean;
+  useOfficialTextEditor?: boolean;
+  allowOptionsMenu?: boolean;
+}
+
+/** Widget renderer 可消费的统一编辑能力入口。 */
+export interface LeaferGraphWidgetEditingContext {
+  enabled: boolean;
+  beginTextEdit(request: LeaferGraphWidgetTextEditRequest): boolean;
+  openOptionsMenu(request: LeaferGraphWidgetOptionsMenuRequest): boolean;
+  closeActiveEditor(): void;
+  registerFocusableWidget(binding: LeaferGraphWidgetFocusBinding): () => void;
+  focusWidget(key: string): void;
+  clearWidgetFocus(): void;
+  isWidgetFocused(key: string): boolean;
+}
 
 /**
  * Widget 在节点内部的布局边界。
@@ -49,6 +169,10 @@ export interface LeaferGraphWidgetRendererContext {
   value: unknown;
   /** Widget 在节点内部的布局边界。 */
   bounds: LeaferGraphWidgetBounds;
+  /** Widget 当前可用的主题上下文。 */
+  theme: LeaferGraphWidgetThemeContext;
+  /** Widget 当前可用的编辑宿主能力。 */
+  editing: LeaferGraphWidgetEditingContext;
   /**
    * 由 Widget 主动回写值到宿主。
    * 当前阶段它会直接更新运行时 `widget.value`，并触发对应 renderer 的 `update(...)`。
@@ -81,6 +205,47 @@ export interface LeaferGraphWidgetRenderer {
 }
 
 /**
+ * Widget 生命周期内部状态的最小约束。
+ * 默认用 Record 表达，具体实现可在泛型中自定义。
+ */
+export type LeaferGraphWidgetLifecycleState = Record<string, unknown>;
+
+/**
+ * 通用 Widget 生命周期协议。
+ * 用于把 mount / update / destroy 统一成可复用的结构。
+ */
+export interface LeaferGraphWidgetLifecycle<
+  TState = LeaferGraphWidgetLifecycleState
+> {
+  mount?(context: LeaferGraphWidgetRendererContext): TState | void;
+  update?(
+    state: TState | void,
+    context: LeaferGraphWidgetRendererContext,
+    newValue: unknown
+  ): void;
+  destroy?(
+    state: TState | void,
+    context: LeaferGraphWidgetRendererContext
+  ): void;
+}
+
+/**
+ * 允许外部使用“函数 renderer”或“生命周期对象”两种写法。
+ * 主包会在注册时统一转换成可调度的 renderer 形态。
+ */
+export type LeaferGraphWidgetRendererLike =
+  | LeaferGraphWidgetRenderer
+  | LeaferGraphWidgetLifecycle;
+
+/**
+ * 主包正式注册的 Widget 条目。
+ * 它把数据定义和 renderer 合并为同一份注册对象，避免定义与绘制分离后出现半注册状态。
+ */
+export interface LeaferGraphWidgetEntry extends WidgetDefinition {
+  renderer: LeaferGraphWidgetRendererLike;
+}
+
+/**
  * 外部节点插件在安装阶段可使用的宿主上下文。
  */
 export interface LeaferGraphNodePluginContext {
@@ -88,10 +253,14 @@ export interface LeaferGraphNodePluginContext {
   ui: typeof import("leafer-ui");
   installModule: (module: NodeModule, options?: InstallNodeModuleOptions) => void;
   registerNode: (definition: NodeDefinition, options?: RegisterNodeOptions) => void;
-  registerWidget: (definition: WidgetDefinition, options?: RegisterWidgetOptions) => void;
-  registerWidgetRenderer: (type: string, renderer: LeaferGraphWidgetRenderer) => void;
+  registerWidget: (
+    entry: LeaferGraphWidgetEntry,
+    options?: RegisterWidgetOptions
+  ) => void;
   hasNode: (type: string) => boolean;
   hasWidget: (type: string) => boolean;
+  getWidget: (type: string) => LeaferGraphWidgetEntry | undefined;
+  listWidgets: () => LeaferGraphWidgetEntry[];
   getNode: (type: string) => NodeDefinition | undefined;
   listNodes: () => NodeDefinition[];
 }
@@ -107,8 +276,10 @@ export interface LeaferGraphNodePlugin {
 
 /**
  * 主包初始化配置。
- * 在基础 demo 配置上，额外支持插件批量安装。
+ * 在节点图基础配置上，额外支持插件批量安装。
  */
 export interface LeaferGraphOptions extends BaseLeaferGraphOptions {
   plugins?: LeaferGraphNodePlugin[];
+  themeMode?: LeaferGraphThemeMode;
+  widgetEditing?: LeaferGraphWidgetEditingOptions;
 }

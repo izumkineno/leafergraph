@@ -2,6 +2,7 @@ import { createNodeApi } from "./api";
 import type { NodeRegistry } from "./registry";
 import type { NodeRuntimeState, NodeSerializeResult } from "./types";
 import {
+  createMissingNodeDefinition,
   cloneFlags,
   cloneLayout,
   clonePropertySpecs,
@@ -18,7 +19,7 @@ export function serializeNode(
   registry: NodeRegistry,
   node: NodeRuntimeState
 ): NodeSerializeResult {
-  const definition = registry.require(node.type);
+  const definition = registry.get(node.type) ?? createMissingNodeDefinition(node.type);
   const data: NodeSerializeResult = {
     id: node.id,
     type: node.type,
@@ -28,14 +29,14 @@ export function serializeNode(
     propertySpecs: clonePropertySpecs(node.propertySpecs),
     inputs: cloneSlotSpecs(node.inputs),
     outputs: cloneSlotSpecs(node.outputs),
-    widgets: serializeWidgetSpecs(registry.widgetRegistry, node.widgets),
+    widgets: serializeWidgetSpecs(registry.widgetDefinitions, node.widgets),
     flags: cloneFlags(node.flags),
     data: cloneRecord(node.data)
   };
 
   const api = createNodeApi(node, {
     definition,
-    widgetRegistry: registry.widgetRegistry
+    widgetDefinitions: registry.widgetDefinitions
   });
 
   // 允许节点在最终输出前做一次补充或裁剪。

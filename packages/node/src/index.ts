@@ -3,16 +3,25 @@
  * 这里导出节点定义、注册表、序列化工具和模块安装能力，供主包与外部插件共用。
  */
 export type {
+  NodeBaseWidgetOptions,
+  NodeButtonWidgetOptions,
+  NodeCheckboxWidgetOptions,
   NodeFlags,
   NodeInit,
   NodeLayout,
+  NodeOptionWidgetOptions,
   NodePropertySpec,
   NodePropertyType,
   NodeRuntimeState,
   NodeSerializeResult,
+  NodeSliderWidgetOptions,
   NodeSlotShape,
   NodeSlotSpec,
   NodeState,
+  NodeTextWidgetOptions,
+  NodeTextareaWidgetOptions,
+  NodeToggleWidgetOptions,
+  NodeWidgetOptionItem,
   NodeWidgetSpec,
   NodeWidgetType,
   SlotDirection,
@@ -27,7 +36,7 @@ export type {
   WidgetDefinition
 } from "./definition";
 export type { RegisterNodeOptions } from "./registry";
-export type { RegisterWidgetOptions } from "./widget";
+export type { RegisterWidgetOptions, WidgetDefinitionReader } from "./widget";
 export type { InstallNodeModuleOptions, ResolvedNodeModule } from "./module";
 export type { NodeConfigureInput } from "./configure";
 export type { LeaferGraphNodeData, LeaferGraphOptions } from "./demo";
@@ -38,7 +47,17 @@ export type {
 } from "./graph";
 
 export { NodeRegistry } from "./registry";
-export { WidgetRegistry, BUILTIN_WIDGET_TYPES } from "./widget";
+export {
+  BUILTIN_WIDGET_TYPES,
+  hasWidgetDefinition,
+  normalizeWidgetSpec,
+  normalizeWidgetSpecs,
+  requireWidgetDefinition,
+  serializeWidgetSpec,
+  serializeWidgetSpecs,
+  validateWidgetPropertySpec,
+  validateWidgetSpec
+} from "./widget";
 export { createNodeApi } from "./api";
 export { createNodeState } from "./factory";
 export { configureNode } from "./configure";

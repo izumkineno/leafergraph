@@ -1,4 +1,4 @@
-import type { NodeDefinition, NodeModule, NodeModuleScope, WidgetDefinition } from "./definition";
+import type { NodeDefinition, NodeModule, NodeModuleScope } from "./definition";
 import type { NodeRegistry, RegisterNodeOptions } from "./registry";
 import { cloneDefinition } from "./utils";
 
@@ -12,17 +12,16 @@ export interface InstallNodeModuleOptions extends RegisterNodeOptions {
 
 /**
  * 模块解析后的标准结构。
- * 宿主拿到它之后就可以明确知道最终生效的 scope / nodes / widgets。
+ * 宿主拿到它之后就可以明确知道最终生效的 scope 和 nodes。
  */
 export interface ResolvedNodeModule {
   scope: NodeModuleScope;
   nodes: NodeDefinition[];
-  widgets: WidgetDefinition[];
 }
 
 /**
  * 将一个模块安装到节点注册表中。
- * 安装前会先解析并标准化模块作用域，再批量注册 Widget 和节点定义。
+ * 安装前会先解析并标准化模块作用域，再批量注册节点定义。
  */
 export function installNodeModule(
   registry: NodeRegistry,
@@ -30,12 +29,6 @@ export function installNodeModule(
   options: InstallNodeModuleOptions = {}
 ): ResolvedNodeModule {
   const resolved = resolveNodeModule(module, options);
-
-  for (const widget of resolved.widgets) {
-    registry.registerWidget(widget, {
-      overwrite: options.overwrite
-    });
-  }
 
   for (const node of resolved.nodes) {
     registry.register(node, options);
@@ -56,7 +49,6 @@ export function resolveNodeModule(
 
   return {
     scope,
-    widgets: module.widgets?.map((widget) => ({ ...widget, type: widget.type.trim() })) ?? [],
     nodes: module.nodes?.map((definition) => applyNodeModuleScope(definition, scope)) ?? []
   };
 }

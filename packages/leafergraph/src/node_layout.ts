@@ -99,11 +99,30 @@ export function resolveNodeWidgetPreferredHeight(
   widget: NodeLayoutSource["widgets"][number],
   metrics: NodeShellLayoutMetrics
 ): number {
+  const widgetOptions = widget.options ?? {};
+
   switch (widget.type) {
     case "toggle":
-      return 68;
-    case "slider":
       return 60;
+    case "slider":
+      return 64;
+    case "textarea":
+      return Math.max(
+        92,
+        36 + Math.max(Number(widgetOptions["rows"]) || 3, 2) * 22
+      );
+    case "radio": {
+      const items = Array.isArray(widgetOptions["items"])
+        ? widgetOptions["items"].length
+        : 0;
+      const count = Math.max(items, 1);
+      return Math.max(88, 40 + count * 28 + Math.max(count - 1, 0) * 6);
+    }
+    case "input":
+    case "select":
+    case "button":
+    case "checkbox":
+      return 58;
     default:
       return metrics.widgetHeight;
   }

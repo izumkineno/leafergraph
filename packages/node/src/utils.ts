@@ -111,6 +111,18 @@ export function cloneDefinition(definition: NodeDefinition): NodeDefinition {
 }
 
 /**
+ * 为未注册的节点类型生成一个最小占位定义。
+ * 这让宿主在读取旧图数据或插件缺失时，仍然可以保留原始节点结构并继续渲染占位态。
+ */
+export function createMissingNodeDefinition(type: string): NodeDefinition {
+  return {
+    type,
+    title: createDefaultTitle(type),
+    description: `缺失的节点类型: ${type}`
+  };
+}
+
+/**
  * 由类型名推导默认标题。
  * 例如 `math/add` 会回退成 `Add`。
  */

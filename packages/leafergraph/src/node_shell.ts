@@ -14,8 +14,6 @@ export interface NodeShellRenderTheme {
   selectedRingOpacity: number;
   cardFill: string;
   cardStroke: string;
-  cardHoverFill: string;
-  cardHoverStroke: string;
   cardPressFill: string;
   cardPressStroke: string;
   headerFill: string;
@@ -138,10 +136,6 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     strokeWidth: 1,
     cornerRadius: theme.nodeRadius,
     cursor: "grab",
-    hoverStyle: {
-      fill: theme.cardHoverFill,
-      stroke: theme.cardHoverStroke
-    },
     pressStyle: {
       fill: theme.cardPressFill,
       stroke: theme.cardPressStroke

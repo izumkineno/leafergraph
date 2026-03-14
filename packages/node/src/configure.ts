@@ -2,6 +2,7 @@ import { createNodeApi } from "./api";
 import type { NodeRegistry } from "./registry";
 import type { NodeRuntimeState, NodeSerializeResult } from "./types";
 import {
+  createMissingNodeDefinition,
   cloneFlags,
   clonePropertySpecs,
   cloneRecord,
@@ -29,7 +30,7 @@ export function configureNode(
   node: NodeRuntimeState,
   data: NodeConfigureInput
 ): NodeRuntimeState {
-  const definition = registry.require(data.type);
+  const definition = registry.get(data.type) ?? createMissingNodeDefinition(data.type);
   const propertySpecs = clonePropertySpecs(
     data.propertySpecs ?? node.propertySpecs ?? definition.properties
   );
@@ -44,7 +45,7 @@ export function configureNode(
   node.inputs = cloneSlotSpecs(data.inputs ?? node.inputs ?? definition.inputs);
   node.outputs = cloneSlotSpecs(data.outputs ?? node.outputs ?? definition.outputs);
   node.widgets = normalizeWidgetSpecs(
-    registry.widgetRegistry,
+    registry.widgetDefinitions,
     data.widgets ?? node.widgets ?? definition.widgets
   );
   node.flags = {
@@ -57,7 +58,7 @@ export function configureNode(
 
   const api = createNodeApi(node, {
     definition,
-    widgetRegistry: registry.widgetRegistry
+    widgetDefinitions: registry.widgetDefinitions
   });
 
   // 传给生命周期钩子的结构必须是安全副本，避免用户回调无意污染宿主状态。
@@ -72,7 +73,7 @@ export function configureNode(
       propertySpecs: clonePropertySpecs(node.propertySpecs),
       inputs: cloneSlotSpecs(node.inputs),
       outputs: cloneSlotSpecs(node.outputs),
-      widgets: normalizeWidgetSpecs(registry.widgetRegistry, node.widgets),
+      widgets: normalizeWidgetSpecs(registry.widgetDefinitions, node.widgets),
       flags: cloneFlags(node.flags),
       data: cloneRecord(node.data)
     },

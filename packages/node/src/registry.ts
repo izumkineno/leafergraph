@@ -1,7 +1,11 @@
-import type { NodeDefinition, WidgetDefinition } from "./definition";
+import type { NodeDefinition } from "./definition";
 import { NodeDefinitionExistsError, UnknownNodeTypeError } from "./errors";
 import { cloneDefinition } from "./utils";
-import { type RegisterWidgetOptions, WidgetRegistry } from "./widget";
+import {
+  type WidgetDefinitionReader,
+  validateWidgetPropertySpec,
+  validateWidgetSpec
+} from "./widget";
 
 /**
  * 注册节点定义时的控制项。
@@ -19,13 +23,13 @@ export interface RegisterNodeOptions {
  */
 export class NodeRegistry {
   private readonly definitions = new Map<string, NodeDefinition>();
-  readonly widgetRegistry: WidgetRegistry;
+  readonly widgetDefinitions: WidgetDefinitionReader;
 
   constructor(
-    widgetRegistry: WidgetRegistry = new WidgetRegistry(),
+    widgetDefinitions: WidgetDefinitionReader,
     definitions: NodeDefinition[] = []
   ) {
-    this.widgetRegistry = widgetRegistry;
+    this.widgetDefinitions = widgetDefinitions;
 
     for (const definition of definitions) {
       this.register(definition, { overwrite: true });
@@ -114,26 +118,6 @@ export class NodeRegistry {
     return this.list();
   }
 
-  /** 代理注册 Widget 定义。 */
-  registerWidget(definition: WidgetDefinition, options?: RegisterWidgetOptions): void {
-    this.widgetRegistry.register(definition, options);
-  }
-
-  /** 代理卸载 Widget 定义。 */
-  unregisterWidget(type: string): void {
-    this.widgetRegistry.unregister(type);
-  }
-
-  /** 代理读取 Widget 定义。 */
-  getWidget(type: string): WidgetDefinition | undefined {
-    return this.widgetRegistry.get(type);
-  }
-
-  /** 代理列出全部 Widget 定义。 */
-  listWidgets(): WidgetDefinition[] {
-    return this.widgetRegistry.list();
-  }
-
   /**
    * 在注册节点前做结构性校验。
    * 当前重点校验节点声明中引用的 Widget 是否已存在。
@@ -147,11 +131,11 @@ export class NodeRegistry {
     }
 
     for (const widget of definition.widgets ?? []) {
-      this.widgetRegistry.validateSpec(widget);
+      validateWidgetSpec(this.widgetDefinitions, widget);
     }
 
     for (const property of definition.properties ?? []) {
-      this.widgetRegistry.validatePropertySpec(property);
+      validateWidgetPropertySpec(this.widgetDefinitions, property);
     }
   }
 }

@@ -2,6 +2,7 @@ import { createNodeApi } from "./api";
 import type { NodeRegistry } from "./registry";
 import type { NodeInit, NodeRuntimeState } from "./types";
 import {
+  createMissingNodeDefinition,
   cloneFlags,
   clonePropertySpecs,
   cloneRecord,
@@ -22,12 +23,12 @@ export function createNodeState(
   registry: NodeRegistry,
   init: NodeInit
 ): NodeRuntimeState {
-  const definition = registry.require(init.type);
+  const definition = registry.get(init.type) ?? createMissingNodeDefinition(init.type);
   const propertySpecs = clonePropertySpecs(init.propertySpecs ?? definition.properties);
   const inputs = cloneSlotSpecs(init.inputs ?? definition.inputs);
   const outputs = cloneSlotSpecs(init.outputs ?? definition.outputs);
   const widgets = normalizeWidgetSpecs(
-    registry.widgetRegistry,
+    registry.widgetDefinitions,
     init.widgets ?? definition.widgets
   );
 
@@ -50,7 +51,7 @@ export function createNodeState(
 
   const api = createNodeApi(node, {
     definition,
-    widgetRegistry: registry.widgetRegistry
+    widgetDefinitions: registry.widgetDefinitions
   });
 
   // 生命周期在实例结构就绪后再触发，保证回调可安全访问全部字段。

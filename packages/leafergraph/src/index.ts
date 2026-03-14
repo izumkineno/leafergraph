@@ -27,8 +27,7 @@ import {
   type SlotType,
   type RegisterNodeOptions,
   type RegisterWidgetOptions,
-  type ResolvedNodeModule,
-  type WidgetDefinition
+  type ResolvedNodeModule
 } from "@leafergraph/node";
 export { LeaferUI };
 export type {
@@ -68,11 +67,31 @@ export type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,
+  LeaferGraphThemeMode,
   LeaferGraphWidgetBounds,
+  LeaferGraphWidgetEntry,
+  LeaferGraphWidgetEditingContext,
+  LeaferGraphWidgetEditingOptions,
+  LeaferGraphWidgetFocusBinding,
   LeaferGraphWidgetRenderInstance,
   LeaferGraphWidgetRenderer,
-  LeaferGraphWidgetRendererContext
+  LeaferGraphWidgetRendererContext,
+  LeaferGraphWidgetRendererLike,
+  LeaferGraphWidgetTextEditRequest,
+  LeaferGraphWidgetThemeContext,
+  LeaferGraphWidgetThemeTokens,
+  LeaferGraphWidgetLifecycle,
+  LeaferGraphWidgetLifecycleState,
+  LeaferGraphWidgetOptionsMenuRequest
 } from "./plugin";
+export {
+  createWidgetHitArea,
+  createWidgetLabel,
+  createWidgetLifecycleRenderer,
+  createWidgetSurface,
+  createWidgetValueText
+} from "./widgets/widget_lifecycle";
+export { LeaferGraphWidgetRegistry } from "./widget_registry";
 export type {
   LeaferGraphLinearWidgetDragOptions,
   LeaferGraphPressWidgetInteractionOptions,
@@ -85,7 +104,11 @@ import type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,
+  LeaferGraphThemeMode,
+  LeaferGraphWidgetEntry,
+  LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetRenderInstance,
+  LeaferGraphWidgetThemeContext,
   LeaferGraphWidgetRenderer
 } from "./plugin";
 import {
@@ -102,17 +125,27 @@ import {
   resolveNodePortAnchorYForNode,
   type NodeShellPortLayout
 } from "./node_port";
-import { createNodeShell, type NodeShellView } from "./node_shell";
 import {
-  LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
-  bindLinearWidgetDrag,
-  bindPressWidgetInteraction,
+  createNodeShell,
+  type NodeShellRenderTheme,
+  type NodeShellView
+} from "./node_shell";
+import {
   isWidgetInteractionTarget,
   type LeaferGraphWidgetPointerEvent
 } from "./widget_interaction";
+import {
+  BasicWidgetLibrary,
+  resolveBasicWidgetTheme
+} from "./widgets/basic_widgets";
+import { LeaferGraphWidgetRegistry } from "./widget_registry";
+import {
+  LeaferGraphWidgetEditingManager,
+  resolveWidgetEditingOptions
+} from "./widget_editing";
 
 /**
- * 主包当前 demo 渲染实现。
+ * 主包当前渲染实现。
  * 这个文件同时承担三层职责：
  * 1. 宿主初始化与插件接入
  * 2. 节点与连线的 Leafer 渲染
@@ -132,7 +165,6 @@ const PORT_SIZE = 12;
 const WIDGET_HEIGHT = 60;
 const WIDGET_GAP = 12;
 const WIDGET_PADDING_Y = 16;
-const WIDGET_TRACK_HEIGHT = 4;
 const SIGNAL_SIZE = 8;
 const SIGNAL_GLOW_SIZE = 14;
 const CATEGORY_PILL_HEIGHT = 22;
@@ -142,8 +174,6 @@ const SLOT_TEXT_WIDTH = 84;
 const NODE_FONT_FAMILY = '"Inter", "IBM Plex Sans", "Segoe UI", sans-serif';
 const CARD_FILL = "rgba(28, 28, 33, 0.76)";
 const CARD_STROKE = "rgba(255, 255, 255, 0.10)";
-const CARD_HOVER_FILL = "rgba(32, 32, 38, 0.82)";
-const CARD_HOVER_STROKE = "rgba(148, 163, 184, 0.30)";
 const CARD_PRESS_FILL = "rgba(24, 24, 29, 0.86)";
 const CARD_PRESS_STROKE = "rgba(59, 130, 246, 0.28)";
 const HEADER_FILL = "rgba(255, 255, 255, 0.05)";
@@ -154,15 +184,19 @@ const CATEGORY_FILL = "rgba(255, 255, 255, 0.08)";
 const CATEGORY_STROKE = "rgba(255, 255, 255, 0.05)";
 const CATEGORY_TEXT_FILL = "#A1A1AA";
 const WIDGET_FILL = "rgba(0, 0, 0, 0.15)";
-const WIDGET_LABEL_FILL = "#71717A";
-const WIDGET_VALUE_FILL = "#FFFFFF";
-const TRACK_FILL = "rgba(255, 255, 255, 0.10)";
 const INPUT_PORT_FILL = "#3B82F6";
 const OUTPUT_PORT_FILL = "#8B5CF6";
 const GENERIC_PORT_FILL = "#94A3B8";
 const LINK_STROKE = "#60A5FA";
 const NODE_SELECTED_STROKE = "#2563EB";
 const NODE_SIGNAL_FILL = "#94A3B8";
+const MISSING_NODE_FILL = "rgba(220, 38, 38, 0.92)";
+const MISSING_NODE_STROKE = "rgba(127, 29, 29, 0.86)";
+const MISSING_NODE_PRESS_FILL = "rgba(185, 28, 28, 0.96)";
+const MISSING_NODE_TEXT_FILL = "#FFF1F2";
+const MISSING_WIDGET_FILL = "rgba(220, 38, 38, 0.92)";
+const MISSING_WIDGET_STROKE = "rgba(127, 29, 29, 0.78)";
+const MISSING_WIDGET_TEXT_FILL = "#FFF1F2";
 const DEFAULT_GRAPH_LINK_SLOT = 0;
 const SELECTED_RING_OUTSET = 4;
 const SELECTED_RING_STROKE_WIDTH = 3;
@@ -218,54 +252,96 @@ const NODE_SHELL_LAYOUT_METRICS = {
   slotTextWidth: SLOT_TEXT_WIDTH
 } as const;
 
-/**
- * 节点壳渲染主题。
- * 当前仍由主包直接持有，目的是先把“布局计算”和“图元创建”从大文件主体逻辑中拆开。
- */
-const NODE_SHELL_RENDER_THEME = {
-  nodeRadius: NODE_RADIUS,
-  headerHeight: HEADER_HEIGHT,
-  selectedRingOutset: SELECTED_RING_OUTSET,
-  selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
-  selectedRingOpacity: 0.92,
-  cardFill: CARD_FILL,
-  cardStroke: CARD_STROKE,
-  cardHoverFill: CARD_HOVER_FILL,
-  cardHoverStroke: CARD_HOVER_STROKE,
-  cardPressFill: CARD_PRESS_FILL,
-  cardPressStroke: CARD_PRESS_STROKE,
-  headerFill: HEADER_FILL,
-  headerDividerFill: HEADER_DIVIDER_FILL,
-  titleFill: TITLE_FILL,
-  titleFontFamily: NODE_FONT_FAMILY,
-  titleFontSize: 13,
-  titleFontWeight: "600",
-  titleX: 38,
-  titleY: 15,
-  categoryFill: CATEGORY_FILL,
-  categoryStroke: CATEGORY_STROKE,
-  categoryTextFill: CATEGORY_TEXT_FILL,
-  categoryFontFamily: NODE_FONT_FAMILY,
-  categoryFontSize: 9.5,
-  categoryFontWeight: "600",
-  signalGlowX: 17,
-  signalGlowY: 16,
-  signalGlowSize: SIGNAL_GLOW_SIZE,
-  signalGlowOpacity: 0.24,
-  signalLightX: 20,
-  signalLightY: 19,
-  signalLightSize: SIGNAL_SIZE,
-  signalHitPadding: 4,
-  widgetFill: WIDGET_FILL,
-  inputPortFill: INPUT_PORT_FILL,
-  outputPortFill: OUTPUT_PORT_FILL,
-  portStroke: CARD_FILL,
-  portStrokeWidth: 2.5,
-  slotLabelFill: SLOT_LABEL_FILL,
-  slotLabelFontFamily: NODE_FONT_FAMILY,
-  slotLabelFontSize: 11,
-  slotLabelFontWeight: "500"
-} as const;
+/** 根据主题模式解析节点壳渲染主题。 */
+function resolveNodeShellRenderTheme(mode: LeaferGraphThemeMode): NodeShellRenderTheme {
+  if (mode === "dark") {
+    return {
+      nodeRadius: NODE_RADIUS,
+      headerHeight: HEADER_HEIGHT,
+      selectedRingOutset: SELECTED_RING_OUTSET,
+      selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
+      selectedRingOpacity: 0.92,
+      cardFill: CARD_FILL,
+      cardStroke: CARD_STROKE,
+      cardPressFill: CARD_PRESS_FILL,
+      cardPressStroke: CARD_PRESS_STROKE,
+      headerFill: HEADER_FILL,
+      headerDividerFill: HEADER_DIVIDER_FILL,
+      titleFill: TITLE_FILL,
+      titleFontFamily: NODE_FONT_FAMILY,
+      titleFontSize: 13,
+      titleFontWeight: "600",
+      titleX: 38,
+      titleY: 15,
+      categoryFill: CATEGORY_FILL,
+      categoryStroke: CATEGORY_STROKE,
+      categoryTextFill: CATEGORY_TEXT_FILL,
+      categoryFontFamily: NODE_FONT_FAMILY,
+      categoryFontSize: 9.5,
+      categoryFontWeight: "600",
+      signalGlowX: 17,
+      signalGlowY: 16,
+      signalGlowSize: SIGNAL_GLOW_SIZE,
+      signalGlowOpacity: 0.24,
+      signalLightX: 20,
+      signalLightY: 19,
+      signalLightSize: SIGNAL_SIZE,
+      signalHitPadding: 4,
+      widgetFill: WIDGET_FILL,
+      inputPortFill: INPUT_PORT_FILL,
+      outputPortFill: OUTPUT_PORT_FILL,
+      portStroke: CARD_FILL,
+      portStrokeWidth: 2.5,
+      slotLabelFill: SLOT_LABEL_FILL,
+      slotLabelFontFamily: NODE_FONT_FAMILY,
+      slotLabelFontSize: 11,
+      slotLabelFontWeight: "500"
+    };
+  }
+
+  return {
+    nodeRadius: NODE_RADIUS,
+    headerHeight: HEADER_HEIGHT,
+    selectedRingOutset: SELECTED_RING_OUTSET,
+    selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
+    selectedRingOpacity: 0.92,
+    cardFill: "rgba(255, 255, 255, 0.96)",
+    cardStroke: "rgba(148, 163, 184, 0.28)",
+    cardPressFill: "rgba(248, 250, 252, 0.98)",
+    cardPressStroke: "rgba(37, 99, 235, 0.28)",
+    headerFill: "rgba(248, 250, 252, 0.96)",
+    headerDividerFill: "rgba(148, 163, 184, 0.16)",
+    titleFill: "#0F172A",
+    titleFontFamily: NODE_FONT_FAMILY,
+    titleFontSize: 13,
+    titleFontWeight: "600",
+    titleX: 38,
+    titleY: 15,
+    categoryFill: "rgba(241, 245, 249, 0.96)",
+    categoryStroke: "rgba(203, 213, 225, 0.88)",
+    categoryTextFill: "#64748B",
+    categoryFontFamily: NODE_FONT_FAMILY,
+    categoryFontSize: 9.5,
+    categoryFontWeight: "600",
+    signalGlowX: 17,
+    signalGlowY: 16,
+    signalGlowSize: SIGNAL_GLOW_SIZE,
+    signalGlowOpacity: 0.16,
+    signalLightX: 20,
+    signalLightY: 19,
+    signalLightSize: SIGNAL_SIZE,
+    signalHitPadding: 4,
+    widgetFill: "rgba(248, 250, 252, 0.92)",
+    inputPortFill: INPUT_PORT_FILL,
+    outputPortFill: OUTPUT_PORT_FILL,
+    portStroke: "#FFFFFF",
+    portStrokeWidth: 2.5,
+    slotLabelFill: "#64748B",
+    slotLabelFontFamily: NODE_FONT_FAMILY,
+    slotLabelFontSize: 11,
+    slotLabelFontWeight: "500"
+  };
+}
 
 /**
  * `@leafer-in/view` 通过副作用扩展方式把 `zoom(...)` 方法挂到 Leafer 实例上。
@@ -316,7 +392,7 @@ interface NodeViewState {
 }
 
 /** 连线视图状态。 */
-interface DemoLinkViewState {
+interface GraphLinkViewState {
   linkId: string;
   sourceId: string;
   targetId: string;
@@ -332,24 +408,24 @@ interface GraphRuntimeState {
 }
 
 /** 多选拖拽时记录的单个节点初始位置。 */
-interface DemoDragNodePosition {
+interface GraphDragNodePosition {
   nodeId: string;
   startX: number;
   startY: number;
 }
 
 /** 拖拽中的节点状态。 */
-interface DemoDragState {
+interface GraphDragState {
   anchorNodeId: string;
   offsetX: number;
   offsetY: number;
   anchorStartX: number;
   anchorStartY: number;
-  nodes: DemoDragNodePosition[];
+  nodes: GraphDragNodePosition[];
 }
 
 /** 拖拽 resize 句柄时的节点缩放状态。 */
-interface DemoResizeState {
+interface GraphResizeState {
   nodeId: string;
   startWidth: number;
   startHeight: number;
@@ -357,20 +433,12 @@ interface DemoResizeState {
   startPageY: number;
 }
 
-/** 当前 demo 节点额外属性。 */
-interface DemoNodeProperties {
+/** 节点当前使用的展示层属性。 */
+interface GraphNodeProperties {
   subtitle?: string;
   accent?: string;
   category?: string;
   status?: string;
-}
-
-/** demo widget 附加配置。 */
-interface DemoWidgetOptions {
-  label?: string;
-  displayValue?: string;
-  onText?: string;
-  offText?: string;
 }
 
 /** 已安装插件的登记信息。 */
@@ -383,7 +451,7 @@ interface InstalledPluginRecord {
 
 /** 主包当前使用的节点运行时状态别名。 */
 type GraphNodeState = NodeRuntimeState & {
-  properties: DemoNodeProperties;
+  properties: GraphNodeProperties;
 };
 
 /**
@@ -398,8 +466,19 @@ export type LeaferGraphNodeSlotInput = string | NodeSlotSpec;
  * 以便直接复用节点 SDK 的默认 ID 生成能力。
  */
 export interface LeaferGraphCreateNodeInput
-  extends Omit<LeaferGraphNodeData, "id" | "title" | "inputs" | "outputs"> {
+  extends Omit<
+    LeaferGraphNodeData,
+    | "id"
+    | "type"
+    | "title"
+    | "inputs"
+    | "outputs"
+    | "controlLabel"
+    | "controlValue"
+    | "controlProgress"
+  > {
   id?: string;
+  type: string;
   title?: string;
   inputs?: LeaferGraphNodeSlotInput[];
   outputs?: LeaferGraphNodeSlotInput[];
@@ -410,7 +489,18 @@ export interface LeaferGraphCreateNodeInput
  * 这一轮先聚焦“内容与布局更新”，不支持在 `updateNode(...)` 中直接修改节点 ID。
  */
 export interface LeaferGraphUpdateNodeInput
-  extends Partial<Omit<LeaferGraphNodeData, "id" | "inputs" | "outputs">> {
+  extends Partial<
+    Omit<
+      LeaferGraphNodeData,
+      | "id"
+      | "type"
+      | "inputs"
+      | "outputs"
+      | "controlLabel"
+      | "controlValue"
+      | "controlProgress"
+    >
+  > {
   id?: string;
   inputs?: LeaferGraphNodeSlotInput[];
   outputs?: LeaferGraphNodeSlotInput[];
@@ -461,142 +551,6 @@ export interface LeaferGraphCreateLinkInput
   id?: string;
 }
 
-const DEMO_NODE_TYPE = "demo/category-node";
-const DEMO_CONTROL_WIDGET = "primary-control";
-
-const DEFAULT_NODES: LeaferGraphNodeData[] = [
-  {
-    id: "texture-source",
-    title: "Texture",
-    subtitle: "Seeded source",
-    x: 44,
-    y: 112,
-    accent: "#3B82F6",
-    category: "Source / Image",
-    status: "LIVE",
-    inputs: [{ name: "Seed", type: "number" }],
-    outputs: [{ name: "Texture", type: "image" }],
-    controlLabel: "Exposure",
-    controlValue: "1.10",
-    controlProgress: 0.58
-  },
-  {
-    id: "multiply",
-    title: "Multiply",
-    subtitle: "Math control",
-    x: 344,
-    y: 248,
-    accent: "#6366F1",
-    category: "Math / Float",
-    status: "LIVE",
-    inputs: [
-      { name: "A", type: "float" },
-      { name: "B", type: "float" }
-    ],
-    outputs: [{ name: "Result", type: "float" }],
-    controlLabel: "Factor",
-    controlValue: "2.50",
-    controlProgress: 0.5
-  },
-  {
-    id: "preview",
-    title: "Preview",
-    subtitle: "Viewport target",
-    x: 644,
-    y: 130,
-    accent: "#8B5CF6",
-    category: "Output / View",
-    status: "SYNC",
-    inputs: [{ name: "Image", type: "image" }],
-    outputs: [{ name: "Panel", type: "event" }],
-    widgets: [
-      {
-        type: "slider",
-        name: DEMO_CONTROL_WIDGET,
-        value: 0.32,
-        options: {
-          label: "Zoom",
-          displayValue: "1.00"
-        }
-      },
-      {
-        type: "toggle",
-        name: "live-preview",
-        value: true,
-        options: {
-          label: "Live Preview",
-          onText: "ON",
-          offText: "OFF"
-        }
-      }
-    ]
-  }
-];
-
-/** 主包默认内建节点定义，用于当前 demo 和回归验证。 */
-const DEMO_NODE_DEFINITION: NodeDefinition = {
-  type: DEMO_NODE_TYPE,
-  title: "Category Node",
-  category: "Demo",
-  size: [DEFAULT_NODE_WIDTH, DEFAULT_NODE_MIN_HEIGHT],
-  resize: {
-    enabled: true,
-    minWidth: DEFAULT_NODE_WIDTH,
-    minHeight: DEFAULT_NODE_MIN_HEIGHT,
-    snap: 4
-  },
-  properties: [
-    { name: "subtitle", type: "string" },
-    { name: "accent", type: "string", default: OUTPUT_PORT_FILL },
-    { name: "category", type: "string" },
-    { name: "status", type: "string", default: "READY" }
-  ],
-  widgets: [
-    {
-      type: "slider",
-      name: DEMO_CONTROL_WIDGET,
-      value: 0.5,
-      options: { label: "Value" }
-    }
-  ]
-};
-
-/** 创建主包默认注册表，并预装 demo 节点。 */
-function createDemoNodeRegistry(): NodeRegistry {
-  const registry = new NodeRegistry();
-  registry.registerNode(DEMO_NODE_DEFINITION);
-  return registry;
-}
-
-/**
- * 为仍然只提供节点数组的旧入口补一份默认连线。
- * 这样主包内部就可以统一走正式图数据结构，而不是在渲染阶段依赖数组顺序。
- */
-function createSequentialDemoLinks(
-  nodes: LeaferGraphNodeData[]
-): LeaferGraphLinkData[] {
-  const links: LeaferGraphLinkData[] = [];
-
-  for (let index = 0; index < nodes.length - 1; index += 1) {
-    const source = nodes[index];
-    const target = nodes[index + 1];
-
-    links.push({
-      id: `demo-link:${source.id}->${target.id}:${index}`,
-      source: {
-        nodeId: source.id,
-        slot: DEFAULT_GRAPH_LINK_SLOT
-      },
-      target: {
-        nodeId: target.id,
-        slot: DEFAULT_GRAPH_LINK_SLOT
-      }
-    });
-  }
-
-  return links;
-}
-
 /**
  * 归一化连线槽位序号。
  * 当前阶段未提供或非法时统一回退到第一个槽位。
@@ -616,6 +570,43 @@ function createGraphLinkId(link: LeaferGraphCreateLinkInput): string {
   const id = `link:${link.source.nodeId}:${sourceSlot}->${link.target.nodeId}:${targetSlot}:${graphLinkSeed}`;
   graphLinkSeed += 1;
   return id;
+}
+
+/**
+ * 缺失 Widget 类型时的统一占位渲染。
+ * 当前直接使用红色块级提示，避免未知类型静默消失导致用户误判数据已丢失。
+ */
+function createMissingWidgetRenderer(): LeaferGraphWidgetRenderer {
+  return (context) => {
+    const surface = new LeaferUI.Rect({
+      width: context.bounds.width,
+      height: context.bounds.height,
+      fill: MISSING_WIDGET_FILL,
+      stroke: MISSING_WIDGET_STROKE,
+      strokeWidth: 1,
+      cornerRadius: 12
+    });
+    const label = new LeaferUI.Text({
+      x: 14,
+      y: Math.max(context.bounds.height / 2 - 9, 12),
+      width: Math.max(context.bounds.width - 28, 24),
+      text: context.widget.type,
+      textAlign: "center",
+      fill: MISSING_WIDGET_TEXT_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 12,
+      fontWeight: "600",
+      hittable: false
+    });
+    label.textWrap = "break";
+    context.group.add([surface, label]);
+
+    return {
+      destroy() {
+        context.group.removeAll();
+      }
+    };
+  };
 }
 
 /**
@@ -672,342 +663,10 @@ function snapToStep(value: number, step?: number): number {
   return Math.round(value / step) * step;
 }
 
-/**
- * 创建默认 slider renderer。
- * Mount 阶段创建图元，Update 阶段只更新进度条宽度和显示值。
- */
-function createSliderWidgetRenderer(): LeaferGraphWidgetRenderer {
-  return ({ ui, group, node, widget, value, bounds, setValue }) => {
-    const options = widget.options as DemoWidgetOptions | undefined;
-    const accent = readNodeAccent(node);
-    const progress = clampProgress(value);
-    let useStaticDisplayValue = typeof options?.displayValue === "string";
-
-    const label = new ui.Text({
-      x: bounds.x,
-      y: bounds.y + 12,
-      text: (options?.label ?? widget.name).toUpperCase(),
-      fill: WIDGET_LABEL_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 10,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const valueText = new ui.Text({
-      x: bounds.x + bounds.width - 38,
-      y: bounds.y + 12,
-      width: 38,
-      text: resolveWidgetDisplayValue(widget, progress),
-      textAlign: "right",
-      fill: WIDGET_VALUE_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 11,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const track = new ui.Rect({
-      x: bounds.x,
-      y: bounds.y + 36,
-      width: bounds.width,
-      height: WIDGET_TRACK_HEIGHT,
-      fill: TRACK_FILL,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const active = new ui.Rect({
-      x: bounds.x,
-      y: bounds.y + 36,
-      width: bounds.width * progress,
-      height: WIDGET_TRACK_HEIGHT,
-      fill: accent,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const thumb = new ui.Rect({
-      x: bounds.x + bounds.width * progress - 7,
-      y: bounds.y + 31,
-      width: 14,
-      height: 14,
-      fill: accent,
-      stroke: "rgba(255, 255, 255, 0.10)",
-      strokeWidth: 1,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const hitArea = new ui.Rect({
-      name: LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
-      x: bounds.x,
-      y: bounds.y + 24,
-      width: bounds.width,
-      height: 26,
-      fill: "rgba(255, 255, 255, 0.001)",
-      cornerRadius: 999,
-      cursor: "ew-resize"
-    });
-
-    /**
-     * 统一同步 slider 的视觉结果。
-     * 这里单独抽出来，便于 Mount / Update / 交互回写复用同一套展示逻辑。
-     */
-    const applyProgress = (nextProgress: number): void => {
-      active.width = bounds.width * nextProgress;
-      thumb.x = bounds.x + bounds.width * nextProgress - 7;
-      valueText.text = useStaticDisplayValue
-        ? options?.displayValue ?? ""
-        : resolveWidgetDisplayValue(
-            {
-              ...widget,
-              options: {
-                ...(widget.options ?? {}),
-                displayValue: undefined
-              }
-            },
-            nextProgress
-          );
-    };
-    const interaction = bindLinearWidgetDrag({
-      hitArea,
-      group,
-      bounds,
-      getNodeX: () => node.layout.x,
-      onValue(nextProgress) {
-        useStaticDisplayValue = false;
-        setValue(nextProgress);
-      }
-    });
-
-    group.add([label, valueText, track, active, thumb]);
-    group.add(hitArea);
-    applyProgress(progress);
-
-    return {
-      update(newValue: unknown) {
-        const nextProgress = clampProgress(newValue);
-        if (useStaticDisplayValue && nextProgress !== progress) {
-          useStaticDisplayValue = false;
-        }
-        applyProgress(nextProgress);
-      },
-      destroy() {
-        interaction.destroy();
-        group.removeAll();
-      }
-    };
-  };
-}
-
-/**
- * 创建默认 toggle renderer。
- * 它作为第二种正式交互件，用来验证“按压触发型 Widget”也能复用统一宿主交互层。
- */
-function createToggleWidgetRenderer(): LeaferGraphWidgetRenderer {
-  return ({ ui, group, node, widget, value, bounds, setValue }) => {
-    const options = widget.options as DemoWidgetOptions | undefined;
-    const accent = readNodeAccent(node);
-    let checked = Boolean(value);
-    const switchWidth = 42;
-    const switchHeight = 22;
-    const switchX = bounds.x + bounds.width - switchWidth;
-    const switchY = bounds.y + 27;
-
-    const label = new ui.Text({
-      x: bounds.x,
-      y: bounds.y + 12,
-      text: (options?.label ?? widget.name).toUpperCase(),
-      fill: WIDGET_LABEL_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 10,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const stateText = new ui.Text({
-      x: bounds.x,
-      y: bounds.y + 33,
-      text: resolveToggleDisplayValue(checked, options),
-      fill: checked ? accent : SLOT_LABEL_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 11,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const track = new ui.Rect({
-      x: switchX,
-      y: switchY,
-      width: switchWidth,
-      height: switchHeight,
-      fill: checked ? accent : TRACK_FILL,
-      stroke: checked ? "rgba(255, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.10)",
-      strokeWidth: 1,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const thumb = new ui.Rect({
-      x: switchX + (checked ? switchWidth - 20 : 2),
-      y: switchY + 2,
-      width: 18,
-      height: 18,
-      fill: "#FFFFFF",
-      stroke: "rgba(15, 23, 42, 0.08)",
-      strokeWidth: 1,
-      cornerRadius: 999,
-      hittable: false
-    });
-
-    const hitArea = new ui.Rect({
-      name: LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
-      x: bounds.x,
-      y: bounds.y + 24,
-      width: bounds.width,
-      height: 28,
-      fill: "rgba(255, 255, 255, 0.001)",
-      cornerRadius: 999,
-      cursor: "pointer"
-    });
-
-    const applyChecked = (nextChecked: boolean): void => {
-      checked = nextChecked;
-      stateText.text = resolveToggleDisplayValue(nextChecked, options);
-      stateText.fill = nextChecked ? accent : SLOT_LABEL_FILL;
-      track.fill = nextChecked ? accent : TRACK_FILL;
-      track.stroke = nextChecked
-        ? "rgba(255, 255, 255, 0.08)"
-        : "rgba(255, 255, 255, 0.10)";
-      thumb.x = switchX + (nextChecked ? switchWidth - 20 : 2);
-    };
-
-    const interaction = bindPressWidgetInteraction({
-      hitArea,
-      onPress() {
-        setValue(!checked);
-      }
-    });
-
-    group.add([label, stateText, track, thumb, hitArea]);
-    applyChecked(checked);
-
-    return {
-      update(newValue: unknown) {
-        applyChecked(Boolean(newValue));
-      },
-      destroy() {
-        interaction.destroy();
-        group.removeAll();
-      }
-    };
-  };
-}
-
-/**
- * 创建一个通用的“只读值展示” renderer。
- * 当某个 Widget 没有专门 renderer 时，主包会回退到它。
- */
-function createValueWidgetRenderer(): LeaferGraphWidgetRenderer {
-  return ({ ui, group, widget, value, bounds }) => {
-    const options = widget.options as DemoWidgetOptions | undefined;
-
-    const label = new ui.Text({
-      x: bounds.x,
-      y: bounds.y + 12,
-      text: (options?.label ?? widget.name).toUpperCase(),
-      fill: WIDGET_LABEL_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 10,
-      fontWeight: "600",
-      hittable: false
-    });
-
-    const valueText = new ui.Text({
-      x: bounds.x,
-      y: bounds.y + 30,
-      width: bounds.width,
-      text: formatWidgetValue(value),
-      fill: WIDGET_VALUE_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 11,
-      fontWeight: "500",
-      hittable: false
-    });
-
-    group.add([label, valueText]);
-
-    return {
-      update(newValue: unknown) {
-        valueText.text = formatWidgetValue(newValue);
-      },
-      destroy() {
-        group.removeAll();
-      }
-    };
-  };
-}
-
-/** 把任意输入值压缩到 0~1 区间。 */
-function clampProgress(value: unknown): number {
-  const progress = typeof value === "number" ? value : Number(value ?? 0.5);
-  return Math.min(1, Math.max(0, Number.isFinite(progress) ? progress : 0.5));
-}
-
-/** 根据 widget 配置和当前值生成显示文本。 */
-function resolveWidgetDisplayValue(widget: { value?: unknown; options?: Record<string, unknown> }, value: unknown): string {
-  const options = widget.options as DemoWidgetOptions | undefined;
-
-  if (options?.displayValue) {
-    return options.displayValue;
-  }
-
-  if (typeof value === "number") {
-    return (value * 5).toFixed(2);
-  }
-
-  return formatWidgetValue(value);
-}
-
-/** 根据 toggle 当前状态生成展示文本。 */
-function resolveToggleDisplayValue(
-  checked: boolean,
-  options?: DemoWidgetOptions
-): string {
-  return checked ? options?.onText ?? "ON" : options?.offText ?? "OFF";
-}
-
-/** 将任意 widget 值格式化为稳定字符串。 */
-function formatWidgetValue(value: unknown): string {
-  if (value === undefined) {
-    return "";
-  }
-
-  if (typeof value === "number") {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "True" : "False";
-  }
-
-  return JSON.stringify(value);
-}
-
-/** 读取节点强调色，未提供时回退到默认输出端口颜色。 */
-function readNodeAccent(node: NodeRuntimeState): string {
-  const accent = node.properties?.accent;
-  return typeof accent === "string" && accent ? accent : OUTPUT_PORT_FILL;
-}
 
 /**
  * LeaferGraph 主包运行时。
- * 当前既提供插件安装入口，也负责 demo 级节点图渲染与交互。
+ * 当前既提供插件安装入口，也负责节点图渲染与交互。
  */
 export class LeaferGraph {
   readonly container: HTMLElement;
@@ -1017,18 +676,23 @@ export class LeaferGraph {
   readonly nodeLayer: Group;
   readonly ready: Promise<void>;
 
+  private readonly widgetRegistry: LeaferGraphWidgetRegistry;
   private readonly nodeRegistry: NodeRegistry;
   private readonly graphState: GraphRuntimeState = {
     nodes: new Map(),
     links: new Map()
   };
   private readonly nodeViews = new Map<string, NodeViewState>();
-  private readonly linkViews: DemoLinkViewState[] = [];
-  private readonly widgetRenderers = new Map<string, LeaferGraphWidgetRenderer>();
-  private readonly defaultWidgetRenderer = createValueWidgetRenderer();
+  private readonly linkViews: GraphLinkViewState[] = [];
   private readonly installedPlugins = new Map<string, InstalledPluginRecord>();
-  private dragState: DemoDragState | null = null;
-  private resizeState: DemoResizeState | null = null;
+  private readonly widgetEditingManager: LeaferGraphWidgetEditingManager;
+  private readonly widgetEditingContext: LeaferGraphWidgetEditingContext;
+  private themeMode: LeaferGraphThemeMode;
+  private widgetTheme: LeaferGraphWidgetThemeContext;
+  /** 节点层级递增计数器，用于点击时把节点提升到最前面。 */
+  private nodeZIndexSeed = 0;
+  private dragState: GraphDragState | null = null;
+  private resizeState: GraphResizeState | null = null;
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
     if (this.resizeState) {
       const point = this.getPagePointByClient(event);
@@ -1086,7 +750,13 @@ export class LeaferGraph {
   constructor(container: HTMLElement, options: LeaferGraphOptions = {}) {
     this.container = container;
     this.prepareContainer(options.fill);
-    this.nodeRegistry = createDemoNodeRegistry();
+    this.widgetRegistry = new LeaferGraphWidgetRegistry(createMissingWidgetRenderer());
+    this.nodeRegistry = new NodeRegistry(this.widgetRegistry);
+    this.themeMode = options.themeMode ?? "light";
+    this.widgetTheme = {
+      mode: this.themeMode,
+      tokens: resolveBasicWidgetTheme(this.themeMode)
+    };
 
     this.app = new App({
       view: container,
@@ -1103,11 +773,26 @@ export class LeaferGraph {
 
     this.root.add([this.linkLayer, this.nodeLayer]);
     this.app.tree.add(this.root);
+    const resolvedEditing = resolveWidgetEditingOptions(
+      this.themeMode,
+      options.widgetEditing
+    );
+    this.widgetTheme = {
+      mode: resolvedEditing.themeMode,
+      tokens: resolveBasicWidgetTheme(resolvedEditing.themeMode)
+    };
+    this.widgetEditingManager = new LeaferGraphWidgetEditingManager({
+      app: this.app,
+      container: this.container,
+      theme: this.widgetTheme,
+      editing: resolvedEditing.editing
+    });
+    this.widgetEditingContext = this.widgetEditingManager;
     this.setupViewport();
     window.addEventListener("pointermove", this.handleWindowPointerMove);
     window.addEventListener("pointerup", this.handleWindowPointerUp);
     window.addEventListener("pointercancel", this.handleWindowPointerUp);
-    this.registerBuiltinWidgetRenderers();
+    this.registerBuiltinWidgets();
     this.ready = this.initialize(options);
     this.ready.catch((error) => {
       console.error("[leafergraph] 初始化失败", error);
@@ -1122,6 +807,7 @@ export class LeaferGraph {
 
     this.dragState = null;
     this.resizeState = null;
+    this.widgetEditingManager.destroy();
     window.removeEventListener("pointermove", this.handleWindowPointerMove);
     window.removeEventListener("pointerup", this.handleWindowPointerUp);
     window.removeEventListener("pointercancel", this.handleWindowPointerUp);
@@ -1151,23 +837,19 @@ export class LeaferGraph {
         for (const node of resolved.nodes) {
           recordType(nodeTypes, node.type);
         }
-        for (const widget of resolved.widgets) {
-          recordType(widgetTypes, widget.type);
-        }
       },
       registerNode: (definition, options) => {
         this.registerNode(definition, options);
         recordType(nodeTypes, definition.type);
       },
-      registerWidget: (definition, options) => {
-        this.registerWidget(definition, options);
-        recordType(widgetTypes, definition.type);
-      },
-      registerWidgetRenderer: (type, renderer) => {
-        this.registerWidgetRenderer(type, renderer);
+      registerWidget: (entry, options) => {
+        this.registerWidget(entry, options);
+        recordType(widgetTypes, entry.type);
       },
       hasNode: (type) => this.nodeRegistry.hasNode(type),
-      hasWidget: (type) => this.nodeRegistry.widgetRegistry.has(type),
+      hasWidget: (type) => this.widgetRegistry.hasWidget(type),
+      getWidget: (type) => this.getWidget(type),
+      listWidgets: () => this.listWidgets(),
       getNode: (type) => this.nodeRegistry.getNode(type),
       listNodes: () => this.nodeRegistry.listNodes()
     };
@@ -1192,25 +874,40 @@ export class LeaferGraph {
     this.nodeRegistry.registerNode(definition, options);
   }
 
-  /** 注册单个 Widget 定义。 */
-  registerWidget(definition: WidgetDefinition, options?: RegisterWidgetOptions): void {
-    this.nodeRegistry.registerWidget(definition, options);
+  /** 注册单个完整 Widget 条目。 */
+  registerWidget(entry: LeaferGraphWidgetEntry, options?: RegisterWidgetOptions): void {
+    this.widgetRegistry.registerWidget(entry, options);
   }
 
-  /** 注册 Widget renderer。 */
-  registerWidgetRenderer(type: string, renderer: LeaferGraphWidgetRenderer): void {
-    const safeType = type.trim();
+  /** 读取单个 Widget 条目。 */
+  getWidget(type: string): LeaferGraphWidgetEntry | undefined {
+    return this.widgetRegistry.getWidget(type);
+  }
 
-    if (!safeType) {
-      throw new Error("Widget 渲染器类型不能为空");
+  /** 列出当前已注册 Widget。 */
+  listWidgets(): LeaferGraphWidgetEntry[] {
+    return this.widgetRegistry.listWidgets();
+  }
+
+  /** 运行时切换主包主题，并局部刷新现有节点壳与 Widget。 */
+  setThemeMode(mode: LeaferGraphThemeMode): void {
+    if (this.themeMode === mode) {
+      return;
     }
 
-    this.widgetRenderers.set(safeType, renderer);
-  }
+    this.themeMode = mode;
+    this.widgetTheme = {
+      mode,
+      tokens: resolveBasicWidgetTheme(mode)
+    };
+    this.widgetEditingManager.setTheme(this.widgetTheme);
 
-  /** 读取 Widget renderer。 */
-  getWidgetRenderer(type: string): LeaferGraphWidgetRenderer | undefined {
-    return this.widgetRenderers.get(type);
+    for (const state of this.nodeViews.values()) {
+      this.refreshNodeView(state);
+    }
+
+    this.updateConnectedLinksForNodes([...this.graphState.nodes.keys()]);
+    this.app.forceRender();
   }
 
   /** 列出当前已注册节点。 */
@@ -1353,7 +1050,7 @@ export class LeaferGraph {
 
   /**
    * 创建一个新的节点实例并立即挂到主包场景中。
-   * 当前阶段仍然接受 demo 友好的节点输入结构，后续再逐步切到更正式的图模型输入。
+   * 当前阶段仍然接受页面层友好的节点输入结构，后续再逐步切到更正式的图模型输入。
    */
   createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState {
     const node = this.createGraphNodeState(input);
@@ -1413,10 +1110,6 @@ export class LeaferGraph {
 
     if (input.id && input.id !== nodeId) {
       throw new Error("当前阶段暂不支持通过 updateNode() 修改节点 ID");
-    }
-
-    if (input.type && input.type !== node.type) {
-      throw new Error("当前阶段暂不支持通过 updateNode() 切换节点类型");
     }
 
     configureNode(this.nodeRegistry, node, {
@@ -1574,7 +1267,7 @@ export class LeaferGraph {
     return removed;
   }
 
-  /** 执行启动期安装流程，然后渲染初始 demo 数据。 */
+  /** 执行启动期安装流程，然后渲染初始图数据。 */
   private async initialize(options: LeaferGraphOptions): Promise<void> {
     for (const module of options.modules ?? []) {
       this.installModule(module);
@@ -1595,14 +1288,13 @@ export class LeaferGraph {
     return installNodeModule(this.nodeRegistry, module, options);
   }
 
-  /** 注册主包默认内建 Widget renderer。 */
-  private registerBuiltinWidgetRenderers(): void {
-    this.registerWidgetRenderer("slider", createSliderWidgetRenderer());
-    this.registerWidgetRenderer("number", createValueWidgetRenderer());
-    this.registerWidgetRenderer("string", createValueWidgetRenderer());
-    this.registerWidgetRenderer("combo", createValueWidgetRenderer());
-    this.registerWidgetRenderer("toggle", createToggleWidgetRenderer());
-    this.registerWidgetRenderer("custom", createValueWidgetRenderer());
+  /** 注册主包默认内建 Widget。 */
+  private registerBuiltinWidgets(): void {
+    const builtinWidgets = new BasicWidgetLibrary().createEntries();
+
+    for (const entry of builtinWidgets) {
+      this.registerWidget(entry, { overwrite: true });
+    }
   }
 
   /** 规范化容器样式与背景。 */
@@ -1654,7 +1346,7 @@ export class LeaferGraph {
 
   /**
    * 解析启动时的图数据。
-   * 当前优先使用正式 `graph` 入口；若外部仍传入旧的 `nodes`，则自动补一份顺序连线作为兜底。
+   * 当前优先使用正式 `graph` 入口；若外部仍传入旧的 `nodes`，则仅把它们包装成图结构。
    */
   private resolveInitialGraphData(options: LeaferGraphOptions): LeaferGraphData {
     if (options.graph) {
@@ -1665,10 +1357,9 @@ export class LeaferGraph {
       };
     }
 
-    const nodes = options.nodes ?? DEFAULT_NODES;
     return {
-      nodes,
-      links: createSequentialDemoLinks(nodes)
+      nodes: options.nodes ?? [],
+      links: []
     };
   }
 
@@ -1680,6 +1371,7 @@ export class LeaferGraph {
 
     this.dragState = null;
     this.resizeState = null;
+    this.nodeZIndexSeed = 0;
     this.graphState.nodes.clear();
     this.graphState.links.clear();
     this.nodeViews.clear();
@@ -1687,7 +1379,9 @@ export class LeaferGraph {
     this.nodeLayer.removeAll();
     this.linkLayer.removeAll();
 
-    const localNodes = graph.nodes.map((node) => this.createGraphNodeState(node));
+    const localNodes = graph.nodes.map((node) =>
+      this.createGraphNodeState(this.normalizeCreateNodeInput(node))
+    );
 
     for (const node of localNodes) {
       this.graphState.nodes.set(node.id, node);
@@ -1748,7 +1442,7 @@ export class LeaferGraph {
     state.widgetLayer = nextShellView.widgetLayer;
     state.resizeHandle = nextShellView.resizeHandle;
     state.shellView = nextShellView;
-    state.widgetInstances = shellLayout.hasWidgets
+    state.widgetInstances = !this.isMissingNodeType(state.state) && shellLayout.hasWidgets
       ? this.renderNodeWidgets(state.state, nextShellView.widgetLayer, shellLayout)
       : [];
 
@@ -1758,7 +1452,7 @@ export class LeaferGraph {
   }
 
   /** 将连线状态和连线视图一起挂入当前图。 */
-  private mountLinkView(link: LeaferGraphLinkData): DemoLinkViewState | null {
+  private mountLinkView(link: LeaferGraphLinkData): GraphLinkViewState | null {
     if (this.graphState.links.has(link.id)) {
       console.warn("[leafergraph] 跳过重复连线 ID", link.id);
       return null;
@@ -1791,7 +1485,7 @@ export class LeaferGraph {
    * 根据正式连线数据创建连线视图。
    * 当端点节点不存在时，当前阶段直接跳过并打印告警，避免半有效数据破坏整体渲染。
    */
-  private createLinkView(link: LeaferGraphLinkData): DemoLinkViewState | null {
+  private createLinkView(link: LeaferGraphLinkData): GraphLinkViewState | null {
     const source = this.graphState.nodes.get(link.source.nodeId);
     const target = this.graphState.nodes.get(link.target.nodeId);
     if (!source || !target) {
@@ -1934,17 +1628,22 @@ export class LeaferGraph {
     });
     view.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
       const state = this.nodeViews.get(nodeId);
+      if (!state) {
+        return;
+      }
+
+      if (!event.right && !event.middle) {
+        this.bringNodeViewToFront(state);
+        this.app.forceRender();
+      }
+
       if (
         event.right ||
         event.middle ||
         isWidgetInteractionTarget(event.target) ||
         this.isResizeHandleTarget(event.target) ||
-        (state && this.isResizeHandleHit(event, state))
+        this.isResizeHandleHit(event, state)
       ) {
-        return;
-      }
-
-      if (!state) {
         return;
       }
 
@@ -2070,7 +1769,7 @@ export class LeaferGraph {
    * 该逻辑仅负责拖拽链路使用，避免 editor 为多选拖拽重复维护一套节点同步协议。
    */
   private moveNodesByDelta(
-    positions: readonly DemoDragNodePosition[],
+    positions: readonly GraphDragNodePosition[],
     deltaX: number,
     deltaY: number
   ): void {
@@ -2125,7 +1824,7 @@ export class LeaferGraph {
 
   /** 按当前节点位置重算单条连线路径，供移动和节点更新共用。 */
   private refreshLinkPath(
-    link: DemoLinkViewState,
+    link: GraphLinkViewState,
     source: GraphNodeState,
     target: GraphNodeState
   ): void {
@@ -2280,7 +1979,7 @@ export class LeaferGraph {
       options,
       createNodeApi(node, {
         definition,
-        widgetRegistry: this.nodeRegistry.widgetRegistry
+        widgetDefinitions: this.widgetRegistry
       })
     );
     this.app.forceRender();
@@ -2309,7 +2008,7 @@ export class LeaferGraph {
     };
   }
 
-  /** 合并当前属性和外部补丁，保证 demo 属性字段仍能走正式更新链路。 */
+  /** 合并当前属性和外部补丁，保证展示层属性仍能走正式更新链路。 */
   private resolvePatchedNodeProperties(
     node: GraphNodeState,
     input: LeaferGraphUpdateNodeInput
@@ -2335,63 +2034,30 @@ export class LeaferGraph {
     return properties;
   }
 
-  /**
-   * 解析节点 Widget 补丁。
-   * 如果外部直接传 `widgets`，则以显式输入为准；
-   * 否则继续兼容 demo 节点上的 `control*` 字段更新。
-   */
+  /** 解析节点 Widget 补丁。 */
   private resolvePatchedNodeWidgets(
     node: GraphNodeState,
     input: LeaferGraphUpdateNodeInput
   ) {
-    if (input.widgets !== undefined) {
-      return input.widgets;
-    }
-
-    if (
-      node.type !== DEMO_NODE_TYPE ||
-      (
-        input.controlLabel === undefined &&
-        input.controlValue === undefined &&
-        input.controlProgress === undefined
-      )
-    ) {
-      return undefined;
-    }
-
-    const current = node.widgets[0];
-
-    return [
-      {
-        type: current?.type ?? "slider",
-        name: current?.name ?? DEMO_CONTROL_WIDGET,
-        value: input.controlProgress ?? current?.value ?? 0.5,
-        options: {
-          ...(current?.options ?? {}),
-          ...(input.controlLabel !== undefined ? { label: input.controlLabel } : {}),
-          ...(input.controlValue !== undefined
-            ? { displayValue: input.controlValue }
-            : {})
-        }
-      }
-    ];
+    void node;
+    return input.widgets;
   }
 
-  /** 生成 demo 节点使用的默认 slider widget。 */
-  private createDemoControlWidget(
-    node: Pick<
-      LeaferGraphCreateNodeInput,
-      "controlLabel" | "controlProgress" | "controlValue"
-    >
-  ) {
+  /**
+   * 将对外图数据中的节点输入归一为主包内部创建输入。
+   * 这里显式要求节点必须提供 `type`，避免编辑器示例逻辑再次渗回主包。
+   */
+  private normalizeCreateNodeInput(
+    node: LeaferGraphNodeData
+  ): LeaferGraphCreateNodeInput {
+    const type = node.type?.trim();
+    if (!type) {
+      throw new Error(`节点缺少 type：${node.id}`);
+    }
+
     return {
-      type: "slider" as const,
-      name: DEMO_CONTROL_WIDGET,
-      value: node.controlProgress ?? 0.5,
-      options: {
-        label: node.controlLabel ?? "Value",
-        displayValue: node.controlValue
-      }
+      ...node,
+      type
     };
   }
 
@@ -2414,9 +2080,13 @@ export class LeaferGraph {
     };
   }
 
-  /** 将页面层 demo 数据转换为真正的节点运行时实例。 */
+  /** 将页面层节点输入转换为真正的节点运行时实例。 */
   private createGraphNodeState(node: LeaferGraphCreateNodeInput): GraphNodeState {
-    const type = node.type ?? DEMO_NODE_TYPE;
+    const type = node.type?.trim();
+    if (!type) {
+      throw new Error("节点 type 不能为空");
+    }
+
     const properties: Record<string, unknown> = {
       ...(node.properties ?? {})
     };
@@ -2447,11 +2117,162 @@ export class LeaferGraph {
       properties,
       inputs: node.inputs !== undefined ? this.toSlotSpecs(node.inputs) : undefined,
       outputs: node.outputs !== undefined ? this.toSlotSpecs(node.outputs) : undefined,
-      widgets:
-        node.widgets ??
-        (type === DEMO_NODE_TYPE ? [this.createDemoControlWidget(node)] : undefined),
+      widgets: node.widgets,
       data: node.data
     }) as GraphNodeState;
+  }
+
+  /** 判断节点当前类型是否已经遗失。 */
+  private isMissingNodeType(node: GraphNodeState): boolean {
+    return !this.nodeRegistry.hasNode(node.type);
+  }
+
+  /**
+   * 为遗失节点类型创建红色占位壳。
+   * 它只保留拖拽、选中和 resize 所需的最小图元，
+   * 避免旧数据因节点包缺失而直接不可见。
+   */
+  private createMissingNodeShell(
+    node: GraphNodeState,
+    shellLayout: ReturnType<typeof resolveNodeShellLayout>
+  ): NodeShellView {
+    const selectedStroke = this.resolveSelectedNodeStroke();
+    const group = new Group({
+      x: node.layout.x,
+      y: node.layout.y,
+      name: `node-${node.id}`
+    });
+    const selectedRing = new Rect({
+      x: -SELECTED_RING_OUTSET,
+      y: -SELECTED_RING_OUTSET,
+      width: shellLayout.width + SELECTED_RING_OUTSET * 2,
+      height: shellLayout.height + SELECTED_RING_OUTSET * 2,
+      fill: "transparent",
+      stroke: selectedStroke,
+      strokeWidth: SELECTED_RING_STROKE_WIDTH,
+      cornerRadius: NODE_RADIUS + SELECTED_RING_OUTSET,
+      opacity: 0,
+      selectedStyle: {
+        stroke: selectedStroke,
+        opacity: 0.92
+      },
+      hittable: false
+    });
+    const card = new Rect({
+      width: shellLayout.width,
+      height: shellLayout.height,
+      fill: MISSING_NODE_FILL,
+      stroke: MISSING_NODE_STROKE,
+      strokeWidth: 1,
+      cornerRadius: NODE_RADIUS,
+      cursor: "grab",
+      pressStyle: {
+        fill: MISSING_NODE_PRESS_FILL,
+        stroke: MISSING_NODE_STROKE
+      },
+      selectedStyle: {
+        stroke: selectedStroke,
+        strokeWidth: 1.5
+      }
+    });
+    const label = new LeaferUI.Text({
+      x: 20,
+      y: Math.max(shellLayout.height / 2 - 10, 18),
+      width: Math.max(shellLayout.width - 40, 24),
+      text: node.type,
+      textAlign: "center",
+      fill: MISSING_NODE_TEXT_FILL,
+      fontFamily: NODE_FONT_FAMILY,
+      fontSize: 14,
+      fontWeight: "600",
+      hittable: false
+    });
+    label.textWrap = "break";
+
+    const hiddenHeaderDivider = new Rect({
+      width: 0,
+      height: 0,
+      visible: false,
+      fill: "transparent",
+      hittable: false
+    });
+    const hiddenSignalButton = new Rect({
+      width: 0,
+      height: 0,
+      visible: false,
+      fill: "rgba(255, 255, 255, 0.001)"
+    });
+    const hiddenCategoryBadge = new Rect({
+      width: 0,
+      height: 0,
+      visible: false,
+      fill: "transparent",
+      stroke: "transparent",
+      hittable: false
+    });
+    const hiddenCategoryLabel = new LeaferUI.Text({
+      text: "",
+      visible: false,
+      hittable: false
+    });
+    const widgetLayer = new Box({
+      name: `widgets-${node.id}`,
+      width: 0,
+      height: 0,
+      resizeChildren: false
+    });
+    const resizeHandle = new Box({
+      name: `node-resize-handle-${node.id}`,
+      x: shellLayout.width - 18,
+      y: shellLayout.height - 18,
+      width: 18,
+      height: 18,
+      cursor: "nwse-resize",
+      visible: false
+    });
+    resizeHandle.add([
+      new Rect({
+        width: 18,
+        height: 18,
+        fill: "rgba(255, 255, 255, 0.001)",
+        cornerRadius: 6
+      }),
+      new LeaferUI.Path({
+        path: "M 4 14 L 14 4 M 8 14 L 14 8 M 12 14 L 14 12",
+        stroke: "rgba(255, 241, 242, 0.88)",
+        strokeWidth: 1.5,
+        strokeCap: "round",
+        strokeJoin: "round",
+        hittable: false
+      })
+    ]);
+
+    group.add([
+      selectedRing,
+      card,
+      label,
+      hiddenSignalButton,
+      hiddenCategoryBadge,
+      hiddenCategoryLabel,
+      widgetLayer,
+      resizeHandle
+    ]);
+
+    return {
+      view: group,
+      card,
+      selectedRing,
+      header: card,
+      headerDivider: hiddenHeaderDivider,
+      signalButton: hiddenSignalButton,
+      categoryBadge: hiddenCategoryBadge,
+      categoryLabel: hiddenCategoryLabel,
+      widgetBackground: null,
+      widgetDivider: null,
+      resizeHandle,
+      portViews: [],
+      widgetLayer
+    };
   }
 
   /**
@@ -2463,6 +2284,10 @@ export class LeaferGraph {
     node: GraphNodeState,
     shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS)
   ): NodeShellView {
+    if (this.isMissingNodeType(node)) {
+      return this.createMissingNodeShell(node, shellLayout);
+    }
+
     const category = this.resolveNodeCategory(node);
     const resolvedShellLayout = {
       ...shellLayout,
@@ -2488,7 +2313,7 @@ export class LeaferGraph {
       selectedStroke,
       shellLayout: resolvedShellLayout,
       categoryLayout,
-      theme: NODE_SHELL_RENDER_THEME
+      theme: resolveNodeShellRenderTheme(this.themeMode)
     });
   }
 
@@ -2496,7 +2321,7 @@ export class LeaferGraph {
   private createNodeView(node: GraphNodeState): NodeViewState {
     const shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS);
     const shellView = this.buildNodeShell(node, shellLayout);
-    const widgetInstances = shellLayout.hasWidgets
+    const widgetInstances = !this.isMissingNodeType(node) && shellLayout.hasWidgets
       ? this.renderNodeWidgets(node, shellView.widgetLayer, shellLayout)
       : [];
 
@@ -2513,8 +2338,18 @@ export class LeaferGraph {
     };
 
     this.applyNodeSelectionStyles(state);
+    this.bringNodeViewToFront(state);
 
     return state;
+  }
+
+  /**
+   * 将节点图元提升到当前节点层的最前面。
+   * 通过递增 zIndex 来稳定排序，避免反复移除/插入子节点带来的抖动。
+   */
+  private bringNodeViewToFront(state: NodeViewState): void {
+    this.nodeZIndexSeed += 1;
+    state.view.zIndex = this.nodeZIndexSeed;
   }
 
   /** 渲染节点内部全部 Widget，并保存 renderer 返回实例。 */
@@ -2534,7 +2369,7 @@ export class LeaferGraph {
         height: bounds.height,
         resizeChildren: false
       });
-      const renderer = this.getWidgetRenderer(widget.type) ?? this.defaultWidgetRenderer;
+      const renderer = this.widgetRegistry.resolveRenderer(widget.type);
       const instance = renderer({
         ui: LeaferUI,
         group,
@@ -2542,6 +2377,8 @@ export class LeaferGraph {
         widget,
         widgetIndex: index,
         value: widget.value,
+        theme: this.widgetTheme,
+        editing: this.widgetEditingContext,
         bounds: {
           x: 0,
           y: 0,
@@ -2624,7 +2461,7 @@ export class LeaferGraph {
 
   /** 节点选中态统一使用固定描边色，保证整张图的焦点反馈一致。 */
   private resolveSelectedNodeStroke(): string {
-    return NODE_SELECTED_STROKE;
+    return this.themeMode === "dark" ? NODE_SELECTED_STROKE : "#2563EB";
   }
 
   /**
@@ -2738,7 +2575,7 @@ export class LeaferGraph {
 
   /**
    * 将旧字符串数组或正式槽位声明统一转换成槽位输入。
-   * 这样主包可以同时兼容 demo 数据和后续更正式的节点复制、导入路径。
+   * 这样主包可以同时兼容页面层数据和后续更正式的节点复制、导入路径。
    */
   private toSlotSpecs(slots: LeaferGraphNodeSlotInput[]): NodeSlotSpec[] {
     return slots.map((slot) =>

@@ -13,7 +13,7 @@ import {
   cloneWidgetSpec,
   resizeRuntimeValues
 } from "./utils";
-import { type WidgetRegistry, normalizeWidgetSpec } from "./widget";
+import { type WidgetDefinitionReader, normalizeWidgetSpec } from "./widget";
 
 /**
  * 创建 `NodeApi` 时的额外上下文。
@@ -21,7 +21,7 @@ import { type WidgetRegistry, normalizeWidgetSpec } from "./widget";
  */
 export interface CreateNodeApiOptions {
   definition?: NodeDefinition;
-  widgetRegistry?: WidgetRegistry;
+  widgetDefinitions?: WidgetDefinitionReader;
 }
 
 /**
@@ -83,8 +83,8 @@ export function createNodeApi(
       }
     },
     addWidget(spec: NodeWidgetSpec): void {
-      const nextSpec = options.widgetRegistry
-        ? normalizeWidgetSpec(options.widgetRegistry, spec)
+      const nextSpec = options.widgetDefinitions
+        ? normalizeWidgetSpec(options.widgetDefinitions, spec)
         : cloneWidgetSpec(spec);
       node.widgets.push(nextSpec);
     },
