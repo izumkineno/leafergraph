@@ -24,6 +24,7 @@ import {
   type NodeRuntimeState,
   type NodeSerializeResult,
   type NodeSlotSpec,
+  type SlotType,
   type RegisterNodeOptions,
   type RegisterWidgetOptions,
   type ResolvedNodeModule,
@@ -97,7 +98,10 @@ import {
   resolveNodeCategoryBadgeLayout,
   resolveNodeShellLayout
 } from "./node_layout";
-import { resolveNodePortAnchorYForNode } from "./node_port";
+import {
+  resolveNodePortAnchorYForNode,
+  type NodeShellPortLayout
+} from "./node_port";
 import { createNodeShell, type NodeShellView } from "./node_shell";
 import {
   LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
@@ -155,7 +159,10 @@ const WIDGET_VALUE_FILL = "#FFFFFF";
 const TRACK_FILL = "rgba(255, 255, 255, 0.10)";
 const INPUT_PORT_FILL = "#3B82F6";
 const OUTPUT_PORT_FILL = "#8B5CF6";
+const GENERIC_PORT_FILL = "#94A3B8";
 const LINK_STROKE = "#60A5FA";
+const NODE_SELECTED_STROKE = "#2563EB";
+const NODE_SIGNAL_FILL = "#94A3B8";
 const DEFAULT_GRAPH_LINK_SLOT = 0;
 const SELECTED_RING_OUTSET = 4;
 const SELECTED_RING_STROKE_WIDTH = 3;
@@ -163,6 +170,31 @@ const DEFAULT_FIT_VIEW_PADDING = 64;
 const VIEWPORT_MIN_SCALE = 0.2;
 const VIEWPORT_MAX_SCALE = 4;
 let graphLinkSeed = 1;
+
+/**
+ * 统一的槽位类型颜色表。
+ * 当前先覆盖最常见的数据类型，未知类型仍然回退到方向默认色。
+ */
+const SLOT_TYPE_FILL_MAP: Readonly<Record<string, string>> = {
+  number: "#3B82F6",
+  float: "#3B82F6",
+  int: "#2563EB",
+  boolean: "#10B981",
+  bool: "#10B981",
+  string: "#F59E0B",
+  text: "#F59E0B",
+  image: "#EC4899",
+  texture: "#EC4899",
+  color: "#EF4444",
+  vector: "#8B5CF6",
+  vec2: "#8B5CF6",
+  vec3: "#8B5CF6",
+  vec4: "#8B5CF6",
+  event: "#0EA5E9",
+  exec: "#0EA5E9",
+  trigger: "#0EA5E9",
+  flow: "#0EA5E9"
+} as const;
 
 /**
  * 节点壳布局的统一度量参数。
@@ -223,6 +255,7 @@ const NODE_SHELL_RENDER_THEME = {
   signalLightX: 20,
   signalLightY: 19,
   signalLightSize: SIGNAL_SIZE,
+  signalHitPadding: 4,
   widgetFill: WIDGET_FILL,
   inputPortFill: INPUT_PORT_FILL,
   outputPortFill: OUTPUT_PORT_FILL,
@@ -263,6 +296,10 @@ interface LeaferGraphCoordinateHost {
     clientPoint: { clientX: number; clientY: number },
     updateClient?: boolean
   ): { x: number; y: number };
+  getPagePointByClient(
+    clientPoint: { clientX: number; clientY: number },
+    updateClient?: boolean
+  ): { x: number; y: number };
 }
 
 /** 节点视图状态，负责把运行时节点和实际 Leafer 图元绑定在一起。 */
@@ -272,9 +309,10 @@ interface NodeViewState {
   card: Rect;
   selectedRing: Rect;
   widgetLayer: Box;
-  resizeHandle: Rect;
+  resizeHandle: Box;
   shellView: NodeShellView;
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
+  hovered: boolean;
 }
 
 /** 连线视图状态。 */
@@ -293,11 +331,21 @@ interface GraphRuntimeState {
   links: Map<string, LeaferGraphLinkData>;
 }
 
+/** 多选拖拽时记录的单个节点初始位置。 */
+interface DemoDragNodePosition {
+  nodeId: string;
+  startX: number;
+  startY: number;
+}
+
 /** 拖拽中的节点状态。 */
 interface DemoDragState {
-  nodeId: string;
+  anchorNodeId: string;
   offsetX: number;
   offsetY: number;
+  anchorStartX: number;
+  anchorStartY: number;
+  nodes: DemoDragNodePosition[];
 }
 
 /** 拖拽 resize 句柄时的节点缩放状态。 */
@@ -305,8 +353,8 @@ interface DemoResizeState {
   nodeId: string;
   startWidth: number;
   startHeight: number;
-  startWorldX: number;
-  startWorldY: number;
+  startPageX: number;
+  startPageY: number;
 }
 
 /** 当前 demo 节点额外属性。 */
@@ -426,8 +474,8 @@ const DEFAULT_NODES: LeaferGraphNodeData[] = [
     accent: "#3B82F6",
     category: "Source / Image",
     status: "LIVE",
-    inputs: ["Seed"],
-    outputs: ["Texture"],
+    inputs: [{ name: "Seed", type: "number" }],
+    outputs: [{ name: "Texture", type: "image" }],
     controlLabel: "Exposure",
     controlValue: "1.10",
     controlProgress: 0.58
@@ -441,8 +489,11 @@ const DEFAULT_NODES: LeaferGraphNodeData[] = [
     accent: "#6366F1",
     category: "Math / Float",
     status: "LIVE",
-    inputs: ["A", "B"],
-    outputs: ["Result"],
+    inputs: [
+      { name: "A", type: "float" },
+      { name: "B", type: "float" }
+    ],
+    outputs: [{ name: "Result", type: "float" }],
     controlLabel: "Factor",
     controlValue: "2.50",
     controlProgress: 0.5
@@ -456,8 +507,8 @@ const DEFAULT_NODES: LeaferGraphNodeData[] = [
     accent: "#8B5CF6",
     category: "Output / View",
     status: "SYNC",
-    inputs: ["Image"],
-    outputs: ["Panel"],
+    inputs: [{ name: "Image", type: "image" }],
+    outputs: [{ name: "Panel", type: "event" }],
     widgets: [
       {
         type: "slider",
@@ -980,9 +1031,9 @@ export class LeaferGraph {
   private resizeState: DemoResizeState | null = null;
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
     if (this.resizeState) {
-      const point = this.getWorldPointByClient(event);
-      const width = this.resizeState.startWidth + (point.x - this.resizeState.startWorldX);
-      const height = this.resizeState.startHeight + (point.y - this.resizeState.startWorldY);
+      const point = this.getPagePointByClient(event);
+      const width = this.resizeState.startWidth + (point.x - this.resizeState.startPageX);
+      const height = this.resizeState.startHeight + (point.y - this.resizeState.startPageY);
 
       this.resizeNode(this.resizeState.nodeId, { width, height });
       this.container.style.cursor = "nwse-resize";
@@ -993,14 +1044,19 @@ export class LeaferGraph {
       return;
     }
 
-    const point = this.getWorldPointByClient(event);
-    this.moveNode(this.dragState.nodeId, {
-      x: point.x - this.dragState.offsetX,
-      y: point.y - this.dragState.offsetY
-    });
+    const point = this.getPagePointByClient(event);
+    const anchorX = point.x - this.dragState.offsetX;
+    const anchorY = point.y - this.dragState.offsetY;
+    const deltaX = anchorX - this.dragState.anchorStartX;
+    const deltaY = anchorY - this.dragState.anchorStartY;
+
+    this.moveNodesByDelta(this.dragState.nodes, deltaX, deltaY);
     this.container.style.cursor = "grabbing";
   };
   private readonly handleWindowPointerUp = (): void => {
+    const resizeNodeId = this.resizeState?.nodeId;
+    const dragNodeId = this.dragState?.anchorNodeId;
+
     if (this.resizeState) {
       this.resizeState = null;
       this.container.style.cursor = "";
@@ -1009,6 +1065,20 @@ export class LeaferGraph {
     if (this.dragState) {
       this.dragState = null;
       this.container.style.cursor = "";
+    }
+
+    if (resizeNodeId) {
+      const state = this.nodeViews.get(resizeNodeId);
+      if (state) {
+        this.syncNodeResizeHandleVisibility(state);
+      }
+    }
+
+    if (dragNodeId && dragNodeId !== resizeNodeId) {
+      const state = this.nodeViews.get(dragNodeId);
+      if (state) {
+        this.syncNodeResizeHandleVisibility(state);
+      }
     }
   };
 
@@ -1207,6 +1277,29 @@ export class LeaferGraph {
   }
 
   /**
+   * 设置单个节点的折叠态。
+   * 折叠后节点会收缩到头部高度，并同步刷新端口锚点与关联连线。
+   */
+  setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
+    const node = this.graphState.nodes.get(nodeId);
+    const state = this.nodeViews.get(nodeId);
+    if (!node || !state) {
+      return false;
+    }
+
+    const nextCollapsed = Boolean(collapsed);
+    if (Boolean(node.flags.collapsed) === nextCollapsed) {
+      return true;
+    }
+
+    node.flags.collapsed = nextCollapsed;
+    this.refreshNodeView(state);
+    this.updateConnectedLinks(nodeId);
+    this.app.forceRender();
+    return true;
+  }
+
+  /**
    * 读取某个节点的正式 resize 约束。
    * 返回结果已经合并了节点定义中的 `resize` 配置、兼容字段和主包默认值。
    */
@@ -1291,7 +1384,7 @@ export class LeaferGraph {
     this.unmountNodeView(nodeId);
     this.graphState.nodes.delete(nodeId);
 
-    if (this.dragState?.nodeId === nodeId) {
+    if (this.dragState?.nodes.some((item) => item.nodeId === nodeId)) {
       this.dragState = null;
       this.container.style.cursor = "";
     }
@@ -1363,22 +1456,11 @@ export class LeaferGraph {
       return undefined;
     }
 
-    const state = this.nodeViews.get(nodeId);
-    const nextX = position.x;
-    const nextY = position.y;
-    if (node.layout.x === nextX && node.layout.y === nextY) {
+    if (!this.moveNodeInternally(nodeId, position)) {
       return node;
     }
 
-    node.layout.x = nextX;
-    node.layout.y = nextY;
-
-    if (state) {
-      state.view.x = nextX;
-      state.view.y = nextY;
-    }
-
-    this.updateConnectedLinks(nodeId);
+    this.updateConnectedLinksForNodes([nodeId]);
     this.app.forceRender();
     return node;
   }
@@ -1624,6 +1706,7 @@ export class LeaferGraph {
     this.nodeLayer.add(state.view);
     this.bindNodeDragging(node.id, state.view);
     this.bindNodeResize(node.id, state);
+    this.bindNodeCollapseToggle(node.id, state);
     return state;
   }
 
@@ -1670,6 +1753,7 @@ export class LeaferGraph {
       : [];
 
     this.bindNodeResize(state.state.id, state);
+    this.bindNodeCollapseToggle(state.state.id, state);
     this.applyNodeSelectionStyles(state);
   }
 
@@ -1785,9 +1869,50 @@ export class LeaferGraph {
     this.linkLayer.add(view as unknown as Group);
   }
 
+  /**
+   * 启动一次节点拖拽。
+   * 它会记录锚点节点与当前拖拽成员的初始坐标，
+   * 供窗口级 `pointermove` 统一换算出整组选区的新位置。
+   */
+  private startNodeDrag(
+    nodeId: string,
+    state: NodeViewState,
+    event: LeaferGraphWidgetPointerEvent
+  ): void {
+    const point = this.getPagePointFromGraphEvent(event);
+    const anchorStartX = state.state.layout.x;
+    const anchorStartY = state.state.layout.y;
+    const draggedNodeIds = this.resolveDraggedNodeIds(nodeId);
+
+    this.resizeState = null;
+    this.dragState = {
+      anchorNodeId: nodeId,
+      offsetX: point.x - anchorStartX,
+      offsetY: point.y - anchorStartY,
+      anchorStartX,
+      anchorStartY,
+      nodes: draggedNodeIds.map((draggedNodeId) => {
+        const node = this.graphState.nodes.get(draggedNodeId);
+
+        return {
+          nodeId: draggedNodeId,
+          startX: node?.layout.x ?? 0,
+          startY: node?.layout.y ?? 0
+        };
+      })
+    };
+    this.container.style.cursor = "grabbing";
+  }
+
   /** 绑定节点拖拽交互。 */
   private bindNodeDragging(nodeId: string, view: Group): void {
     view.on("pointer.enter", (event: LeaferGraphWidgetPointerEvent) => {
+      const state = this.nodeViews.get(nodeId);
+      if (state) {
+        state.hovered = true;
+        this.syncNodeResizeHandleVisibility(state);
+      }
+
       if (
         !this.dragState &&
         !this.resizeState &&
@@ -1797,6 +1922,12 @@ export class LeaferGraph {
       }
     });
     view.on("pointer.leave", () => {
+      const state = this.nodeViews.get(nodeId);
+      if (state) {
+        state.hovered = false;
+        this.syncNodeResizeHandleVisibility(state);
+      }
+
       if (!this.dragState && !this.resizeState) {
         this.container.style.cursor = "";
       }
@@ -1804,6 +1935,8 @@ export class LeaferGraph {
     view.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
       const state = this.nodeViews.get(nodeId);
       if (
+        event.right ||
+        event.middle ||
         isWidgetInteractionTarget(event.target) ||
         this.isResizeHandleTarget(event.target) ||
         (state && this.isResizeHandleHit(event, state))
@@ -1815,14 +1948,7 @@ export class LeaferGraph {
         return;
       }
 
-      const point = this.getWorldPointFromGraphEvent(event);
-      this.resizeState = null;
-      this.dragState = {
-        nodeId,
-        offsetX: point.x - state.state.layout.x,
-        offsetY: point.y - state.state.layout.y
-      };
-      this.container.style.cursor = "grabbing";
+      this.startNodeDrag(nodeId, state, event);
     });
   }
 
@@ -1845,22 +1971,56 @@ export class LeaferGraph {
       event.stopNow?.();
       event.stop?.();
       this.dragState = null;
-      const point = this.getWorldPointFromGraphEvent(event);
+      const point = this.getPagePointFromGraphEvent(event);
       this.resizeState = {
         nodeId,
         startWidth: node.layout.width ?? DEFAULT_NODE_WIDTH,
         startHeight: node.layout.height ?? DEFAULT_NODE_MIN_HEIGHT,
-        startWorldX: point.x,
-        startWorldY: point.y
+        startPageX: point.x,
+        startPageY: point.y
       };
+      this.syncNodeResizeHandleVisibility(state);
       this.container.style.cursor = "nwse-resize";
     });
   }
 
+  /**
+   * 绑定左上角信号球的折叠开关。
+   * 这里直接在 `pointer.down` 阶段消费事件，避免它被根节点拖拽逻辑抢走。
+   */
+  private bindNodeCollapseToggle(nodeId: string, state: NodeViewState): void {
+    state.shellView.signalButton.on(
+      "pointer.down",
+      (event: LeaferGraphWidgetPointerEvent) => {
+        event.stopNow?.();
+        event.stop?.();
+        this.dragState = null;
+        this.resizeState = null;
+        this.container.style.cursor = "";
+        this.setNodeCollapsed(nodeId, !Boolean(state.state.flags.collapsed));
+      }
+    );
+  }
+
   /** 只更新与某个节点相连的连线，避免全量重算。 */
   private updateConnectedLinks(nodeId: string): void {
+    this.updateConnectedLinksForNodes([nodeId]);
+  }
+
+  /**
+   * 批量刷新与一组节点相关的连线。
+   * 多选拖拽时如果仍按单节点逐个扫描，会把同一条连线反复重算，
+   * 这里统一按节点集合收敛目标范围，减少重复刷新。
+   */
+  private updateConnectedLinksForNodes(nodeIds: readonly string[]): void {
+    if (!nodeIds.length) {
+      return;
+    }
+
+    const nodeIdSet = new Set(nodeIds);
+
     for (const link of this.linkViews) {
-      if (link.sourceId !== nodeId && link.targetId !== nodeId) {
+      if (!nodeIdSet.has(link.sourceId) && !nodeIdSet.has(link.targetId)) {
         continue;
       }
 
@@ -1872,6 +2032,95 @@ export class LeaferGraph {
 
       this.refreshLinkPath(link, source, target);
     }
+  }
+
+  /**
+   * 只回写节点坐标本身，不直接触发整批渲染。
+   * `moveNode(...)` 和多选拖拽都会先走这条最小路径，再决定是否统一刷新连线。
+   */
+  private moveNodeInternally(
+    nodeId: string,
+    position: LeaferGraphMoveNodeInput
+  ): boolean {
+    const node = this.graphState.nodes.get(nodeId);
+    if (!node) {
+      return false;
+    }
+
+    const nextX = position.x;
+    const nextY = position.y;
+    if (node.layout.x === nextX && node.layout.y === nextY) {
+      return false;
+    }
+
+    node.layout.x = nextX;
+    node.layout.y = nextY;
+
+    const state = this.nodeViews.get(nodeId);
+    if (state) {
+      state.view.x = nextX;
+      state.view.y = nextY;
+    }
+
+    return true;
+  }
+
+  /**
+   * 按位移量批量移动一组选中节点，并保留它们的相对布局。
+   * 该逻辑仅负责拖拽链路使用，避免 editor 为多选拖拽重复维护一套节点同步协议。
+   */
+  private moveNodesByDelta(
+    positions: readonly DemoDragNodePosition[],
+    deltaX: number,
+    deltaY: number
+  ): void {
+    const movedNodeIds: string[] = [];
+
+    for (const item of positions) {
+      if (
+        this.moveNodeInternally(item.nodeId, {
+          x: item.startX + deltaX,
+          y: item.startY + deltaY
+        })
+      ) {
+        movedNodeIds.push(item.nodeId);
+      }
+    }
+
+    if (!movedNodeIds.length) {
+      return;
+    }
+
+    this.updateConnectedLinksForNodes(movedNodeIds);
+    this.app.forceRender();
+  }
+
+  /** 列出当前处于选中态的节点 ID。 */
+  private listSelectedNodeIds(): string[] {
+    const selectedNodeIds: string[] = [];
+
+    for (const [nodeId, node] of this.graphState.nodes) {
+      if (node.flags.selected) {
+        selectedNodeIds.push(nodeId);
+      }
+    }
+
+    return selectedNodeIds;
+  }
+
+  /**
+   * 解析一次拖拽应当带上的节点集合。
+   * 当前保持与常见节点编辑器一致：
+   * 点击已选中的多选节点时，整体拖拽当前选区；否则只拖当前节点。
+   */
+  private resolveDraggedNodeIds(nodeId: string): string[] {
+    const selectedNodeIds = this.listSelectedNodeIds();
+
+    if (selectedNodeIds.length > 1 && selectedNodeIds.includes(nodeId)) {
+      return selectedNodeIds;
+    }
+
+    return [nodeId];
   }
 
   /** 按当前节点位置重算单条连线路径，供移动和节点更新共用。 */
@@ -1940,19 +2189,19 @@ export class LeaferGraph {
   ): boolean {
     const width = state.state.layout.width ?? DEFAULT_NODE_WIDTH;
     const height = state.state.layout.height ?? DEFAULT_NODE_MIN_HEIGHT;
-    const point = this.getWorldPointFromGraphEvent(event);
+    const point = this.getPagePointFromGraphEvent(event);
     const localX = point.x - state.state.layout.x;
     const localY = point.y - state.state.layout.y;
 
     return localX >= width - 20 && localY >= height - 20;
   }
 
-  /** 把浏览器 client 坐标换成 Leafer 世界坐标。 */
-  private getWorldPointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
+  /** 把浏览器 client 坐标换成 Leafer page 坐标。 */
+  private getPagePointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
     x: number;
     y: number;
   } {
-    return (this.app as typeof this.app & LeaferGraphCoordinateHost).getWorldPointByClient(
+    return (this.app as typeof this.app & LeaferGraphCoordinateHost).getPagePointByClient(
       {
         clientX: event.clientX,
         clientY: event.clientY
@@ -1962,21 +2211,27 @@ export class LeaferGraph {
   }
 
   /**
-   * 把 Leafer 指针事件统一转换成世界坐标。
-   * 如果事件包含原始 DOM PointerEvent，则优先以它的 client 坐标为准，
-   * 这样可以和窗口级 pointermove 保持同一套坐标系。
+   * 把 Leafer 指针事件统一转换成 page 坐标。
+   * 节点布局、拖拽和 resize 都挂在 `app.tree / zoomLayer` 下，
+   * 因此这类“写回节点位置”的交互必须以 page 坐标为准。
    */
-  private getWorldPointFromGraphEvent(
+  private getPagePointFromGraphEvent(
     event: LeaferGraphWidgetPointerEvent
   ): { x: number; y: number } {
     const clientX = event.origin?.clientX;
     const clientY = event.origin?.clientY;
 
     if (typeof clientX === "number" && typeof clientY === "number") {
-      return this.getWorldPointByClient({ clientX, clientY });
+      return this.getPagePointByClient({ clientX, clientY });
     }
 
-    return { x: event.x, y: event.y };
+    const eventWithPagePoint = event as LeaferGraphWidgetPointerEvent & {
+      getPagePoint?: () => { x: number; y: number };
+    };
+
+    return eventWithPagePoint.getPagePoint
+      ? eventWithPagePoint.getPagePoint()
+      : { x: event.x, y: event.y };
   }
 
   /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
@@ -2209,24 +2464,29 @@ export class LeaferGraph {
     shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS)
   ): NodeShellView {
     const category = this.resolveNodeCategory(node);
+    const resolvedShellLayout = {
+      ...shellLayout,
+      ports: shellLayout.ports.map((port) => ({
+        ...port,
+        slotColor: this.resolveNodePortFill(port)
+      }))
+    };
     const categoryLayout = resolveNodeCategoryBadgeLayout(
       category,
-      shellLayout.width,
+      resolvedShellLayout.width,
       NODE_SHELL_LAYOUT_METRICS
     );
-    const accent = readNodeAccent(node);
     const signalColor = this.resolveSignalColor(node);
-    const selectedStroke = this.resolveSelectedNodeStroke(accent);
+    const selectedStroke = this.resolveSelectedNodeStroke();
 
     return createNodeShell({
       nodeId: node.id,
       x: node.layout.x,
       y: node.layout.y,
       title: node.title,
-      accent,
       signalColor,
       selectedStroke,
-      shellLayout,
+      shellLayout: resolvedShellLayout,
       categoryLayout,
       theme: NODE_SHELL_RENDER_THEME
     });
@@ -2248,7 +2508,8 @@ export class LeaferGraph {
       resizeHandle: shellView.resizeHandle,
       shellView,
       widgetLayer: shellView.widgetLayer,
-      widgetInstances
+      widgetInstances,
+      hovered: false
     };
 
     this.applyNodeSelectionStyles(state);
@@ -2329,9 +2590,7 @@ export class LeaferGraph {
    */
   private applyNodeSelectionStyles(state: NodeViewState): void {
     const selected = Boolean(state.state.flags.selected);
-    const accent = readNodeAccent(state.state);
-    const ringStroke = this.resolveSelectedNodeStroke(accent);
-    const canResize = this.canResizeNode(state.state.id);
+    const ringStroke = this.resolveSelectedNodeStroke();
 
     state.selectedRing.selectedStyle = {
       stroke: ringStroke,
@@ -2343,12 +2602,29 @@ export class LeaferGraph {
     };
     state.selectedRing.selected = selected;
     state.card.selected = selected;
-    state.resizeHandle.visible = selected && canResize;
+    this.syncNodeResizeHandleVisibility(state);
   }
 
-  /** 统一计算节点选中态的 ring 颜色，优先复用节点强调色。 */
-  private resolveSelectedNodeStroke(accent: string): string {
-    return accent || "#2563EB";
+  /**
+   * 统一计算 resize 图标可见性。
+   * 当前规则为：
+   * 1. 节点支持 resize
+   * 2. 节点未折叠
+   * 3. 鼠标悬停在节点上，或当前正在拖拽该节点的 resize 句柄
+   */
+  private syncNodeResizeHandleVisibility(state: NodeViewState): void {
+    const canResize = this.canResizeNode(state.state.id);
+    const visible =
+      canResize &&
+      !Boolean(state.state.flags.collapsed) &&
+      (state.hovered || this.resizeState?.nodeId === state.state.id);
+
+    state.resizeHandle.visible = visible;
+  }
+
+  /** 节点选中态统一使用固定描边色，保证整张图的焦点反馈一致。 */
+  private resolveSelectedNodeStroke(): string {
+    return NODE_SELECTED_STROKE;
   }
 
   /**
@@ -2404,22 +2680,60 @@ export class LeaferGraph {
     return this.nodeRegistry.getNode(node.type)?.category ?? this.startCase(node.type);
   }
 
-  /** 解析节点状态灯颜色。 */
-  private resolveSignalColor(node: GraphNodeState): string {
-    switch ((node.properties.status ?? "READY").toUpperCase()) {
-      case "LIVE":
-      case "RUNNING":
-        return "#34D399";
-      case "SYNC":
-        return "#60A5FA";
-      case "ERROR":
-        return "#F87171";
-      case "WARN":
-      case "WARNING":
-        return "#FBBF24";
-      default:
-        return readNodeAccent(node);
+  /**
+   * 解析节点端口颜色。
+   * 优先级依次为：
+   * 1. 槽位显式自定义色
+   * 2. 槽位类型映射色
+   * 3. 输入 / 输出默认色
+   */
+  private resolveNodePortFill(port: NodeShellPortLayout): string {
+    if (typeof port.slotColor === "string" && port.slotColor) {
+      return port.slotColor;
     }
+
+    const typeColor = this.resolveSlotTypeFill(port.slotType);
+    if (typeColor) {
+      return typeColor;
+    }
+
+    return port.direction === "input" ? INPUT_PORT_FILL : OUTPUT_PORT_FILL;
+  }
+
+  /** 根据槽位类型查颜色；泛型槽位 `0` 使用统一中性色。 */
+  private resolveSlotTypeFill(type: SlotType | undefined): string | undefined {
+    if (type === 0) {
+      return GENERIC_PORT_FILL;
+    }
+
+    if (typeof type !== "string") {
+      return undefined;
+    }
+
+    const normalized = type.trim().toLowerCase();
+    if (!normalized) {
+      return undefined;
+    }
+
+    const candidates = [
+      normalized,
+      normalized.replace(/\[\]$/, ""),
+      ...normalized.split(/[\s|,:/]+/).filter(Boolean)
+    ];
+
+    for (const candidate of candidates) {
+      const color = SLOT_TYPE_FILL_MAP[candidate];
+      if (color) {
+        return color;
+      }
+    }
+
+    return undefined;
+  }
+
+  /** 解析节点状态灯颜色。 */
+  private resolveSignalColor(_node: GraphNodeState): string {
+    return NODE_SIGNAL_FILL;
   }
 
   /**

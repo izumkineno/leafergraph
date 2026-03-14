@@ -1,6 +1,6 @@
 import type { NodeModule } from "./definition";
 import type { LeaferGraphData } from "./graph";
-import type { NodeWidgetSpec } from "./types";
+import type { NodeSlotSpec, NodeWidgetSpec } from "./types";
 
 // 这组类型只服务当前 demo / editor 接入，后续可再迁回主包或专门的 demo 包。
 
@@ -20,8 +20,8 @@ export interface LeaferGraphNodeData {
   accent?: string;
   category?: string;
   status?: string;
-  inputs?: string[];
-  outputs?: string[];
+  inputs?: Array<string | NodeSlotSpec>;
+  outputs?: Array<string | NodeSlotSpec>;
   controlLabel?: string;
   controlValue?: string;
   controlProgress?: number;

@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev:editor": "bun run --filter leafergraph-editor dev",
+    "dev:editor:lan": "bun run --filter leafergraph-editor dev:lan",
     "build:leafergraph": "bun run --filter leafergraph build",
     "build:editor": "bun run --filter leafergraph-editor build",
     "build": "bun run build:leafergraph && bun run build:editor",

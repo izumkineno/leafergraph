@@ -14,6 +14,7 @@
 ```bash
 bun install
 bun run dev:editor
+bun run dev:editor:lan
 bun run build
 ```
 

@@ -1,5 +1,5 @@
 import "@leafer-in/flow";
-import { Box, Group, Rect, Text } from "leafer-ui";
+import { Box, Group, Path, Rect, Text } from "leafer-ui";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./node_layout";
 
 /**
@@ -39,6 +39,7 @@ export interface NodeShellRenderTheme {
   signalLightX: number;
   signalLightY: number;
   signalLightSize: number;
+  signalHitPadding: number;
   widgetFill: string;
   inputPortFill: string;
   outputPortFill: string;
@@ -59,7 +60,6 @@ export interface CreateNodeShellOptions {
   x: number;
   y: number;
   title: string;
-  accent: string;
   signalColor: string;
   selectedStroke: string;
   shellLayout: NodeShellLayout;
@@ -77,11 +77,12 @@ export interface NodeShellView {
   selectedRing: Rect;
   header: Rect;
   headerDivider: Rect;
+  signalButton: Rect;
   categoryBadge: Rect;
   categoryLabel: Text;
   widgetBackground: Rect | null;
   widgetDivider: Rect | null;
-  resizeHandle: Rect;
+  resizeHandle: Box;
   portViews: Array<{
     port: Rect;
     label: Text;
@@ -99,7 +100,6 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     x,
     y,
     title,
-    accent,
     signalColor,
     selectedStroke,
     shellLayout,
@@ -119,7 +119,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     width: shellLayout.width + theme.selectedRingOutset * 2,
     height: shellLayout.height + theme.selectedRingOutset * 2,
     fill: "transparent",
-    stroke: accent,
+    stroke: selectedStroke,
     strokeWidth: theme.selectedRingStrokeWidth,
     cornerRadius: theme.nodeRadius + theme.selectedRingOutset,
     opacity: 0,
@@ -156,7 +156,9 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     width: shellLayout.width,
     height: theme.headerHeight,
     fill: theme.headerFill,
-    cornerRadius: [theme.nodeRadius, theme.nodeRadius, 0, 0],
+    cornerRadius: shellLayout.collapsed
+      ? theme.nodeRadius
+      : [theme.nodeRadius, theme.nodeRadius, 0, 0],
     hittable: false
   });
 
@@ -165,6 +167,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     width: shellLayout.width,
     height: 1,
     fill: theme.headerDividerFill,
+    visible: !shellLayout.collapsed,
     hittable: false
   });
 
@@ -187,6 +190,17 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     fill: signalColor,
     cornerRadius: 999,
     hittable: false
+  });
+
+  const signalButton = new Rect({
+    name: `node-signal-button-${nodeId}`,
+    x: theme.signalGlowX - theme.signalHitPadding,
+    y: theme.signalGlowY - theme.signalHitPadding,
+    width: theme.signalGlowSize + theme.signalHitPadding * 2,
+    height: theme.signalGlowSize + theme.signalHitPadding * 2,
+    fill: "rgba(255, 255, 255, 0.001)",
+    cornerRadius: 999,
+    cursor: "pointer"
   });
 
   const titleLabel = new Text({
@@ -229,6 +243,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     headerDivider,
     signalGlow,
     signalLight,
+    signalButton,
     titleLabel,
     categoryBadge,
     categoryLabel
@@ -263,9 +278,10 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       width: port.portWidth,
       height: port.portHeight,
       fill:
-        port.direction === "input"
+        port.slotColor ??
+        (port.direction === "input"
           ? theme.inputPortFill
-          : theme.outputPortFill,
+          : theme.outputPortFill),
       stroke: theme.portStroke,
       strokeWidth: theme.portStrokeWidth,
       cornerRadius: 999,
@@ -281,6 +297,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       fontFamily: theme.slotLabelFontFamily,
       fontSize: theme.slotLabelFontSize,
       fontWeight: theme.slotLabelFontWeight,
+      visible: port.labelVisible,
       hittable: false
     });
     portViews.push({
@@ -302,19 +319,36 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     resizeChildren: false
   });
 
-  const resizeHandle = new Rect({
+  /**
+   * 右下角 resize 句柄使用“透明命中区 + 标准对角 grip 图标”的组合，
+   * 比纯色小方块更符合常见设计工具的交互预期。
+   */
+  const resizeHandle = new Box({
     name: `node-resize-handle-${nodeId}`,
-    x: shellLayout.width - 16,
-    y: shellLayout.height - 16,
-    width: 12,
-    height: 12,
-    fill: selectedStroke,
-    stroke: "rgba(255, 255, 255, 0.14)",
-    strokeWidth: 1,
-    cornerRadius: 4,
+    x: shellLayout.width - 18,
+    y: shellLayout.height - 18,
+    width: 18,
+    height: 18,
     cursor: "nwse-resize",
     visible: false
   });
+  const resizeHandleHitArea = new Rect({
+    width: 18,
+    height: 18,
+    fill: "rgba(255, 255, 255, 0.001)",
+    cornerRadius: 6
+  });
+  const resizeHandleIcon = new Path({
+    x: 0,
+    y: 0,
+    path: "M 4 14 L 14 4 M 8 14 L 14 8 M 12 14 L 14 12",
+    stroke: "rgba(255, 255, 255, 0.72)",
+    strokeWidth: 1.5,
+    strokeCap: "round",
+    strokeJoin: "round",
+    hittable: false
+  });
+  resizeHandle.add([resizeHandleHitArea, resizeHandleIcon]);
 
   group.add([selectedRing, ...parts, widgetLayer, resizeHandle]);
 
@@ -324,6 +358,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     selectedRing,
     header,
     headerDivider,
+    signalButton,
     categoryBadge,
     categoryLabel,
     widgetBackground,

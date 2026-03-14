@@ -1,4 +1,4 @@
-import type { NodeRuntimeState, SlotDirection } from "@leafergraph/node";
+import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
 import type { NodeShellLayoutMetrics } from "./node_layout";
 
 /**
@@ -9,6 +9,7 @@ export interface NodeShellPortLayout {
   direction: SlotDirection;
   index: number;
   label: string;
+  labelVisible: boolean;
   portX: number;
   portY: number;
   portWidth: number;
@@ -18,6 +19,8 @@ export interface NodeShellPortLayout {
   labelWidth?: number;
   textAlign?: "left" | "right";
   anchorY: number;
+  slotType?: SlotType;
+  slotColor?: string;
 }
 
 /**
@@ -36,7 +39,7 @@ export interface NodePortsLayoutResult {
  * 端口布局当前只依赖节点的结构字段。
  * 不关心属性、颜色、运行时缓存或宿主注册表。
  */
-type NodePortSource = Pick<NodeRuntimeState, "layout" | "inputs" | "outputs">;
+type NodePortSource = Pick<NodeRuntimeState, "layout" | "inputs" | "outputs" | "flags">;
 
 /** 提取输入槽位展示文案，空节点时回退到最小默认值。 */
 export function resolveNodeInputLabels(node: Pick<NodeRuntimeState, "inputs">): string[] {
@@ -80,6 +83,13 @@ export function resolveNodePortAnchorY(
   );
 }
 
+/** 折叠节点时，端口统一吸附到头部中线，形成更紧凑的视觉表达。 */
+export function resolveCollapsedNodePortAnchorY(
+  metrics: NodeShellLayoutMetrics
+): number {
+  return metrics.headerHeight / 2;
+}
+
 /**
  * 根据节点输入输出，生成完整的端口与标签布局。
  * 节点壳与连线锚点应共享这份计算结果。
@@ -91,18 +101,76 @@ export function resolveNodePortsLayout(
 ): NodePortsLayoutResult {
   const inputs = resolveNodeInputLabels(node);
   const outputs = resolveNodeOutputLabels(node);
-  const slotCount = resolveNodePortSlotCount(inputs, outputs);
-  const slotStartY = metrics.headerHeight + metrics.sectionPaddingY;
+  const collapsed = Boolean(node.flags.collapsed);
+  const slotCount = collapsed ? 1 : resolveNodePortSlotCount(inputs, outputs);
+  const slotStartY = collapsed
+    ? resolveCollapsedNodePortAnchorY(metrics)
+    : metrics.headerHeight + metrics.sectionPaddingY;
   const ports: NodeShellPortLayout[] = [];
+
+  if (collapsed) {
+    const anchorY = resolveCollapsedNodePortAnchorY(metrics);
+    const firstInput = node.inputs[0];
+    const firstOutput = node.outputs[0];
+
+    if (inputs.length) {
+      ports.push({
+        direction: "input",
+        index: 0,
+        label: inputs[0],
+        labelVisible: false,
+        portX: -metrics.portSize / 2,
+        portY: anchorY - metrics.portSize / 2,
+        portWidth: metrics.portSize,
+        portHeight: metrics.portSize,
+        labelX: metrics.sectionPaddingX,
+        labelY: anchorY,
+        textAlign: "left",
+        anchorY,
+        slotType: firstInput?.type,
+        slotColor: firstInput?.color
+      });
+    }
+
+    if (outputs.length) {
+      ports.push({
+        direction: "output",
+        index: 0,
+        label: outputs[0],
+        labelVisible: false,
+        portX: width - metrics.portSize / 2,
+        portY: anchorY - metrics.portSize / 2,
+        portWidth: metrics.portSize,
+        portHeight: metrics.portSize,
+        labelX: width - metrics.sectionPaddingX - metrics.slotTextWidth,
+        labelY: anchorY,
+        labelWidth: metrics.slotTextWidth,
+        textAlign: "right",
+        anchorY,
+        slotType: firstOutput?.type,
+        slotColor: firstOutput?.color
+      });
+    }
+
+    return {
+      inputs,
+      outputs,
+      slotCount,
+      slotStartY,
+      ports
+    };
+  }
 
   for (let index = 0; index < inputs.length; index += 1) {
     const slotY = slotStartY + index * (metrics.slotRowHeight + metrics.slotRowGap);
     const anchorY = slotY + metrics.slotRowHeight / 2;
+    const slot = node.inputs[index];
 
     ports.push({
       direction: "input",
       index,
       label: inputs[index],
+      labelVisible: true,
       portX: -metrics.portSize / 2,
       portY: anchorY - metrics.portSize / 2,
       portWidth: metrics.portSize,
@@ -110,18 +178,22 @@ export function resolveNodePortsLayout(
       labelX: metrics.sectionPaddingX,
       labelY: slotY + 4,
       textAlign: "left",
-      anchorY
+      anchorY,
+      slotType: slot?.type,
+      slotColor: slot?.color
     });
   }
 
   for (let index = 0; index < outputs.length; index += 1) {
     const slotY = slotStartY + index * (metrics.slotRowHeight + metrics.slotRowGap);
     const anchorY = slotY + metrics.slotRowHeight / 2;
+    const slot = node.outputs[index];
 
     ports.push({
       direction: "output",
       index,
       label: outputs[index],
+      labelVisible: true,
       portX: width - metrics.portSize / 2,
       portY: anchorY - metrics.portSize / 2,
       portWidth: metrics.portSize,
@@ -130,7 +202,9 @@ export function resolveNodePortsLayout(
       labelY: slotY + 4,
       labelWidth: metrics.slotTextWidth,
       textAlign: "right",
-      anchorY
+      anchorY,
+      slotType: slot?.type,
+      slotColor: slot?.color
     });
   }
 
@@ -165,6 +239,10 @@ export function resolveNodePortAnchorYForNode(
   slotIndex: number,
   metrics: NodeShellLayoutMetrics
 ): number {
+  if (node.flags.collapsed) {
+    return resolveCollapsedNodePortAnchorY(metrics);
+  }
+
   const width = node.layout.width ?? metrics.defaultNodeWidth;
   const { slotCount, ports } = resolveNodePortsLayout(node, width, metrics);
 

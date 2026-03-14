@@ -54,6 +54,7 @@ export interface NodeShellWidgetLayout {
 export interface NodeShellLayout {
   width: number;
   height: number;
+  collapsed: boolean;
   slotCount: number;
   slotStartY: number;
   slotsHeight: number;
@@ -73,7 +74,10 @@ export interface NodeShellLayout {
  * 当前布局模块只依赖节点运行时状态中的结构字段。
  * 它不需要知道节点定义注册表、颜色或交互状态。
  */
-type NodeLayoutSource = Pick<NodeRuntimeState, "layout" | "inputs" | "outputs" | "widgets">;
+type NodeLayoutSource = Pick<
+  NodeRuntimeState,
+  "layout" | "inputs" | "outputs" | "widgets" | "flags"
+>;
 
 /** 计算槽位区域高度。 */
 export function resolveNodeSlotsHeight(
@@ -173,39 +177,44 @@ export function resolveNodeShellLayout(
   metrics: NodeShellLayoutMetrics
 ): NodeShellLayout {
   const width = node.layout.width ?? metrics.defaultNodeWidth;
+  const collapsed = Boolean(node.flags.collapsed);
   const { inputs, outputs, slotCount, slotStartY, ports } =
     resolveNodePortsLayout(node, width, metrics);
-  const slotsHeight = resolveNodeSlotsHeight(slotCount, metrics);
-  const widgetSectionHeight = resolveNodeWidgetSectionHeight(
-    node.widgets,
-    metrics
-  );
-  const widgetTop = resolveNodeWidgetTop(slotCount, metrics);
+  const slotsHeight = collapsed ? 0 : resolveNodeSlotsHeight(slotCount, metrics);
+  const widgetSectionHeight = collapsed
+    ? 0
+    : resolveNodeWidgetSectionHeight(node.widgets, metrics);
+  const widgetTop = collapsed
+    ? metrics.headerHeight
+    : resolveNodeWidgetTop(slotCount, metrics);
   const widgetBounds: LeaferGraphWidgetBounds = {
     x: metrics.sectionPaddingX,
     y: widgetTop,
     width: width - metrics.sectionPaddingX * 2,
     height: Math.max(0, widgetSectionHeight)
   };
-  const height = Math.max(
-    node.layout.height ?? 0,
-    metrics.headerHeight +
-      metrics.sectionPaddingY +
-      slotsHeight +
-      metrics.sectionPaddingY +
-      widgetSectionHeight,
-    metrics.defaultNodeMinHeight
-  );
+  const height = collapsed
+    ? metrics.headerHeight
+    : Math.max(
+        node.layout.height ?? 0,
+        metrics.headerHeight +
+          metrics.sectionPaddingY +
+          slotsHeight +
+          metrics.sectionPaddingY +
+          widgetSectionHeight,
+        metrics.defaultNodeMinHeight
+      );
 
   return {
     width,
     height,
+    collapsed,
     slotCount,
     slotStartY,
     slotsHeight,
     widgetTop,
     widgetSectionHeight,
-    hasWidgets: node.widgets.length > 0,
+    hasWidgets: !collapsed && node.widgets.length > 0,
     widgetBounds: {
       ...widgetBounds,
       height: Math.max(0, height - widgetTop)

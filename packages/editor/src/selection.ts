@@ -29,6 +29,8 @@ export interface EditorNodeSelectionController {
   isSelected(nodeId: string): boolean;
   /** 判断当前是否存在多选。 */
   hasMultipleSelected(): boolean;
+  /** 用一组节点 ID 整体替换当前选区。 */
+  setMany(nodeIds: readonly string[]): void;
   /** 用新的节点 ID 替换当前选区，传 `null` 表示清空选区。 */
   select(nodeId: string | null): void;
   /** 追加一个节点到当前选区，并把它提升为主选中节点。 */
@@ -102,6 +104,10 @@ export function createEditorNodeSelection(
 
     hasMultipleSelected(): boolean {
       return selectedNodeIds.length > 1;
+    },
+
+    setMany(nodeIds: readonly string[]): void {
+      commitSelection(nodeIds);
     },
 
     select(nodeId: string | null): void {
