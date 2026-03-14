@@ -1,12 +1,12 @@
 import type {
   LeaferGraph,
+  LeaferGraphCreateNodeInput,
   LeaferGraphContextMenuContext
 } from "leafergraph";
 import type {
   EditorNodeCommandController,
   EditorNodeCommandResult
 } from "./node_commands";
-import { createQuickCreateDemoNodeInput } from "../demo/demo-setup";
 
 /**
  * editor 画布命令控制器。
@@ -22,6 +22,8 @@ import { createQuickCreateDemoNodeInput } from "../demo/demo-setup";
 export interface EditorCanvasCommandController {
   /** 当前是否存在可粘贴的剪贴板内容。 */
   readonly canPaste: boolean;
+  /** 读取当前“快速创建节点”命令是否可用。 */
+  resolveCreateNodeState(): EditorCanvasCreateNodeState;
   /** 在指定画布位置快速创建节点。 */
   createNodeAt(
     context: LeaferGraphContextMenuContext
@@ -41,10 +43,41 @@ export interface EditorCanvasCommandController {
 export interface CreateEditorCanvasCommandControllerOptions {
   graph: LeaferGraph;
   nodeCommands: EditorNodeCommandController;
-  /** 快捷创建节点的起始序号。 */
-  startIndex?: number;
+  /** editor 优先希望创建的节点类型。 */
+  quickCreateNodeType?: string;
   /** 视口发生变化后的回调，用于同步鼠标坐标等外部状态。 */
   onAfterFitView?: () => void;
+}
+
+/** editor 画布“快速创建节点”命令的最小状态。 */
+export interface EditorCanvasCreateNodeState {
+  disabled: boolean;
+  description: string;
+}
+
+/** 创建一个最小的快速建节点输入。 */
+function createQuickCreateNodeInput(
+  context: LeaferGraphContextMenuContext,
+  type: string
+): LeaferGraphCreateNodeInput {
+  return {
+    type,
+    x: Math.round(context.pagePoint.x),
+    y: Math.round(context.pagePoint.y)
+  };
+}
+
+/** 解析当前真正应使用的快速创建节点类型。 */
+function resolveQuickCreateNodeType(
+  graph: LeaferGraph,
+  preferredType?: string
+): string | undefined {
+  const definitions = graph.listNodes();
+  if (preferredType && definitions.some((definition) => definition.type === preferredType)) {
+    return preferredType;
+  }
+
+  return definitions[0]?.type;
 }
 
 /**
@@ -54,15 +87,39 @@ export interface CreateEditorCanvasCommandControllerOptions {
 export function createEditorCanvasCommandController(
   options: CreateEditorCanvasCommandControllerOptions
 ): EditorCanvasCommandController {
-  let quickCreateIndex = Math.max(options.startIndex ?? 1, 1);
+  const resolveCreateNodeState = (): EditorCanvasCreateNodeState => {
+    const nodeType = resolveQuickCreateNodeType(
+      options.graph,
+      options.quickCreateNodeType
+    );
+
+    if (!nodeType) {
+      return {
+        disabled: true,
+        description: "当前没有可用的节点类型，请先加载 node 或 widget bundle"
+      };
+    }
+
+    return {
+      disabled: false,
+      description: `将在当前位置创建 ${nodeType}`
+    };
+  };
 
   const createNodeAt = (
     context: LeaferGraphContextMenuContext
   ): ReturnType<LeaferGraph["createNode"]> | null => {
-    const node = options.nodeCommands.createNode(
-      createQuickCreateDemoNodeInput(context, quickCreateIndex)
+    const nodeType = resolveQuickCreateNodeType(
+      options.graph,
+      options.quickCreateNodeType
     );
-    quickCreateIndex += 1;
+    if (!nodeType) {
+      return null;
+    }
+
+    const node = options.nodeCommands.createNode(
+      createQuickCreateNodeInput(context, nodeType)
+    );
     return node;
   };
 
@@ -92,6 +149,7 @@ export function createEditorCanvasCommandController(
     get canPaste(): boolean {
       return Boolean(options.nodeCommands.clipboard);
     },
+    resolveCreateNodeState,
     createNodeAt,
     pasteClipboardAt,
     fitView

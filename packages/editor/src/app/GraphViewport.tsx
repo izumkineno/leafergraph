@@ -29,6 +29,7 @@ interface GraphViewportProps {
   graph: LeaferGraphData;
   modules?: LeaferGraphOptions["modules"];
   plugins?: LeaferGraphOptions["plugins"];
+  quickCreateNodeType?: string;
   theme: EditorTheme;
 }
 
@@ -231,6 +232,7 @@ export function GraphViewport({
   graph: graphData,
   modules,
   plugins,
+  quickCreateNodeType,
   theme
 }: GraphViewportProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -702,9 +704,10 @@ export function GraphViewport({
           key: "create-node-here",
           label: "在这里创建节点",
           description: graphReady
-            ? "已接入主包 createNode(...)"
+            ? canvasCommands.resolveCreateNodeState().description
             : "图初始化完成后可用",
-          disabled: !graphReady,
+          disabled:
+            !graphReady || canvasCommands.resolveCreateNodeState().disabled,
           onSelect() {
             createNodeFromMenu(context);
           }
@@ -777,7 +780,7 @@ export function GraphViewport({
     canvasCommands = createEditorCanvasCommandController({
       graph,
       nodeCommands: commands,
-      startIndex: Math.max(graphData.nodes.length + 1, 1),
+      quickCreateNodeType,
       onAfterFitView: schedulePointerWorldPointRefresh
     });
     (graph.app.tree as typeof graph.app.tree & GraphViewportViewEventHost).on(
@@ -1106,7 +1109,7 @@ export function GraphViewport({
       graphRef.current = null;
       graph.destroy();
     };
-  }, [graphData, modules, plugins]);
+  }, [graphData, modules, plugins, quickCreateNodeType]);
 
   return (
     <div class="graph-viewport">
