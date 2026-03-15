@@ -1,3 +1,10 @@
+/**
+ * 主包公共协议与插件契约模块。
+ *
+ * @remarks
+ * 负责定义插件上下文、Widget 渲染协议、主题上下文和主包初始化选项。
+ */
+
 import type {
   InstallNodeModuleOptions,
   LeaferGraphData,
@@ -18,6 +25,10 @@ export type LeaferGraphThemeMode = "light" | "dark";
 /**
  * Widget 视觉 token。
  * 主包与外部自定义 renderer 都可以基于它在亮色 / 暗色模式间切换。
+ *
+ * @remarks
+ * 这里约定的是“编辑器控件层”的视觉 token，而不是节点卡片整体样式。
+ * 外部 Widget 如果想保持和内建控件一致的观感，优先复用这组 token。
  */
 export interface LeaferGraphWidgetThemeTokens {
   fontFamily: string;
@@ -60,13 +71,24 @@ export interface LeaferGraphWidgetThemeTokens {
   accentFallback: string;
 }
 
-/** Widget 渲染时可读取的主题上下文。 */
+/**
+ * Widget 渲染时可读取的主题上下文。
+ *
+ * @remarks
+ * `mode` 用来做亮暗分支判断，`tokens` 提供实际颜色、圆角和阴影等视觉值。
+ */
 export interface LeaferGraphWidgetThemeContext {
   mode: LeaferGraphThemeMode;
   tokens: LeaferGraphWidgetThemeTokens;
 }
 
-/** 文本编辑请求。 */
+/**
+ * 文本编辑浮层的几何信息。
+ *
+ * @remarks
+ * 这组信息描述的是相对于 Widget 所在文本图元的编辑框尺寸与内边距，
+ * 供编辑宿主把真实输入框准确对齐到 Leafer 场景中的字段区域。
+ */
 export interface LeaferGraphWidgetTextEditFrame {
   offsetX: number;
   offsetY: number;
@@ -78,7 +100,13 @@ export interface LeaferGraphWidgetTextEditFrame {
   paddingLeft?: number;
 }
 
-/** 文本编辑请求。 */
+/**
+ * 文本编辑请求。
+ *
+ * @remarks
+ * `input` 和 `textarea` 等真实编辑型控件不会直接在 Widget 内部操作 DOM，
+ * 而是通过这份请求对象把目标文本图元、初始值和提交回调交给统一编辑宿主处理。
+ */
 export interface LeaferGraphWidgetTextEditRequest {
   nodeId: string;
   widgetIndex: number;
@@ -93,7 +121,13 @@ export interface LeaferGraphWidgetTextEditRequest {
   onCancel?(value: string): void;
 }
 
-/** 候选菜单请求。 */
+/**
+ * 候选菜单请求。
+ *
+ * @remarks
+ * `select` 一类离散选项控件通过这份请求打开轻量菜单，
+ * 菜单的定位、关闭和键盘导航都由统一编辑宿主负责。
+ */
 export interface LeaferGraphWidgetOptionsMenuRequest {
   nodeId: string;
   widgetIndex: number;
@@ -105,21 +139,39 @@ export interface LeaferGraphWidgetOptionsMenuRequest {
   onClose?(): void;
 }
 
-/** Widget 焦点与键盘转发绑定。 */
+/**
+ * Widget 焦点与键盘转发绑定。
+ *
+ * @remarks
+ * 某些控件并不会真的把 DOM focus 落到节点画布内部，
+ * 因此需要一层显式的焦点登记，让键盘事件仍能精确分发到当前 Widget。
+ */
 export interface LeaferGraphWidgetFocusBinding {
   key: string;
   onFocusChange?(focused: boolean): void;
   onKeyDown?(event: KeyboardEvent): boolean;
 }
 
-/** Widget 编辑宿主配置。 */
+/**
+ * Widget 编辑宿主配置。
+ *
+ * @remarks
+ * 这组配置决定主包是否启用真实文本编辑、是否桥接官方文本编辑器，
+ * 以及是否允许离散选项控件打开浮层菜单。
+ */
 export interface LeaferGraphWidgetEditingOptions {
   enabled?: boolean;
   useOfficialTextEditor?: boolean;
   allowOptionsMenu?: boolean;
 }
 
-/** Widget renderer 可消费的统一编辑能力入口。 */
+/**
+ * Widget renderer 可消费的统一编辑能力入口。
+ *
+ * @remarks
+ * 外部 Widget 不应该直接操作全局 DOM 或维护自己的编辑器单例，
+ * 而是通过这套能力向主包请求文本编辑、选项菜单和焦点管理。
+ */
 export interface LeaferGraphWidgetEditingContext {
   enabled: boolean;
   beginTextEdit(request: LeaferGraphWidgetTextEditRequest): boolean;
@@ -134,6 +186,9 @@ export interface LeaferGraphWidgetEditingContext {
 /**
  * Widget 在节点内部的布局边界。
  * 主包会把这块矩形区域交给 renderer 自己决定如何使用。
+ *
+ * @remarks
+ * 这块边界已经过节点布局模块计算，renderer 不需要再重复推导节点内坐标系。
  */
 export interface LeaferGraphWidgetBounds {
   x: number;
@@ -145,6 +200,9 @@ export interface LeaferGraphWidgetBounds {
 /**
  * Widget renderer 返回的最小生命周期实例。
  * 由宿主持有并在数值变化、节点销毁时主动调度。
+ *
+ * @remarks
+ * `update` 和 `destroy` 都是可选的，适合只渲染静态图元的简单控件。
  */
 export interface LeaferGraphWidgetRenderInstance {
   update?(newValue: unknown): void;
@@ -153,6 +211,11 @@ export interface LeaferGraphWidgetRenderInstance {
 
 /**
  * 调用 Widget renderer 时传入的上下文。
+ *
+ * @remarks
+ * 这是自定义 Widget 最核心的宿主上下文：
+ * 既提供当前节点、当前 Widget、当前值和布局边界，
+ * 也提供值回写、动作回抛、主题和编辑能力。
  */
 export interface LeaferGraphWidgetRendererContext {
   /** Leafer UI 绘图库入口，供自定义 Widget 创建图元。 */
@@ -197,6 +260,10 @@ export interface LeaferGraphWidgetRendererContext {
 /**
  * Widget renderer 协议。
  * 首次执行负责 Mount，返回值负责后续 Update / Destroy。
+ *
+ * @remarks
+ * 这是最直接的写法，适合小型控件或一次性渲染逻辑；
+ * 复杂控件更推荐使用下方的生命周期对象协议。
  */
 export interface LeaferGraphWidgetRenderer {
   (
@@ -213,6 +280,10 @@ export type LeaferGraphWidgetLifecycleState = Record<string, unknown>;
 /**
  * 通用 Widget 生命周期协议。
  * 用于把 mount / update / destroy 统一成可复用的结构。
+ *
+ * @remarks
+ * 内建基础 Widget 和外部复杂控件都可以优先走这套协议，
+ * 这样 mount/update/destroy 的调度语义会更稳定，也更利于模板化复用。
  */
 export interface LeaferGraphWidgetLifecycle<
   TState = LeaferGraphWidgetLifecycleState
@@ -232,6 +303,10 @@ export interface LeaferGraphWidgetLifecycle<
 /**
  * 允许外部使用“函数 renderer”或“生命周期对象”两种写法。
  * 主包会在注册时统一转换成可调度的 renderer 形态。
+ *
+ * @remarks
+ * 这是兼顾易用性和结构化的折中设计：
+ * 简单控件可以直接给函数，复杂控件可以给生命周期对象。
  */
 export type LeaferGraphWidgetRendererLike =
   | LeaferGraphWidgetRenderer
@@ -240,6 +315,9 @@ export type LeaferGraphWidgetRendererLike =
 /**
  * 主包正式注册的 Widget 条目。
  * 它把数据定义和 renderer 合并为同一份注册对象，避免定义与绘制分离后出现半注册状态。
+ *
+ * @remarks
+ * 这也是当前 Widget 注册表的唯一正式输入形态。
  */
 export interface LeaferGraphWidgetEntry extends WidgetDefinition {
   renderer: LeaferGraphWidgetRendererLike;
@@ -247,6 +325,10 @@ export interface LeaferGraphWidgetEntry extends WidgetDefinition {
 
 /**
  * 外部节点插件在安装阶段可使用的宿主上下文。
+ *
+ * @remarks
+ * 插件上下文只暴露“节点模块安装、节点注册、Widget 注册和注册表查询”这几类能力，
+ * 不向插件暴露主包更底层的场景树或交互宿主细节。
  */
 export interface LeaferGraphNodePluginContext {
   sdk: typeof import("@leafergraph/node");
@@ -267,6 +349,10 @@ export interface LeaferGraphNodePluginContext {
 
 /**
  * 外部节点插件对象。
+ *
+ * @remarks
+ * 主包会在初始化阶段按顺序调用 `install(...)`，
+ * 插件可以同步返回，也可以返回 Promise 完成异步安装。
  */
 export interface LeaferGraphNodePlugin {
   name: string;
@@ -277,6 +363,10 @@ export interface LeaferGraphNodePlugin {
 /**
  * 主包初始化配置。
  * 这里显式只保留正式宿主入口，不再透传 demo 专用 `nodes` 初始化字段。
+ *
+ * @remarks
+ * editor、模板工程和外部调用方都应该通过这份配置进入主包，
+ * 其中 `graph` 是正式图输入，`modules/plugins` 负责扩展节点和 Widget 生态。
  */
 export interface LeaferGraphOptions {
   fill?: string;

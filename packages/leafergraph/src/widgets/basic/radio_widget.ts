@@ -1,3 +1,10 @@
+/**
+ * radio 基础 Widget 模块。
+ *
+ * @remarks
+ * 负责内建单选组选项的渲染、状态同步和交互绑定。
+ */
+
 import type { Rect, Text } from "leafer-ui";
 import type { NodeOptionWidgetOptions, NodeWidgetOptionItem } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";

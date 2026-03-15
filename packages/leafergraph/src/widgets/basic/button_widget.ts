@@ -1,3 +1,10 @@
+/**
+ * button 基础 Widget 模块。
+ *
+ * @remarks
+ * 负责内建按钮控件的渲染、状态同步和动作派发。
+ */
+
 import { bindPressWidgetInteraction } from "../widget_interaction";
 import type { NodeButtonWidgetOptions, NodeWidgetSpec } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";

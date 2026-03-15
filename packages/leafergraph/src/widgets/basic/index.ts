@@ -1,3 +1,10 @@
+/**
+ * 基础 Widget 库入口模块。
+ *
+ * @remarks
+ * 负责汇总内建基础 Widget，并生成可注册的完整条目列表。
+ */
+
 import { createWidgetLifecycleRenderer } from "../widget_lifecycle";
 import { ButtonFieldController } from "./button_widget";
 import { CheckboxFieldController } from "./checkbox_widget";

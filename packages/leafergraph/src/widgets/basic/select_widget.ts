@@ -1,3 +1,10 @@
+/**
+ * select 基础 Widget 模块。
+ *
+ * @remarks
+ * 负责内建下拉控件的显示、菜单打开和候选项写回。
+ */
+
 import type { Path } from "leafer-ui";
 import type { NodeOptionWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";

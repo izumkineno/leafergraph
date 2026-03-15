@@ -1,3 +1,10 @@
+/**
+ * 图运行时样式模块。
+ *
+ * @remarks
+ * 负责集中维护节点外壳、连线和视口使用的默认视觉常量与解析函数。
+ */
+
 import type { LeaferGraphThemeMode } from "../api/plugin";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import type { NodeShellRenderTheme } from "../node/node_shell";

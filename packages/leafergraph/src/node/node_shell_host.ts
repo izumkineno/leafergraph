@@ -1,3 +1,10 @@
+/**
+ * 节点外壳宿主模块。
+ *
+ * @remarks
+ * 负责节点外壳渲染、缺失态回退和 resize 约束解析。
+ */
+
 import { Box, Group, Rect } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import type {

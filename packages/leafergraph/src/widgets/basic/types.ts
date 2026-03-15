@@ -1,3 +1,10 @@
+/**
+ * 基础 Widget 类型模块。
+ *
+ * @remarks
+ * 负责内建基础控件共享的生命周期状态、主题和辅助类型声明。
+ */
+
 import type { Rect, Text } from "leafer-ui";
 import type {
   LeaferGraphWidgetEntry,

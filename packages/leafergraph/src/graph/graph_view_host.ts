@@ -1,3 +1,10 @@
+/**
+ * 图视图宿主模块。
+ *
+ * @remarks
+ * 负责节点视图聚焦、坐标换算、视口适配和选中反馈的视图层能力。
+ */
+
 import type { App, Group } from "leafer-ui";
 import type { NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";

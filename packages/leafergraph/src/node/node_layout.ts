@@ -1,3 +1,10 @@
+/**
+ * 节点布局模块。
+ *
+ * @remarks
+ * 负责节点外壳、端口区和 Widget 区的尺寸与坐标计算。
+ */
+
 import type { NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphWidgetBounds } from "../api/plugin";
 import type { NodeShellPortLayout } from "./node_port";

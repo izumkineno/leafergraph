@@ -1,3 +1,10 @@
+/**
+ * 图画布宿主模块。
+ *
+ * @remarks
+ * 负责创建 Leafer App、根图层和视口基础配置。
+ */
+
 import { App, Group } from "leafer-ui";
 import { addViewport } from "@leafer-in/viewport";
 

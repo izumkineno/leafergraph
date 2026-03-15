@@ -1,7 +1,10 @@
 /**
- * 基础 Widget 统一度量常量。
- * 它们集中放在一处，便于后续统一调节组件密度和对齐规则。
+ * 基础 Widget 常量模块。
+ *
+ * @remarks
+ * 负责维护内建基础控件共享的尺寸、间距和视觉常量。
  */
+
 export const WIDGET_LABEL_Y = 2;
 export const WIDGET_FIELD_Y = 22;
 export const WIDGET_FIELD_MIN_HEIGHT = 34;

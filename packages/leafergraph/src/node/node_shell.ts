@@ -1,3 +1,10 @@
+/**
+ * 节点外壳视图模块。
+ *
+ * @remarks
+ * 负责节点卡片、标题区、信号灯和局部装饰图元的创建。
+ */
+
 import "@leafer-in/flow";
 import { Box, Group, Path, Rect, Text } from "leafer-ui";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./node_layout";

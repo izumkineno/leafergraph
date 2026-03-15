@@ -1,3 +1,10 @@
+/**
+ * 图启动装配宿主模块。
+ *
+ * @remarks
+ * 负责内建 Widget 注册、模块安装、插件安装以及启动期图恢复顺序。
+ */
+
 import * as NodeSDK from "@leafergraph/node";
 import {
   installNodeModule,
@@ -27,13 +34,27 @@ interface InstalledPluginRecord {
   widgetTypes: string[];
 }
 
+/**
+ * 启动装配宿主依赖的最小运行时能力。
+ *
+ * @remarks
+ * 启动宿主只关心“安装顺序”和“注册入口”，
+ * 真正的节点注册表、Widget 注册表与图恢复实现都通过外部注入，
+ * 这样既方便测试，也能避免启动层直接耦合到具体场景实现。
+ */
 interface LeaferGraphBootstrapHostOptions {
   nodeRegistry: NodeRegistry;
   widgetRegistry: LeaferGraphWidgetRegistry;
   restoreGraph(graph?: LeaferGraphOptions["graph"]): void;
 }
 
-/** 启动宿主对外暴露的最小运行时壳面。 */
+/**
+ * 启动宿主对外暴露的最小运行时壳面。
+ *
+ * @remarks
+ * 入口层只需要模块安装、插件安装、注册表读写和统一初始化这几类能力，
+ * 因此这里刻意不暴露更底层的场景、交互或渲染细节。
+ */
 export interface LeaferGraphBootstrapRuntimeLike {
   use(plugin: LeaferGraphNodePlugin): Promise<void>;
   installModule(
@@ -90,7 +111,15 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
     return installNodeModule(this.options.nodeRegistry, module, options);
   }
 
-  /** 安装一个外部节点插件。 */
+  /**
+   * 安装一个外部节点插件。
+   *
+   * @remarks
+   * 插件可以通过上下文继续安装节点模块、注册节点和注册 Widget，
+   * 宿主会同时记录它实际注册了哪些类型，方便调试和后续观测。
+   *
+   * @param plugin - 待安装的插件对象。
+   */
   async use(plugin: LeaferGraphNodePlugin): Promise<void> {
     this.ensureBuiltinWidgetsRegistered();
 
@@ -112,6 +141,7 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
       ui: LeaferUI,
       installModule: (module, options) => {
         const resolved = this.installModule(module, options);
+        // 这里的登记信息只用于可观测性，不参与正式注册流程本身。
         for (const node of resolved.nodes) {
           recordType(nodeTypes, node.type);
         }
@@ -132,6 +162,7 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
       listNodes: () => this.options.nodeRegistry.listNodes()
     };
 
+    // 插件既可以同步安装，也可以异步拉起自己的注册逻辑；这里统一 await 保证顺序稳定。
     await plugin.install(context);
 
     this.installedPlugins.set(plugin.name, {
@@ -145,18 +176,23 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
   /**
    * 执行启动期安装流程，然后恢复初始图数据。
    * 顺序保持为：内建 Widget -> 模块 -> 插件 -> 图恢复。
+   *
+   * @param options - 主包初始化配置。
    */
   async initialize(options: LeaferGraphOptions): Promise<void> {
     this.ensureBuiltinWidgetsRegistered();
 
+    // 模块优先进入注册表，后续插件才能安全查询并复用这些节点定义。
     for (const module of options.modules ?? []) {
       this.installModule(module);
     }
 
+    // 插件阶段允许继续注册 Widget、节点或二次安装模块。
     for (const plugin of options.plugins ?? []) {
       await this.use(plugin);
     }
 
+    // 等注册表完全就绪后再恢复图，避免启动时出现“节点已在图里，但类型还没注册”的半状态。
     this.options.restoreGraph(options.graph);
   }
 

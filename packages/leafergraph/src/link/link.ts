@@ -1,7 +1,10 @@
 /**
- * 端口方向常量。
- * 当前主包的连线控制柄会依据这个方向做贝塞尔外扩。
+ * 连线路径与几何工具模块。
+ *
+ * @remarks
+ * 负责连线端点、切线和路径数据的几何计算。
  */
+
 export const PORT_DIRECTION_LEFT = 1;
 export const PORT_DIRECTION_RIGHT = 2;
 export const PORT_DIRECTION_UP = 3;

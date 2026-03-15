@@ -1,3 +1,10 @@
+/**
+ * 基础 Widget 字段视图模块。
+ *
+ * @remarks
+ * 负责复用型字段底座、标签、焦点环和内容图元的封装。
+ */
+
 import type { Rect, Text } from "leafer-ui";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
 import {

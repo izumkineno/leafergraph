@@ -1,3 +1,10 @@
+/**
+ * Widget 生命周期工具模块。
+ *
+ * @remarks
+ * 负责把统一生命周期对象适配成主包可调度的 Widget renderer。
+ */
+
 import type { Box, Rect, Text } from "leafer-ui";
 import { LEAFER_GRAPH_WIDGET_HIT_AREA_NAME } from "./widget_interaction";
 import type {

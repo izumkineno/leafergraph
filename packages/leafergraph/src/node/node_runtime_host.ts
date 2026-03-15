@@ -1,3 +1,10 @@
+/**
+ * 节点运行时宿主模块。
+ *
+ * @remarks
+ * 负责节点快照、折叠态、尺寸约束和 Widget 动作回抛。
+ */
+
 import {
   createNodeApi,
   serializeNode,
@@ -15,6 +22,14 @@ type LeaferGraphRuntimeNodeViewState<
   state: TNodeState;
 };
 
+/**
+ * 节点运行时宿主依赖项。
+ *
+ * @remarks
+ * 节点运行时宿主只关心“节点层面的业务动作”：
+ * 取快照、折叠、查询 resize 约束、把 Widget 动作回抛给节点定义。
+ * 真正的场景刷新和尺寸更新仍通过 `sceneRuntime` 转发。
+ */
 interface LeaferGraphNodeRuntimeHostOptions<
   TNodeState extends LeaferGraphRenderableNodeState,
   TNodeViewState extends LeaferGraphRuntimeNodeViewState<TNodeState>
@@ -53,7 +68,12 @@ export class LeaferGraphNodeRuntimeHost<
     this.options = options;
   }
 
-  /** 读取一个正式可序列化节点快照。 */
+  /**
+   * 读取一个正式可序列化节点快照。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 正式节点快照；节点不存在时返回 `undefined`。
+   */
   getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined {
     const node = this.options.graphNodes.get(nodeId);
     if (!node) {
@@ -66,6 +86,10 @@ export class LeaferGraphNodeRuntimeHost<
   /**
    * 设置单个节点的折叠态。
    * 折叠后同步刷新节点壳与关联连线，避免端口锚点和可视高度失配。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param collapsed - 目标折叠态。
+   * @returns 是否成功应用折叠态。
    */
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
     const node = this.options.graphNodes.get(nodeId);
@@ -86,7 +110,12 @@ export class LeaferGraphNodeRuntimeHost<
     return true;
   }
 
-  /** 读取某个节点的正式 resize 约束。 */
+  /**
+   * 读取某个节点的正式 resize 约束。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 节点 resize 约束；节点不存在时返回 `undefined`。
+   */
   getNodeResizeConstraint(
     nodeId: string
   ): LeaferGraphNodeResizeConstraint | undefined {
@@ -98,7 +127,12 @@ export class LeaferGraphNodeRuntimeHost<
     return this.options.resolveNodeResizeConstraint(node);
   }
 
-  /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
+  /**
+   * 判断某个节点当前是否允许显示并响应 resize 交互。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 是否允许 resize。
+   */
   canResizeNode(nodeId: string): boolean {
     return Boolean(this.getNodeResizeConstraint(nodeId)?.enabled);
   }
@@ -106,6 +140,9 @@ export class LeaferGraphNodeRuntimeHost<
   /**
    * 把节点尺寸恢复到定义默认值。
    * 如果定义没有显式提供默认尺寸，则回退到主包默认约束。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 更新后的节点；无法恢复时返回 `undefined`。
    */
   resetNodeSize(nodeId: string): TNodeState | undefined {
     const constraint = this.getNodeResizeConstraint(nodeId);
@@ -122,6 +159,12 @@ export class LeaferGraphNodeRuntimeHost<
   /**
    * 把 Widget 触发的动作转回节点生命周期 `onAction(...)`。
    * 当前先提供最小桥接能力，便于自定义 Widget 把业务语义交回节点定义处理。
+   *
+   * @param nodeId - 动作来源节点 ID。
+   * @param action - 动作名。
+   * @param param - 动作参数。
+   * @param options - 额外动作元数据。
+   * @returns 是否成功命中节点定义里的 `onAction(...)`。
    */
   emitNodeWidgetAction(
     nodeId: string,
@@ -144,6 +187,7 @@ export class LeaferGraphNodeRuntimeHost<
       return false;
     }
 
+    // 这里显式通过 createNodeApi(...) 构造节点侧 API，保证节点定义拿到的是正式宿主入口而非裸状态对象。
     definition.onAction(
       node,
       safeAction,

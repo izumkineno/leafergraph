@@ -1,3 +1,10 @@
+/**
+ * 文本基础 Widget 模块。
+ *
+ * @remarks
+ * 负责 input 和 textarea 的显示、编辑请求与文本同步。
+ */
+
 import type {
   NodeTextWidgetOptions,
   NodeTextareaWidgetOptions

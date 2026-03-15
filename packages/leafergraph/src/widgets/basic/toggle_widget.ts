@@ -1,3 +1,10 @@
+/**
+ * toggle 基础 Widget 模块。
+ *
+ * @remarks
+ * 负责内建开关控件的渲染、状态同步和交互绑定。
+ */
+
 import type { Rect, Text } from "leafer-ui";
 import type { NodeToggleWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";

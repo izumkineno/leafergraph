@@ -1,3 +1,10 @@
+/**
+ * 主包公共 API 宿主模块。
+ *
+ * @remarks
+ * 负责把内部运行时壳面收敛成对外可调用的图、节点、连线和主题接口。
+ */
+
 import type { Box, Group } from "leafer-ui";
 import type {
   InstallNodeModuleOptions,

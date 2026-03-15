@@ -1,3 +1,10 @@
+/**
+ * slider 基础 Widget 模块。
+ *
+ * @remarks
+ * 负责内建滑块控件的范围计算、拖拽绑定和数值同步。
+ */
+
 import type { Rect, Text } from "leafer-ui";
 import type { NodeSliderWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";

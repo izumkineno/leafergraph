@@ -1,3 +1,10 @@
+/**
+ * 节点端口布局模块。
+ *
+ * @remarks
+ * 负责输入输出端口的布局、锚点和几何换算。
+ */
+
 import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
 import type { NodeShellLayoutMetrics } from "./node_layout";
 

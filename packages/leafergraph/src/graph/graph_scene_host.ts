@@ -1,3 +1,10 @@
+/**
+ * 图场景宿主模块。
+ *
+ * @remarks
+ * 负责节点视图、连线视图和 Widget 值写回的场景级桥接。
+ */
+
 import type { LeaferGraphLinkData, NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphWidgetRenderInstance } from "../api/plugin";
 
@@ -8,6 +15,13 @@ type LeaferGraphSceneNodeViewState<
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
 };
 
+/**
+ * 场景桥接层依赖的节点宿主能力。
+ *
+ * @remarks
+ * 这层只暴露“挂载、卸载、刷新”三个最小动作，
+ * 让场景桥接宿主不需要了解节点壳、Widget 区或交互绑定的内部细节。
+ */
 interface LeaferGraphSceneNodeHostLike<
   TNodeState extends NodeRuntimeState,
   TNodeViewState extends LeaferGraphSceneNodeViewState<TNodeState>
@@ -17,6 +31,12 @@ interface LeaferGraphSceneNodeHostLike<
   refreshNodeView(state: TNodeViewState): void;
 }
 
+/**
+ * 场景桥接层依赖的连线宿主能力。
+ *
+ * @remarks
+ * 节点和连线在主包内部由不同宿主维护，这里只关心连线能否被创建、移除和局部刷新。
+ */
 interface LeaferGraphSceneLinkHostLike<TLinkViewState> {
   mountLinkView(link: LeaferGraphLinkData): TLinkViewState | null;
   removeLink(linkId: string): boolean;
@@ -24,6 +44,12 @@ interface LeaferGraphSceneLinkHostLike<TLinkViewState> {
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void;
 }
 
+/**
+ * 场景桥接层依赖的 Widget 宿主能力。
+ *
+ * @remarks
+ * Widget 值写回会先命中这里，再由 Widget 宿主决定如何更新运行时值和 renderer 实例。
+ */
 interface LeaferGraphSceneWidgetHostLike<
   TNodeState extends NodeRuntimeState
 > {
@@ -35,6 +61,13 @@ interface LeaferGraphSceneWidgetHostLike<
   ): boolean;
 }
 
+/**
+ * 场景桥接宿主依赖项。
+ *
+ * @remarks
+ * 这一层本质上是对节点、连线、Widget 三个子宿主的薄封装，
+ * 同时持有 `nodeViews` 映射，用来把 `nodeId` 快速解析回节点视图状态。
+ */
 interface LeaferGraphSceneHostOptions<
   TNodeState extends NodeRuntimeState,
   TNodeViewState extends LeaferGraphSceneNodeViewState<TNodeState>,
@@ -70,42 +103,84 @@ export class LeaferGraphSceneHost<
     this.options = options;
   }
 
-  /** 将节点状态挂入节点层，并建立拖拽与视图映射。 */
+  /**
+   * 将节点状态挂入节点层，并建立拖拽与视图映射。
+   *
+   * @param node - 待挂载的节点运行时状态。
+   * @returns 对应的节点视图状态。
+   */
   mountNodeView(node: TNodeState): TNodeViewState {
     return this.options.nodeHost.mountNodeView(node);
   }
 
-  /** 卸载一个节点视图，同时安全销毁内部 widget 实例。 */
+  /**
+   * 卸载一个节点视图，同时安全销毁内部 widget 实例。
+   *
+   * @param nodeId - 待卸载节点 ID。
+   * @returns 被移除的节点视图状态；节点不存在时返回 `undefined`。
+   */
   unmountNodeView(nodeId: string): TNodeViewState | undefined {
     return this.options.nodeHost.unmountNodeView(nodeId);
   }
 
-  /** 在同一个根 Group 内重建节点壳内容。 */
+  /**
+   * 在同一个根 Group 内重建节点壳内容。
+   *
+   * @param state - 待刷新的节点视图状态。
+   */
   refreshNodeView(state: TNodeViewState): void {
     this.options.nodeHost.refreshNodeView(state);
   }
 
-  /** 将连线状态和连线视图一起挂入当前图。 */
+  /**
+   * 将连线状态和连线视图一起挂入当前图。
+   *
+   * @param link - 待挂载的正式连线数据。
+   * @returns 连线视图状态；若创建失败则返回 `null`。
+   */
   mountLinkView(link: LeaferGraphLinkData): TLinkViewState | null {
     return this.options.linkHost.mountLinkView(link);
   }
 
-  /** 移除一条连线的图状态和视图。 */
+  /**
+   * 移除一条连线的图状态和视图。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 是否成功移除。
+   */
   removeLink(linkId: string): boolean {
     return this.options.linkHost.removeLink(linkId);
   }
 
-  /** 只更新与某个节点相连的连线，避免全量重算。 */
+  /**
+   * 只更新与某个节点相连的连线，避免全量重算。
+   *
+   * @param nodeId - 连线刷新要围绕的节点 ID。
+   */
   updateConnectedLinks(nodeId: string): void {
     this.options.linkHost.updateConnectedLinks(nodeId);
   }
 
-  /** 批量刷新与一组节点相关的连线。 */
+  /**
+   * 批量刷新与一组节点相关的连线。
+   *
+   * @param nodeIds - 参与刷新的一组节点 ID。
+   */
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void {
     this.options.linkHost.updateConnectedLinksForNodes(nodeIds);
   }
 
-  /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
+  /**
+   * 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。
+   *
+   * @remarks
+   * 这条路径只负责把 `nodeId` 解析成节点视图状态，
+   * 真正的值回写和 renderer.update 调度仍交给 Widget 宿主完成。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - 节点内部 Widget 索引。
+   * @param newValue - 待写回的新值。
+   */
   setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
     const state = this.options.nodeViews.get(nodeId);
     if (!state) {

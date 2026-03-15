@@ -1,3 +1,10 @@
+/**
+ * 右键菜单基础设施模块。
+ *
+ * @remarks
+ * 负责 Leafer 菜单事件归一化、DOM 菜单挂载与上下文菜单渲染。
+ */
+
 import { PointerEvent as LeaferPointerEvent, type App } from "leafer-ui";
 
 /**

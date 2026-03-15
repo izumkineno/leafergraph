@@ -1,3 +1,10 @@
+/**
+ * 连线宿主模块。
+ *
+ * @remarks
+ * 负责连线视图创建、移除与节点联动后的路径刷新。
+ */
+
 import type { Group } from "leafer-ui";
 import { Arrow } from "@leafer-in/arrow";
 import type { LeaferGraphLinkData, NodeRuntimeState } from "@leafergraph/node";

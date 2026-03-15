@@ -1,3 +1,10 @@
+/**
+ * 基础 Widget 主题模块。
+ *
+ * @remarks
+ * 负责亮色和暗色两套基础控件主题 token。
+ */
+
 import type { LeaferGraphThemeMode } from "../../api/plugin";
 import type { BasicWidgetTheme } from "./types";
 

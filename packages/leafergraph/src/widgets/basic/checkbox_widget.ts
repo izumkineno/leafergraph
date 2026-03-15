@@ -1,3 +1,10 @@
+/**
+ * checkbox 基础 Widget 模块。
+ *
+ * @remarks
+ * 负责内建复选框控件的渲染、状态同步和交互绑定。
+ */
+
 import type { Rect, Text, Path } from "leafer-ui";
 import type { NodeCheckboxWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";

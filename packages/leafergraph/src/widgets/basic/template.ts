@@ -1,3 +1,10 @@
+/**
+ * 基础 Widget 生命周期模板模块。
+ *
+ * @remarks
+ * 负责为内建控件提供可复用的生命周期控制基类与通用工具。
+ */
+
 import type {
   NodeBaseWidgetOptions,
   NodeRuntimeState,

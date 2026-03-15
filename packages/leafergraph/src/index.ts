@@ -1,3 +1,11 @@
+/**
+ * @packageDocumentation
+ * leafergraph 主包公共入口。
+ *
+ * @remarks
+ * 负责导出公共 API、公共类型与宿主工厂，并把包级文档锚定到入口文件。
+ */
+
 import type { App, Group } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import "@leafer-in/flow";

@@ -1,3 +1,10 @@
+/**
+ * 只读基础 Widget 模块。
+ *
+ * @remarks
+ * 负责 number、string 和 custom 等只读字段样式的统一实现。
+ */
+
 import type { NodeBaseWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
 import { bindPressWidgetInteraction } from "../widget_interaction";

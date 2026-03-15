@@ -1,3 +1,10 @@
+/**
+ * 图变更宿主模块。
+ *
+ * @remarks
+ * 负责节点与连线的正式增删改移，并把结果同步到场景宿主。
+ */
+
 import {
   configureNode,
   createNodeState,
@@ -36,6 +43,17 @@ type LeaferGraphMutableNodeViewState<
   };
 };
 
+/**
+ * 图变更宿主依赖的场景桥接能力。
+ *
+ * @remarks
+ * 图变更宿主只维护“节点和连线如何进入正式状态容器”，
+ * 真正的节点视图挂载、连线重算和渲染请求都交给外部宿主回调处理，
+ * 这样可以让变更逻辑保持纯净，同时避免直接耦合到某一层 UI 实现。
+ *
+ * @typeParam TNodeState - 图运行时中的节点状态。
+ * @typeParam TNodeViewState - 节点在场景层对应的视图状态。
+ */
 interface LeaferGraphMutationHostOptions<
   TNodeState extends LeaferGraphMutableNodeState,
   TNodeViewState extends LeaferGraphMutableNodeViewState<TNodeState>
@@ -73,6 +91,7 @@ export function normalizeGraphLinkData(
   link: LeaferGraphCreateLinkInput
 ): LeaferGraphLinkData {
   return {
+    // 连线数据一进入运行时就会被复制，避免调用方继续持有原对象后绕过正式 API 修改。
     id: link.id?.trim() || createGraphLinkId(link),
     source: {
       nodeId: link.source.nodeId,
@@ -87,7 +106,19 @@ export function normalizeGraphLinkData(
   };
 }
 
-/** 图变更宿主，集中收口节点与连线的正式增删改移逻辑。 */
+/**
+ * 图变更宿主。
+ *
+ * @remarks
+ * 这是节点、连线正式增删改移的单一收口点：
+ * 1. 创建和删除节点
+ * 2. 更新节点内容与布局
+ * 3. 节点移动与尺寸调整
+ * 4. 连线创建与删除
+ * 5. 多选拖拽时的批量坐标回写
+ *
+ * 它不直接操心右键菜单、拖拽手势等 editor 行为，只负责把输入稳定收敛为主包运行时状态。
+ */
 export class LeaferGraphMutationHost<
   TNodeState extends LeaferGraphMutableNodeState,
   TNodeViewState extends LeaferGraphMutableNodeViewState<TNodeState>
@@ -103,7 +134,12 @@ export class LeaferGraphMutationHost<
     this.options = options;
   }
 
-  /** 根据节点 ID 查询当前图中的所有关联连线。 */
+  /**
+   * 根据节点 ID 查询当前图中的所有关联连线。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 一组安全副本；调用方修改返回值不会污染内部连线状态。
+   */
   findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
     const links: LeaferGraphLinkData[] = [];
 
@@ -116,7 +152,12 @@ export class LeaferGraphMutationHost<
     return links;
   }
 
-  /** 创建一个新的节点实例并立即挂到主包场景中。 */
+  /**
+   * 创建一个新的节点实例并立即挂到主包场景中。
+   *
+   * @param input - editor 或外部调用方提供的节点创建输入。
+   * @returns 刚创建完成的节点运行时状态。
+   */
   createNode(input: LeaferGraphCreateNodeInput): TNodeState {
     const node = this.createGraphNodeState(input);
 
@@ -130,7 +171,12 @@ export class LeaferGraphMutationHost<
     return node;
   }
 
-  /** 删除一个节点，并同步清理它的全部关联连线与视图。 */
+  /**
+   * 删除一个节点，并同步清理它的全部关联连线与视图。
+   *
+   * @param nodeId - 待删除节点 ID。
+   * @returns 是否真的删除了节点；节点不存在时返回 `false`。
+   */
   removeNode(nodeId: string): boolean {
     if (!this.options.graphNodes.has(nodeId)) {
       return false;
@@ -151,6 +197,10 @@ export class LeaferGraphMutationHost<
    * 更新一个既有节点的静态内容与布局。
    * 这一轮先保持边界清晰：允许更新标题、布局、属性、槽位与 widget，
    * 但不在这里处理“节点 ID / 类型切换”这类结构性重建。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param input - 待合并到节点上的补丁。
+   * @returns 更新后的节点；节点不存在时返回 `undefined`。
    */
   updateNode(
     nodeId: string,
@@ -191,7 +241,13 @@ export class LeaferGraphMutationHost<
     return node;
   }
 
-  /** 移动一个节点到新的图坐标。 */
+  /**
+   * 移动一个节点到新的图坐标。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param position - 新的图坐标。
+   * @returns 目标节点；若节点不存在则返回 `undefined`。
+   */
   moveNode(
     nodeId: string,
     position: LeaferGraphMoveNodeInput
@@ -214,6 +270,10 @@ export class LeaferGraphMutationHost<
    * 调整一个节点的显式宽高。
    * 当前不做整体缩放，而是直接修改布局尺寸并局部重建节点壳，
    * 以保持端口、Widget 和连线锚点语义稳定。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param size - 希望应用到节点上的宽高。
+   * @returns 目标节点；若节点不存在则返回 `undefined`。
    */
   resizeNode(
     nodeId: string,
@@ -237,6 +297,7 @@ export class LeaferGraphMutationHost<
     let nextHeight = coerceFiniteNumber(size.height, currentHeight);
 
     if (constraint.lockRatio) {
+      // 优先跟随变化更明显的那一条边，避免同时给宽高时出现不稳定的“拉伸抖动”。
       const ratio =
         constraint.defaultHeight > 0
           ? constraint.defaultWidth / constraint.defaultHeight
@@ -254,6 +315,7 @@ export class LeaferGraphMutationHost<
       }
     }
 
+    // 先做尺寸吸附，再做上下界钳制，这样最终结果更符合“网格吸附后再受约束”的直觉。
     nextWidth = snapToStep(nextWidth, constraint.snap);
     nextHeight = snapToStep(nextHeight, constraint.snap);
 
@@ -283,6 +345,9 @@ export class LeaferGraphMutationHost<
   /**
    * 创建一条正式连线并加入当前图状态。
    * 连线端点必须指向已存在的节点，否则直接抛错，避免悄悄生成半无效状态。
+   *
+   * @param input - 连线创建输入。
+   * @returns 对外暴露的连线安全副本。
    */
   createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
     const link = normalizeGraphLinkData(input);
@@ -299,6 +364,7 @@ export class LeaferGraphMutationHost<
       throw new Error(`连线终点节点不存在：${link.target.nodeId}`);
     }
 
+    // 挂载连线视图时会同步把连线登记进内部容器；这里拿不到视图就视为创建失败。
     const state = this.options.mountLinkView(link);
     if (!state) {
       throw new Error(`无法创建连线视图：${link.id}`);
@@ -308,7 +374,12 @@ export class LeaferGraphMutationHost<
     return cloneGraphLinkData(link);
   }
 
-  /** 删除一条既有连线。 */
+  /**
+   * 删除一条既有连线。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 是否成功删除。
+   */
   removeLink(linkId: string): boolean {
     const removed = this.options.removeLinkInternal(linkId);
 
@@ -322,6 +393,10 @@ export class LeaferGraphMutationHost<
   /**
    * 按位移量批量移动一组选中节点，并保留它们的相对布局。
    * 该逻辑仅负责拖拽链路使用，避免 editor 为多选拖拽重复维护一套节点同步协议。
+   *
+   * @param positions - 拖拽开始时记录的节点起始位置。
+   * @param deltaX - 当前拖拽相对起点的横向位移。
+   * @param deltaY - 当前拖拽相对起点的纵向位移。
    */
   moveNodesByDelta(
     positions: readonly GraphDragNodePosition[],
@@ -352,6 +427,10 @@ export class LeaferGraphMutationHost<
   /**
    * 只回写节点坐标本身，不直接触发整批渲染。
    * `moveNode(...)` 和多选拖拽都会先走这条最小路径，再决定是否统一刷新连线。
+   *
+   * @param nodeId - 待移动节点 ID。
+   * @param position - 新坐标。
+   * @returns 是否真的发生了坐标变化。
    */
   private moveNodeInternally(
     nodeId: string,
@@ -380,7 +459,13 @@ export class LeaferGraphMutationHost<
     return true;
   }
 
-  /** 把节点补丁中的坐标与尺寸字段整理成 `configureNode()` 可消费的布局结构。 */
+  /**
+   * 把节点补丁中的坐标与尺寸字段整理成 `configureNode()` 可消费的布局结构。
+   *
+   * @remarks
+   * 主包 API 继续保留扁平的 `x / y / width / height` 写法，
+   * 这里负责把它们收敛回正式节点布局结构。
+   */
   private resolvePatchedNodeLayout(
     node: TNodeState,
     input: LeaferGraphUpdateNodeInput
@@ -402,7 +487,13 @@ export class LeaferGraphMutationHost<
     };
   }
 
-  /** 合并当前属性和外部补丁，保证展示层属性仍能走正式更新链路。 */
+  /**
+   * 合并当前属性和外部补丁，保证展示层属性仍能走正式更新链路。
+   *
+   * @remarks
+   * `subtitle / accent / category / status` 这类展示字段虽然历史上经常在顶层透传，
+   * 但当前已经统一收进 `properties`，这里负责兼容主包便捷输入并写回正式结构。
+   */
   private resolvePatchedNodeProperties(
     node: TNodeState,
     input: LeaferGraphUpdateNodeInput
@@ -428,7 +519,13 @@ export class LeaferGraphMutationHost<
     return properties;
   }
 
-  /** 解析节点 Widget 补丁。 */
+  /**
+   * 解析节点 Widget 补丁。
+   *
+   * @remarks
+   * 当前阶段 Widget 更新采取“整组替换”策略，不在图变更宿主里做细粒度 diff，
+   * 让 Widget 生命周期和节点配置职责保持分离。
+   */
   private resolvePatchedNodeWidgets(
     node: TNodeState,
     input: LeaferGraphUpdateNodeInput
@@ -437,7 +534,13 @@ export class LeaferGraphMutationHost<
     return input.widgets;
   }
 
-  /** 将页面层节点输入转换为真正的节点运行时实例。 */
+  /**
+   * 将页面层节点输入转换为真正的节点运行时实例。
+   *
+   * @remarks
+   * 这条路径专门服务主包对外暴露的 `createNode(...)` 便捷 API，
+   * 它会把扁平输入整理成正式节点结构，然后交给 `createNodeState(...)` 统一归一化。
+   */
   private createGraphNodeState(node: LeaferGraphCreateNodeInput): TNodeState {
     const type = node.type?.trim();
     if (!type) {

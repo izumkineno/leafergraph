@@ -1,3 +1,10 @@
+/**
+ * 图交互运行时宿主模块。
+ *
+ * @remarks
+ * 负责把拖拽、缩放、折叠和焦点相关能力收敛成交互层可消费的壳面。
+ */
+
 import type { NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";

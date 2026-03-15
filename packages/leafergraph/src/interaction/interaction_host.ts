@@ -1,3 +1,10 @@
+/**
+ * 图交互宿主模块。
+ *
+ * @remarks
+ * 负责节点拖拽、节点缩放、折叠按钮和窗口级指针生命周期管理。
+ */
+
 import type { Group } from "leafer-ui";
 import type { NodeRuntimeState } from "@leafergraph/node";
 import type {

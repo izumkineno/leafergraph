@@ -1,3 +1,10 @@
+/**
+ * 图运行时类型模块。
+ *
+ * @remarks
+ * 负责声明主包内部节点、连线和图状态容器所需的共享类型。
+ */
+
 import type { LeaferGraphLinkData, NodeRuntimeState } from "@leafergraph/node";
 import type { GraphLinkViewState as LeaferGraphLinkHostViewState } from "../link/link_host";
 import type { NodeViewState as LeaferGraphNodeHostViewState } from "../node/node_host";

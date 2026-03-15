@@ -1,3 +1,10 @@
+/**
+ * Widget 交互工具模块。
+ *
+ * @remarks
+ * 负责 Widget 命中识别、按压交互和线性拖拽绑定。
+ */
+
 import type { Group } from "leafer-ui";
 import type { LeaferGraphWidgetBounds } from "../api/plugin";
 

@@ -1,3 +1,10 @@
+/**
+ * Widget 注册表模块。
+ *
+ * @remarks
+ * 负责主包唯一 Widget 条目的注册、查询和 renderer 归一化。
+ */
+
 import type {
   RegisterWidgetOptions,
   WidgetDefinition,

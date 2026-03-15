@@ -1,3 +1,10 @@
+/**
+ * Widget 宿主模块。
+ *
+ * @remarks
+ * 负责节点内部 Widget 渲染、增量更新、销毁和缺失态回退。
+ */
+
 import { Box } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import type { NodeRuntimeState } from "@leafergraph/node";
@@ -21,7 +28,13 @@ export interface LeaferGraphWidgetLayoutItem {
   };
 }
 
-/** Widget 宿主实例化时需要的回调能力。 */
+/**
+ * Widget 宿主实例化时需要的回调能力。
+ *
+ * @remarks
+ * Widget 宿主本身不持有图状态和主题状态，
+ * 这些能力全部由外部宿主在构造时注入，避免 Widget 层反向依赖整个图运行时。
+ */
 interface LeaferGraphWidgetHostOptions {
   registry: LeaferGraphWidgetRegistry;
   getTheme(): LeaferGraphWidgetThemeContext;
@@ -50,7 +63,18 @@ export class LeaferGraphWidgetHost {
     this.options = options;
   }
 
-  /** 渲染一个节点的全部 widgets。 */
+  /**
+   * 渲染一个节点的全部 widgets。
+   *
+   * @remarks
+   * 这里会为每个 Widget 创建一个独立的 `Box` 作为挂载容器，
+   * 然后从正式 Widget 注册表中解析 renderer 并执行首次 mount。
+   *
+   * @param node - 当前节点运行时状态。
+   * @param widgetLayer - 节点内部承载 Widget 的图层。
+   * @param layoutItems - 节点布局模块计算出的 Widget 布局信息。
+   * @returns 与节点 Widget 顺序对齐的 renderer 实例列表。
+   */
   renderNodeWidgets(
     node: NodeRuntimeState,
     widgetLayer: Box,
@@ -73,6 +97,7 @@ export class LeaferGraphWidgetHost {
         height,
         resizeChildren: false
       });
+      // renderer 会在注册时统一归一化；这里直接拿正式 renderer 即可。
       const renderer = this.options.registry.resolveRenderer(widget.type);
       const instance = renderer({
         ui: LeaferUI,
@@ -90,6 +115,7 @@ export class LeaferGraphWidgetHost {
           height
         },
         setValue: (newValue) => {
+          // Widget 不能直接写 graphNodes，而是统一走场景运行时的值回写入口。
           this.options.setNodeWidgetValue(node.id, index, newValue);
         },
         requestRender: () => {
@@ -106,13 +132,22 @@ export class LeaferGraphWidgetHost {
       });
 
       instances.push(instance ?? null);
+      // 每个 Widget 各自维护独立 group，方便局部销毁和后续 update。
       widgetLayer.add(group);
     }
 
     return instances;
   }
 
-  /** 更新某个节点 widget 的值，并触发对应 renderer 的增量更新。 */
+  /**
+   * 更新某个节点 widget 的值，并触发对应 renderer 的增量更新。
+   *
+   * @param node - 目标节点。
+   * @param widgetIndex - Widget 索引。
+   * @param newValue - 待写回的新值。
+   * @param widgetInstances - 当前节点的 Widget renderer 实例列表。
+   * @returns 是否成功更新。
+   */
   updateNodeWidgetValue(
     node: NodeRuntimeState,
     widgetIndex: number,
@@ -130,7 +165,16 @@ export class LeaferGraphWidgetHost {
     return true;
   }
 
-  /** 销毁一个节点上已经挂载的全部 widget 实例。 */
+  /**
+   * 销毁一个节点上已经挂载的全部 widget 实例。
+   *
+   * @remarks
+   * destroy 顺序先走 renderer 生命周期，再清空 Widget 图层，
+   * 避免某些 renderer 在 destroy 时还需要访问自己创建过的图元。
+   *
+   * @param widgetInstances - 当前节点的 Widget renderer 实例。
+   * @param widgetLayer - 当前节点的 Widget 图层。
+   */
   destroyNodeWidgets(
     widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>,
     widgetLayer: Box
@@ -150,6 +194,7 @@ export class LeaferGraphWidgetHost {
  */
 export function createMissingWidgetRenderer(): LeaferGraphWidgetRenderer {
   return (context) => {
+    // 缺失 Widget 时保留明确可见的红色占位，帮助调试“图数据存在但类型未注册”的场景。
     const surface = new LeaferUI.Rect({
       width: context.bounds.width,
       height: context.bounds.height,
