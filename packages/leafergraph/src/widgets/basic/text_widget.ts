@@ -5,8 +5,8 @@ import type {
 import type {
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetTextEditRequest
-} from "../../plugin";
-import { bindPressWidgetInteraction } from "../../widget_interaction";
+} from "../../api/plugin";
+import { bindPressWidgetInteraction } from "../widget_interaction";
 import {
   WIDGET_FIELD_FONT_SIZE,
   WIDGET_FIELD_MIN_HEIGHT,

@@ -3,12 +3,12 @@ import type {
   WidgetDefinition,
   WidgetDefinitionReader
 } from "@leafergraph/node";
-import { createWidgetLifecycleRenderer } from "./widgets/widget_lifecycle";
+import { createWidgetLifecycleRenderer } from "./widget_lifecycle";
 import type {
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetRendererLike
-} from "./plugin";
+} from "../api/plugin";
 
 /**
  * 注册后的 Widget 条目。

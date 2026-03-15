@@ -1,4 +1,4 @@
-import type { LeaferGraphThemeMode } from "../../plugin";
+import type { LeaferGraphThemeMode } from "../../api/plugin";
 import type { BasicWidgetTheme } from "./types";
 
 /**

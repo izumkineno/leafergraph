@@ -1,10 +1,10 @@
 import type { Path } from "leafer-ui";
 import type { NodeOptionWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../plugin";
+import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
 import {
   bindPressWidgetInteraction,
   type LeaferGraphWidgetPointerEvent
-} from "../../widget_interaction";
+} from "../widget_interaction";
 import { WIDGET_FIELD_Y } from "./constants";
 import { WidgetFieldView } from "./field_view";
 import { BasicWidgetController, runtimeRequestRender } from "./template";

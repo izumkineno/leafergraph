@@ -1,7 +1,7 @@
 import type { Rect, Text } from "leafer-ui";
 import type { NodeSliderWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../plugin";
-import { bindLinearWidgetDrag } from "../../widget_interaction";
+import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
+import { bindLinearWidgetDrag } from "../widget_interaction";
 import {
   createWidgetFieldSurface,
   createWidgetFocusRing,

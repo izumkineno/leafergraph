@@ -4,7 +4,7 @@ import type {
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetThemeTokens
-} from "../../plugin";
+} from "../../api/plugin";
 
 /**
  * 基础 Widget 主题直接复用主包公开的 token。

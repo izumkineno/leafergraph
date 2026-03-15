@@ -1,11 +1,11 @@
 import type { Box, Rect, Text } from "leafer-ui";
-import { LEAFER_GRAPH_WIDGET_HIT_AREA_NAME } from "../widget_interaction";
+import { LEAFER_GRAPH_WIDGET_HIT_AREA_NAME } from "./widget_interaction";
 import type {
   LeaferGraphWidgetThemeTokens,
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetRendererContext
-} from "../plugin";
+} from "../api/plugin";
 
 /**
  * Widget 标题文本的创建参数。

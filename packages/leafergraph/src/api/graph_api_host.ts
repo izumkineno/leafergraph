@@ -1,0 +1,276 @@
+import type { Box, Group } from "leafer-ui";
+import type {
+  InstallNodeModuleOptions,
+  LeaferGraphLinkData,
+  NodeDefinition,
+  NodeModule,
+  NodeSerializeResult,
+  RegisterNodeOptions,
+  RegisterWidgetOptions
+} from "@leafergraph/node";
+import type {
+  LeaferGraphNodePlugin,
+  LeaferGraphOptions,
+  LeaferGraphThemeMode,
+  LeaferGraphWidgetEntry,
+  LeaferGraphWidgetRenderInstance
+} from "./plugin";
+import type {
+  LeaferGraphCreateLinkInput,
+  LeaferGraphCreateNodeInput,
+  LeaferGraphMoveNodeInput,
+  LeaferGraphNodeResizeConstraint,
+  LeaferGraphResizeNodeInput,
+  LeaferGraphUpdateNodeInput
+} from "./graph_api_types";
+import type { LeaferGraphRenderableNodeState } from "../graph/graph_runtime_types";
+import type { LeaferGraphBootstrapRuntimeLike } from "../graph/graph_bootstrap_host";
+import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
+
+type LeaferGraphApiNodeViewState<
+  TNodeState extends LeaferGraphRenderableNodeState
+> = {
+  state: TNodeState;
+  view: Group;
+  widgetLayer: Box;
+  widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
+};
+
+/**
+ * 主包公共 API 所依赖的最小运行时壳面。
+ * 它刻意只暴露 facade 真正需要的方法，避免入口层继续感知全部内部宿主实例。
+ */
+export interface LeaferGraphApiRuntime<
+  TNodeState extends LeaferGraphRenderableNodeState
+> {
+  app: {
+    destroy(): void;
+  };
+  bootstrapRuntime: LeaferGraphBootstrapRuntimeLike;
+  widgetEditingManager: {
+    destroy(): void;
+  };
+  sceneRuntime: Pick<
+    LeaferGraphSceneRuntimeHost<TNodeState, LeaferGraphApiNodeViewState<TNodeState>>,
+    | "setNodeWidgetValue"
+    | "findLinksByNode"
+    | "createNode"
+    | "removeNode"
+    | "updateNode"
+    | "moveNode"
+    | "resizeNode"
+    | "createLink"
+    | "removeLink"
+  >;
+  interactionHost: {
+    destroy(): void;
+  };
+  nodeRuntimeHost: {
+    getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined;
+    setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
+    getNodeResizeConstraint(
+      nodeId: string
+    ): LeaferGraphNodeResizeConstraint | undefined;
+    canResizeNode(nodeId: string): boolean;
+    resetNodeSize(nodeId: string): TNodeState | undefined;
+  };
+  themeHost: {
+    setThemeMode(mode: LeaferGraphThemeMode): void;
+  };
+  viewHost: {
+    fitView(padding: number): boolean;
+    setNodeSelected(nodeId: string, selected: boolean): boolean;
+  };
+  widgetHost: {
+    destroyNodeWidgets(
+      widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>,
+      widgetLayer: Box
+    ): void;
+  };
+}
+
+interface LeaferGraphApiHostOptions<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>
+> {
+  runtime: LeaferGraphApiRuntime<TNodeState>;
+  nodeViews: Map<string, TNodeViewState>;
+}
+
+/**
+ * 主包公共 API facade。
+ * 当前集中承接：
+ * 1. 插件、节点与 Widget 注册相关公共入口
+ * 2. 视图控制、主题控制与节点快照查询
+ * 3. 节点/连线正式变更 API
+ * 4. 宿主销毁时的统一清理顺序
+ */
+export class LeaferGraphApiHost<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>
+> {
+  private readonly options: LeaferGraphApiHostOptions<TNodeState, TNodeViewState>;
+
+  constructor(options: LeaferGraphApiHostOptions<TNodeState, TNodeViewState>) {
+    this.options = options;
+  }
+
+  /** 执行启动期安装流程并恢复初始图数据。 */
+  initialize(options: LeaferGraphOptions): Promise<void> {
+    return this.options.runtime.bootstrapRuntime.initialize(options);
+  }
+
+  /** 销毁宿主实例，并清理全部全局事件与 widget 生命周期。 */
+  destroy(): void {
+    for (const state of this.options.nodeViews.values()) {
+      this.options.runtime.widgetHost.destroyNodeWidgets(
+        state.widgetInstances,
+        state.widgetLayer
+      );
+    }
+
+    this.options.runtime.interactionHost.destroy();
+    this.options.runtime.widgetEditingManager.destroy();
+    this.options.runtime.app.destroy();
+  }
+
+  /** 安装一个外部节点插件。 */
+  async use(plugin: LeaferGraphNodePlugin): Promise<void> {
+    return this.options.runtime.bootstrapRuntime.use(plugin);
+  }
+
+  /** 安装一个静态节点模块。 */
+  installModule(module: NodeModule, options?: InstallNodeModuleOptions): void {
+    this.options.runtime.bootstrapRuntime.installModule(module, options);
+  }
+
+  /** 注册单个节点定义。 */
+  registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void {
+    this.options.runtime.bootstrapRuntime.registerNode(definition, options);
+  }
+
+  /** 注册单个完整 Widget 条目。 */
+  registerWidget(entry: LeaferGraphWidgetEntry, options?: RegisterWidgetOptions): void {
+    this.options.runtime.bootstrapRuntime.registerWidget(entry, options);
+  }
+
+  /** 读取单个 Widget 条目。 */
+  getWidget(type: string): LeaferGraphWidgetEntry | undefined {
+    return this.options.runtime.bootstrapRuntime.getWidget(type);
+  }
+
+  /** 列出当前已注册 Widget。 */
+  listWidgets(): LeaferGraphWidgetEntry[] {
+    return this.options.runtime.bootstrapRuntime.listWidgets();
+  }
+
+  /** 运行时切换主包主题，并局部刷新现有节点壳与 Widget。 */
+  setThemeMode(mode: LeaferGraphThemeMode): void {
+    this.options.runtime.themeHost.setThemeMode(mode);
+  }
+
+  /** 列出当前已注册节点。 */
+  listNodes(): NodeDefinition[] {
+    return this.options.runtime.bootstrapRuntime.listNodes();
+  }
+
+  /** 获取某个节点对应的 Leafer 视图宿主，便于挂接节点级交互。 */
+  getNodeView(nodeId: string): Group | undefined {
+    return this.options.nodeViews.get(nodeId)?.view;
+  }
+
+  /** 让当前画布内容适配到可视区域内。 */
+  fitView(padding: number): boolean {
+    return this.options.runtime.viewHost.fitView(padding);
+  }
+
+  /** 读取一个正式可序列化节点快照。 */
+  getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined {
+    return this.options.runtime.nodeRuntimeHost.getNodeSnapshot(nodeId);
+  }
+
+  /** 设置单个节点的选中态。 */
+  setNodeSelected(nodeId: string, selected: boolean): boolean {
+    return this.options.runtime.viewHost.setNodeSelected(nodeId, selected);
+  }
+
+  /** 设置单个节点的折叠态。 */
+  setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
+    return this.options.runtime.nodeRuntimeHost.setNodeCollapsed(nodeId, collapsed);
+  }
+
+  /** 读取某个节点的正式 resize 约束。 */
+  getNodeResizeConstraint(
+    nodeId: string
+  ): LeaferGraphNodeResizeConstraint | undefined {
+    return this.options.runtime.nodeRuntimeHost.getNodeResizeConstraint(nodeId);
+  }
+
+  /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
+  canResizeNode(nodeId: string): boolean {
+    return this.options.runtime.nodeRuntimeHost.canResizeNode(nodeId);
+  }
+
+  /** 把节点尺寸恢复到定义默认值。 */
+  resetNodeSize(nodeId: string): TNodeState | undefined {
+    return this.options.runtime.nodeRuntimeHost.resetNodeSize(nodeId);
+  }
+
+  /** 根据节点 ID 查询当前图中的所有关联连线。 */
+  findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
+    return this.options.runtime.sceneRuntime.findLinksByNode(nodeId);
+  }
+
+  /** 创建一个新的节点实例并立即挂到主包场景中。 */
+  createNode(input: LeaferGraphCreateNodeInput): TNodeState {
+    return this.options.runtime.sceneRuntime.createNode(input);
+  }
+
+  /** 删除一个节点，并同步清理它的全部关联连线与视图。 */
+  removeNode(nodeId: string): boolean {
+    return this.options.runtime.sceneRuntime.removeNode(nodeId);
+  }
+
+  /** 更新一个既有节点的静态内容与布局。 */
+  updateNode(
+    nodeId: string,
+    input: LeaferGraphUpdateNodeInput
+  ): TNodeState | undefined {
+    return this.options.runtime.sceneRuntime.updateNode(nodeId, input);
+  }
+
+  /** 移动一个节点到新的图坐标。 */
+  moveNode(
+    nodeId: string,
+    position: LeaferGraphMoveNodeInput
+  ): TNodeState | undefined {
+    return this.options.runtime.sceneRuntime.moveNode(nodeId, position);
+  }
+
+  /** 调整一个节点的显式宽高。 */
+  resizeNode(
+    nodeId: string,
+    size: LeaferGraphResizeNodeInput
+  ): TNodeState | undefined {
+    return this.options.runtime.sceneRuntime.resizeNode(nodeId, size);
+  }
+
+  /** 创建一条正式连线并加入当前图状态。 */
+  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
+    return this.options.runtime.sceneRuntime.createLink(input);
+  }
+
+  /** 删除一条既有连线。 */
+  removeLink(linkId: string): boolean {
+    return this.options.runtime.sceneRuntime.removeLink(linkId);
+  }
+
+  /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
+  setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
+    this.options.runtime.sceneRuntime.setNodeWidgetValue(
+      nodeId,
+      widgetIndex,
+      newValue
+    );
+  }
+}

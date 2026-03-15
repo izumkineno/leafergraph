@@ -3,10 +3,9 @@ import {
   createNodeState,
   type LeaferGraphLinkData,
   type NodeRegistry,
-  type NodeRuntimeState,
   type NodeSlotSpec
 } from "@leafergraph/node";
-import type { GraphDragNodePosition } from "./interaction_host";
+import type { GraphDragNodePosition } from "../interaction/graph_interaction_runtime_host";
 import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
@@ -15,22 +14,17 @@ import type {
   LeaferGraphNodeSlotInput,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "./index";
+} from "../api/graph_api_types";
+import type {
+  GraphNodeProperties,
+  LeaferGraphRenderableNodeState
+} from "./graph_runtime_types";
 
 const DEFAULT_GRAPH_LINK_SLOT = 0;
 
 let graphLinkSeed = 1;
 
-type LeaferGraphMutableNodeProperties = Record<string, unknown> & {
-  subtitle?: string;
-  accent?: string;
-  category?: string;
-  status?: string;
-};
-
-type LeaferGraphMutableNodeState = NodeRuntimeState & {
-  properties: LeaferGraphMutableNodeProperties;
-};
+type LeaferGraphMutableNodeState = LeaferGraphRenderableNodeState;
 
 type LeaferGraphMutableNodeViewState<
   TNodeState extends LeaferGraphMutableNodeState
@@ -59,7 +53,6 @@ interface LeaferGraphMutationHostOptions<
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void;
   handleNodeRemoved(nodeId: string): void;
   requestRender(): void;
-  toSlotSpecs(slots: LeaferGraphNodeSlotInput[]): NodeSlotSpec[];
   resolveNodeResizeConstraint(node: TNodeState): LeaferGraphNodeResizeConstraint;
 }
 
@@ -179,9 +172,9 @@ export class LeaferGraphMutationHost<
       properties: this.resolvePatchedNodeProperties(node, input),
       propertySpecs: input.propertySpecs,
       inputs:
-        input.inputs !== undefined ? this.options.toSlotSpecs(input.inputs) : undefined,
+        input.inputs !== undefined ? toSlotSpecs(input.inputs) : undefined,
       outputs:
-        input.outputs !== undefined ? this.options.toSlotSpecs(input.outputs) : undefined,
+        input.outputs !== undefined ? toSlotSpecs(input.outputs) : undefined,
       widgets: this.resolvePatchedNodeWidgets(node, input),
       data: input.data
     });
@@ -413,8 +406,8 @@ export class LeaferGraphMutationHost<
   private resolvePatchedNodeProperties(
     node: TNodeState,
     input: LeaferGraphUpdateNodeInput
-  ): Record<string, unknown> {
-    const properties: Record<string, unknown> = {
+  ): GraphNodeProperties {
+    const properties: GraphNodeProperties = {
       ...node.properties,
       ...(input.properties ?? {})
     };
@@ -451,7 +444,7 @@ export class LeaferGraphMutationHost<
       throw new Error("节点 type 不能为空");
     }
 
-    const properties: Record<string, unknown> = {
+    const properties: GraphNodeProperties = {
       ...(node.properties ?? {})
     };
 
@@ -481,13 +474,28 @@ export class LeaferGraphMutationHost<
       properties,
       propertySpecs: node.propertySpecs,
       inputs:
-        node.inputs !== undefined ? this.options.toSlotSpecs(node.inputs) : undefined,
+        node.inputs !== undefined ? toSlotSpecs(node.inputs) : undefined,
       outputs:
-        node.outputs !== undefined ? this.options.toSlotSpecs(node.outputs) : undefined,
+        node.outputs !== undefined ? toSlotSpecs(node.outputs) : undefined,
       widgets: node.widgets,
       data: node.data
     }) as TNodeState;
   }
+}
+
+/**
+ * 将旧字符串数组或正式槽位声明统一转换成槽位输入。
+ * 这样图变更宿主本身就能同时兼容页面层数据和正式节点复制、导入路径。
+ */
+function toSlotSpecs(slots: LeaferGraphNodeSlotInput[]): NodeSlotSpec[] {
+  return slots.map((slot) =>
+    typeof slot === "string"
+      ? { name: slot }
+      : {
+          ...slot,
+          data: slot.data ? structuredClone(slot.data) : undefined
+        }
+  );
 }
 
 /** 为对外查询返回一份安全副本，避免外部绕过正式 API 直接改内部状态。 */

@@ -1,5 +1,5 @@
 import type { Group } from "leafer-ui";
-import type { LeaferGraphWidgetBounds } from "./plugin";
+import type { LeaferGraphWidgetBounds } from "../api/plugin";
 
 /**
  * Widget 命中热区统一使用的图元名称。

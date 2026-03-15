@@ -1,6 +1,6 @@
 import type { NodeBaseWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../plugin";
-import { bindPressWidgetInteraction } from "../../widget_interaction";
+import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
+import { bindPressWidgetInteraction } from "../widget_interaction";
 import { WidgetFieldView } from "./field_view";
 import { BasicWidgetController, runtimeRequestRender } from "./template";
 import type { BasicWidgetLifecycleState } from "./types";

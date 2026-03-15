@@ -1,7 +1,7 @@
 import type { Rect, Text } from "leafer-ui";
 import type { NodeToggleWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../plugin";
-import { bindPressWidgetInteraction } from "../../widget_interaction";
+import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
+import { bindPressWidgetInteraction } from "../widget_interaction";
 import { createWidgetSurface, createWidgetValueText } from "../widget_lifecycle";
 import {
   WIDGET_FIELD_FONT_SIZE,

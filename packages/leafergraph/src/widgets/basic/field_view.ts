@@ -1,5 +1,5 @@
 import type { Rect, Text } from "leafer-ui";
-import type { LeaferGraphWidgetRendererContext } from "../../plugin";
+import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
 import {
   createWidgetFieldSurface,
   createWidgetFocusRing,

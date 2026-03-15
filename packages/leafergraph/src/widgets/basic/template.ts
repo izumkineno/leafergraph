@@ -5,10 +5,10 @@ import type {
   NodeWidgetOptionItem,
   NodeWidgetSpec
 } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../plugin";
+import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
 import type {
   LeaferGraphWidgetInteractionBinding
-} from "../../widget_interaction";
+} from "../widget_interaction";
 import type {
   BasicWidgetLifecycle,
   BasicWidgetLifecycleState,

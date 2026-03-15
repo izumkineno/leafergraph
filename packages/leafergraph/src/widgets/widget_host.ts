@@ -6,7 +6,7 @@ import type {
   LeaferGraphWidgetRenderInstance,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetThemeContext
-} from "./plugin";
+} from "../api/plugin";
 import { LeaferGraphWidgetRegistry } from "./widget_registry";
 
 const MISSING_WIDGET_FILL = "rgba(220, 38, 38, 0.92)";

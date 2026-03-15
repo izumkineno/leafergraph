@@ -1,17 +1,14 @@
 import type { Group } from "leafer-ui";
 import type { NodeRuntimeState } from "@leafergraph/node";
+import type {
+  GraphDragNodePosition,
+  LeaferGraphInteractionRuntimeLike
+} from "./graph_interaction_runtime_host";
 import {
   isWidgetInteractionTarget,
   type LeaferGraphWidgetEventSource,
   type LeaferGraphWidgetPointerEvent
-} from "./widget_interaction";
-
-/** 多选拖拽时记录的单个节点初始位置。 */
-export interface GraphDragNodePosition {
-  nodeId: string;
-  startX: number;
-  startY: number;
-}
+} from "../widgets/widget_interaction";
 
 /** 拖拽中的节点状态。 */
 interface GraphDragState {
@@ -50,31 +47,7 @@ interface LeaferGraphInteractionHostOptions<
   TNodeViewState extends LeaferGraphInteractiveNodeViewState<TNodeState>
 > {
   container: HTMLElement;
-  bringNodeViewToFront(state: TNodeViewState): void;
-  syncNodeResizeHandleVisibility(state: TNodeViewState): void;
-  requestRender(): void;
-  resolveDraggedNodeIds(nodeId: string): string[];
-  moveNodesByDelta(
-    positions: readonly GraphDragNodePosition[],
-    deltaX: number,
-    deltaY: number
-  ): void;
-  resizeNode(nodeId: string, size: { width: number; height: number }): void;
-  setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
-  canResizeNode(nodeId: string): boolean;
-  getPagePointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
-    x: number;
-    y: number;
-  };
-  getPagePointFromGraphEvent(event: LeaferGraphWidgetPointerEvent): {
-    x: number;
-    y: number;
-  };
-  resolveNodeSize(state: TNodeViewState): {
-    width: number;
-    height: number;
-  };
-  getNodeView(nodeId: string): TNodeViewState | undefined;
+  runtime: LeaferGraphInteractionRuntimeLike<TNodeState, TNodeViewState>;
 }
 
 /**
@@ -99,13 +72,16 @@ export class LeaferGraphInteractionHost<
 
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
     if (this.resizeState) {
-      const point = this.options.getPagePointByClient(event);
+      const point = this.options.runtime.getPagePointByClient(event);
       const width =
         this.resizeState.startWidth + (point.x - this.resizeState.startPageX);
       const height =
         this.resizeState.startHeight + (point.y - this.resizeState.startPageY);
 
-      this.options.resizeNode(this.resizeState.nodeId, { width, height });
+      this.options.runtime.resizeNode(this.resizeState.nodeId, {
+        width,
+        height
+      });
       this.options.container.style.cursor = "nwse-resize";
       return;
     }
@@ -114,13 +90,13 @@ export class LeaferGraphInteractionHost<
       return;
     }
 
-    const point = this.options.getPagePointByClient(event);
+    const point = this.options.runtime.getPagePointByClient(event);
     const anchorX = point.x - this.dragState.offsetX;
     const anchorY = point.y - this.dragState.offsetY;
     const deltaX = anchorX - this.dragState.anchorStartX;
     const deltaY = anchorY - this.dragState.anchorStartY;
 
-    this.options.moveNodesByDelta(this.dragState.nodes, deltaX, deltaY);
+    this.options.runtime.moveNodesByDelta(this.dragState.nodes, deltaX, deltaY);
     this.options.container.style.cursor = "grabbing";
   };
 
@@ -139,17 +115,11 @@ export class LeaferGraphInteractionHost<
     }
 
     if (resizeNodeId) {
-      const state = this.options.getNodeView(resizeNodeId);
-      if (state) {
-        this.options.syncNodeResizeHandleVisibility(state);
-      }
+      this.options.runtime.syncNodeResizeHandleVisibility(resizeNodeId);
     }
 
     if (dragNodeId && dragNodeId !== resizeNodeId) {
-      const state = this.options.getNodeView(dragNodeId);
-      if (state) {
-        this.options.syncNodeResizeHandleVisibility(state);
-      }
+      this.options.runtime.syncNodeResizeHandleVisibility(dragNodeId);
     }
   };
 
@@ -172,11 +142,7 @@ export class LeaferGraphInteractionHost<
   /** 绑定节点拖拽交互。 */
   bindNodeDragging(nodeId: string, view: Group): void {
     view.on("pointer.enter", (event: LeaferGraphWidgetPointerEvent) => {
-      const state = this.options.getNodeView(nodeId);
-      if (state) {
-        state.hovered = true;
-        this.options.syncNodeResizeHandleVisibility(state);
-      }
+      this.options.runtime.setNodeHovered(nodeId, true);
 
       if (
         !this.dragState &&
@@ -188,11 +154,7 @@ export class LeaferGraphInteractionHost<
     });
 
     view.on("pointer.leave", () => {
-      const state = this.options.getNodeView(nodeId);
-      if (state) {
-        state.hovered = false;
-        this.options.syncNodeResizeHandleVisibility(state);
-      }
+      this.options.runtime.setNodeHovered(nodeId, false);
 
       if (!this.dragState && !this.resizeState) {
         this.options.container.style.cursor = "";
@@ -200,14 +162,13 @@ export class LeaferGraphInteractionHost<
     });
 
     view.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
-      const state = this.options.getNodeView(nodeId);
+      const state = this.options.runtime.getNodeView(nodeId);
       if (!state) {
         return;
       }
 
       if (!event.right && !event.middle) {
-        this.options.bringNodeViewToFront(state);
-        this.options.requestRender();
+        this.options.runtime.focusNode(nodeId);
       }
 
       if (
@@ -230,7 +191,7 @@ export class LeaferGraphInteractionHost<
    * 而是把拖拽结果写回节点布局尺寸，再走局部刷新。
    */
   bindNodeResize(nodeId: string, state: TNodeViewState): void {
-    if (!this.options.canResizeNode(nodeId)) {
+    if (!this.options.runtime.canResizeNode(nodeId)) {
       return;
     }
 
@@ -238,16 +199,19 @@ export class LeaferGraphInteractionHost<
       event.stopNow?.();
       event.stop?.();
       this.dragState = null;
-      const point = this.options.getPagePointFromGraphEvent(event);
-      const { width, height } = this.options.resolveNodeSize(state);
+      const point = this.options.runtime.getPagePointFromGraphEvent(event);
+      const size = this.options.runtime.resolveNodeSize(nodeId);
+      if (!size) {
+        return;
+      }
       this.resizeState = {
         nodeId,
-        startWidth: width,
-        startHeight: height,
+        startWidth: size.width,
+        startHeight: size.height,
         startPageX: point.x,
         startPageY: point.y
       };
-      this.options.syncNodeResizeHandleVisibility(state);
+      this.options.runtime.syncNodeResizeHandleVisibility(nodeId);
       this.options.container.style.cursor = "nwse-resize";
     });
   }
@@ -265,7 +229,7 @@ export class LeaferGraphInteractionHost<
         this.dragState = null;
         this.resizeState = null;
         this.options.container.style.cursor = "";
-        this.options.setNodeCollapsed(
+        this.options.runtime.setNodeCollapsed(
           nodeId,
           !Boolean(state.state.flags.collapsed)
         );
@@ -324,10 +288,10 @@ export class LeaferGraphInteractionHost<
     state: TNodeViewState,
     event: LeaferGraphWidgetPointerEvent
   ): void {
-    const point = this.options.getPagePointFromGraphEvent(event);
+    const point = this.options.runtime.getPagePointFromGraphEvent(event);
     const anchorStartX = state.state.layout.x;
     const anchorStartY = state.state.layout.y;
-    const draggedNodeIds = this.options.resolveDraggedNodeIds(nodeId);
+    const draggedNodeIds = this.options.runtime.resolveDraggedNodeIds(nodeId);
 
     this.resizeState = null;
     this.dragState = {
@@ -337,7 +301,7 @@ export class LeaferGraphInteractionHost<
       anchorStartX,
       anchorStartY,
       nodes: draggedNodeIds.map((draggedNodeId) => {
-        const node = this.options.getNodeView(draggedNodeId)?.state;
+        const node = this.options.runtime.getNodeView(draggedNodeId)?.state;
 
         return {
           nodeId: draggedNodeId,
@@ -346,7 +310,7 @@ export class LeaferGraphInteractionHost<
         };
       })
     };
-    this.options.syncNodeResizeHandleVisibility(state);
+    this.options.runtime.syncNodeResizeHandleVisibility(nodeId);
     this.options.container.style.cursor = "grabbing";
   }
 
@@ -378,8 +342,12 @@ export class LeaferGraphInteractionHost<
     event: LeaferGraphWidgetPointerEvent,
     state: TNodeViewState
   ): boolean {
-    const { width, height } = this.options.resolveNodeSize(state);
-    const point = this.options.getPagePointFromGraphEvent(event);
+    const size = this.options.runtime.resolveNodeSize(state.state.id);
+    if (!size) {
+      return false;
+    }
+    const { width, height } = size;
+    const point = this.options.runtime.getPagePointFromGraphEvent(event);
     const localX = point.x - state.state.layout.x;
     const localY = point.y - state.state.layout.y;
 
