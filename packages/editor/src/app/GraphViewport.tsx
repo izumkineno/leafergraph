@@ -11,13 +11,9 @@ import {
   type LeaferGraphOptions
 } from "leafergraph";
 import {
-  createEditorNodeCommandController,
-  type EditorNodeCommandController
-} from "../commands/node_commands";
-import {
-  createEditorCanvasCommandController,
-  type EditorCanvasCommandController
-} from "../commands/canvas_commands";
+  createEditorCommandBus,
+  type EditorCommandBus
+} from "../commands/command_bus";
 import { createEditorNodeSelection } from "../state/selection";
 import {
   GRAPH_VIEWPORT_BACKGROUND_SIZE,
@@ -286,8 +282,7 @@ export function GraphViewport({
     let activeMarqueeSelection: GraphViewportMarqueeState | null = null;
     const boundNodeIds = new Set<string>();
     let menu!: LeaferGraphContextMenuManager;
-    let commands!: EditorNodeCommandController;
-    let canvasCommands!: EditorCanvasCommandController;
+    let commandBus!: EditorCommandBus;
     let disposed = false;
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
@@ -524,23 +519,32 @@ export function GraphViewport({
     };
     const removeNodeFromMenu = (nodeId: string): void => {
       if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commands.removeSelectedNodes();
+        commandBus.execute({ type: "selection.remove" });
         return;
       }
 
-      commands.removeNode(nodeId);
+      commandBus.execute({ type: "node.remove", nodeId });
     };
     const pasteCopiedNodeAtLatestPointer = (): void => {
       const pointerPagePoint = resolveLatestPointerPagePoint();
-      canvasCommands.pasteClipboardAt(pointerPagePoint);
+      commandBus.execute({
+        type: "clipboard.paste",
+        point: pointerPagePoint
+      });
     };
     const pasteCopiedNodeByKeyboard = (): void => {
-      if (!graphReady || !canvasCommands.canPaste) {
+      if (
+        !graphReady ||
+        !commandBus.canExecute({ type: "clipboard.paste", point: null })
+      ) {
         return;
       }
 
       runAfterViewportSettle(() => {
-        if (!graphReady || !canvasCommands.canPaste) {
+        if (
+          !graphReady ||
+          !commandBus.canExecute({ type: "clipboard.paste", point: null })
+        ) {
           return;
         }
 
@@ -554,33 +558,39 @@ export function GraphViewport({
         return;
       }
 
-      canvasCommands.createNodeAt(context);
+      commandBus.execute({ type: "canvas.create-node", context });
     };
     const copyNodeFromMenu = (nodeId: string): void => {
       if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commands.copySelectedNodes();
+        commandBus.execute({ type: "selection.copy" });
         return;
       }
 
-      commands.copyNode(nodeId);
+      commandBus.execute({ type: "clipboard.copy-node", nodeId });
     };
     const cutNodeFromMenu = (nodeId: string): void => {
       if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commands.cutSelectedNodes();
+        commandBus.execute({ type: "clipboard.cut-selection" });
         return;
       }
 
       selection.select(nodeId);
-      commands.cutSelectedNodes();
+      commandBus.execute({ type: "clipboard.cut-selection" });
     };
     const pasteCopiedNodeFromMenu = (
       context: LeaferGraphContextMenuContext
     ): void => {
-      if (!graphReady || !canvasCommands.canPaste) {
+      if (
+        !graphReady ||
+        !commandBus.canExecute({ type: "clipboard.paste", point: null })
+      ) {
         return;
       }
 
-      canvasCommands.pasteClipboardAt(context.pagePoint);
+      commandBus.execute({
+        type: "clipboard.paste",
+        point: context.pagePoint
+      });
     };
     const duplicateNodeFromMenu = (
       nodeId: string,
@@ -598,18 +608,23 @@ export function GraphViewport({
       const baseX = snapshot.layout.x;
       const baseY = snapshot.layout.y;
       if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commands.duplicateSelectedNodes();
+        commandBus.execute({ type: "selection.duplicate" });
         return;
       }
 
-      commands.duplicateNode(nodeId, baseX + 48, baseY + 48);
+      commandBus.execute({
+        type: "node.duplicate",
+        nodeId,
+        x: baseX + 48,
+        y: baseY + 48
+      });
     };
     const resetNodeSizeFromMenu = (nodeId: string): void => {
       if (!graphReady) {
         return;
       }
 
-      commands.resetNodeSize(nodeId);
+      commandBus.execute({ type: "node.reset-size", nodeId });
     };
     /**
      * 使用主包已经接入的 `@leafer-in/view` 能力执行适配视图。
@@ -620,7 +635,7 @@ export function GraphViewport({
         return;
       }
 
-      canvasCommands.fitView();
+      commandBus.execute({ type: "canvas.fit-view" });
     };
     const resolveContextMenuItems = (
       context: LeaferGraphContextMenuContext
@@ -631,8 +646,8 @@ export function GraphViewport({
         const isSelected = selection.isSelected(nodeId);
         const isMultipleSelected = selection.hasMultipleSelected();
         const selectedCount = selection.selectedNodeIds.length;
-        const isCopiedSource = commands.isClipboardSourceNode(nodeId);
-        const resizeMenuState = commands.resolveResizeState(nodeId);
+        const isCopiedSource = commandBus.isClipboardSourceNode(nodeId);
+        const resizeMenuState = commandBus.resolveResizeState(nodeId);
         const useBatchAction = isSelected && isMultipleSelected;
 
         return [
@@ -699,15 +714,15 @@ export function GraphViewport({
         ];
       }
 
+      const createNodeState = commandBus.resolveCreateNodeState();
       const items: LeaferGraphContextMenuItem[] = [
         {
           key: "create-node-here",
           label: "在这里创建节点",
           description: graphReady
-            ? canvasCommands.resolveCreateNodeState().description
+            ? createNodeState.description
             : "图初始化完成后可用",
-          disabled:
-            !graphReady || canvasCommands.resolveCreateNodeState().disabled,
+          disabled: !graphReady || createNodeState.disabled,
           onSelect() {
             createNodeFromMenu(context);
           }
@@ -726,7 +741,7 @@ export function GraphViewport({
         }
       ];
 
-      if (canvasCommands.canPaste) {
+      if (commandBus.canExecute({ type: "clipboard.paste", point: null })) {
         const selectedNodeId = selection.primarySelectedNodeId;
         items.splice(1, 0, {
           key: "paste-copied-node",
@@ -761,11 +776,11 @@ export function GraphViewport({
         }
 
         if (context.bindingKind === "canvas") {
-          selection.clear();
+          commandBus.execute({ type: "selection.clear" });
         }
       }
     });
-    commands = createEditorNodeCommandController({
+    commandBus = createEditorCommandBus({
       graph,
       selection,
       bindNode(node) {
@@ -775,11 +790,7 @@ export function GraphViewport({
       unbindNode(nodeId) {
         boundNodeIds.delete(nodeId);
         menu.unbindTarget(createNodeMenuBindingKey(nodeId));
-      }
-    });
-    canvasCommands = createEditorCanvasCommandController({
-      graph,
-      nodeCommands: commands,
+      },
       quickCreateNodeType,
       onAfterFitView: schedulePointerWorldPointRefresh
     });
@@ -1001,7 +1012,7 @@ export function GraphViewport({
 
       if (event.key === "Delete") {
         if (
-          event.ctrlKey ||
+        event.ctrlKey ||
           event.metaKey ||
           event.shiftKey ||
           !selection.primarySelectedNodeId
@@ -1010,7 +1021,7 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commands.removeSelectedNodes();
+        commandBus.execute({ type: "selection.remove" });
         return;
       }
 
@@ -1026,7 +1037,7 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commands.copySelectedNodes();
+        commandBus.execute({ type: "selection.copy" });
         return;
       }
 
@@ -1036,7 +1047,10 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        selection.setMany([...boundNodeIds]);
+        commandBus.execute({
+          type: "selection.select-all",
+          nodeIds: [...boundNodeIds]
+        });
         return;
       }
 
@@ -1046,7 +1060,7 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commands.cutSelectedNodes();
+        commandBus.execute({ type: "clipboard.cut-selection" });
         return;
       }
 
@@ -1056,12 +1070,15 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commands.duplicateSelectedNodes();
+        commandBus.execute({ type: "selection.duplicate" });
         return;
       }
 
       if (key === "v") {
-        if (!canvasCommands.canPaste || event.shiftKey) {
+        if (
+          !commandBus.canExecute({ type: "clipboard.paste", point: null }) ||
+          event.shiftKey
+        ) {
           return;
         }
 

@@ -1,0 +1,301 @@
+/**
+ * 图场景运行时装配模块。
+ *
+ * @remarks
+ * 负责把节点、连线、Widget、主题和交互这些真正依赖场景对象的宿主接起来，
+ * 让主装配器只保留“先准备基础环境，再串联场景运行时，再对外暴露 API”三段式结构。
+ */
+
+import { NodeRegistry } from "@leafergraph/node";
+import type { LeaferGraphThemeMode, LeaferGraphWidgetEditingContext } from "../api/plugin";
+import { LeaferGraphInteractionRuntimeHost } from "../interaction/graph_interaction_runtime_host";
+import { LeaferGraphInteractionHost } from "../interaction/interaction_host";
+import { LeaferGraphLinkHost, type GraphLinkViewState } from "../link/link_host";
+import { LeaferGraphNodeHost, type NodeViewState } from "../node/node_host";
+import { LeaferGraphNodeRuntimeHost } from "../node/node_runtime_host";
+import { LeaferGraphNodeShellHost } from "../node/node_shell_host";
+import type { NodeShellLayoutMetrics } from "../node/node_layout";
+import type { NodeShellRenderTheme } from "../node/node_shell";
+import { LeaferGraphWidgetHost } from "../widgets/widget_host";
+import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
+import type { LeaferGraphCanvasState } from "./graph_canvas_host";
+import { LeaferGraphMutationHost } from "./graph_mutation_host";
+import type { LeaferGraphNodeShellStyleConfig } from "./graph_runtime_style";
+import type {
+  GraphRuntimeState,
+  LeaferGraphRenderableNodeState
+} from "./graph_runtime_types";
+import { LeaferGraphSceneHost } from "./graph_scene_host";
+import { LeaferGraphSceneRuntimeHost } from "./graph_scene_runtime_host";
+import { LeaferGraphRestoreHost } from "./graph_restore_host";
+import type { LeaferGraphThemeHost } from "./graph_theme_host";
+import { LeaferGraphThemeRuntimeHost } from "./graph_theme_runtime_host";
+import { LeaferGraphViewHost } from "./graph_view_host";
+import type { LeaferGraphWidgetEditingManager } from "../widgets/widget_editing";
+
+/**
+ * 图场景运行时装配输入。
+ *
+ * @remarks
+ * 这部分依赖都已经处于“基础环境准备完成”状态：
+ * 画布层、主题宿主、Widget 注册表、编辑宿主和图状态容器都由外层准备好。
+ */
+export interface LeaferGraphSceneRuntimeAssemblyOptions<
+  TNodeState extends LeaferGraphRenderableNodeState
+> {
+  container: HTMLElement;
+  graphState: GraphRuntimeState<TNodeState>;
+  nodeViews: Map<string, NodeViewState<TNodeState>>;
+  linkViews: GraphLinkViewState<TNodeState>[];
+  canvasState: LeaferGraphCanvasState;
+  nodeRegistry: NodeRegistry;
+  widgetRegistry: LeaferGraphWidgetRegistry;
+  themeHost: LeaferGraphThemeHost;
+  widgetEditingManager: LeaferGraphWidgetEditingManager;
+  widgetEditingContext: LeaferGraphWidgetEditingContext;
+  requestRender(): void;
+  nodeShellLayoutMetrics: NodeShellLayoutMetrics;
+  nodeShellStyle: LeaferGraphNodeShellStyleConfig;
+  resolveSelectedStroke(mode: LeaferGraphThemeMode): string;
+  resolveNodeShellRenderTheme(mode: LeaferGraphThemeMode): NodeShellRenderTheme;
+  normalizeLinkSlotIndex(slot: number | undefined): number;
+  linkDefaultNodeWidth: number;
+  linkPortSize: number;
+  linkStroke: string;
+}
+
+/**
+ * 图场景运行时装配结果。
+ *
+ * @remarks
+ * 外层主装配器只需要继续把这些宿主接给 bootstrap 和 API facade 即可。
+ */
+export interface LeaferGraphSceneRuntimeAssemblyResult<
+  TNodeState extends LeaferGraphRenderableNodeState
+> {
+  widgetHost: LeaferGraphWidgetHost;
+  viewHost: LeaferGraphViewHost<TNodeState, NodeViewState<TNodeState>>;
+  sceneRuntimeHost: LeaferGraphSceneRuntimeHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >;
+  nodeRuntimeHost: LeaferGraphNodeRuntimeHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >;
+  interactionHost: LeaferGraphInteractionHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >;
+  restoreHost: LeaferGraphRestoreHost<TNodeState, NodeViewState<TNodeState>>;
+}
+
+/**
+ * 创建图场景运行时宿主集合。
+ *
+ * @param options - 场景运行时装配输入。
+ * @returns 已接线完成的场景运行时宿主集合。
+ */
+export function createLeaferGraphSceneRuntimeAssembly<
+  TNodeState extends LeaferGraphRenderableNodeState
+>(
+  options: LeaferGraphSceneRuntimeAssemblyOptions<TNodeState>
+): LeaferGraphSceneRuntimeAssemblyResult<TNodeState> {
+  let interactionHost!: LeaferGraphInteractionHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >;
+  let sceneHost!: LeaferGraphSceneHost<
+    TNodeState,
+    NodeViewState<TNodeState>,
+    GraphLinkViewState<TNodeState>
+  >;
+  let sceneRuntimeHost!: LeaferGraphSceneRuntimeHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >;
+  let nodeRuntimeHost!: LeaferGraphNodeRuntimeHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >;
+
+  const widgetHost = new LeaferGraphWidgetHost({
+    registry: options.widgetRegistry,
+    getTheme: () => options.themeHost.getWidgetTheme(),
+    getEditing: () => options.widgetEditingContext,
+    setNodeWidgetValue: (nodeId, widgetIndex, newValue) => {
+      sceneRuntimeHost.setNodeWidgetValue(nodeId, widgetIndex, newValue);
+    },
+    requestRender: options.requestRender,
+    emitNodeWidgetAction: (nodeId, action, param, extra) =>
+      nodeRuntimeHost.emitNodeWidgetAction(nodeId, action, param, extra)
+  });
+
+  const nodeShellHost = new LeaferGraphNodeShellHost<TNodeState>({
+    nodeRegistry: options.nodeRegistry,
+    layoutMetrics: options.nodeShellLayoutMetrics,
+    style: options.nodeShellStyle,
+    getThemeMode: () => options.themeHost.getMode(),
+    resolveSelectedStroke: options.resolveSelectedStroke,
+    resolveRenderTheme: options.resolveNodeShellRenderTheme,
+    canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
+    isNodeResizing: (nodeId) => interactionHost.isResizingNode(nodeId)
+  });
+
+  const viewHost = new LeaferGraphViewHost({
+    app: options.canvasState.app,
+    graphNodes: options.graphState.nodes,
+    nodeViews: options.nodeViews,
+    applyNodeSelectionStyles: (state) =>
+      nodeShellHost.applyNodeSelectionStyles(state),
+    requestRender: options.requestRender
+  });
+
+  const nodeHost = new LeaferGraphNodeHost<TNodeState>({
+    nodeViews: options.nodeViews,
+    nodeLayer: options.canvasState.nodeLayer,
+    layoutMetrics: options.nodeShellLayoutMetrics,
+    buildNodeShell: (node, shellLayout) =>
+      nodeShellHost.buildNodeShell(node, shellLayout),
+    isMissingNodeType: (node) => nodeShellHost.isMissingNodeType(node),
+    renderNodeWidgets: (node, widgetLayer, shellLayout) =>
+      widgetHost.renderNodeWidgets(node, widgetLayer, shellLayout.widgets),
+    destroyNodeWidgets: (state) =>
+      widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
+    onNodeViewCreated: (state) => {
+      nodeShellHost.applyNodeSelectionStyles(state);
+      viewHost.bringNodeViewToFront(state);
+    },
+    onNodeMounted: (nodeId, state) => {
+      interactionHost.bindNodeDragging(nodeId, state.view);
+      interactionHost.bindNodeResize(nodeId, state);
+      interactionHost.bindNodeCollapseToggle(nodeId, state);
+    },
+    onNodeRefreshed: (nodeId, state) => {
+      interactionHost.bindNodeResize(nodeId, state);
+      interactionHost.bindNodeCollapseToggle(nodeId, state);
+      nodeShellHost.applyNodeSelectionStyles(state);
+    }
+  });
+
+  const linkHost = new LeaferGraphLinkHost<TNodeState>({
+    graphLinks: options.graphState.links,
+    linkViews: options.linkViews,
+    linkLayer: options.canvasState.linkLayer,
+    getNode: (nodeId) => options.graphState.nodes.get(nodeId),
+    normalizeSlotIndex: options.normalizeLinkSlotIndex,
+    layoutMetrics: options.nodeShellLayoutMetrics,
+    defaultNodeWidth: options.linkDefaultNodeWidth,
+    portSize: options.linkPortSize,
+    stroke: options.linkStroke
+  });
+
+  sceneHost = new LeaferGraphSceneHost({
+    nodeViews: options.nodeViews,
+    nodeHost,
+    linkHost,
+    widgetHost
+  });
+
+  const mutationHost = new LeaferGraphMutationHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >({
+    nodeRegistry: options.nodeRegistry,
+    graphNodes: options.graphState.nodes,
+    graphLinks: options.graphState.links,
+    nodeViews: options.nodeViews,
+    mountNodeView: (node) => sceneHost.mountNodeView(node),
+    unmountNodeView: (nodeId) => sceneHost.unmountNodeView(nodeId),
+    refreshNodeView: (state) => sceneHost.refreshNodeView(state),
+    mountLinkView: (link) => sceneHost.mountLinkView(link),
+    removeLinkInternal: (linkId) => sceneHost.removeLink(linkId),
+    updateConnectedLinks: (nodeId) => sceneHost.updateConnectedLinks(nodeId),
+    updateConnectedLinksForNodes: (nodeIds) =>
+      sceneHost.updateConnectedLinksForNodes(nodeIds),
+    handleNodeRemoved: (nodeId) => interactionHost.handleNodeRemoved(nodeId),
+    requestRender: options.requestRender,
+    resolveNodeResizeConstraint: (node) =>
+      nodeShellHost.resolveNodeResizeConstraint(node)
+  });
+
+  sceneRuntimeHost = new LeaferGraphSceneRuntimeHost({
+    graphNodes: options.graphState.nodes,
+    nodeViews: options.nodeViews,
+    sceneHost,
+    mutationHost,
+    requestRender: options.requestRender
+  });
+
+  nodeRuntimeHost = new LeaferGraphNodeRuntimeHost({
+    nodeRegistry: options.nodeRegistry,
+    widgetRegistry: options.widgetRegistry,
+    graphNodes: options.graphState.nodes,
+    nodeViews: options.nodeViews,
+    sceneRuntime: sceneRuntimeHost,
+    resolveNodeResizeConstraint: (node) =>
+      nodeShellHost.resolveNodeResizeConstraint(node)
+  });
+
+  const interactionRuntimeHost = new LeaferGraphInteractionRuntimeHost({
+    nodeViews: options.nodeViews,
+    bringNodeViewToFront: (state) => viewHost.bringNodeViewToFront(state),
+    syncNodeResizeHandleVisibility: (state) =>
+      nodeShellHost.syncNodeResizeHandleVisibility(state),
+    requestRender: options.requestRender,
+    resolveDraggedNodeIds: (nodeId) => viewHost.resolveDraggedNodeIds(nodeId),
+    sceneRuntime: sceneRuntimeHost,
+    setNodeCollapsed: (nodeId, collapsed) =>
+      nodeRuntimeHost.setNodeCollapsed(nodeId, collapsed),
+    canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
+    getPagePointByClient: (event) => viewHost.getPagePointByClient(event),
+    getPagePointFromGraphEvent: (event) =>
+      viewHost.getPagePointFromGraphEvent(event),
+    resolveNodeSize: (state) => ({
+      width:
+        state.state.layout.width ?? options.nodeShellStyle.defaultNodeWidth,
+      height:
+        state.state.layout.height ??
+        options.nodeShellStyle.defaultNodeMinHeight
+    })
+  });
+
+  interactionHost = new LeaferGraphInteractionHost({
+    container: options.container,
+    runtime: interactionRuntimeHost
+  });
+
+  const themeRuntimeHost = new LeaferGraphThemeRuntimeHost({
+    widgetEditingManager: options.widgetEditingManager,
+    sceneRuntime: sceneRuntimeHost
+  });
+  options.themeHost.attachRuntime(themeRuntimeHost);
+
+  const restoreHost = new LeaferGraphRestoreHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >({
+    nodeRegistry: options.nodeRegistry,
+    graphNodes: options.graphState.nodes,
+    graphLinks: options.graphState.links,
+    nodeViews: options.nodeViews,
+    linkViews: options.linkViews,
+    clearInteractionState: () => interactionHost.clearInteractionState(),
+    resetRuntimeState: () => viewHost.resetViewState(),
+    destroyNodeViewWidgets: (state) =>
+      widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
+    clearNodeLayer: () => options.canvasState.nodeLayer.removeAll(),
+    clearLinkLayer: () => options.canvasState.linkLayer.removeAll(),
+    mountNodeView: (node) => sceneHost.mountNodeView(node),
+    mountLinkView: (link) => sceneHost.mountLinkView(link)
+  });
+
+  return {
+    widgetHost,
+    viewHost,
+    sceneRuntimeHost,
+    nodeRuntimeHost,
+    interactionHost,
+    restoreHost
+  };
+}

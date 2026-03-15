@@ -107,18 +107,10 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetEntry
 } from "./api/plugin";
-import type { LeaferGraphApiHost } from "./api/graph_api_host";
-import { createLeaferGraphRuntimeAssembly } from "./graph/graph_runtime_assembly";
-import { normalizeGraphLinkSlotIndex } from "./graph/graph_mutation_host";
+import type { LeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
+import { createLeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import {
-  DEFAULT_FIT_VIEW_PADDING,
-  NODE_SHELL_LAYOUT_METRICS,
-  VIEWPORT_MAX_SCALE,
-  VIEWPORT_MIN_SCALE,
-  createDefaultNodeShellStyleConfig,
-  resolveDefaultLinkStroke,
-  resolveDefaultNodeShellRenderTheme,
-  resolveDefaultSelectedStroke
+  DEFAULT_FIT_VIEW_PADDING
 } from "./graph/graph_runtime_style";
 import type {
   LeaferGraphCreateLinkInput,
@@ -128,26 +120,6 @@ import type {
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
 } from "./api/graph_api_types";
-import type {
-  GraphLinkViewState,
-  GraphNodeState,
-  GraphNodeViewState,
-  GraphRuntimeState
-} from "./graph/graph_runtime_types";
-import {
-  resolveBasicWidgetTheme
-} from "./widgets/basic";
-import {
-  createMissingWidgetRenderer
-} from "./widgets/widget_host";
-
-/**
- * 主包当前渲染实现。
- * 这个文件同时承担三层职责：
- * 1. 宿主初始化与插件接入
- * 2. 节点与连线的 Leafer 渲染
- * 3. Widget renderer 的生命周期调度
- */
 
 /**
  * LeaferGraph 主包运行时。
@@ -161,54 +133,18 @@ export class LeaferGraph {
   readonly nodeLayer: Group;
   readonly ready: Promise<void>;
 
-  private readonly apiHost: LeaferGraphApiHost<
-    GraphNodeState,
-    GraphNodeViewState
-  >;
+  private readonly apiHost: LeaferGraphEntryRuntime["apiHost"];
 
   /** 创建图宿主，并在内部异步完成模块与插件安装。 */
   constructor(container: HTMLElement, options: LeaferGraphOptions = {}) {
     this.container = container;
-    const graphState: GraphRuntimeState = {
-      nodes: new Map(),
-      links: new Map()
-    };
-    const nodeViews = new Map<string, GraphNodeViewState>();
-    const linkViews: GraphLinkViewState[] = [];
-    const runtime = createLeaferGraphRuntimeAssembly<GraphNodeState>({
-      container,
-      graphState,
-      nodeViews,
-      linkViews,
-      fill: options.fill,
-      themeMode: options.themeMode,
-      widgetEditing: options.widgetEditing,
-      viewportMinScale: VIEWPORT_MIN_SCALE,
-      viewportMaxScale: VIEWPORT_MAX_SCALE,
-      createMissingWidgetRenderer,
-      resolveWidgetTheme: (mode) => ({
-        mode,
-        tokens: resolveBasicWidgetTheme(mode)
-      }),
-      nodeShellLayoutMetrics: NODE_SHELL_LAYOUT_METRICS,
-      nodeShellStyle: createDefaultNodeShellStyleConfig(),
-      resolveSelectedStroke: (mode) => resolveDefaultSelectedStroke(mode),
-      resolveNodeShellRenderTheme: (mode) =>
-        resolveDefaultNodeShellRenderTheme(mode),
-      normalizeLinkSlotIndex: (slot) => normalizeGraphLinkSlotIndex(slot),
-      linkDefaultNodeWidth: NODE_SHELL_LAYOUT_METRICS.defaultNodeWidth,
-      linkPortSize: NODE_SHELL_LAYOUT_METRICS.portSize,
-      linkStroke: resolveDefaultLinkStroke()
-    });
+    const runtime = createLeaferGraphEntryRuntime(container, options);
     this.app = runtime.app;
     this.root = runtime.root;
     this.linkLayer = runtime.linkLayer;
     this.nodeLayer = runtime.nodeLayer;
     this.apiHost = runtime.apiHost;
-    this.ready = this.apiHost.initialize(options);
-    this.ready.catch((error) => {
-      console.error("[leafergraph] 初始化失败", error);
-    });
+    this.ready = runtime.ready;
   }
 
   /** 销毁宿主实例，并清理全部全局事件与 widget 生命周期。 */

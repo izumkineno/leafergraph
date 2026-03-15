@@ -118,14 +118,13 @@ flowchart LR
 
 装配顺序可以理解成下面几步：
 
-1. 创建 `LeaferGraphWidgetRegistry` 和 `NodeRegistry`
-2. 创建主题宿主、画布宿主和 Widget 编辑宿主
-3. 创建节点外壳宿主、节点视图宿主和连线宿主
-4. 创建 `graph_scene_host` 与 `graph_mutation_host`
-5. 用 `graph_scene_runtime_host` 把场景刷新和正式图变更收成统一壳面
-6. 创建节点运行时宿主、交互运行时宿主和主题运行时宿主
-7. 创建恢复宿主与启动宿主
-8. 用 `graph_api_host` 对外暴露稳定 API
+1. 通过 `graph_entry_runtime.ts` 准备默认图状态容器和入口级默认配置
+2. 创建画布宿主
+3. 通过 `graph_widget_runtime_host.ts` 创建 Widget 注册表、主题宿主和编辑宿主
+4. 创建 `NodeRegistry`
+5. 通过 `graph_scene_runtime_assembly.ts` 拼装节点、连线、Widget、交互和恢复宿主
+6. 创建启动宿主
+7. 用 `graph_api_host` 对外暴露稳定 API
 
 这条链的目标是让 `src/index.ts` 只承担：
 
@@ -171,6 +170,9 @@ packages/leafergraph
 | 文件 | 说明 |
 | --- | --- |
 | `src/graph/graph_runtime_assembly.ts` | 主包运行时总装配器，按固定顺序拼装全部宿主。 |
+| `src/graph/graph_entry_runtime.ts` | 入口运行时创建模块，负责默认图状态容器、默认装配参数和 `ready` 链初始化。 |
+| `src/graph/graph_widget_runtime_host.ts` | Widget 基础环境装配模块，负责主题宿主、Widget 注册表和编辑宿主初始化。 |
+| `src/graph/graph_scene_runtime_assembly.ts` | 场景运行时装配模块，负责节点、连线、Widget、交互和恢复宿主的接线。 |
 | `src/graph/graph_bootstrap_host.ts` | 启动装配宿主，负责内建 Widget 注册、模块安装、插件安装和初始图恢复。 |
 | `src/graph/graph_canvas_host.ts` | 画布宿主，负责创建 Leafer App、根图层和视口基础配置。 |
 | `src/graph/graph_scene_host.ts` | 场景桥接宿主，负责节点视图、连线视图与 Widget 写回的场景级入口。 |
