@@ -14,6 +14,10 @@ import {
   createEditorCommandBus,
   type EditorCommandBus
 } from "../commands/command_bus";
+import {
+  createEditorCommandHistory,
+  type EditorCommandHistory
+} from "../commands/command_history";
 import { createEditorNodeSelection } from "../state/selection";
 import {
   GRAPH_VIEWPORT_BACKGROUND_SIZE,
@@ -283,6 +287,7 @@ export function GraphViewport({
     const boundNodeIds = new Set<string>();
     let menu!: LeaferGraphContextMenuManager;
     let commandBus!: EditorCommandBus;
+    let commandHistory!: EditorCommandHistory;
     let disposed = false;
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
@@ -780,19 +785,34 @@ export function GraphViewport({
         }
       }
     });
+    const bindEditorNode = (node: {
+      id: string;
+      title: string;
+      type?: string;
+    }): void => {
+      boundNodeIds.add(node.id);
+      bindNodeContextMenu(graph, menu, handleNodePointerDown, node);
+    };
+    const unbindEditorNode = (nodeId: string): void => {
+      boundNodeIds.delete(nodeId);
+      menu.unbindTarget(createNodeMenuBindingKey(nodeId));
+    };
+    commandHistory = createEditorCommandHistory({
+      graph,
+      selection,
+      bindNode: bindEditorNode,
+      unbindNode: unbindEditorNode
+    });
     commandBus = createEditorCommandBus({
       graph,
       selection,
-      bindNode(node) {
-        boundNodeIds.add(node.id);
-        bindNodeContextMenu(graph, menu, handleNodePointerDown, node);
-      },
-      unbindNode(nodeId) {
-        boundNodeIds.delete(nodeId);
-        menu.unbindTarget(createNodeMenuBindingKey(nodeId));
-      },
+      bindNode: bindEditorNode,
+      unbindNode: unbindEditorNode,
       quickCreateNodeType,
-      onAfterFitView: schedulePointerWorldPointRefresh
+      onAfterFitView: schedulePointerWorldPointRefresh,
+      onDidExecute(execution) {
+        commandHistory.record(execution);
+      }
     });
     (graph.app.tree as typeof graph.app.tree & GraphViewportViewEventHost).on(
       "leafer.transform",
@@ -1012,7 +1032,7 @@ export function GraphViewport({
 
       if (event.key === "Delete") {
         if (
-        event.ctrlKey ||
+          event.ctrlKey ||
           event.metaKey ||
           event.shiftKey ||
           !selection.primarySelectedNodeId
@@ -1030,6 +1050,36 @@ export function GraphViewport({
       }
 
       const key = event.key.toLowerCase();
+
+      if (key === "z") {
+        if (event.shiftKey) {
+          if (!commandHistory.canRedo) {
+            return;
+          }
+
+          event.preventDefault();
+          commandHistory.redo();
+          return;
+        }
+
+        if (!commandHistory.canUndo) {
+          return;
+        }
+
+        event.preventDefault();
+        commandHistory.undo();
+        return;
+      }
+
+      if (key === "y") {
+        if (event.shiftKey || !commandHistory.canRedo) {
+          return;
+        }
+
+        event.preventDefault();
+        commandHistory.redo();
+        return;
+      }
 
       if (key === "c") {
         if (!selection.primarySelectedNodeId || event.shiftKey) {
@@ -1125,6 +1175,7 @@ export function GraphViewport({
       ownerWindow.removeEventListener("keydown", handleWindowKeyDown);
       ownerWindow.removeEventListener("keyup", handleWindowKeyUp);
       ownerWindow.removeEventListener("blur", handleWindowBlur);
+      commandHistory.clear();
       hideSelectionBox();
       menu.destroy();
       graphRef.current = null;

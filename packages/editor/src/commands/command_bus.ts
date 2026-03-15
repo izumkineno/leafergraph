@@ -11,7 +11,8 @@
 
 import type {
   LeaferGraph,
-  LeaferGraphContextMenuContext
+  LeaferGraphContextMenuContext,
+  LeaferGraphLinkData
 } from "leafergraph";
 import {
   createEditorCanvasCommandController,
@@ -101,6 +102,41 @@ export type EditorCommandResultValue =
   | null
   | undefined;
 
+/** editor 命令历史负载中复用的正式节点快照类型。 */
+export type EditorCommandNodeSnapshot = NonNullable<
+  ReturnType<LeaferGraph["getNodeSnapshot"]>
+>;
+
+/**
+ * editor 命令历史负载。
+ *
+ * @remarks
+ * 命令总线只负责在“命令执行当下”捕获足够的前后状态，
+ * 让后续历史记录层可以独立决定如何组织 undo / redo 栈。
+ */
+export type EditorCommandHistoryPayload =
+  | {
+      kind: "create-nodes";
+      nodeSnapshots: EditorCommandNodeSnapshot[];
+    }
+  | {
+      kind: "remove-nodes";
+      nodeSnapshots: EditorCommandNodeSnapshot[];
+      links: LeaferGraphLinkData[];
+    }
+  | {
+      kind: "resize-node";
+      nodeId: string;
+      beforeSize: {
+        width: number;
+        height: number;
+      };
+      afterSize: {
+        width: number;
+        height: number;
+      };
+    };
+
 /**
  * editor 单次命令执行记录。
  *
@@ -116,6 +152,8 @@ export interface EditorCommandExecution {
   request: EditorCommandRequest;
   /** 命令控制器返回的原始结果。 */
   result: EditorCommandResultValue;
+  /** 本次执行可供历史记录消费的最小前后状态。 */
+  historyPayload?: EditorCommandHistoryPayload;
   /** 命令是否成功进入真实执行路径。 */
   success: boolean;
   /** 命令是否真的对 editor / graph 状态产生了变更。 */
@@ -179,13 +217,62 @@ function isSameNodeIdList(
   return leftNodeIds.every((nodeId, index) => nodeId === rightNodeIds[index]);
 }
 
-/** 判断命令结果中是否真的创建出了节点。 */
-function hasCreatedNodes(result: EditorCommandResultValue): boolean {
-  if (Array.isArray(result)) {
-    return result.length > 0;
+/** 深拷贝正式节点快照，避免历史记录和运行时共享引用。 */
+function cloneNodeSnapshot(
+  snapshot: EditorCommandNodeSnapshot
+): EditorCommandNodeSnapshot {
+  return structuredClone(snapshot);
+}
+
+/** 深拷贝正式连线快照。 */
+function cloneLinkSnapshot(link: LeaferGraphLinkData): LeaferGraphLinkData {
+  return structuredClone(link);
+}
+
+/** 按给定节点 ID 顺序抓取当前图中的正式节点快照。 */
+function captureNodeSnapshots(
+  graph: LeaferGraph,
+  nodeIds: readonly string[]
+): EditorCommandNodeSnapshot[] {
+  return nodeIds
+    .map((nodeId) => graph.getNodeSnapshot(nodeId))
+    .filter((snapshot): snapshot is EditorCommandNodeSnapshot => Boolean(snapshot))
+    .map(cloneNodeSnapshot);
+}
+
+/** 抓取一组节点关联的正式连线快照，并按连线 ID 去重。 */
+function captureRelatedLinks(
+  graph: LeaferGraph,
+  nodeIds: readonly string[]
+): LeaferGraphLinkData[] {
+  const linkMap = new Map<string, LeaferGraphLinkData>();
+
+  for (const nodeId of nodeIds) {
+    for (const link of graph.findLinksByNode(nodeId)) {
+      if (!linkMap.has(link.id)) {
+        linkMap.set(link.id, cloneLinkSnapshot(link));
+      }
+    }
   }
 
-  return Boolean(result);
+  return [...linkMap.values()];
+}
+
+/** 从“创建节点”类命令结果里提取正式节点快照。 */
+function captureCreatedNodeSnapshots(
+  graph: LeaferGraph,
+  result: EditorCommandResultValue
+): EditorCommandNodeSnapshot[] {
+  if (!result || typeof result === "boolean") {
+    return [];
+  }
+
+  const createdNodes = Array.isArray(result) ? result : [result];
+
+  return createdNodes
+    .map((node) => graph.getNodeSnapshot(node.id))
+    .filter((snapshot): snapshot is EditorCommandNodeSnapshot => Boolean(snapshot))
+    .map(cloneNodeSnapshot);
 }
 
 /** 为命令执行生成最小摘要文本。 */
@@ -262,12 +349,13 @@ export function createEditorCommandBus(
     result: EditorCommandResultValue,
     executionState: Pick<
       EditorCommandExecution,
-      "success" | "changed" | "recordable"
+      "success" | "changed" | "recordable" | "historyPayload"
     >
   ): EditorCommandExecution =>
     commitExecution({
       request,
       result,
+      historyPayload: executionState.historyPayload,
       success: executionState.success,
       changed: executionState.changed,
       recordable: executionState.recordable,
@@ -311,6 +399,7 @@ export function createEditorCommandBus(
   ): EditorCommandExecution => {
     if (!canExecute(request)) {
       return createExecution(request, undefined, {
+        historyPayload: undefined,
         success: false,
         changed: false,
         recordable: false
@@ -320,15 +409,23 @@ export function createEditorCommandBus(
     switch (request.type) {
       case "canvas.create-node": {
         const result = canvasCommands.createNodeAt(request.context);
+        const nodeSnapshots = captureCreatedNodeSnapshots(options.graph, result);
         return createExecution(request, result, {
-          success: hasCreatedNodes(result),
-          changed: hasCreatedNodes(result),
+          historyPayload: nodeSnapshots.length
+            ? {
+                kind: "create-nodes",
+                nodeSnapshots
+              }
+            : undefined,
+          success: nodeSnapshots.length > 0,
+          changed: nodeSnapshots.length > 0,
           recordable: true
         });
       }
       case "canvas.fit-view": {
         const result = canvasCommands.fitView();
         return createExecution(request, result, {
+          historyPayload: undefined,
           success: true,
           changed: result,
           recordable: false
@@ -337,6 +434,7 @@ export function createEditorCommandBus(
       case "clipboard.copy-node": {
         const result = nodeCommands.copyNode(request.nodeId);
         return createExecution(request, result, {
+          historyPayload: undefined,
           success: result,
           changed: result,
           recordable: false
@@ -346,14 +444,26 @@ export function createEditorCommandBus(
       case "selection.copy": {
         const result = nodeCommands.copySelectedNodes();
         return createExecution(request, result, {
+          historyPayload: undefined,
           success: result,
           changed: result,
           recordable: false
         });
       }
       case "clipboard.cut-selection": {
+        const selectedNodeIds = [...options.selection.selectedNodeIds];
+        const nodeSnapshots = captureNodeSnapshots(options.graph, selectedNodeIds);
+        const links = captureRelatedLinks(options.graph, selectedNodeIds);
         const result = nodeCommands.cutSelectedNodes();
         return createExecution(request, result, {
+          historyPayload:
+            result && nodeSnapshots.length
+              ? {
+                  kind: "remove-nodes",
+                  nodeSnapshots,
+                  links
+                }
+              : undefined,
           success: result,
           changed: result,
           recordable: true
@@ -361,9 +471,16 @@ export function createEditorCommandBus(
       }
       case "clipboard.paste": {
         const result = canvasCommands.pasteClipboardAt(request.point);
+        const nodeSnapshots = captureCreatedNodeSnapshots(options.graph, result);
         return createExecution(request, result, {
-          success: hasCreatedNodes(result),
-          changed: hasCreatedNodes(result),
+          historyPayload: nodeSnapshots.length
+            ? {
+                kind: "create-nodes",
+                nodeSnapshots
+              }
+            : undefined,
+          success: nodeSnapshots.length > 0,
+          changed: nodeSnapshots.length > 0,
           recordable: true
         });
       }
@@ -373,23 +490,57 @@ export function createEditorCommandBus(
           request.x,
           request.y
         );
+        const nodeSnapshots = captureCreatedNodeSnapshots(options.graph, result);
         return createExecution(request, result, {
-          success: hasCreatedNodes(result),
-          changed: hasCreatedNodes(result),
+          historyPayload: nodeSnapshots.length
+            ? {
+                kind: "create-nodes",
+                nodeSnapshots
+              }
+            : undefined,
+          success: nodeSnapshots.length > 0,
+          changed: nodeSnapshots.length > 0,
           recordable: true
         });
       }
       case "node.remove": {
+        const nodeSnapshots = captureNodeSnapshots(options.graph, [request.nodeId]);
+        const links = captureRelatedLinks(options.graph, [request.nodeId]);
         const result = nodeCommands.removeNode(request.nodeId);
         return createExecution(request, result, {
+          historyPayload:
+            result && nodeSnapshots.length
+              ? {
+                  kind: "remove-nodes",
+                  nodeSnapshots,
+                  links
+                }
+              : undefined,
           success: result,
           changed: result,
           recordable: true
         });
       }
       case "node.reset-size": {
+        const beforeSnapshot = options.graph.getNodeSnapshot(request.nodeId);
         const result = nodeCommands.resetNodeSize(request.nodeId);
+        const afterSnapshot = options.graph.getNodeSnapshot(request.nodeId);
         return createExecution(request, result, {
+          historyPayload:
+            result && beforeSnapshot && afterSnapshot
+              ? {
+                  kind: "resize-node",
+                  nodeId: request.nodeId,
+                  beforeSize: {
+                    width: beforeSnapshot.layout.width ?? 0,
+                    height: beforeSnapshot.layout.height ?? 0
+                  },
+                  afterSize: {
+                    width: afterSnapshot.layout.width ?? 0,
+                    height: afterSnapshot.layout.height ?? 0
+                  }
+                }
+              : undefined,
           success: result,
           changed: result,
           recordable: true
@@ -400,6 +551,7 @@ export function createEditorCommandBus(
         options.selection.clear();
         const changed = prevSelectedNodeIds.length > 0;
         return createExecution(request, changed, {
+          historyPayload: undefined,
           success: true,
           changed,
           recordable: false
@@ -407,15 +559,33 @@ export function createEditorCommandBus(
       }
       case "selection.duplicate": {
         const result = nodeCommands.duplicateSelectedNodes();
+        const nodeSnapshots = captureCreatedNodeSnapshots(options.graph, result);
         return createExecution(request, result, {
-          success: hasCreatedNodes(result),
-          changed: hasCreatedNodes(result),
+          historyPayload: nodeSnapshots.length
+            ? {
+                kind: "create-nodes",
+                nodeSnapshots
+              }
+            : undefined,
+          success: nodeSnapshots.length > 0,
+          changed: nodeSnapshots.length > 0,
           recordable: true
         });
       }
       case "selection.remove": {
+        const selectedNodeIds = [...options.selection.selectedNodeIds];
+        const nodeSnapshots = captureNodeSnapshots(options.graph, selectedNodeIds);
+        const links = captureRelatedLinks(options.graph, selectedNodeIds);
         const result = nodeCommands.removeSelectedNodes();
         return createExecution(request, result, {
+          historyPayload:
+            result && nodeSnapshots.length
+              ? {
+                  kind: "remove-nodes",
+                  nodeSnapshots,
+                  links
+                }
+              : undefined,
           success: result,
           changed: result,
           recordable: true
@@ -430,6 +600,7 @@ export function createEditorCommandBus(
           nextSelectedNodeIds
         );
         return createExecution(request, changed, {
+          historyPayload: undefined,
           success: true,
           changed,
           recordable: false
