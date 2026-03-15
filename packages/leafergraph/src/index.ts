@@ -8,13 +8,10 @@ import { addViewport } from "@leafer-in/viewport";
 import "@leafer-in/view";
 import * as NodeSDK from "@leafergraph/node";
 import {
-  configureNode,
   installNodeModule,
   NodeRegistry,
   createNodeApi,
-  createNodeState,
   serializeNode,
-  type LeaferGraphData,
   type LeaferGraphLinkData,
   type InstallNodeModuleOptions,
   type NodeDefinition,
@@ -106,9 +103,7 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetEditingContext,
-  LeaferGraphWidgetRenderInstance,
-  LeaferGraphWidgetThemeContext,
-  LeaferGraphWidgetRenderer
+  LeaferGraphWidgetThemeContext
 } from "./plugin";
 import {
   PORT_DIRECTION_LEFT,
@@ -117,9 +112,26 @@ import {
   resolveLinkEndpoints
 } from "./link";
 import {
+  LeaferGraphMutationHost,
+  normalizeGraphLinkSlotIndex
+} from "./graph_mutation_host";
+import { LeaferGraphRestoreHost } from "./graph_restore_host";
+import {
+  LeaferGraphInteractionHost,
+  type GraphDragNodePosition
+} from "./interaction_host";
+import {
+  LeaferGraphLinkHost,
+  type GraphLinkViewState as LeaferGraphLinkViewState
+} from "./link_host";
+import {
   resolveNodeCategoryBadgeLayout,
   resolveNodeShellLayout
 } from "./node_layout";
+import {
+  LeaferGraphNodeHost,
+  type NodeViewState as LeaferGraphNodeViewState
+} from "./node_host";
 import {
   resolveNodePortAnchorYForNode,
   type NodeShellPortLayout
@@ -130,13 +142,16 @@ import {
   type NodeShellView
 } from "./node_shell";
 import {
-  isWidgetInteractionTarget,
   type LeaferGraphWidgetPointerEvent
 } from "./widget_interaction";
 import {
   BasicWidgetLibrary,
   resolveBasicWidgetTheme
 } from "./widgets/basic_widgets";
+import {
+  LeaferGraphWidgetHost,
+  createMissingWidgetRenderer
+} from "./widget_host";
 import { LeaferGraphWidgetRegistry } from "./widget_registry";
 import {
   LeaferGraphWidgetEditingManager,
@@ -193,16 +208,11 @@ const MISSING_NODE_FILL = "rgba(220, 38, 38, 0.92)";
 const MISSING_NODE_STROKE = "rgba(127, 29, 29, 0.86)";
 const MISSING_NODE_PRESS_FILL = "rgba(185, 28, 28, 0.96)";
 const MISSING_NODE_TEXT_FILL = "#FFF1F2";
-const MISSING_WIDGET_FILL = "rgba(220, 38, 38, 0.92)";
-const MISSING_WIDGET_STROKE = "rgba(127, 29, 29, 0.78)";
-const MISSING_WIDGET_TEXT_FILL = "#FFF1F2";
-const DEFAULT_GRAPH_LINK_SLOT = 0;
 const SELECTED_RING_OUTSET = 4;
 const SELECTED_RING_STROKE_WIDTH = 3;
 const DEFAULT_FIT_VIEW_PADDING = 64;
 const VIEWPORT_MIN_SCALE = 0.2;
 const VIEWPORT_MAX_SCALE = 4;
-let graphLinkSeed = 1;
 
 /**
  * 统一的槽位类型颜色表。
@@ -377,59 +387,10 @@ interface LeaferGraphCoordinateHost {
   ): { x: number; y: number };
 }
 
-/** 节点视图状态，负责把运行时节点和实际 Leafer 图元绑定在一起。 */
-interface NodeViewState {
-  state: GraphNodeState;
-  view: Group;
-  card: Rect;
-  selectedRing: Rect;
-  widgetLayer: Box;
-  resizeHandle: Box;
-  shellView: NodeShellView;
-  widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
-  hovered: boolean;
-}
-
-/** 连线视图状态。 */
-interface GraphLinkViewState {
-  linkId: string;
-  sourceId: string;
-  targetId: string;
-  sourceSlot: number;
-  targetSlot: number;
-  view: Arrow;
-}
-
 /** 主包内部统一图状态容器。 */
 interface GraphRuntimeState {
   nodes: Map<string, GraphNodeState>;
   links: Map<string, LeaferGraphLinkData>;
-}
-
-/** 多选拖拽时记录的单个节点初始位置。 */
-interface GraphDragNodePosition {
-  nodeId: string;
-  startX: number;
-  startY: number;
-}
-
-/** 拖拽中的节点状态。 */
-interface GraphDragState {
-  anchorNodeId: string;
-  offsetX: number;
-  offsetY: number;
-  anchorStartX: number;
-  anchorStartY: number;
-  nodes: GraphDragNodePosition[];
-}
-
-/** 拖拽 resize 句柄时的节点缩放状态。 */
-interface GraphResizeState {
-  nodeId: string;
-  startWidth: number;
-  startHeight: number;
-  startPageX: number;
-  startPageY: number;
 }
 
 /** 节点当前使用的展示层属性。 */
@@ -452,6 +413,9 @@ interface InstalledPluginRecord {
 type GraphNodeState = NodeRuntimeState & {
   properties: GraphNodeProperties;
 };
+
+type NodeViewState = LeaferGraphNodeViewState<GraphNodeState>;
+type GraphLinkViewState = LeaferGraphLinkViewState<GraphNodeState>;
 
 /**
  * 主包允许的槽位输入结构。
@@ -545,119 +509,6 @@ export interface LeaferGraphCreateLinkInput
 }
 
 /**
- * 归一化连线槽位序号。
- * 当前阶段未提供或非法时统一回退到第一个槽位。
- */
-function normalizeLinkSlotIndex(slot: number | undefined): number {
-  if (typeof slot !== "number" || !Number.isFinite(slot)) {
-    return DEFAULT_GRAPH_LINK_SLOT;
-  }
-
-  return Math.max(DEFAULT_GRAPH_LINK_SLOT, Math.floor(slot));
-}
-
-/** 生成默认连线 ID，保证在未显式指定时也能稳定进入图状态。 */
-function createGraphLinkId(link: LeaferGraphCreateLinkInput): string {
-  const sourceSlot = normalizeLinkSlotIndex(link.source.slot);
-  const targetSlot = normalizeLinkSlotIndex(link.target.slot);
-  const id = `link:${link.source.nodeId}:${sourceSlot}->${link.target.nodeId}:${targetSlot}:${graphLinkSeed}`;
-  graphLinkSeed += 1;
-  return id;
-}
-
-/**
- * 缺失 Widget 类型时的统一占位渲染。
- * 当前直接使用红色块级提示，避免未知类型静默消失导致用户误判数据已丢失。
- */
-function createMissingWidgetRenderer(): LeaferGraphWidgetRenderer {
-  return (context) => {
-    const surface = new LeaferUI.Rect({
-      width: context.bounds.width,
-      height: context.bounds.height,
-      fill: MISSING_WIDGET_FILL,
-      stroke: MISSING_WIDGET_STROKE,
-      strokeWidth: 1,
-      cornerRadius: 12
-    });
-    const label = new LeaferUI.Text({
-      x: 14,
-      y: Math.max(context.bounds.height / 2 - 9, 12),
-      width: Math.max(context.bounds.width - 28, 24),
-      text: context.widget.type,
-      textAlign: "center",
-      fill: MISSING_WIDGET_TEXT_FILL,
-      fontFamily: NODE_FONT_FAMILY,
-      fontSize: 12,
-      fontWeight: "600",
-      hittable: false
-    });
-    label.textWrap = "break";
-    context.group.add([surface, label]);
-
-    return {
-      destroy() {
-        context.group.removeAll();
-      }
-    };
-  };
-}
-
-/**
- * 归一化并拷贝连线数据。
- * 宿主内部只保存这份标准化结果，避免外部对象后续修改直接污染运行时状态。
- */
-function normalizeLinkData(link: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
-  return {
-    id: link.id?.trim() || createGraphLinkId(link),
-    source: {
-      nodeId: link.source.nodeId,
-      slot: normalizeLinkSlotIndex(link.source.slot)
-    },
-    target: {
-      nodeId: link.target.nodeId,
-      slot: normalizeLinkSlotIndex(link.target.slot)
-    },
-    label: link.label,
-    data: link.data ? structuredClone(link.data) : undefined
-  };
-}
-
-/** 为对外查询返回一份安全副本，避免外部绕过正式 API 直接改内部状态。 */
-function cloneLinkData(link: LeaferGraphLinkData): LeaferGraphLinkData {
-  return {
-    id: link.id,
-    source: { ...link.source },
-    target: { ...link.target },
-    label: link.label,
-    data: link.data ? structuredClone(link.data) : undefined
-  };
-}
-
-/** 把任意输入约束成有限数字；非法时回退到给定值。 */
-function coerceFiniteNumber(value: number | undefined, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-/** 将值限制在给定区间内；未提供最大值时只做下界限制。 */
-function clampToRange(value: number, min: number, max?: number): number {
-  if (typeof max === "number" && Number.isFinite(max)) {
-    return Math.min(Math.max(value, min), max);
-  }
-
-  return Math.max(value, min);
-}
-
-/** 按给定步长做吸附；非法或非正数步长会直接返回原值。 */
-function snapToStep(value: number, step?: number): number {
-  if (typeof step !== "number" || !Number.isFinite(step) || step <= 0) {
-    return value;
-  }
-
-  return Math.round(value / step) * step;
-}
-
-
-/**
  * LeaferGraph 主包运行时。
  * 当前既提供插件安装入口，也负责节点图渲染与交互。
  */
@@ -680,64 +531,22 @@ export class LeaferGraph {
   private readonly installedPlugins = new Map<string, InstalledPluginRecord>();
   private readonly widgetEditingManager: LeaferGraphWidgetEditingManager;
   private readonly widgetEditingContext: LeaferGraphWidgetEditingContext;
+  private readonly nodeHost: LeaferGraphNodeHost<GraphNodeState>;
+  private readonly interactionHost: LeaferGraphInteractionHost<
+    GraphNodeState,
+    NodeViewState
+  >;
+  private readonly linkHost: LeaferGraphLinkHost<GraphNodeState>;
+  private readonly mutationHost: LeaferGraphMutationHost<
+    GraphNodeState,
+    NodeViewState
+  >;
+  private readonly restoreHost: LeaferGraphRestoreHost<GraphNodeState, NodeViewState>;
+  private readonly widgetHost: LeaferGraphWidgetHost;
   private themeMode: LeaferGraphThemeMode;
   private widgetTheme: LeaferGraphWidgetThemeContext;
   /** 节点层级递增计数器，用于点击时把节点提升到最前面。 */
   private nodeZIndexSeed = 0;
-  private dragState: GraphDragState | null = null;
-  private resizeState: GraphResizeState | null = null;
-  private readonly handleWindowPointerMove = (event: PointerEvent): void => {
-    if (this.resizeState) {
-      const point = this.getPagePointByClient(event);
-      const width = this.resizeState.startWidth + (point.x - this.resizeState.startPageX);
-      const height = this.resizeState.startHeight + (point.y - this.resizeState.startPageY);
-
-      this.resizeNode(this.resizeState.nodeId, { width, height });
-      this.container.style.cursor = "nwse-resize";
-      return;
-    }
-
-    if (!this.dragState) {
-      return;
-    }
-
-    const point = this.getPagePointByClient(event);
-    const anchorX = point.x - this.dragState.offsetX;
-    const anchorY = point.y - this.dragState.offsetY;
-    const deltaX = anchorX - this.dragState.anchorStartX;
-    const deltaY = anchorY - this.dragState.anchorStartY;
-
-    this.moveNodesByDelta(this.dragState.nodes, deltaX, deltaY);
-    this.container.style.cursor = "grabbing";
-  };
-  private readonly handleWindowPointerUp = (): void => {
-    const resizeNodeId = this.resizeState?.nodeId;
-    const dragNodeId = this.dragState?.anchorNodeId;
-
-    if (this.resizeState) {
-      this.resizeState = null;
-      this.container.style.cursor = "";
-    }
-
-    if (this.dragState) {
-      this.dragState = null;
-      this.container.style.cursor = "";
-    }
-
-    if (resizeNodeId) {
-      const state = this.nodeViews.get(resizeNodeId);
-      if (state) {
-        this.syncNodeResizeHandleVisibility(state);
-      }
-    }
-
-    if (dragNodeId && dragNodeId !== resizeNodeId) {
-      const state = this.nodeViews.get(dragNodeId);
-      if (state) {
-        this.syncNodeResizeHandleVisibility(state);
-      }
-    }
-  };
 
   /** 创建图宿主，并在内部异步完成模块与插件安装。 */
   constructor(container: HTMLElement, options: LeaferGraphOptions = {}) {
@@ -781,10 +590,119 @@ export class LeaferGraph {
       editing: resolvedEditing.editing
     });
     this.widgetEditingContext = this.widgetEditingManager;
+    this.widgetHost = new LeaferGraphWidgetHost({
+      registry: this.widgetRegistry,
+      getTheme: () => this.widgetTheme,
+      getEditing: () => this.widgetEditingContext,
+      setNodeWidgetValue: (nodeId, widgetIndex, newValue) => {
+        this.setNodeWidgetValue(nodeId, widgetIndex, newValue);
+      },
+      requestRender: () => {
+        this.app.forceRender();
+      },
+      emitNodeWidgetAction: (nodeId, action, param, extra) =>
+        this.emitNodeWidgetAction(nodeId, action, param, extra)
+    });
+    this.interactionHost = new LeaferGraphInteractionHost({
+      container: this.container,
+      bringNodeViewToFront: (state) => this.bringNodeViewToFront(state),
+      syncNodeResizeHandleVisibility: (state) =>
+        this.syncNodeResizeHandleVisibility(state),
+      requestRender: () => {
+        this.app.forceRender();
+      },
+      resolveDraggedNodeIds: (nodeId) => this.resolveDraggedNodeIds(nodeId),
+      moveNodesByDelta: (positions, deltaX, deltaY) => {
+        this.moveNodesByDelta(positions, deltaX, deltaY);
+      },
+      resizeNode: (nodeId, size) => {
+        this.resizeNode(nodeId, size);
+      },
+      setNodeCollapsed: (nodeId, collapsed) =>
+        this.setNodeCollapsed(nodeId, collapsed),
+      canResizeNode: (nodeId) => this.canResizeNode(nodeId),
+      getPagePointByClient: (event) => this.getPagePointByClient(event),
+      getPagePointFromGraphEvent: (event) => this.getPagePointFromGraphEvent(event),
+      resolveNodeSize: (state) => ({
+        width: state.state.layout.width ?? DEFAULT_NODE_WIDTH,
+        height: state.state.layout.height ?? DEFAULT_NODE_MIN_HEIGHT
+      }),
+      getNodeView: (nodeId) => this.nodeViews.get(nodeId)
+    });
+    this.nodeHost = new LeaferGraphNodeHost({
+      nodeViews: this.nodeViews,
+      nodeLayer: this.nodeLayer,
+      layoutMetrics: NODE_SHELL_LAYOUT_METRICS,
+      buildNodeShell: (node, shellLayout) => this.buildNodeShell(node, shellLayout),
+      isMissingNodeType: (node) => this.isMissingNodeType(node),
+      renderNodeWidgets: (node, widgetLayer, shellLayout) =>
+        this.widgetHost.renderNodeWidgets(node, widgetLayer, shellLayout.widgets),
+      destroyNodeWidgets: (state) =>
+        this.widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
+      onNodeViewCreated: (state) => {
+        this.applyNodeSelectionStyles(state);
+        this.bringNodeViewToFront(state);
+      },
+      onNodeMounted: (nodeId, state) => {
+        this.interactionHost.bindNodeDragging(nodeId, state.view);
+        this.interactionHost.bindNodeResize(nodeId, state);
+        this.interactionHost.bindNodeCollapseToggle(nodeId, state);
+      },
+      onNodeRefreshed: (nodeId, state) => {
+        this.interactionHost.bindNodeResize(nodeId, state);
+        this.interactionHost.bindNodeCollapseToggle(nodeId, state);
+        this.applyNodeSelectionStyles(state);
+      }
+    });
+    this.linkHost = new LeaferGraphLinkHost({
+      graphLinks: this.graphState.links,
+      linkViews: this.linkViews,
+      getNode: (nodeId) => this.graphState.nodes.get(nodeId),
+      normalizeSlotIndex: (slot) => normalizeGraphLinkSlotIndex(slot),
+      createLinkShape: (source, target, sourceSlot, targetSlot) =>
+        this.createLinkShape(source, target, sourceSlot, targetSlot),
+      addLinkShapeToLayer: (view) => this.addLinkShapeToLayer(view),
+      refreshLinkPath: (link, source, target) =>
+        this.refreshLinkPath(link, source, target)
+    });
+    this.mutationHost = new LeaferGraphMutationHost<GraphNodeState, NodeViewState>({
+      nodeRegistry: this.nodeRegistry,
+      graphNodes: this.graphState.nodes,
+      graphLinks: this.graphState.links,
+      nodeViews: this.nodeViews,
+      mountNodeView: (node) => this.mountNodeView(node),
+      unmountNodeView: (nodeId) => this.unmountNodeView(nodeId),
+      refreshNodeView: (state) => this.refreshNodeView(state),
+      mountLinkView: (link) => this.mountLinkView(link),
+      removeLinkInternal: (linkId) => this.removeLinkInternal(linkId),
+      updateConnectedLinks: (nodeId) => this.updateConnectedLinks(nodeId),
+      updateConnectedLinksForNodes: (nodeIds) =>
+        this.updateConnectedLinksForNodes(nodeIds),
+      handleNodeRemoved: (nodeId) => this.interactionHost.handleNodeRemoved(nodeId),
+      requestRender: () => {
+        this.app.forceRender();
+      },
+      toSlotSpecs: (slots) => this.toSlotSpecs(slots),
+      resolveNodeResizeConstraint: (node) => this.resolveNodeResizeConstraint(node)
+    });
+    this.restoreHost = new LeaferGraphRestoreHost<GraphNodeState, NodeViewState>({
+      nodeRegistry: this.nodeRegistry,
+      graphNodes: this.graphState.nodes,
+      graphLinks: this.graphState.links,
+      nodeViews: this.nodeViews,
+      linkViews: this.linkViews,
+      clearInteractionState: () => this.interactionHost.clearInteractionState(),
+      resetRuntimeState: () => {
+        this.nodeZIndexSeed = 0;
+      },
+      destroyNodeViewWidgets: (state) =>
+        this.widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
+      clearNodeLayer: () => this.nodeLayer.removeAll(),
+      clearLinkLayer: () => this.linkLayer.removeAll(),
+      mountNodeView: (node) => this.mountNodeView(node),
+      mountLinkView: (link) => this.mountLinkView(link)
+    });
     this.setupViewport();
-    window.addEventListener("pointermove", this.handleWindowPointerMove);
-    window.addEventListener("pointerup", this.handleWindowPointerUp);
-    window.addEventListener("pointercancel", this.handleWindowPointerUp);
     this.registerBuiltinWidgets();
     this.ready = this.initialize(options);
     this.ready.catch((error) => {
@@ -795,15 +713,11 @@ export class LeaferGraph {
   /** 销毁宿主实例，并清理全部全局事件与 widget 生命周期。 */
   destroy(): void {
     for (const state of this.nodeViews.values()) {
-      this.destroyNodeWidgets(state);
+      this.widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer);
     }
 
-    this.dragState = null;
-    this.resizeState = null;
+    this.interactionHost.destroy();
     this.widgetEditingManager.destroy();
-    window.removeEventListener("pointermove", this.handleWindowPointerMove);
-    window.removeEventListener("pointerup", this.handleWindowPointerUp);
-    window.removeEventListener("pointercancel", this.handleWindowPointerUp);
     this.app.destroy();
   }
 
@@ -1030,15 +944,7 @@ export class LeaferGraph {
    * 这一步先提供最小查询能力，方便 editor 后续接入删除、复制和选中联动。
    */
   findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
-    const links: LeaferGraphLinkData[] = [];
-
-    for (const link of this.graphState.links.values()) {
-      if (link.source.nodeId === nodeId || link.target.nodeId === nodeId) {
-        links.push(cloneLinkData(link));
-      }
-    }
-
-    return links;
+    return this.mutationHost.findLinksByNode(nodeId);
   }
 
   /**
@@ -1046,16 +952,7 @@ export class LeaferGraph {
    * 当前阶段仍然接受页面层友好的节点输入结构，后续再逐步切到更正式的图模型输入。
    */
   createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState {
-    const node = this.createGraphNodeState(input);
-
-    if (this.graphState.nodes.has(node.id)) {
-      throw new Error(`节点已存在：${node.id}`);
-    }
-
-    this.graphState.nodes.set(node.id, node);
-    this.mountNodeView(node);
-    this.app.forceRender();
-    return node;
+    return this.mutationHost.createNode(input);
   }
 
   /**
@@ -1063,28 +960,7 @@ export class LeaferGraph {
    * 这是当前阶段最小但正式的节点移除入口。
    */
   removeNode(nodeId: string): boolean {
-    if (!this.graphState.nodes.has(nodeId)) {
-      return false;
-    }
-
-    for (const link of this.findLinksByNode(nodeId)) {
-      this.removeLinkInternal(link.id);
-    }
-
-    this.unmountNodeView(nodeId);
-    this.graphState.nodes.delete(nodeId);
-
-    if (this.dragState?.nodes.some((item) => item.nodeId === nodeId)) {
-      this.dragState = null;
-      this.container.style.cursor = "";
-    }
-    if (this.resizeState?.nodeId === nodeId) {
-      this.resizeState = null;
-      this.container.style.cursor = "";
-    }
-
-    this.app.forceRender();
-    return true;
+    return this.mutationHost.removeNode(nodeId);
   }
 
   /**
@@ -1096,38 +972,7 @@ export class LeaferGraph {
     nodeId: string,
     input: LeaferGraphUpdateNodeInput
   ): NodeRuntimeState | undefined {
-    const node = this.graphState.nodes.get(nodeId);
-    if (!node) {
-      return undefined;
-    }
-
-    if (input.id && input.id !== nodeId) {
-      throw new Error("当前阶段暂不支持通过 updateNode() 修改节点 ID");
-    }
-
-    configureNode(this.nodeRegistry, node, {
-      type: node.type,
-      title: input.title,
-      layout: this.resolvePatchedNodeLayout(node, input),
-      properties: this.resolvePatchedNodeProperties(node, input),
-      propertySpecs: input.propertySpecs,
-      inputs: input.inputs !== undefined ? this.toSlotSpecs(input.inputs) : undefined,
-      outputs: input.outputs !== undefined ? this.toSlotSpecs(input.outputs) : undefined,
-      widgets: this.resolvePatchedNodeWidgets(node, input),
-      data: input.data
-    });
-
-    const state = this.nodeViews.get(nodeId);
-
-    if (state) {
-      this.refreshNodeView(state);
-    } else {
-      this.mountNodeView(node);
-    }
-
-    this.updateConnectedLinks(nodeId);
-    this.app.forceRender();
-    return node;
+    return this.mutationHost.updateNode(nodeId, input);
   }
 
   /**
@@ -1138,18 +983,7 @@ export class LeaferGraph {
     nodeId: string,
     position: LeaferGraphMoveNodeInput
   ): NodeRuntimeState | undefined {
-    const node = this.graphState.nodes.get(nodeId);
-    if (!node) {
-      return undefined;
-    }
-
-    if (!this.moveNodeInternally(nodeId, position)) {
-      return node;
-    }
-
-    this.updateConnectedLinksForNodes([nodeId]);
-    this.app.forceRender();
-    return node;
+    return this.mutationHost.moveNode(nodeId, position);
   }
 
   /**
@@ -1161,65 +995,7 @@ export class LeaferGraph {
     nodeId: string,
     size: LeaferGraphResizeNodeInput
   ): NodeRuntimeState | undefined {
-    const node = this.graphState.nodes.get(nodeId);
-    const state = this.nodeViews.get(nodeId);
-
-    if (!node || !state) {
-      return node;
-    }
-
-    const constraint = this.resolveNodeResizeConstraint(node);
-    if (!constraint.enabled) {
-      return node;
-    }
-
-    const currentWidth = node.layout.width ?? constraint.defaultWidth;
-    const currentHeight = node.layout.height ?? constraint.defaultHeight;
-    let nextWidth = coerceFiniteNumber(size.width, currentWidth);
-    let nextHeight = coerceFiniteNumber(size.height, currentHeight);
-
-    if (constraint.lockRatio) {
-      const ratio =
-        constraint.defaultHeight > 0
-          ? constraint.defaultWidth / constraint.defaultHeight
-          : currentHeight > 0
-            ? currentWidth / currentHeight
-            : 1;
-      const widthDelta = Math.abs(nextWidth - currentWidth);
-      const heightDelta = Math.abs(nextHeight - currentHeight);
-      const widthDriven = widthDelta >= heightDelta;
-
-      if (widthDriven) {
-        nextHeight = nextWidth / ratio;
-      } else {
-        nextWidth = nextHeight * ratio;
-      }
-    }
-
-    nextWidth = snapToStep(nextWidth, constraint.snap);
-    nextHeight = snapToStep(nextHeight, constraint.snap);
-
-    nextWidth = clampToRange(
-      nextWidth,
-      constraint.minWidth,
-      constraint.maxWidth
-    );
-    nextHeight = clampToRange(
-      nextHeight,
-      constraint.minHeight,
-      constraint.maxHeight
-    );
-
-    if (node.layout.width === nextWidth && node.layout.height === nextHeight) {
-      return node;
-    }
-
-    node.layout.width = Math.round(nextWidth);
-    node.layout.height = Math.round(nextHeight);
-    this.refreshNodeView(state);
-    this.updateConnectedLinks(nodeId);
-    this.app.forceRender();
-    return node;
+    return this.mutationHost.resizeNode(nodeId, size);
   }
 
   /**
@@ -1227,38 +1003,12 @@ export class LeaferGraph {
    * 连线端点必须指向已存在的节点，否则直接抛错，避免悄悄生成半无效状态。
    */
   createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
-    const link = normalizeLinkData(input);
-
-    if (this.graphState.links.has(link.id)) {
-      throw new Error(`连线已存在：${link.id}`);
-    }
-
-    if (!this.graphState.nodes.has(link.source.nodeId)) {
-      throw new Error(`连线起点节点不存在：${link.source.nodeId}`);
-    }
-
-    if (!this.graphState.nodes.has(link.target.nodeId)) {
-      throw new Error(`连线终点节点不存在：${link.target.nodeId}`);
-    }
-
-    const state = this.mountLinkView(link);
-    if (!state) {
-      throw new Error(`无法创建连线视图：${link.id}`);
-    }
-
-    this.app.forceRender();
-    return cloneLinkData(link);
+    return this.mutationHost.createLink(input);
   }
 
   /** 删除一条既有连线。 */
   removeLink(linkId: string): boolean {
-    const removed = this.removeLinkInternal(linkId);
-
-    if (removed) {
-      this.app.forceRender();
-    }
-
-    return removed;
+    return this.mutationHost.removeLink(linkId);
   }
 
   /** 执行启动期安装流程，然后渲染初始图数据。 */
@@ -1271,7 +1021,7 @@ export class LeaferGraph {
       await this.use(plugin);
     }
 
-    this.renderGraph(this.resolveInitialGraphData(options));
+    this.restoreHost.restoreGraph(options.graph);
   }
 
   /** 模块安装的内部统一入口。 */
@@ -1338,77 +1088,14 @@ export class LeaferGraph {
     });
   }
 
-  /**
-   * 解析启动时的图数据。
-   * 当前只接受正式 `graph` 入口；未提供时回退为空图。
-   */
-  private resolveInitialGraphData(options: LeaferGraphOptions): LeaferGraphData {
-    if (options.graph) {
-      return {
-        nodes: options.graph.nodes,
-        links: options.graph.links ?? [],
-        meta: options.graph.meta
-      };
-    }
-
-    return {
-      nodes: [],
-      links: []
-    };
-  }
-
-  /** 根据图数据重建整个主包场景。 */
-  private renderGraph(graph: LeaferGraphData): void {
-    for (const state of this.nodeViews.values()) {
-      this.destroyNodeWidgets(state);
-    }
-
-    this.dragState = null;
-    this.resizeState = null;
-    this.nodeZIndexSeed = 0;
-    this.graphState.nodes.clear();
-    this.graphState.links.clear();
-    this.nodeViews.clear();
-    this.linkViews.length = 0;
-    this.nodeLayer.removeAll();
-    this.linkLayer.removeAll();
-
-    const localNodes = graph.nodes.map((node) =>
-      this.createGraphNodeStateFromSnapshot(this.normalizeGraphNodeSnapshot(node))
-    );
-
-    for (const node of localNodes) {
-      this.graphState.nodes.set(node.id, node);
-      this.mountNodeView(node);
-    }
-
-    for (const link of graph.links ?? []) {
-      this.mountLinkView(normalizeLinkData(link));
-    }
-  }
-
   /** 将节点状态挂入节点层，并建立拖拽与视图映射。 */
   private mountNodeView(node: GraphNodeState): NodeViewState {
-    const state = this.createNodeView(node);
-    this.nodeViews.set(node.id, state);
-    this.nodeLayer.add(state.view);
-    this.bindNodeDragging(node.id, state.view);
-    this.bindNodeResize(node.id, state);
-    this.bindNodeCollapseToggle(node.id, state);
-    return state;
+    return this.nodeHost.mountNodeView(node);
   }
 
   /** 卸载一个节点视图，同时安全销毁内部 widget 实例。 */
   private unmountNodeView(nodeId: string): NodeViewState | undefined {
-    const state = this.nodeViews.get(nodeId);
-    if (!state) {
-      return undefined;
-    }
-
-    this.destroyNodeWidgets(state);
-    state.view.remove();
-    this.nodeViews.delete(nodeId);
-    return state;
+    return this.nodeHost.unmountNodeView(nodeId);
   }
 
   /**
@@ -1417,95 +1104,25 @@ export class LeaferGraph {
    * 同时让端口、Widget 区和 resize 句柄按最新布局重新生成。
    */
   private refreshNodeView(state: NodeViewState): void {
-    const shellLayout = resolveNodeShellLayout(
-      state.state,
-      NODE_SHELL_LAYOUT_METRICS
-    );
-    const nextShellView = this.buildNodeShell(state.state, shellLayout);
-    const nextChildren = [...nextShellView.view.children];
-
-    this.destroyNodeWidgets(state);
-    state.view.x = state.state.layout.x;
-    state.view.y = state.state.layout.y;
-    state.view.name = nextShellView.view.name;
-    state.view.removeAll();
-    state.view.add(nextChildren as unknown as Group[]);
-
-    state.card = nextShellView.card;
-    state.selectedRing = nextShellView.selectedRing;
-    state.widgetLayer = nextShellView.widgetLayer;
-    state.resizeHandle = nextShellView.resizeHandle;
-    state.shellView = nextShellView;
-    state.widgetInstances = !this.isMissingNodeType(state.state) && shellLayout.hasWidgets
-      ? this.renderNodeWidgets(state.state, nextShellView.widgetLayer, shellLayout)
-      : [];
-
-    this.bindNodeResize(state.state.id, state);
-    this.bindNodeCollapseToggle(state.state.id, state);
-    this.applyNodeSelectionStyles(state);
+    this.nodeHost.refreshNodeView(state);
   }
 
   /** 将连线状态和连线视图一起挂入当前图。 */
   private mountLinkView(link: LeaferGraphLinkData): GraphLinkViewState | null {
-    if (this.graphState.links.has(link.id)) {
-      console.warn("[leafergraph] 跳过重复连线 ID", link.id);
-      return null;
-    }
-
-    const state = this.createLinkView(link);
-    if (!state) {
-      return null;
-    }
-
-    this.graphState.links.set(link.id, link);
-    this.linkViews.push(state);
-    this.addLinkShapeToLayer(state.view);
-    return state;
+    return this.linkHost.mountLinkView(link);
   }
 
   /** 移除一条连线的图状态和视图，供正式 API 与节点删除复用。 */
   private removeLinkInternal(linkId: string): boolean {
-    const linkIndex = this.linkViews.findIndex((item) => item.linkId === linkId);
-
-    if (linkIndex >= 0) {
-      const [state] = this.linkViews.splice(linkIndex, 1);
-      state.view.remove();
-    }
-
-    return this.graphState.links.delete(linkId) || linkIndex >= 0;
-  }
-
-  /**
-   * 根据正式连线数据创建连线视图。
-   * 当端点节点不存在时，当前阶段直接跳过并打印告警，避免半有效数据破坏整体渲染。
-   */
-  private createLinkView(link: LeaferGraphLinkData): GraphLinkViewState | null {
-    const source = this.graphState.nodes.get(link.source.nodeId);
-    const target = this.graphState.nodes.get(link.target.nodeId);
-    if (!source || !target) {
-      console.warn("[leafergraph] 跳过无效连线，未找到端点节点", link);
-      return null;
-    }
-
-    const sourceSlot = normalizeLinkSlotIndex(link.source.slot);
-    const targetSlot = normalizeLinkSlotIndex(link.target.slot);
-
-    return {
-      linkId: link.id,
-      sourceId: link.source.nodeId,
-      targetId: link.target.nodeId,
-      sourceSlot,
-      targetSlot,
-      view: this.createLinkShape(source, target, sourceSlot, targetSlot)
-    };
+    return this.linkHost.removeLink(linkId);
   }
 
   /** 创建两个节点之间的连线图元。 */
   private createLinkShape(
     source: GraphNodeState,
     target: GraphNodeState,
-    sourceSlot = DEFAULT_GRAPH_LINK_SLOT,
-    targetSlot = DEFAULT_GRAPH_LINK_SLOT
+    sourceSlot = 0,
+    targetSlot = 0
   ): Arrow {
     const sourceWidth = source.layout.width ?? DEFAULT_NODE_WIDTH;
     const endpoints = resolveLinkEndpoints({
@@ -1557,147 +1174,9 @@ export class LeaferGraph {
     this.linkLayer.add(view as unknown as Group);
   }
 
-  /**
-   * 启动一次节点拖拽。
-   * 它会记录锚点节点与当前拖拽成员的初始坐标，
-   * 供窗口级 `pointermove` 统一换算出整组选区的新位置。
-   */
-  private startNodeDrag(
-    nodeId: string,
-    state: NodeViewState,
-    event: LeaferGraphWidgetPointerEvent
-  ): void {
-    const point = this.getPagePointFromGraphEvent(event);
-    const anchorStartX = state.state.layout.x;
-    const anchorStartY = state.state.layout.y;
-    const draggedNodeIds = this.resolveDraggedNodeIds(nodeId);
-
-    this.resizeState = null;
-    this.dragState = {
-      anchorNodeId: nodeId,
-      offsetX: point.x - anchorStartX,
-      offsetY: point.y - anchorStartY,
-      anchorStartX,
-      anchorStartY,
-      nodes: draggedNodeIds.map((draggedNodeId) => {
-        const node = this.graphState.nodes.get(draggedNodeId);
-
-        return {
-          nodeId: draggedNodeId,
-          startX: node?.layout.x ?? 0,
-          startY: node?.layout.y ?? 0
-        };
-      })
-    };
-    this.container.style.cursor = "grabbing";
-  }
-
-  /** 绑定节点拖拽交互。 */
-  private bindNodeDragging(nodeId: string, view: Group): void {
-    view.on("pointer.enter", (event: LeaferGraphWidgetPointerEvent) => {
-      const state = this.nodeViews.get(nodeId);
-      if (state) {
-        state.hovered = true;
-        this.syncNodeResizeHandleVisibility(state);
-      }
-
-      if (
-        !this.dragState &&
-        !this.resizeState &&
-        !this.isResizeHandleTarget(event.target)
-      ) {
-        this.container.style.cursor = "grab";
-      }
-    });
-    view.on("pointer.leave", () => {
-      const state = this.nodeViews.get(nodeId);
-      if (state) {
-        state.hovered = false;
-        this.syncNodeResizeHandleVisibility(state);
-      }
-
-      if (!this.dragState && !this.resizeState) {
-        this.container.style.cursor = "";
-      }
-    });
-    view.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
-      const state = this.nodeViews.get(nodeId);
-      if (!state) {
-        return;
-      }
-
-      if (!event.right && !event.middle) {
-        this.bringNodeViewToFront(state);
-        this.app.forceRender();
-      }
-
-      if (
-        event.right ||
-        event.middle ||
-        isWidgetInteractionTarget(event.target) ||
-        this.isResizeHandleTarget(event.target) ||
-        this.isResizeHandleHit(event, state)
-      ) {
-        return;
-      }
-
-      this.startNodeDrag(nodeId, state, event);
-    });
-  }
-
-  /**
-   * 绑定节点右下角 resize 句柄。
-   * 当前先做最小自定义实现，不直接缩放整个 Group，
-   * 而是把拖拽结果写回节点布局尺寸，再走局部刷新。
-   */
-  private bindNodeResize(nodeId: string, state: NodeViewState): void {
-    if (!this.canResizeNode(nodeId)) {
-      return;
-    }
-
-    state.resizeHandle.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
-      const node = this.graphState.nodes.get(nodeId);
-      if (!node) {
-        return;
-      }
-
-      event.stopNow?.();
-      event.stop?.();
-      this.dragState = null;
-      const point = this.getPagePointFromGraphEvent(event);
-      this.resizeState = {
-        nodeId,
-        startWidth: node.layout.width ?? DEFAULT_NODE_WIDTH,
-        startHeight: node.layout.height ?? DEFAULT_NODE_MIN_HEIGHT,
-        startPageX: point.x,
-        startPageY: point.y
-      };
-      this.syncNodeResizeHandleVisibility(state);
-      this.container.style.cursor = "nwse-resize";
-    });
-  }
-
-  /**
-   * 绑定左上角信号球的折叠开关。
-   * 这里直接在 `pointer.down` 阶段消费事件，避免它被根节点拖拽逻辑抢走。
-   */
-  private bindNodeCollapseToggle(nodeId: string, state: NodeViewState): void {
-    state.shellView.signalButton.on(
-      "pointer.down",
-      (event: LeaferGraphWidgetPointerEvent) => {
-        event.stopNow?.();
-        event.stop?.();
-        this.dragState = null;
-        this.resizeState = null;
-        this.container.style.cursor = "";
-        this.setNodeCollapsed(nodeId, !Boolean(state.state.flags.collapsed));
-      }
-    );
-  }
-
   /** 只更新与某个节点相连的连线，避免全量重算。 */
   private updateConnectedLinks(nodeId: string): void {
-    this.updateConnectedLinksForNodes([nodeId]);
+    this.linkHost.updateConnectedLinks(nodeId);
   }
 
   /**
@@ -1706,56 +1185,7 @@ export class LeaferGraph {
    * 这里统一按节点集合收敛目标范围，减少重复刷新。
    */
   private updateConnectedLinksForNodes(nodeIds: readonly string[]): void {
-    if (!nodeIds.length) {
-      return;
-    }
-
-    const nodeIdSet = new Set(nodeIds);
-
-    for (const link of this.linkViews) {
-      if (!nodeIdSet.has(link.sourceId) && !nodeIdSet.has(link.targetId)) {
-        continue;
-      }
-
-      const source = this.graphState.nodes.get(link.sourceId);
-      const target = this.graphState.nodes.get(link.targetId);
-      if (!source || !target) {
-        continue;
-      }
-
-      this.refreshLinkPath(link, source, target);
-    }
-  }
-
-  /**
-   * 只回写节点坐标本身，不直接触发整批渲染。
-   * `moveNode(...)` 和多选拖拽都会先走这条最小路径，再决定是否统一刷新连线。
-   */
-  private moveNodeInternally(
-    nodeId: string,
-    position: LeaferGraphMoveNodeInput
-  ): boolean {
-    const node = this.graphState.nodes.get(nodeId);
-    if (!node) {
-      return false;
-    }
-
-    const nextX = position.x;
-    const nextY = position.y;
-    if (node.layout.x === nextX && node.layout.y === nextY) {
-      return false;
-    }
-
-    node.layout.x = nextX;
-    node.layout.y = nextY;
-
-    const state = this.nodeViews.get(nodeId);
-    if (state) {
-      state.view.x = nextX;
-      state.view.y = nextY;
-    }
-
-    return true;
+    this.linkHost.updateConnectedLinksForNodes(nodeIds);
   }
 
   /**
@@ -1767,25 +1197,7 @@ export class LeaferGraph {
     deltaX: number,
     deltaY: number
   ): void {
-    const movedNodeIds: string[] = [];
-
-    for (const item of positions) {
-      if (
-        this.moveNodeInternally(item.nodeId, {
-          x: item.startX + deltaX,
-          y: item.startY + deltaY
-        })
-      ) {
-        movedNodeIds.push(item.nodeId);
-      }
-    }
-
-    if (!movedNodeIds.length) {
-      return;
-    }
-
-    this.updateConnectedLinksForNodes(movedNodeIds);
-    this.app.forceRender();
+    this.mutationHost.moveNodesByDelta(positions, deltaX, deltaY);
   }
 
   /** 列出当前处于选中态的节点 ID。 */
@@ -1852,43 +1264,6 @@ export class LeaferGraph {
     );
   }
 
-  /**
-   * 判断当前事件命中是否来自节点 resize 句柄。
-   * 这样可以避免根节点拖拽监听误把 resize 手势识别成移动节点。
-   */
-  private isResizeHandleTarget(
-    target: LeaferGraphWidgetPointerEvent["target"]
-  ): boolean {
-    let current = target;
-
-    while (current) {
-      if ((current.name ?? "").startsWith("node-resize-handle-")) {
-        return true;
-      }
-      current = current.parent ?? null;
-    }
-
-    return false;
-  }
-
-  /**
-   * 通过节点局部坐标兜底判断一次按下是否命中了 resize 热区。
-   * 有些 Leafer 事件在冒泡到根 Group 时，`target` 可能已经不是句柄本身，
-   * 因此这里再补一层几何判断，避免 resize 和拖拽同时起效。
-   */
-  private isResizeHandleHit(
-    event: LeaferGraphWidgetPointerEvent,
-    state: NodeViewState
-  ): boolean {
-    const width = state.state.layout.width ?? DEFAULT_NODE_WIDTH;
-    const height = state.state.layout.height ?? DEFAULT_NODE_MIN_HEIGHT;
-    const point = this.getPagePointFromGraphEvent(event);
-    const localX = point.x - state.state.layout.x;
-    const localY = point.y - state.state.layout.y;
-
-    return localX >= width - 20 && localY >= height - 20;
-  }
-
   /** 把浏览器 client 坐标换成 Leafer page 坐标。 */
   private getPagePointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
     x: number;
@@ -1930,15 +1305,16 @@ export class LeaferGraph {
   /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
   setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
     const state = this.nodeViews.get(nodeId);
-    const widget = state?.state.widgets[widgetIndex];
-
-    if (!state || !widget) {
+    if (!state) {
       return;
     }
 
-    widget.value = newValue;
-    state.widgetInstances[widgetIndex]?.update?.(newValue);
-    this.app.forceRender();
+    this.widgetHost.updateNodeWidgetValue(
+      state.state,
+      widgetIndex,
+      newValue,
+      state.widgetInstances
+    );
   }
 
   /**
@@ -1978,151 +1354,6 @@ export class LeaferGraph {
     );
     this.app.forceRender();
     return true;
-  }
-
-  /** 把节点补丁中的坐标与尺寸字段整理成 `configureNode()` 可消费的布局结构。 */
-  private resolvePatchedNodeLayout(
-    node: GraphNodeState,
-    input: LeaferGraphUpdateNodeInput
-  ): GraphNodeState["layout"] | undefined {
-    if (
-      input.x === undefined &&
-      input.y === undefined &&
-      input.width === undefined &&
-      input.height === undefined
-    ) {
-      return undefined;
-    }
-
-    return {
-      x: input.x ?? node.layout.x,
-      y: input.y ?? node.layout.y,
-      width: input.width ?? node.layout.width,
-      height: input.height ?? node.layout.height
-    };
-  }
-
-  /** 合并当前属性和外部补丁，保证展示层属性仍能走正式更新链路。 */
-  private resolvePatchedNodeProperties(
-    node: GraphNodeState,
-    input: LeaferGraphUpdateNodeInput
-  ): Record<string, unknown> {
-    const properties: Record<string, unknown> = {
-      ...node.properties,
-      ...(input.properties ?? {})
-    };
-
-    if (input.subtitle !== undefined) {
-      properties.subtitle = input.subtitle;
-    }
-    if (input.accent !== undefined) {
-      properties.accent = input.accent;
-    }
-    if (input.category !== undefined) {
-      properties.category = input.category;
-    }
-    if (input.status !== undefined) {
-      properties.status = input.status;
-    }
-
-    return properties;
-  }
-
-  /** 解析节点 Widget 补丁。 */
-  private resolvePatchedNodeWidgets(
-    node: GraphNodeState,
-    input: LeaferGraphUpdateNodeInput
-  ) {
-    void node;
-    return input.widgets;
-  }
-
-  /**
-   * 将图数据中的节点快照归一成正式恢复输入。
-   * 这里显式要求节点必须提供 `type`，避免无效数据静默落图。
-   */
-  private normalizeGraphNodeSnapshot(
-    node: NodeSerializeResult
-  ): NodeSerializeResult {
-    const type = node.type?.trim();
-    if (!type) {
-      throw new Error(`节点缺少 type：${node.id}`);
-    }
-
-    return {
-      ...node,
-      type,
-      layout: {
-        ...node.layout
-      }
-    };
-  }
-
-  /** 将页面层节点输入转换为真正的节点运行时实例。 */
-  private createGraphNodeState(node: LeaferGraphCreateNodeInput): GraphNodeState {
-    const type = node.type?.trim();
-    if (!type) {
-      throw new Error("节点 type 不能为空");
-    }
-
-    const properties: Record<string, unknown> = {
-      ...(node.properties ?? {})
-    };
-
-    if (node.subtitle !== undefined) {
-      properties.subtitle = node.subtitle;
-    }
-    if (node.accent !== undefined) {
-      properties.accent = node.accent;
-    }
-    if (node.category !== undefined) {
-      properties.category = node.category;
-    }
-    if (node.status !== undefined) {
-      properties.status = node.status;
-    }
-
-    return createNodeState(this.nodeRegistry, {
-      id: node.id,
-      type,
-      title: node.title,
-      layout: {
-        x: node.x,
-        y: node.y,
-        width: node.width,
-        height: node.height
-      },
-      properties,
-      propertySpecs: node.propertySpecs,
-      inputs: node.inputs !== undefined ? this.toSlotSpecs(node.inputs) : undefined,
-      outputs: node.outputs !== undefined ? this.toSlotSpecs(node.outputs) : undefined,
-      widgets: node.widgets,
-      data: node.data
-    }) as GraphNodeState;
-  }
-
-  /** 将正式图快照恢复为运行时节点实例。 */
-  private createGraphNodeStateFromSnapshot(
-    node: NodeSerializeResult
-  ): GraphNodeState {
-    const type = node.type?.trim();
-    if (!type) {
-      throw new Error(`节点 type 不能为空：${node.id}`);
-    }
-
-    return createNodeState(this.nodeRegistry, {
-      id: node.id,
-      type,
-      title: node.title,
-      layout: node.layout,
-      properties: node.properties,
-      propertySpecs: node.propertySpecs,
-      inputs: node.inputs,
-      outputs: node.outputs,
-      widgets: node.widgets,
-      flags: node.flags,
-      data: node.data
-    }) as GraphNodeState;
   }
 
   /** 判断节点当前类型是否已经遗失。 */
@@ -2320,32 +1551,6 @@ export class LeaferGraph {
     });
   }
 
-  /** 根据节点运行时状态创建完整的 Leafer 节点视图。 */
-  private createNodeView(node: GraphNodeState): NodeViewState {
-    const shellLayout = resolveNodeShellLayout(node, NODE_SHELL_LAYOUT_METRICS);
-    const shellView = this.buildNodeShell(node, shellLayout);
-    const widgetInstances = !this.isMissingNodeType(node) && shellLayout.hasWidgets
-      ? this.renderNodeWidgets(node, shellView.widgetLayer, shellLayout)
-      : [];
-
-    const state: NodeViewState = {
-      state: node,
-      view: shellView.view,
-      card: shellView.card,
-      selectedRing: shellView.selectedRing,
-      resizeHandle: shellView.resizeHandle,
-      shellView,
-      widgetLayer: shellView.widgetLayer,
-      widgetInstances,
-      hovered: false
-    };
-
-    this.applyNodeSelectionStyles(state);
-    this.bringNodeViewToFront(state);
-
-    return state;
-  }
-
   /**
    * 将节点图元提升到当前节点层的最前面。
    * 通过递增 zIndex 来稳定排序，避免反复移除/插入子节点带来的抖动。
@@ -2353,72 +1558,6 @@ export class LeaferGraph {
   private bringNodeViewToFront(state: NodeViewState): void {
     this.nodeZIndexSeed += 1;
     state.view.zIndex = this.nodeZIndexSeed;
-  }
-
-  /** 渲染节点内部全部 Widget，并保存 renderer 返回实例。 */
-  private renderNodeWidgets(
-    node: GraphNodeState,
-    widgetLayer: Box,
-    shellLayout: ReturnType<typeof resolveNodeShellLayout>
-  ): Array<LeaferGraphWidgetRenderInstance | null> {
-    const instances: Array<LeaferGraphWidgetRenderInstance | null> = [];
-
-    for (let index = 0; index < node.widgets.length; index += 1) {
-      const widget = node.widgets[index];
-      const bounds = shellLayout.widgets[index].bounds;
-      const group = new Box({
-        name: `widget-${node.id}-${index}`,
-        width: bounds.width,
-        height: bounds.height,
-        resizeChildren: false
-      });
-      const renderer = this.widgetRegistry.resolveRenderer(widget.type);
-      const instance = renderer({
-        ui: LeaferUI,
-        group,
-        node,
-        widget,
-        widgetIndex: index,
-        value: widget.value,
-        theme: this.widgetTheme,
-        editing: this.widgetEditingContext,
-        bounds: {
-          x: 0,
-          y: 0,
-          width: bounds.width,
-          height: bounds.height
-        },
-        setValue: (newValue) => {
-          this.setNodeWidgetValue(node.id, index, newValue);
-        },
-        requestRender: () => {
-          this.app.forceRender();
-        },
-        emitAction: (action, param, options) =>
-          this.emitNodeWidgetAction(node.id, action, param, {
-            ...(options ?? {}),
-            source: "widget",
-            widgetIndex: index,
-            widgetName: widget.name,
-            widgetType: widget.type
-          })
-      });
-
-      instances.push(instance ?? null);
-      widgetLayer.add(group);
-    }
-
-    return instances;
-  }
-
-  /** 销毁节点内部全部 Widget 实例。 */
-  private destroyNodeWidgets(state: NodeViewState): void {
-    for (const instance of state.widgetInstances) {
-      instance?.destroy?.();
-    }
-
-    state.widgetInstances = [];
-    state.widgetLayer.removeAll();
   }
 
   /**
@@ -2457,7 +1596,7 @@ export class LeaferGraph {
     const visible =
       canResize &&
       !Boolean(state.state.flags.collapsed) &&
-      (state.hovered || this.resizeState?.nodeId === state.state.id);
+      (state.hovered || this.interactionHost.isResizingNode(state.state.id));
 
     state.resizeHandle.visible = visible;
   }
