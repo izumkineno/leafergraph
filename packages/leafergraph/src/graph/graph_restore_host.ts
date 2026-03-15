@@ -44,6 +44,8 @@ interface LeaferGraphRestoreHostOptions<
   clearLinkLayer(): void;
   mountNodeView(node: TNodeState): TNodeViewState;
   mountLinkView(link: LeaferGraphLinkData): unknown | null;
+  handleLinkRestored(link: LeaferGraphLinkData): void;
+  requestRender(): void;
 }
 
 /**
@@ -102,8 +104,17 @@ export class LeaferGraphRestoreHost<
 
     // 连线统一在节点完成挂载后恢复，避免连线初始化时找不到端点。
     for (const link of resolvedGraph.links ?? []) {
-      this.options.mountLinkView(normalizeGraphLinkData(link));
+      const normalizedLink = normalizeGraphLinkData(link);
+      const mounted = this.options.mountLinkView(normalizedLink);
+      if (!mounted) {
+        continue;
+      }
+
+      // 恢复路径也要补发连接生命周期，避免“启动就存在的连线”和“运行时新建连线”表现不一致。
+      this.options.handleLinkRestored(normalizedLink);
     }
+
+    this.options.requestRender();
   }
 
   /**

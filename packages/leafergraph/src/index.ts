@@ -77,6 +77,8 @@ export type {
   LeaferGraphWidgetOptionsMenuRequest
 } from "./api/plugin";
 export type {
+  LeaferGraphConnectionPortState,
+  LeaferGraphConnectionValidationResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
@@ -112,7 +114,10 @@ import { createLeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import {
   DEFAULT_FIT_VIEW_PADDING
 } from "./graph/graph_runtime_style";
+import type { LeaferGraphContextMenuBindingTarget } from "./interaction/context_menu";
 import type {
+  LeaferGraphConnectionPortState,
+  LeaferGraphConnectionValidationResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
@@ -197,6 +202,13 @@ export class LeaferGraph {
     return this.apiHost.getNodeView(nodeId);
   }
 
+  /** 获取某条连线对应的 Leafer 视图宿主，便于挂接链接菜单与未来的重连交互。 */
+  getLinkView(
+    linkId: string
+  ): LeaferGraphContextMenuBindingTarget | undefined {
+    return this.apiHost.getLinkView(linkId);
+  }
+
   /**
    * 让当前画布内容适配到可视区域内。
    * 这是对 `@leafer-in/view` 的最小封装，优先以节点视图为参考对象，
@@ -260,6 +272,62 @@ export class LeaferGraph {
    */
   findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
     return this.apiHost.findLinksByNode(nodeId);
+  }
+
+  /** 根据连线 ID 查询当前图中的正式连线快照。 */
+  getLink(linkId: string): LeaferGraphLinkData | undefined {
+    return this.apiHost.getLink(linkId);
+  }
+
+  /** 解析某个节点方向和槽位对应的正式端口几何。 */
+  resolveConnectionPort(
+    nodeId: string,
+    direction: LeaferGraphConnectionPortState["direction"],
+    slot: number
+  ): LeaferGraphConnectionPortState | undefined {
+    return this.apiHost.resolveConnectionPort(nodeId, direction, slot);
+  }
+
+  /** 根据当前画布 page 坐标命中一个方向匹配的端口。 */
+  resolveConnectionPortAtPoint(
+    point: { x: number; y: number },
+    direction: LeaferGraphConnectionPortState["direction"]
+  ): LeaferGraphConnectionPortState | undefined {
+    return this.apiHost.resolveConnectionPortAtPoint(point, direction);
+  }
+
+  /** 设置当前连接预览的起点高亮。 */
+  setConnectionSourcePort(port: LeaferGraphConnectionPortState | null): void {
+    this.apiHost.setConnectionSourcePort(port);
+  }
+
+  /** 设置当前连接预览的候选终点高亮。 */
+  setConnectionCandidatePort(
+    port: LeaferGraphConnectionPortState | null
+  ): void {
+    this.apiHost.setConnectionCandidatePort(port);
+  }
+
+  /** 刷新当前连接预览线。 */
+  setConnectionPreview(
+    source: LeaferGraphConnectionPortState,
+    pointer: { x: number; y: number },
+    target?: LeaferGraphConnectionPortState
+  ): void {
+    this.apiHost.setConnectionPreview(source, pointer, target);
+  }
+
+  /** 清理当前连接预览和候选高亮。 */
+  clearConnectionPreview(): void {
+    this.apiHost.clearConnectionPreview();
+  }
+
+  /** 校验两个端口当前是否允许建立正式连线。 */
+  canCreateConnection(
+    source: LeaferGraphConnectionPortState,
+    target: LeaferGraphConnectionPortState
+  ): LeaferGraphConnectionValidationResult {
+    return this.apiHost.canCreateConnection(source, target);
   }
 
   /**

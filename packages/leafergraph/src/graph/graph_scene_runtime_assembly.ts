@@ -87,6 +87,10 @@ export interface LeaferGraphSceneRuntimeAssemblyResult<
     TNodeState,
     NodeViewState<TNodeState>
   >;
+  interactionRuntimeHost: LeaferGraphInteractionRuntimeHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >;
   restoreHost: LeaferGraphRestoreHost<TNodeState, NodeViewState<TNodeState>>;
 }
 
@@ -168,10 +172,12 @@ export function createLeaferGraphSceneRuntimeAssembly<
     },
     onNodeMounted: (nodeId, state) => {
       interactionHost.bindNodeDragging(nodeId, state.view);
+      interactionHost.bindNodePorts(nodeId, state);
       interactionHost.bindNodeResize(nodeId, state);
       interactionHost.bindNodeCollapseToggle(nodeId, state);
     },
     onNodeRefreshed: (nodeId, state) => {
+      interactionHost.bindNodePorts(nodeId, state);
       interactionHost.bindNodeResize(nodeId, state);
       interactionHost.bindNodeCollapseToggle(nodeId, state);
       nodeShellHost.applyNodeSelectionStyles(state);
@@ -214,6 +220,8 @@ export function createLeaferGraphSceneRuntimeAssembly<
     updateConnectedLinksForNodes: (nodeIds) =>
       sceneHost.updateConnectedLinksForNodes(nodeIds),
     handleNodeRemoved: (nodeId) => interactionHost.handleNodeRemoved(nodeId),
+    handleLinkCreated: (link) => nodeRuntimeHost.notifyLinkCreated(link),
+    handleLinkRemoved: (link) => nodeRuntimeHost.notifyLinkRemoved(link),
     requestRender: options.requestRender,
     resolveNodeResizeConstraint: (node) =>
       nodeShellHost.resolveNodeResizeConstraint(node)
@@ -231,14 +239,19 @@ export function createLeaferGraphSceneRuntimeAssembly<
     nodeRegistry: options.nodeRegistry,
     widgetRegistry: options.widgetRegistry,
     graphNodes: options.graphState.nodes,
+    graphLinks: options.graphState.links,
     nodeViews: options.nodeViews,
     sceneRuntime: sceneRuntimeHost,
     resolveNodeResizeConstraint: (node) =>
       nodeShellHost.resolveNodeResizeConstraint(node)
   });
 
-  const interactionRuntimeHost = new LeaferGraphInteractionRuntimeHost({
+  const interactionRuntimeHost = new LeaferGraphInteractionRuntimeHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >({
     nodeViews: options.nodeViews,
+    linkLayer: options.canvasState.linkLayer,
     bringNodeViewToFront: (state) => viewHost.bringNodeViewToFront(state),
     syncNodeResizeHandleVisibility: (state) =>
       nodeShellHost.syncNodeResizeHandleVisibility(state),
@@ -257,10 +270,15 @@ export function createLeaferGraphSceneRuntimeAssembly<
       height:
         state.state.layout.height ??
         options.nodeShellStyle.defaultNodeMinHeight
-    })
+    }),
+    resolveConnectionPreviewStroke: () =>
+      options.resolveSelectedStroke(options.themeHost.getMode())
   });
 
-  interactionHost = new LeaferGraphInteractionHost({
+  interactionHost = new LeaferGraphInteractionHost<
+    TNodeState,
+    NodeViewState<TNodeState>
+  >({
     container: options.container,
     runtime: interactionRuntimeHost
   });
@@ -285,9 +303,14 @@ export function createLeaferGraphSceneRuntimeAssembly<
     destroyNodeViewWidgets: (state) =>
       widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
     clearNodeLayer: () => options.canvasState.nodeLayer.removeAll(),
-    clearLinkLayer: () => options.canvasState.linkLayer.removeAll(),
+    clearLinkLayer: () => {
+      options.canvasState.linkLayer.removeAll();
+      interactionRuntimeHost.restoreConnectionPreviewLayer();
+    },
     mountNodeView: (node) => sceneHost.mountNodeView(node),
-    mountLinkView: (link) => sceneHost.mountLinkView(link)
+    mountLinkView: (link) => sceneHost.mountLinkView(link),
+    handleLinkRestored: (link) => nodeRuntimeHost.notifyLinkCreated(link),
+    requestRender: options.requestRender
   });
 
   return {
@@ -296,6 +319,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     sceneRuntimeHost,
     nodeRuntimeHost,
     interactionHost,
+    interactionRuntimeHost,
     restoreHost
   };
 }

@@ -50,6 +50,7 @@ interface LeaferGraphSceneRuntimeMutationHostLike<
   TNodeState extends NodeRuntimeState
 > {
   findLinksByNode(nodeId: string): LeaferGraphLinkData[];
+  getLink(linkId: string): LeaferGraphLinkData | undefined;
   createNode(input: LeaferGraphCreateNodeInput): TNodeState;
   removeNode(nodeId: string): boolean;
   updateNode(
@@ -192,6 +193,16 @@ export class LeaferGraphSceneRuntimeHost<
    */
   findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
     return this.options.mutationHost.findLinksByNode(nodeId);
+  }
+
+  /**
+   * 根据连线 ID 读取当前图中的正式连线快照。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 连线安全副本；未命中时返回 `undefined`。
+   */
+  getLink(linkId: string): LeaferGraphLinkData | undefined {
+    return this.options.mutationHost.getLink(linkId);
   }
 
   /**

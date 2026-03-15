@@ -70,6 +70,8 @@ interface LeaferGraphMutationHostOptions<
   updateConnectedLinks(nodeId: string): void;
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void;
   handleNodeRemoved(nodeId: string): void;
+  handleLinkCreated(link: LeaferGraphLinkData): void;
+  handleLinkRemoved(link: LeaferGraphLinkData): void;
   requestRender(): void;
   resolveNodeResizeConstraint(node: TNodeState): LeaferGraphNodeResizeConstraint;
 }
@@ -153,6 +155,17 @@ export class LeaferGraphMutationHost<
   }
 
   /**
+   * 根据连线 ID 读取当前图中的正式连线快照。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 连线安全副本；未命中时返回 `undefined`。
+   */
+  getLink(linkId: string): LeaferGraphLinkData | undefined {
+    const link = this.options.graphLinks.get(linkId);
+    return link ? cloneGraphLinkData(link) : undefined;
+  }
+
+  /**
    * 创建一个新的节点实例并立即挂到主包场景中。
    *
    * @param input - editor 或外部调用方提供的节点创建输入。
@@ -183,7 +196,10 @@ export class LeaferGraphMutationHost<
     }
 
     for (const link of this.findLinksByNode(nodeId)) {
-      this.options.removeLinkInternal(link.id);
+      const removed = this.options.removeLinkInternal(link.id);
+      if (removed) {
+        this.options.handleLinkRemoved(link);
+      }
     }
 
     this.options.unmountNodeView(nodeId);
@@ -351,17 +367,37 @@ export class LeaferGraphMutationHost<
    */
   createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
     const link = normalizeGraphLinkData(input);
+    const sourceNode = this.options.graphNodes.get(link.source.nodeId);
+    const targetNode = this.options.graphNodes.get(link.target.nodeId);
 
     if (this.options.graphLinks.has(link.id)) {
       throw new Error(`连线已存在：${link.id}`);
     }
 
-    if (!this.options.graphNodes.has(link.source.nodeId)) {
+    if (!sourceNode) {
       throw new Error(`连线起点节点不存在：${link.source.nodeId}`);
     }
 
-    if (!this.options.graphNodes.has(link.target.nodeId)) {
+    if (!targetNode) {
       throw new Error(`连线终点节点不存在：${link.target.nodeId}`);
+    }
+
+    if (!sourceNode.outputs[normalizeGraphLinkSlotIndex(link.source.slot)]) {
+      throw new Error(
+        `连线起点槽位不存在：${link.source.nodeId}#${link.source.slot}`
+      );
+    }
+
+    if (!targetNode.inputs[normalizeGraphLinkSlotIndex(link.target.slot)]) {
+      throw new Error(
+        `连线终点槽位不存在：${link.target.nodeId}#${link.target.slot}`
+      );
+    }
+
+    if (this.hasSameLink(link)) {
+      throw new Error(
+        `相同端点连线已存在：${link.source.nodeId}#${link.source.slot} -> ${link.target.nodeId}#${link.target.slot}`
+      );
     }
 
     // 挂载连线视图时会同步把连线登记进内部容器；这里拿不到视图就视为创建失败。
@@ -370,6 +406,7 @@ export class LeaferGraphMutationHost<
       throw new Error(`无法创建连线视图：${link.id}`);
     }
 
+    this.options.handleLinkCreated(cloneGraphLinkData(link));
     this.options.requestRender();
     return cloneGraphLinkData(link);
   }
@@ -381,9 +418,13 @@ export class LeaferGraphMutationHost<
    * @returns 是否成功删除。
    */
   removeLink(linkId: string): boolean {
+    const link = this.options.graphLinks.get(linkId);
     const removed = this.options.removeLinkInternal(linkId);
 
     if (removed) {
+      if (link) {
+        this.options.handleLinkRemoved(cloneGraphLinkData(link));
+      }
       this.options.requestRender();
     }
 
@@ -583,6 +624,22 @@ export class LeaferGraphMutationHost<
       widgets: node.widgets,
       data: node.data
     }) as TNodeState;
+  }
+
+  /** 判断当前图中是否已经存在同一组端点的正式连线。 */
+  private hasSameLink(link: LeaferGraphLinkData): boolean {
+    for (const current of this.options.graphLinks.values()) {
+      if (
+        current.source.nodeId === link.source.nodeId &&
+        normalizeGraphLinkSlotIndex(current.source.slot) === link.source.slot &&
+        current.target.nodeId === link.target.nodeId &&
+        normalizeGraphLinkSlotIndex(current.target.slot) === link.target.slot
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }
 

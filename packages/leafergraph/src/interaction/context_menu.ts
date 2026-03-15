@@ -142,6 +142,7 @@ type LeaferGraphEventListenerId = ReturnType<NonNullable<App["on_"]>>;
  */
 export interface LeaferGraphContextMenuBindingTarget {
   name?: string;
+  parent?: LeaferGraphContextMenuBindingTarget | null;
   on_?: App["on_"];
   off_?: App["off_"];
 }
@@ -828,6 +829,11 @@ export class LeaferGraphContextMenuManager {
     binding: LeaferGraphContextMenuBinding
   ): (event: LeaferGraphPointerMenuEvent) => void {
     return (event) => {
+      const preferredRecord = this.findClosestBindingRecord(event.target);
+      if (preferredRecord && preferredRecord.binding.key !== binding.key) {
+        return;
+      }
+
       if (this.isHandledMenuEvent(event)) {
         return;
       }
@@ -843,6 +849,48 @@ export class LeaferGraphContextMenuManager {
       const items = this.resolveItems?.(context);
       this.show(context, items ?? []);
     };
+  }
+
+  /**
+   * 从当前命中目标开始，沿父链向上寻找“最近的菜单挂载点”。
+   *
+   * @remarks
+   * 右键事件会沿 Leafer 树冒泡：
+   * - 点击节点内部子图元时，节点菜单和画布菜单都可能收到同一事件
+   * - 点击连线时，连线菜单和画布菜单也可能同时收到同一事件
+   *
+   * 如果只按“谁先收到事件”处理，画布或节点菜单就可能把更具体的菜单抢走。
+   * 因此这里固定按 `event.target -> parent -> ...` 的顺序找最近绑定项，
+   * 只有命中链上最近的那一个挂载点才允许真正打开菜单。
+   */
+  private findClosestBindingRecord(
+    target: unknown
+  ): LeaferGraphContextMenuBindingRecord | undefined {
+    let current = isContextMenuBindingTargetLike(target) ? target : null;
+
+    while (current) {
+      const record = this.findBindingRecordByTarget(current);
+      if (record) {
+        return record;
+      }
+
+      current = current.parent ?? null;
+    }
+
+    return undefined;
+  }
+
+  /** 按目标对象引用查找一个已注册的菜单挂载记录。 */
+  private findBindingRecordByTarget(
+    target: LeaferGraphContextMenuBindingTarget
+  ): LeaferGraphContextMenuBindingRecord | undefined {
+    for (const record of this.bindingRecords.values()) {
+      if (record.binding.target === target) {
+        return record;
+      }
+    }
+
+    return undefined;
   }
 
   /**
@@ -1263,6 +1311,16 @@ function toSafePoint(
  */
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
+ * 判断一个值是否具备 Leafer 事件目标的最小形态。
+ * 当前只依赖 `parent` 来沿命中链向上寻找更具体的菜单挂载点。
+ */
+function isContextMenuBindingTargetLike(
+  value: unknown
+): value is LeaferGraphContextMenuBindingTarget {
+  return typeof value === "object" && value !== null;
 }
 
 /**

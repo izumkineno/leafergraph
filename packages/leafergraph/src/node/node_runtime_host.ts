@@ -8,6 +8,7 @@
 import {
   createNodeApi,
   serializeNode,
+  type LeaferGraphLinkData,
   type NodeRegistry,
   type NodeSerializeResult
 } from "@leafergraph/node";
@@ -37,6 +38,7 @@ interface LeaferGraphNodeRuntimeHostOptions<
   nodeRegistry: NodeRegistry;
   widgetRegistry: LeaferGraphWidgetRegistry;
   graphNodes: Map<string, TNodeState>;
+  graphLinks: Map<string, LeaferGraphLinkData>;
   nodeViews: Map<string, TNodeViewState>;
   sceneRuntime: Pick<
     LeaferGraphSceneRuntimeHost<TNodeState, TNodeViewState>,
@@ -157,6 +159,51 @@ export class LeaferGraphNodeRuntimeHost<
   }
 
   /**
+   * 在一条连线正式创建完成后，把连接变化回抛给两端节点生命周期。
+   *
+   * @param link - 已经成功进入图状态的正式连线数据。
+   */
+  notifyLinkCreated(link: LeaferGraphLinkData): void {
+    this.dispatchConnectionsChange(
+      link.source.nodeId,
+      "output",
+      normalizeConnectionSlot(link.source.slot),
+      true
+    );
+    this.dispatchConnectionsChange(
+      link.target.nodeId,
+      "input",
+      normalizeConnectionSlot(link.target.slot),
+      true
+    );
+  }
+
+  /**
+   * 在一条连线正式移除后，把“当前槽位是否仍有连接”回抛给两端节点生命周期。
+   * 这里的 `connected` 语义不是“本次发生了断开”，
+   * 而是“该槽位在移除完成后是否仍然保留至少一条连接”。
+   *
+   * @param link - 刚刚被移除的正式连线数据。
+   */
+  notifyLinkRemoved(link: LeaferGraphLinkData): void {
+    const sourceSlot = normalizeConnectionSlot(link.source.slot);
+    const targetSlot = normalizeConnectionSlot(link.target.slot);
+
+    this.dispatchConnectionsChange(
+      link.source.nodeId,
+      "output",
+      sourceSlot,
+      this.hasRemainingConnections(link.source.nodeId, "output", sourceSlot)
+    );
+    this.dispatchConnectionsChange(
+      link.target.nodeId,
+      "input",
+      targetSlot,
+      this.hasRemainingConnections(link.target.nodeId, "input", targetSlot)
+    );
+  }
+
+  /**
    * 把 Widget 触发的动作转回节点生命周期 `onAction(...)`。
    * 当前先提供最小桥接能力，便于自定义 Widget 把业务语义交回节点定义处理。
    *
@@ -201,4 +248,86 @@ export class LeaferGraphNodeRuntimeHost<
     this.options.sceneRuntime.requestRender();
     return true;
   }
+
+  /** 判断某个槽位在当前图状态里是否仍有至少一条连线。 */
+  private hasRemainingConnections(
+    nodeId: string,
+    type: "input" | "output",
+    slot: number
+  ): boolean {
+    for (const link of this.options.graphLinks.values()) {
+      if (
+        type === "input" &&
+        link.target.nodeId === nodeId &&
+        normalizeConnectionSlot(link.target.slot) === slot
+      ) {
+        return true;
+      }
+
+      if (
+        type === "output" &&
+        link.source.nodeId === nodeId &&
+        normalizeConnectionSlot(link.source.slot) === slot
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /** 统一调度节点定义里的 `onConnectionsChange(...)`。 */
+  private dispatchConnectionsChange(
+    nodeId: string,
+    type: "input" | "output",
+    slot: number,
+    connected: boolean
+  ): void {
+    const node = this.options.graphNodes.get(nodeId);
+    const state = this.options.nodeViews.get(nodeId);
+    if (!node || !state) {
+      return;
+    }
+
+    const definition = this.options.nodeRegistry.getNode(node.type);
+    if (!definition?.onConnectionsChange) {
+      return;
+    }
+
+    try {
+      definition.onConnectionsChange(
+        node,
+        type,
+        slot,
+        connected,
+        createNodeApi(node, {
+          definition,
+          widgetDefinitions: this.options.widgetRegistry
+        })
+      );
+    } catch (error) {
+      console.error(
+        `[leafergraph] 节点 onConnectionsChange 执行失败: ${node.type}#${node.id}`,
+        {
+          type,
+          slot,
+          connected
+        },
+        error
+      );
+    } finally {
+      this.options.sceneRuntime.refreshNodeView(state);
+      this.options.sceneRuntime.updateConnectedLinks(nodeId);
+      this.options.sceneRuntime.requestRender();
+    }
+  }
+}
+
+/** 把连线端点槽位统一约束成安全整数。 */
+function normalizeConnectionSlot(slot: number | undefined): number {
+  if (typeof slot !== "number" || !Number.isFinite(slot)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(slot));
 }

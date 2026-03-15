@@ -8,6 +8,7 @@
 import "@leafer-in/flow";
 import { Box, Group, Path, Rect, Text } from "leafer-ui";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./node_layout";
+import type { NodeShellPortLayout } from "./node_port";
 
 /**
  * 节点壳渲染需要的样式主题。
@@ -76,6 +77,14 @@ export interface CreateNodeShellOptions {
  * 节点壳渲染结果。
  * 主包后续会继续在 `widgetLayer` 中挂接 Widget 图元和生命周期实例。
  */
+export interface NodeShellPortView {
+  layout: NodeShellPortLayout;
+  port: Rect;
+  label: Text;
+  highlight: Rect;
+  hitArea: Rect;
+}
+
 export interface NodeShellView {
   view: Group;
   card: Rect;
@@ -88,10 +97,7 @@ export interface NodeShellView {
   widgetBackground: Rect | null;
   widgetDivider: Rect | null;
   resizeHandle: Box;
-  portViews: Array<{
-    port: Rect;
-    label: Text;
-  }>;
+  portViews: NodeShellPortView[];
   widgetLayer: Box;
 }
 
@@ -273,6 +279,19 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   }
 
   for (const port of shellLayout.ports) {
+    const portHighlight = new Rect({
+      x: port.portX - 4,
+      y: port.portY - 4,
+      width: port.portWidth + 8,
+      height: port.portHeight + 8,
+      fill: "transparent",
+      stroke: "rgba(56, 189, 248, 0.92)",
+      strokeWidth: 2,
+      cornerRadius: 999,
+      opacity: 0,
+      visible: false,
+      hittable: false
+    });
     const portView = new Rect({
       x: port.portX,
       y: port.portY,
@@ -301,11 +320,24 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       visible: port.labelVisible,
       hittable: false
     });
-    portViews.push({
-      port: portView,
-      label: portLabel
+    const portHitArea = new Rect({
+      name: `node-port-hit-${nodeId}-${port.direction}-${port.index}`,
+      x: port.portX - 9,
+      y: port.portY - 9,
+      width: port.portWidth + 18,
+      height: port.portHeight + 18,
+      fill: "rgba(255, 255, 255, 0.001)",
+      cornerRadius: 999,
+      cursor: "crosshair"
     });
-    parts.push(portView, portLabel);
+    portViews.push({
+      layout: port,
+      highlight: portHighlight,
+      port: portView,
+      label: portLabel,
+      hitArea: portHitArea
+    });
+    parts.push(portHighlight, portView, portLabel, portHitArea);
   }
 
   const widgetLayer = new Box({

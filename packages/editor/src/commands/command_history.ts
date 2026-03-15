@@ -7,6 +7,7 @@
  * - 删除节点
  * - 剪切 / 粘贴 / duplicate
  * - 重置尺寸
+ * - 连线创建 / 删除 / 重连
  *
  * 这一版刻意保持在 editor 层，不把 undo / redo 协议塞回主包。
  */
@@ -276,6 +277,55 @@ export function createEditorCommandHistory(
             );
             if (changed) {
               options.selection.select(payload.nodeId);
+            }
+          }
+        };
+      }
+      case "create-links": {
+        const linkIds = payload.links.map((link) => link.id);
+        return {
+          ...baseEntry,
+          undo() {
+            for (const linkId of linkIds) {
+              options.graph.removeLink(linkId);
+            }
+          },
+          redo() {
+            restoreLinks(payload.links);
+          }
+        };
+      }
+      case "remove-links": {
+        const linkIds = payload.links.map((link) => link.id);
+        return {
+          ...baseEntry,
+          undo() {
+            restoreLinks(payload.links);
+          },
+          redo() {
+            for (const linkId of linkIds) {
+              options.graph.removeLink(linkId);
+            }
+          }
+        };
+      }
+      case "reconnect-link": {
+        return {
+          ...baseEntry,
+          undo() {
+            options.graph.removeLink(payload.afterLink.id);
+            try {
+              options.graph.createLink(cloneLink(payload.beforeLink));
+            } catch {
+              // 当前阶段优先让历史栈继续可用，单条恢复失败时跳过。
+            }
+          },
+          redo() {
+            options.graph.removeLink(payload.beforeLink.id);
+            try {
+              options.graph.createLink(cloneLink(payload.afterLink));
+            } catch {
+              // 当前阶段优先让历史栈继续可用，单条恢复失败时跳过。
             }
           }
         };

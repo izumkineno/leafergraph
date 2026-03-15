@@ -2,12 +2,23 @@
  * 图交互运行时宿主模块。
  *
  * @remarks
- * 负责把拖拽、缩放、折叠和焦点相关能力收敛成交互层可消费的壳面。
+ * 负责把拖拽、缩放、折叠、端口命中和连接预览相关能力
+ * 收敛成交互层可消费的壳面。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import { Path } from "leafer-ui";
+import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
+import type {
+  LeaferGraphConnectionPortState,
+  LeaferGraphConnectionValidationResult
+} from "../api/graph_api_types";
 import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
+import {
+  PORT_DIRECTION_LEFT,
+  PORT_DIRECTION_RIGHT,
+  buildLinkPath
+} from "../link/link";
 
 /** 多选拖拽时记录的单个节点初始位置。 */
 export interface GraphDragNodePosition {
@@ -16,11 +27,39 @@ export interface GraphDragNodePosition {
   startY: number;
 }
 
+interface LeaferGraphInteractionPortViewLike {
+  layout: {
+    direction: SlotDirection;
+    index: number;
+    portX: number;
+    portY: number;
+    portWidth: number;
+    portHeight: number;
+    slotType?: SlotType;
+  };
+  highlight: {
+    visible?: boolean | 0;
+    opacity?: number;
+  };
+  hitArea: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  };
+}
+
 /** 交互运行时依赖的最小节点视图结构。 */
 export interface LeaferGraphInteractionRuntimeNodeViewState<
   TNodeState extends NodeRuntimeState = NodeRuntimeState
 > {
   state: TNodeState;
+  view: {
+    zIndex?: number;
+  };
+  shellView: {
+    portViews: LeaferGraphInteractionPortViewLike[];
+  };
   hovered: boolean;
 }
 
@@ -33,6 +72,35 @@ export interface LeaferGraphInteractionRuntimeLike<
   setNodeHovered(nodeId: string, hovered: boolean): void;
   focusNode(nodeId: string): boolean;
   syncNodeResizeHandleVisibility(nodeId: string): void;
+  resolvePort(
+    nodeId: string,
+    direction: SlotDirection,
+    slot: number
+  ): LeaferGraphConnectionPortState | undefined;
+  resolvePortAtPoint(
+    point: { x: number; y: number },
+    direction: SlotDirection
+  ): LeaferGraphConnectionPortState | undefined;
+  setConnectionSourcePort(
+    port: LeaferGraphConnectionPortState | null
+  ): void;
+  setConnectionCandidatePort(
+    port: LeaferGraphConnectionPortState | null
+  ): void;
+  setConnectionPreview(
+    source: LeaferGraphConnectionPortState,
+    pointer: { x: number; y: number },
+    target?: LeaferGraphConnectionPortState
+  ): void;
+  clearConnectionPreview(): void;
+  canCreateLink(
+    source: LeaferGraphConnectionPortState,
+    target: LeaferGraphConnectionPortState
+  ): LeaferGraphConnectionValidationResult;
+  createLink(
+    source: LeaferGraphConnectionPortState,
+    target: LeaferGraphConnectionPortState
+  ): boolean;
   resolveDraggedNodeIds(nodeId: string): string[];
   moveNodesByDelta(
     positions: readonly GraphDragNodePosition[],
@@ -58,13 +126,16 @@ interface LeaferGraphInteractionRuntimeHostOptions<
   TNodeViewState extends LeaferGraphInteractionRuntimeNodeViewState<TNodeState>
 > {
   nodeViews: Map<string, TNodeViewState>;
+  linkLayer: {
+    add(child: Path): unknown;
+  };
   bringNodeViewToFront(state: TNodeViewState): void;
   syncNodeResizeHandleVisibility(state: TNodeViewState): void;
   requestRender(): void;
   resolveDraggedNodeIds(nodeId: string): string[];
   sceneRuntime: Pick<
     LeaferGraphSceneRuntimeHost<TNodeState, TNodeViewState>,
-    "moveNodesByDelta" | "resizeNode"
+    "moveNodesByDelta" | "resizeNode" | "createLink" | "findLinksByNode"
   >;
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
   canResizeNode(nodeId: string): boolean;
@@ -80,6 +151,7 @@ interface LeaferGraphInteractionRuntimeHostOptions<
     width: number;
     height: number;
   };
+  resolveConnectionPreviewStroke(): string;
 }
 
 /**
@@ -95,11 +167,39 @@ export class LeaferGraphInteractionRuntimeHost<
     TNodeState,
     TNodeViewState
   >;
+  private readonly previewPath: Path;
+  private activeSourcePortKey: string | null = null;
+  private activeCandidatePortKey: string | null = null;
 
   constructor(
     options: LeaferGraphInteractionRuntimeHostOptions<TNodeState, TNodeViewState>
   ) {
     this.options = options;
+    this.previewPath = new Path({
+      name: "graph-connection-preview",
+      path: "",
+      stroke: this.options.resolveConnectionPreviewStroke(),
+      strokeWidth: 3,
+      strokeCap: "round",
+      strokeJoin: "round",
+      fill: "transparent",
+      opacity: 0.92,
+      visible: false,
+      hittable: false,
+      zIndex: 999999
+    });
+    this.attachPreviewPathToLayer();
+  }
+
+  /**
+   * 在外部清空连线层后，把预览线图元重新挂回当前连线层。
+   *
+   * @remarks
+   * 启动恢复和整图重建都会清空 `linkLayer`，
+   * 如果不把这条预览 Path 补回去，后续拖线与重连会话就只剩端口高亮，没有任何预览线。
+   */
+  restoreConnectionPreviewLayer(): void {
+    this.attachPreviewPathToLayer();
   }
 
   /** 读取节点视图状态。 */
@@ -141,6 +241,250 @@ export class LeaferGraphInteractionRuntimeHost<
     }
 
     this.options.syncNodeResizeHandleVisibility(state);
+  }
+
+  /** 按节点、方向和槽位解析一个端口的完整几何信息。 */
+  resolvePort(
+    nodeId: string,
+    direction: SlotDirection,
+    slot: number
+  ): LeaferGraphConnectionPortState | undefined {
+    const state = this.options.nodeViews.get(nodeId);
+    if (!state) {
+      return undefined;
+    }
+
+    const portView = state.shellView.portViews.find(
+      (item) =>
+        item.layout.direction === direction &&
+        item.layout.index === normalizeSlotIndex(slot)
+    );
+    if (!portView) {
+      return undefined;
+    }
+
+    return createConnectionPortState(state, portView);
+  }
+
+  /** 在当前场景中根据 page 坐标命中一个端口。 */
+  resolvePortAtPoint(
+    point: { x: number; y: number },
+    direction: SlotDirection
+  ): LeaferGraphConnectionPortState | undefined {
+    let bestMatch:
+      | {
+          port: LeaferGraphConnectionPortState;
+          zIndex: number;
+          distance: number;
+        }
+      | undefined;
+
+    for (const state of this.options.nodeViews.values()) {
+      for (const portView of state.shellView.portViews) {
+        if (portView.layout.direction !== direction) {
+          continue;
+        }
+
+        const port = createConnectionPortState(state, portView);
+        if (!isPointInBounds(point, port.hitBounds)) {
+          continue;
+        }
+
+        const rawZIndex = state.view.zIndex;
+        const zIndex =
+          typeof rawZIndex === "number" && Number.isFinite(rawZIndex)
+            ? rawZIndex
+            : 0;
+        const distance = Math.hypot(
+          point.x - port.center.x,
+          point.y - port.center.y
+        );
+
+        if (
+          !bestMatch ||
+          zIndex > bestMatch.zIndex ||
+          (zIndex === bestMatch.zIndex && distance < bestMatch.distance)
+        ) {
+          bestMatch = {
+            port,
+            zIndex,
+            distance
+          };
+        }
+      }
+    }
+
+    return bestMatch?.port;
+  }
+
+  /** 设置当前拖线起点端口高亮。 */
+  setConnectionSourcePort(
+    port: LeaferGraphConnectionPortState | null
+  ): void {
+    const nextKey = port ? getPortKey(port) : null;
+    if (this.activeSourcePortKey === nextKey) {
+      return;
+    }
+
+    this.togglePortHighlight(this.activeSourcePortKey, false);
+    this.activeSourcePortKey = nextKey;
+    this.togglePortHighlight(this.activeSourcePortKey, true);
+    this.options.requestRender();
+  }
+
+  /** 设置当前拖线候选目标端口高亮。 */
+  setConnectionCandidatePort(
+    port: LeaferGraphConnectionPortState | null
+  ): void {
+    const nextKey = port ? getPortKey(port) : null;
+    if (this.activeCandidatePortKey === nextKey) {
+      return;
+    }
+
+    this.togglePortHighlight(this.activeCandidatePortKey, false);
+    this.activeCandidatePortKey = nextKey;
+    this.togglePortHighlight(this.activeCandidatePortKey, true);
+    this.options.requestRender();
+  }
+
+  /** 更新拖拽中的连接预览线。 */
+  setConnectionPreview(
+    source: LeaferGraphConnectionPortState,
+    pointer: { x: number; y: number },
+    target?: LeaferGraphConnectionPortState
+  ): void {
+    const endPoint = target?.center ?? pointer;
+    const endDirection =
+      target || endPoint.x >= source.center.x
+        ? PORT_DIRECTION_LEFT
+        : PORT_DIRECTION_RIGHT;
+
+    this.previewPath.stroke = this.options.resolveConnectionPreviewStroke();
+    this.previewPath.path = buildLinkPath(
+      [source.center.x, source.center.y],
+      [endPoint.x, endPoint.y],
+      PORT_DIRECTION_RIGHT,
+      endDirection
+    );
+    this.previewPath.visible = true;
+    this.options.requestRender();
+  }
+
+  /** 清理当前拖线预览线。 */
+  clearConnectionPreview(): void {
+    if (!this.previewPath.visible && !this.previewPath.path) {
+      return;
+    }
+
+    this.previewPath.path = "";
+    this.previewPath.visible = false;
+    this.options.requestRender();
+  }
+
+  /** 判断两个端口当前是否允许创建正式连线。 */
+  canCreateLink(
+    source: LeaferGraphConnectionPortState,
+    target: LeaferGraphConnectionPortState
+  ): LeaferGraphConnectionValidationResult {
+    if (source.direction !== "output") {
+      return {
+        valid: false,
+        reason: "当前只允许从输出端口开始连线"
+      };
+    }
+
+    if (target.direction !== "input") {
+      return {
+        valid: false,
+        reason: "连线目标必须是输入端口"
+      };
+    }
+
+    const resolvedSource = this.resolvePort(
+      source.nodeId,
+      source.direction,
+      source.slot
+    );
+    if (!resolvedSource) {
+      return {
+        valid: false,
+        reason: "未找到连线起点端口"
+      };
+    }
+
+    const resolvedTarget = this.resolvePort(
+      target.nodeId,
+      target.direction,
+      target.slot
+    );
+    if (!resolvedTarget) {
+      return {
+        valid: false,
+        reason: "未找到连线目标端口"
+      };
+    }
+
+    if (!areSlotTypesCompatible(resolvedSource.slotType, resolvedTarget.slotType)) {
+      return {
+        valid: false,
+        reason: "端口类型不兼容"
+      };
+    }
+
+    const existingLinks = this.options.sceneRuntime.findLinksByNode(source.nodeId);
+    if (
+      existingLinks.some(
+        (link) =>
+          link.source.nodeId === source.nodeId &&
+          normalizeSlotIndex(link.source.slot) === source.slot &&
+          link.target.nodeId === target.nodeId &&
+          normalizeSlotIndex(link.target.slot) === target.slot
+      )
+    ) {
+      return {
+        valid: false,
+        reason: "相同连线已存在"
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /** 从两个合法端口创建一条正式连线。 */
+  createLink(
+    source: LeaferGraphConnectionPortState,
+    target: LeaferGraphConnectionPortState
+  ): boolean {
+    const validation = this.canCreateLink(source, target);
+    if (!validation.valid) {
+      if (validation.reason) {
+        console.warn(`[leafergraph] ${validation.reason}`, {
+          source,
+          target
+        });
+      }
+      return false;
+    }
+
+    try {
+      this.options.sceneRuntime.createLink({
+        source: {
+          nodeId: source.nodeId,
+          slot: source.slot
+        },
+        target: {
+          nodeId: target.nodeId,
+          slot: target.slot
+        }
+      });
+      return true;
+    } catch (error) {
+      console.error("[leafergraph] 创建连线失败", {
+        source,
+        target
+      }, error);
+      return false;
+    }
   }
 
   /** 解析一次拖拽应带上的节点集合。 */
@@ -198,4 +542,161 @@ export class LeaferGraphInteractionRuntimeHost<
 
     return this.options.resolveNodeSize(state);
   }
+
+  /** 按端口键切换当前高亮图元。 */
+  private togglePortHighlight(portKey: string | null, visible: boolean): void {
+    if (!portKey) {
+      return;
+    }
+
+    const portView = this.findPortViewByKey(portKey);
+    if (!portView) {
+      return;
+    }
+
+    portView.highlight.visible = visible;
+    portView.highlight.opacity = visible ? 1 : 0;
+  }
+
+  /** 通过稳定端口键查找当前视图中的端口图元。 */
+  private findPortViewByKey(
+    portKey: string
+  ): LeaferGraphInteractionPortViewLike | undefined {
+    const [nodeId, direction, slotText] = portKey.split(":");
+    if (!nodeId || !direction || !slotText) {
+      return undefined;
+    }
+
+    const state = this.options.nodeViews.get(nodeId);
+    if (!state) {
+      return undefined;
+    }
+
+    return state.shellView.portViews.find(
+      (item) =>
+        item.layout.direction === direction &&
+        item.layout.index === Number(slotText)
+    );
+  }
+
+  /** 把预览 Path 稳定挂回连线层，避免整图恢复后丢失。 */
+  private attachPreviewPathToLayer(): void {
+    this.previewPath.remove();
+    this.options.linkLayer.add(this.previewPath);
+  }
+}
+
+function createConnectionPortState<
+  TNodeState extends NodeRuntimeState,
+  TNodeViewState extends LeaferGraphInteractionRuntimeNodeViewState<TNodeState>
+>(
+  state: TNodeViewState,
+  portView: LeaferGraphInteractionPortViewLike
+): LeaferGraphConnectionPortState {
+  const hitX =
+    state.state.layout.x +
+    coerceFiniteNumber(portView.hitArea.x, portView.layout.portX - 9);
+  const hitY =
+    state.state.layout.y +
+    coerceFiniteNumber(portView.hitArea.y, portView.layout.portY - 9);
+  const hitWidth = coerceFiniteNumber(
+    portView.hitArea.width,
+    portView.layout.portWidth + 18
+  );
+  const hitHeight = coerceFiniteNumber(
+    portView.hitArea.height,
+    portView.layout.portHeight + 18
+  );
+
+  return {
+    nodeId: state.state.id,
+    direction: portView.layout.direction,
+    slot: normalizeSlotIndex(portView.layout.index),
+    center: {
+      x:
+        state.state.layout.x +
+        portView.layout.portX +
+        portView.layout.portWidth / 2,
+      y:
+        state.state.layout.y +
+        portView.layout.portY +
+        portView.layout.portHeight / 2
+    },
+    hitBounds: {
+      x: hitX,
+      y: hitY,
+      width: hitWidth,
+      height: hitHeight
+    },
+    slotType: portView.layout.slotType
+  };
+}
+
+function normalizeSlotIndex(slot: number | undefined): number {
+  if (typeof slot !== "number" || !Number.isFinite(slot)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(slot));
+}
+
+function getPortKey(port: Pick<LeaferGraphConnectionPortState, "nodeId" | "direction" | "slot">): string {
+  return `${port.nodeId}:${port.direction}:${normalizeSlotIndex(port.slot)}`;
+}
+
+function isPointInBounds(
+  point: { x: number; y: number },
+  bounds: { x: number; y: number; width: number; height: number }
+): boolean {
+  return (
+    point.x >= bounds.x &&
+    point.x <= bounds.x + bounds.width &&
+    point.y >= bounds.y &&
+    point.y <= bounds.y + bounds.height
+  );
+}
+
+function coerceFiniteNumber(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function areSlotTypesCompatible(
+  sourceType: SlotType | undefined,
+  targetType: SlotType | undefined
+): boolean {
+  if (
+    sourceType === undefined ||
+    sourceType === 0 ||
+    targetType === undefined ||
+    targetType === 0
+  ) {
+    return true;
+  }
+
+  const sourceTypes = normalizeSlotTypes(sourceType);
+  const targetTypes = normalizeSlotTypes(targetType);
+
+  if (!sourceTypes.length || !targetTypes.length) {
+    return true;
+  }
+
+  if (
+    sourceTypes.includes("*") ||
+    targetTypes.includes("*")
+  ) {
+    return true;
+  }
+
+  return sourceTypes.some((type) => targetTypes.includes(type));
+}
+
+function normalizeSlotTypes(type: SlotType): string[] {
+  if (type === 0) {
+    return [];
+  }
+
+  return String(type)
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
 }

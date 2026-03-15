@@ -11,6 +11,7 @@
 
 import type {
   LeaferGraph,
+  LeaferGraphCreateLinkInput,
   LeaferGraphContextMenuContext,
   LeaferGraphLinkData
 } from "leafergraph";
@@ -26,6 +27,10 @@ import {
   type EditorNodeCommandResult,
   type EditorNodeResizeCommandState
 } from "./node_commands";
+import {
+  createEditorLinkCommandController,
+  type EditorLinkReconnectInput
+} from "./link_commands";
 import type { EditorNodeSelectionController } from "../state/selection";
 
 /**
@@ -42,6 +47,19 @@ export type EditorCommandRequest =
     }
   | {
       type: "canvas.fit-view";
+    }
+  | {
+      type: "link.create";
+      input: LeaferGraphCreateLinkInput;
+    }
+  | {
+      type: "link.remove";
+      linkId: string;
+    }
+  | {
+      type: "link.reconnect";
+      linkId: string;
+      input: EditorLinkReconnectInput;
     }
   | {
       type: "clipboard.copy-node";
@@ -97,6 +115,7 @@ export type EditorCommandRequest =
  */
 export type EditorCommandResultValue =
   | ReturnType<LeaferGraph["createNode"]>
+  | LeaferGraphLinkData
   | EditorNodeCommandResult
   | boolean
   | null
@@ -135,6 +154,19 @@ export type EditorCommandHistoryPayload =
         width: number;
         height: number;
       };
+    }
+  | {
+      kind: "create-links";
+      links: LeaferGraphLinkData[];
+    }
+  | {
+      kind: "remove-links";
+      links: LeaferGraphLinkData[];
+    }
+  | {
+      kind: "reconnect-link";
+      beforeLink: LeaferGraphLinkData;
+      afterLink: LeaferGraphLinkData;
     };
 
 /**
@@ -282,6 +314,12 @@ function resolveCommandSummary(request: EditorCommandRequest): string {
       return "在画布创建节点";
     case "canvas.fit-view":
       return "适配画布视图";
+    case "link.create":
+      return "创建连线";
+    case "link.remove":
+      return `删除连线 ${request.linkId}`;
+    case "link.reconnect":
+      return `重连连线 ${request.linkId}`;
     case "clipboard.copy-node":
       return `复制节点 ${request.nodeId}`;
     case "clipboard.copy-selection":
@@ -325,6 +363,7 @@ export function createEditorCommandBus(
     bindNode: options.bindNode,
     unbindNode: options.unbindNode
   });
+  const linkCommands = createEditorLinkCommandController(options.graph);
   const canvasCommands = createEditorCanvasCommandController({
     graph: options.graph,
     nodeCommands,
@@ -369,6 +408,12 @@ export function createEditorCommandBus(
         return !canvasCommands.resolveCreateNodeState().disabled;
       case "canvas.fit-view":
         return true;
+      case "link.create":
+        return true;
+      case "link.remove":
+        return linkCommands.hasLink(request.linkId);
+      case "link.reconnect":
+        return linkCommands.hasLink(request.linkId);
       case "clipboard.copy-node":
         return Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "clipboard.copy-selection":
@@ -429,6 +474,53 @@ export function createEditorCommandBus(
           success: true,
           changed: result,
           recordable: false
+        });
+      }
+      case "link.create": {
+        const result = linkCommands.createLink(request.input);
+        return createExecution(request, result, {
+          historyPayload: {
+            kind: "create-links",
+            links: [structuredClone(result)]
+          },
+          success: true,
+          changed: true,
+          recordable: true
+        });
+      }
+      case "link.remove": {
+        const link = linkCommands.getLink(request.linkId);
+        const result = linkCommands.removeLink(request.linkId);
+        return createExecution(request, result, {
+          historyPayload:
+            result && link
+              ? {
+                  kind: "remove-links",
+                  links: [structuredClone(link)]
+                }
+              : undefined,
+          success: result,
+          changed: result,
+          recordable: true
+        });
+      }
+      case "link.reconnect": {
+        const beforeLink = linkCommands.getLink(request.linkId);
+        const result = linkCommands.reconnectLink(request.linkId, request.input);
+        return createExecution(request, result, {
+          historyPayload:
+            beforeLink && result
+              ? {
+                  kind: "reconnect-link",
+                  beforeLink: structuredClone(beforeLink),
+                  afterLink: structuredClone(result)
+                }
+              : undefined,
+          success: Boolean(result),
+          changed:
+            Boolean(beforeLink && result) &&
+            JSON.stringify(beforeLink) !== JSON.stringify(result),
+          recordable: Boolean(beforeLink && result)
         });
       }
       case "clipboard.copy-node": {

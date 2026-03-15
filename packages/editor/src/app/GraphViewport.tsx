@@ -3,11 +3,14 @@ import { useEffect, useRef } from "preact/hooks";
 import {
   createLeaferGraph,
   createLeaferGraphContextMenu,
+  type LeaferGraphConnectionPortState,
   type LeaferGraph,
+  type LeaferGraphContextMenuBindingTarget,
   type LeaferGraphData,
   type LeaferGraphContextMenuContext,
   type LeaferGraphContextMenuItem,
   type LeaferGraphContextMenuManager,
+  type LeaferGraphLinkData,
   type LeaferGraphOptions
 } from "leafergraph";
 import {
@@ -106,12 +109,44 @@ interface GraphViewportNodeMenuBindingMeta extends Record<string, unknown> {
   nodeType?: string;
 }
 
+/** 连线菜单挂载元信息。 */
+interface GraphViewportLinkMenuBindingMeta extends Record<string, unknown> {
+  entity: "link";
+  linkId: string;
+  sourceNodeId: string;
+  sourceSlot: number;
+  targetNodeId: string;
+  targetSlot: number;
+}
+
+/**
+ * editor 侧最小连线重连会话。
+ *
+ * @remarks
+ * 这一层只维护“当前正在重连哪条线、源端口是谁、当前预览指向哪里”，
+ * 正式图变更仍然统一走 `link.reconnect` 命令链。
+ */
+interface GraphViewportReconnectState {
+  linkId: string;
+  sourcePort: LeaferGraphConnectionPortState;
+  previewPoint: {
+    x: number;
+    y: number;
+  };
+  hoveredTarget: LeaferGraphConnectionPortState | null;
+}
+
 /**
  * 为节点级菜单生成挂载 key。
  * 统一 key 规则后，新建、删除和未来的重绑逻辑都可以共用一条路径。
  */
 function createNodeMenuBindingKey(nodeId: string): string {
   return `node:${nodeId}`;
+}
+
+/** 为连线级菜单生成挂载 key。 */
+function createLinkMenuBindingKey(linkId: string): string {
+  return `link:${linkId}`;
 }
 
 /** 规范化节点菜单挂载元信息。 */
@@ -124,6 +159,20 @@ function createNodeMenuBindingMeta(node: {
     nodeId: node.id,
     nodeTitle: node.title,
     nodeType: node.type
+  };
+}
+
+/** 规范化连线菜单挂载元信息。 */
+function createLinkMenuBindingMeta(
+  link: LeaferGraphLinkData
+): GraphViewportLinkMenuBindingMeta {
+  return {
+    entity: "link",
+    linkId: link.id,
+    sourceNodeId: link.source.nodeId,
+    sourceSlot: link.source.slot ?? 0,
+    targetNodeId: link.target.nodeId,
+    targetSlot: link.target.slot ?? 0
   };
 }
 
@@ -172,6 +221,27 @@ function bindNodeContextMenu(
   });
   menu.unbindTarget(key);
   menu.bindNode(key, view, createNodeMenuBindingMeta(node));
+}
+
+/** 绑定或刷新单条连线的右键菜单。 */
+function bindLinkContextMenu(
+  graph: LeaferGraph,
+  menu: LeaferGraphContextMenuManager,
+  link: LeaferGraphLinkData
+): void {
+  const key = createLinkMenuBindingKey(link.id);
+  const view = graph.getLinkView(link.id);
+  if (!view) {
+    return;
+  }
+
+  menu.unbindTarget(key);
+  menu.bindTarget({
+    key,
+    kind: "custom",
+    target: view as LeaferGraphContextMenuBindingTarget,
+    meta: createLinkMenuBindingMeta(link)
+  });
 }
 
 /** 判断节点点击是否应该走“切换选区”路径。 */
@@ -278,13 +348,17 @@ export function GraphViewport({
     let hitNodePointerDownSequence = -1;
     let pendingCanvasSelectionFrame = 0;
     let pendingPointerWorldSyncFrame = 0;
+    let pendingReconnectStartFrame = 0;
     let spaceKeyPressed = false;
     let lastPointerClientPoint: { clientX: number; clientY: number } | null = null;
     let lastPointerWorldPoint: { x: number; y: number } | null = null;
     let lastPointerPagePoint: { x: number; y: number } | null = null;
     let pendingMarqueeSelection: GraphViewportMarqueeState | null = null;
     let activeMarqueeSelection: GraphViewportMarqueeState | null = null;
+    let reconnectState: GraphViewportReconnectState | null = null;
     const boundNodeIds = new Set<string>();
+    const boundLinkIds = new Set<string>();
+    let pendingLinkMenuSyncFrame = 0;
     let menu!: LeaferGraphContextMenuManager;
     let commandBus!: EditorCommandBus;
     let commandHistory!: EditorCommandHistory;
@@ -387,6 +461,9 @@ export function GraphViewport({
         }
 
         refreshPointerPoints();
+        if (reconnectState && lastPointerPagePoint) {
+          updateReconnectPreview(lastPointerPagePoint);
+        }
       });
     };
     /**
@@ -482,6 +559,149 @@ export function GraphViewport({
 
       return lastPointerPagePoint;
     };
+    /** 清理当前重连会话的预览线、高亮与鼠标样式。 */
+    const clearReconnectSession = (): void => {
+      reconnectState = null;
+      graph.setConnectionSourcePort(null);
+      graph.setConnectionCandidatePort(null);
+      graph.clearConnectionPreview();
+
+      if (!activeMarqueeSelection && !pendingMarqueeSelection) {
+        host.style.cursor = "";
+      }
+    };
+    /** 在每次刷新预览前重新解析一次源端口，避免节点移动后仍引用旧几何。 */
+    const resolveActiveReconnectSourcePort =
+      (): LeaferGraphConnectionPortState | null => {
+        if (!reconnectState) {
+          return null;
+        }
+
+        const nextSourcePort = graph.resolveConnectionPort(
+          reconnectState.sourcePort.nodeId,
+          reconnectState.sourcePort.direction,
+          reconnectState.sourcePort.slot
+        );
+        if (!nextSourcePort) {
+          clearReconnectSession();
+          return null;
+        }
+
+        reconnectState.sourcePort = nextSourcePort;
+        return nextSourcePort;
+      };
+    /** 根据当前鼠标位置刷新重连预览和候选输入端口高亮。 */
+    const updateReconnectPreview = (point: { x: number; y: number }): void => {
+      const sourcePort = resolveActiveReconnectSourcePort();
+      if (!sourcePort || !reconnectState) {
+        return;
+      }
+
+      const rawTarget = graph.resolveConnectionPortAtPoint(point, "input");
+      const validation = rawTarget
+        ? graph.canCreateConnection(sourcePort, rawTarget)
+        : { valid: false as const };
+      const hoveredTarget = rawTarget && validation.valid ? rawTarget : null;
+
+      reconnectState.previewPoint = point;
+      reconnectState.hoveredTarget = hoveredTarget;
+      graph.setConnectionSourcePort(sourcePort);
+      graph.setConnectionCandidatePort(hoveredTarget);
+      graph.setConnectionPreview(sourcePort, point, hoveredTarget ?? undefined);
+      host.style.cursor =
+        rawTarget && !validation.valid ? "not-allowed" : "crosshair";
+    };
+    /** 提交一次重连；命中不到合法输入端口时回退为取消。 */
+    const commitReconnectSession = (point: { x: number; y: number }): void => {
+      const sourcePort = resolveActiveReconnectSourcePort();
+      if (!sourcePort || !reconnectState) {
+        return;
+      }
+
+      const rawTarget = graph.resolveConnectionPortAtPoint(point, "input");
+      const validation = rawTarget
+        ? graph.canCreateConnection(sourcePort, rawTarget)
+        : { valid: false as const };
+
+      if (rawTarget && validation.valid) {
+        commandBus.execute({
+          type: "link.reconnect",
+          linkId: reconnectState.linkId,
+          input: {
+            target: {
+              nodeId: rawTarget.nodeId,
+              slot: rawTarget.slot
+            }
+          }
+        });
+      }
+
+      clearReconnectSession();
+    };
+    /** 从连线菜单启动一次“重选目标输入端口”的重连会话。 */
+    const startReconnectSession = (linkId: string): void => {
+      if (!graphReady) {
+        return;
+      }
+
+      const link = graph.getLink(linkId);
+      if (!link) {
+        return;
+      }
+
+      const sourcePort = graph.resolveConnectionPort(
+        link.source.nodeId,
+        "output",
+        link.source.slot ?? 0
+      );
+      if (!sourcePort) {
+        return;
+      }
+
+      const originalTargetPort = graph.resolveConnectionPort(
+        link.target.nodeId,
+        "input",
+        link.target.slot ?? 0
+      );
+
+      if (pendingReconnectStartFrame) {
+        ownerWindow.cancelAnimationFrame(pendingReconnectStartFrame);
+      }
+
+      clearReconnectSession();
+      pendingReconnectStartFrame = ownerWindow.requestAnimationFrame(() => {
+        pendingReconnectStartFrame = 0;
+
+        if (disposed || !graphReady) {
+          return;
+        }
+
+        const activeSourcePort = graph.resolveConnectionPort(
+          sourcePort.nodeId,
+          sourcePort.direction,
+          sourcePort.slot
+        );
+        if (!activeSourcePort) {
+          return;
+        }
+
+        const previewPoint =
+          resolveLatestPointerPagePoint() ??
+          originalTargetPort?.center ??
+          activeSourcePort.center;
+
+        reconnectState = {
+          linkId,
+          sourcePort: activeSourcePort,
+          previewPoint,
+          hoveredTarget: null
+        };
+        graph.setConnectionSourcePort(activeSourcePort);
+        graph.setConnectionCandidatePort(null);
+        graph.setConnectionPreview(activeSourcePort, previewPoint);
+        host.style.cursor = "crosshair";
+      });
+    };
     /**
      * 统一收敛节点按下时的选中逻辑。
      * 这里除了更新选中态，还会记录“命中的是哪一次 pointerdown”。
@@ -494,6 +714,10 @@ export function GraphViewport({
       nodeId: string,
       event?: EditorNodePointerDownEvent
     ): void => {
+      if (reconnectState) {
+        return;
+      }
+
       hitNodePointerDownSequence = pointerDownSequence;
 
       /**
@@ -529,6 +753,14 @@ export function GraphViewport({
       }
 
       commandBus.execute({ type: "node.remove", nodeId });
+    };
+    const removeLinkFromMenu = (linkId: string): void => {
+      if (!graphReady) {
+        return;
+      }
+
+      commandBus.execute({ type: "link.remove", linkId });
+      scheduleLinkContextMenuSync();
     };
     const pasteCopiedNodeAtLatestPointer = (): void => {
       const pointerPagePoint = resolveLatestPointerPagePoint();
@@ -719,6 +951,41 @@ export function GraphViewport({
         ];
       }
 
+      if (
+        context.bindingKind === "custom" &&
+        context.bindingMeta?.entity === "link"
+      ) {
+        const linkId = String(context.bindingMeta.linkId ?? context.bindingKey);
+        const sourceNodeId = String(context.bindingMeta.sourceNodeId ?? "");
+        const sourceSlot = Number(context.bindingMeta.sourceSlot ?? 0);
+        const targetNodeId = String(context.bindingMeta.targetNodeId ?? "");
+        const targetSlot = Number(context.bindingMeta.targetSlot ?? 0);
+
+        return [
+          {
+            key: "remove-link",
+            label: "删除连线",
+            shortcut: "Delete",
+            description: `断开 ${sourceNodeId}[${sourceSlot}] -> ${targetNodeId}[${targetSlot}]`,
+            disabled:
+              !graphReady || !commandBus.canExecute({ type: "link.remove", linkId }),
+            danger: true,
+            onSelect() {
+              removeLinkFromMenu(linkId);
+            }
+          },
+          {
+            key: "reconnect-link",
+            label: "重新连接",
+            description: "从当前输出端口重新选择目标输入端口，按 Esc 可取消",
+            disabled: !graphReady || !graph.getLink(linkId),
+            onSelect() {
+              startReconnectSession(linkId);
+            }
+          }
+        ];
+      }
+
       const createNodeState = commandBus.resolveCreateNodeState();
       const items: LeaferGraphContextMenuItem[] = [
         {
@@ -797,6 +1064,55 @@ export function GraphViewport({
       boundNodeIds.delete(nodeId);
       menu.unbindTarget(createNodeMenuBindingKey(nodeId));
     };
+    const bindEditorLink = (link: LeaferGraphLinkData): void => {
+      boundLinkIds.add(link.id);
+      bindLinkContextMenu(graph, menu, link);
+    };
+    const unbindEditorLink = (linkId: string): void => {
+      boundLinkIds.delete(linkId);
+      menu.unbindTarget(createLinkMenuBindingKey(linkId));
+    };
+    const collectCurrentLinks = (): LeaferGraphLinkData[] => {
+      const linkMap = new Map<string, LeaferGraphLinkData>();
+
+      for (const nodeId of boundNodeIds) {
+        for (const link of graph.findLinksByNode(nodeId)) {
+          if (!linkMap.has(link.id)) {
+            linkMap.set(link.id, link);
+          }
+        }
+      }
+
+      return [...linkMap.values()];
+    };
+    const syncLinkContextMenus = (): void => {
+      if (disposed || !graphReady) {
+        return;
+      }
+
+      const links = collectCurrentLinks();
+      const nextLinkIds = new Set(links.map((link) => link.id));
+
+      for (const linkId of [...boundLinkIds]) {
+        if (!nextLinkIds.has(linkId)) {
+          unbindEditorLink(linkId);
+        }
+      }
+
+      for (const link of links) {
+        bindEditorLink(link);
+      }
+    };
+    const scheduleLinkContextMenuSync = (): void => {
+      if (pendingLinkMenuSyncFrame) {
+        ownerWindow.cancelAnimationFrame(pendingLinkMenuSyncFrame);
+      }
+
+      pendingLinkMenuSyncFrame = ownerWindow.requestAnimationFrame(() => {
+        pendingLinkMenuSyncFrame = 0;
+        syncLinkContextMenus();
+      });
+    };
     commandHistory = createEditorCommandHistory({
       graph,
       selection,
@@ -812,6 +1128,7 @@ export function GraphViewport({
       onAfterFitView: schedulePointerWorldPointRefresh,
       onDidExecute(execution) {
         commandHistory.record(execution);
+        scheduleLinkContextMenuSync();
       }
     });
     (graph.app.tree as typeof graph.app.tree & GraphViewportViewEventHost).on(
@@ -827,13 +1144,14 @@ export function GraphViewport({
       graphReady = true;
 
       for (const node of graphData.nodes) {
-        boundNodeIds.add(node.id);
-        bindNodeContextMenu(graph, menu, handleNodePointerDown, {
+        bindEditorNode({
           id: node.id,
           title: node.title ?? node.id,
           type: node.type
         });
       }
+
+      syncLinkContextMenus();
     });
 
     /**
@@ -846,6 +1164,23 @@ export function GraphViewport({
      */
     const handleHostPointerDown = (event: PointerEvent): void => {
       syncPointerPointsByClient(event.clientX, event.clientY);
+      if (reconnectState) {
+        if (event.button !== 0 && event.button !== 2) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.button === 2) {
+          clearReconnectSession();
+        } else if (lastPointerPagePoint) {
+          commitReconnectSession(lastPointerPagePoint);
+        } else {
+          clearReconnectSession();
+        }
+        return;
+      }
+
       const pointerWorldPoint = lastPointerWorldPoint;
       if (!pointerWorldPoint) {
         return;
@@ -910,6 +1245,9 @@ export function GraphViewport({
      */
     const handleHostPointerMove = (event: PointerEvent): void => {
       syncPointerPointsByClient(event.clientX, event.clientY);
+      if (reconnectState && lastPointerPagePoint) {
+        updateReconnectPreview(lastPointerPagePoint);
+      }
     };
 
     /**
@@ -931,6 +1269,14 @@ export function GraphViewport({
      * client 坐标补齐，避免平移结束后键盘粘贴仍然沿用旧落点。
      */
     const handleWindowPointerMove = (event: PointerEvent): void => {
+      if (reconnectState) {
+        syncPointerPointsByClient(event.clientX, event.clientY);
+        if (lastPointerPagePoint) {
+          updateReconnectPreview(lastPointerPagePoint);
+        }
+        return;
+      }
+
       if (event.buttons !== 0) {
         syncPointerPointsByClient(event.clientX, event.clientY);
       }
@@ -1004,9 +1350,19 @@ export function GraphViewport({
         activeMarqueeSelection = null;
         hideSelectionBox();
       }
+
+      scheduleLinkContextMenuSync();
     };
 
     const handleWindowKeyDown = (event: KeyboardEvent): void => {
+      if (reconnectState) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          clearReconnectSession();
+        }
+        return;
+      }
+
       if (isTextEditingElement(event.target)) {
         return;
       }
@@ -1059,6 +1415,7 @@ export function GraphViewport({
 
           event.preventDefault();
           commandHistory.redo();
+          scheduleLinkContextMenuSync();
           return;
         }
 
@@ -1068,6 +1425,7 @@ export function GraphViewport({
 
         event.preventDefault();
         commandHistory.undo();
+        scheduleLinkContextMenuSync();
         return;
       }
 
@@ -1078,6 +1436,7 @@ export function GraphViewport({
 
         event.preventDefault();
         commandHistory.redo();
+        scheduleLinkContextMenuSync();
         return;
       }
 
@@ -1143,6 +1502,9 @@ export function GraphViewport({
     };
     const handleWindowBlur = (): void => {
       spaceKeyPressed = false;
+      if (reconnectState) {
+        clearReconnectSession();
+      }
     };
 
     host.addEventListener("pointerdown", handleHostPointerDown, true);
@@ -1163,6 +1525,12 @@ export function GraphViewport({
       if (pendingPointerWorldSyncFrame) {
         ownerWindow.cancelAnimationFrame(pendingPointerWorldSyncFrame);
       }
+      if (pendingReconnectStartFrame) {
+        ownerWindow.cancelAnimationFrame(pendingReconnectStartFrame);
+      }
+      if (pendingLinkMenuSyncFrame) {
+        ownerWindow.cancelAnimationFrame(pendingLinkMenuSyncFrame);
+      }
       host.removeEventListener("pointerdown", handleHostPointerDown, true);
       host.removeEventListener("pointermove", handleHostPointerMove, true);
       host.removeEventListener("wheel", handleHostWheel, true);
@@ -1175,6 +1543,10 @@ export function GraphViewport({
       ownerWindow.removeEventListener("keydown", handleWindowKeyDown);
       ownerWindow.removeEventListener("keyup", handleWindowKeyUp);
       ownerWindow.removeEventListener("blur", handleWindowBlur);
+      for (const linkId of [...boundLinkIds]) {
+        unbindEditorLink(linkId);
+      }
+      clearReconnectSession();
       commandHistory.clear();
       hideSelectionBox();
       menu.destroy();

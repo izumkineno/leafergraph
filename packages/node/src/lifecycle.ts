@@ -50,7 +50,13 @@ export interface NodeLifecycle {
   onInputAdded?(node: NodeRuntimeState, input: NodeSlotSpec, api: NodeApi): void;
   /** 新增输出槽位后触发。 */
   onOutputAdded?(node: NodeRuntimeState, output: NodeSlotSpec, api: NodeApi): void;
-  /** 连接状态变化后触发。 */
+  /**
+   * 连接状态变化后触发。
+   *
+   * @remarks
+   * 当前 `connected` 语义是“该槽位在本次变更完成后是否仍有至少一条连接”，
+   * 而不是“这次事件本身是连接还是断开”。
+   */
   onConnectionsChange?(
     node: NodeRuntimeState,
     type: SlotDirection,

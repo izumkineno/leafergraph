@@ -139,6 +139,9 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     const sourceSlot = this.options.normalizeSlotIndex(link.source.slot);
     const targetSlot = this.options.normalizeSlotIndex(link.target.slot);
 
+    const view = this.createLinkShape(source, target, sourceSlot, targetSlot);
+    view.name = `graph-link-${link.id}`;
+
     return {
       linkId: link.id,
       sourceId: link.source.nodeId,
@@ -147,7 +150,7 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
       targetSlot,
       source,
       target,
-      view: this.createLinkShape(source, target, sourceSlot, targetSlot)
+      view
     };
   }
 
@@ -193,7 +196,10 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
       strokeWidth: this.options.strokeWidth ?? 3,
       strokeCap: "round",
       strokeJoin: "round",
-      hittable: false
+      hittable: true,
+      hitStroke: "all",
+      hitRadius: 6,
+      cursor: "pointer"
     });
   }
 

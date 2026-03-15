@@ -9,7 +9,9 @@ import type {
   LeaferGraphLinkData,
   NodePropertySpec,
   NodeRuntimeState,
-  NodeSlotSpec
+  NodeSlotSpec,
+  SlotDirection,
+  SlotType
 } from "@leafergraph/node";
 import type { GraphNodeDisplayProperties } from "../graph/graph_runtime_types";
 
@@ -144,6 +146,50 @@ export interface LeaferGraphNodeResizeConstraint {
   defaultWidth: number;
   /** 缺省高度。 */
   defaultHeight: number;
+}
+
+/**
+ * 主包对外暴露的连接端口几何状态。
+ *
+ * @remarks
+ * 这份结构统一承载端口方向、槽位索引、中心点和命中区域，
+ * 供 editor 的最小自由连线、重连预览和未来合法性提示复用。
+ */
+export interface LeaferGraphConnectionPortState {
+  /** 端口所属节点 ID。 */
+  nodeId: string;
+  /** 端口方向。 */
+  direction: SlotDirection;
+  /** 端口槽位索引。 */
+  slot: number;
+  /** 端口中心点，使用主包 page 坐标系。 */
+  center: {
+    x: number;
+    y: number;
+  };
+  /** 端口命中热区，使用主包 page 坐标系。 */
+  hitBounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  /** 端口类型；缺失时视为通配。 */
+  slotType?: SlotType;
+}
+
+/**
+ * 主包对外暴露的最小连接校验结果。
+ *
+ * @remarks
+ * 第一版先只返回 `valid + reason`，
+ * 让 editor 可以在不感知内部校验细节的前提下做最小反馈和交互分支。
+ */
+export interface LeaferGraphConnectionValidationResult {
+  /** 当前两个端口是否允许建立正式连线。 */
+  valid: boolean;
+  /** 不合法时的最小原因说明。 */
+  reason?: string;
 }
 
 /**

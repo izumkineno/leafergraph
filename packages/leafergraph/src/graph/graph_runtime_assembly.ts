@@ -123,6 +123,7 @@ export function createLeaferGraphRuntimeAssembly<
     widgetEditingManager: widgetEnvironment.widgetEditingManager,
     sceneRuntime: sceneRuntime.sceneRuntimeHost,
     interactionHost: sceneRuntime.interactionHost,
+    interactionRuntime: sceneRuntime.interactionRuntimeHost,
     nodeRuntimeHost: sceneRuntime.nodeRuntimeHost,
     themeHost: widgetEnvironment.themeHost,
     viewHost: sceneRuntime.viewHost,
@@ -130,7 +131,8 @@ export function createLeaferGraphRuntimeAssembly<
   };
   const apiHost = new LeaferGraphApiHost({
     runtime: apiRuntime,
-    nodeViews: options.nodeViews
+    nodeViews: options.nodeViews,
+    linkViews: options.linkViews
   });
 
   return {

@@ -22,7 +22,10 @@ import type {
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderInstance
 } from "./plugin";
+import type { LeaferGraphContextMenuBindingTarget } from "../interaction/context_menu";
 import type {
+  LeaferGraphConnectionPortState,
+  LeaferGraphConnectionValidationResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
@@ -43,6 +46,11 @@ type LeaferGraphApiNodeViewState<
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
 };
 
+type LeaferGraphApiLinkViewState = {
+  linkId: string;
+  view: LeaferGraphContextMenuBindingTarget;
+};
+
 /**
  * 主包公共 API 所依赖的最小运行时壳面。
  * 它刻意只暴露 facade 真正需要的方法，避免入口层继续感知全部内部宿主实例。
@@ -61,6 +69,7 @@ export interface LeaferGraphApiRuntime<
     LeaferGraphSceneRuntimeHost<TNodeState, LeaferGraphApiNodeViewState<TNodeState>>,
     | "setNodeWidgetValue"
     | "findLinksByNode"
+    | "getLink"
     | "createNode"
     | "removeNode"
     | "updateNode"
@@ -71,6 +80,31 @@ export interface LeaferGraphApiRuntime<
   >;
   interactionHost: {
     destroy(): void;
+  };
+  interactionRuntime: {
+    resolvePort(
+      nodeId: string,
+      direction: LeaferGraphConnectionPortState["direction"],
+      slot: number
+    ): LeaferGraphConnectionPortState | undefined;
+    resolvePortAtPoint(
+      point: { x: number; y: number },
+      direction: LeaferGraphConnectionPortState["direction"]
+    ): LeaferGraphConnectionPortState | undefined;
+    setConnectionSourcePort(port: LeaferGraphConnectionPortState | null): void;
+    setConnectionCandidatePort(
+      port: LeaferGraphConnectionPortState | null
+    ): void;
+    setConnectionPreview(
+      source: LeaferGraphConnectionPortState,
+      pointer: { x: number; y: number },
+      target?: LeaferGraphConnectionPortState
+    ): void;
+    clearConnectionPreview(): void;
+    canCreateLink(
+      source: LeaferGraphConnectionPortState,
+      target: LeaferGraphConnectionPortState
+    ): LeaferGraphConnectionValidationResult;
   };
   nodeRuntimeHost: {
     getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined;
@@ -98,10 +132,12 @@ export interface LeaferGraphApiRuntime<
 
 interface LeaferGraphApiHostOptions<
   TNodeState extends LeaferGraphRenderableNodeState,
-  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState = LeaferGraphApiLinkViewState
 > {
   runtime: LeaferGraphApiRuntime<TNodeState>;
   nodeViews: Map<string, TNodeViewState>;
+  linkViews: readonly TLinkViewState[];
 }
 
 /**
@@ -114,11 +150,18 @@ interface LeaferGraphApiHostOptions<
  */
 export class LeaferGraphApiHost<
   TNodeState extends LeaferGraphRenderableNodeState,
-  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState = LeaferGraphApiLinkViewState
 > {
-  private readonly options: LeaferGraphApiHostOptions<TNodeState, TNodeViewState>;
+  private readonly options: LeaferGraphApiHostOptions<
+    TNodeState,
+    TNodeViewState,
+    TLinkViewState
+  >;
 
-  constructor(options: LeaferGraphApiHostOptions<TNodeState, TNodeViewState>) {
+  constructor(
+    options: LeaferGraphApiHostOptions<TNodeState, TNodeViewState, TLinkViewState>
+  ) {
     this.options = options;
   }
 
@@ -186,6 +229,11 @@ export class LeaferGraphApiHost<
     return this.options.nodeViews.get(nodeId)?.view;
   }
 
+  /** 获取某条连线对应的 Leafer 视图宿主，便于 editor 绑定链接菜单与未来的重连交互。 */
+  getLinkView(linkId: string): LeaferGraphContextMenuBindingTarget | undefined {
+    return this.options.linkViews.find((state) => state.linkId === linkId)?.view;
+  }
+
   /** 让当前画布内容适配到可视区域内。 */
   fitView(padding: number): boolean {
     return this.options.runtime.viewHost.fitView(padding);
@@ -226,6 +274,73 @@ export class LeaferGraphApiHost<
   /** 根据节点 ID 查询当前图中的所有关联连线。 */
   findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
     return this.options.runtime.sceneRuntime.findLinksByNode(nodeId);
+  }
+
+  /** 根据连线 ID 读取当前图中的正式连线快照。 */
+  getLink(linkId: string): LeaferGraphLinkData | undefined {
+    return this.options.runtime.sceneRuntime.getLink(linkId);
+  }
+
+  /** 解析某个节点方向和槽位对应的正式端口几何。 */
+  resolveConnectionPort(
+    nodeId: string,
+    direction: LeaferGraphConnectionPortState["direction"],
+    slot: number
+  ): LeaferGraphConnectionPortState | undefined {
+    return this.options.runtime.interactionRuntime.resolvePort(
+      nodeId,
+      direction,
+      slot
+    );
+  }
+
+  /** 根据 page 坐标命中一个方向匹配的端口。 */
+  resolveConnectionPortAtPoint(
+    point: { x: number; y: number },
+    direction: LeaferGraphConnectionPortState["direction"]
+  ): LeaferGraphConnectionPortState | undefined {
+    return this.options.runtime.interactionRuntime.resolvePortAtPoint(
+      point,
+      direction
+    );
+  }
+
+  /** 设置当前连接预览的起点高亮。 */
+  setConnectionSourcePort(port: LeaferGraphConnectionPortState | null): void {
+    this.options.runtime.interactionRuntime.setConnectionSourcePort(port);
+  }
+
+  /** 设置当前连接预览的候选终点高亮。 */
+  setConnectionCandidatePort(
+    port: LeaferGraphConnectionPortState | null
+  ): void {
+    this.options.runtime.interactionRuntime.setConnectionCandidatePort(port);
+  }
+
+  /** 刷新当前连接预览线。 */
+  setConnectionPreview(
+    source: LeaferGraphConnectionPortState,
+    pointer: { x: number; y: number },
+    target?: LeaferGraphConnectionPortState
+  ): void {
+    this.options.runtime.interactionRuntime.setConnectionPreview(
+      source,
+      pointer,
+      target
+    );
+  }
+
+  /** 清理当前连接预览和端口高亮。 */
+  clearConnectionPreview(): void {
+    this.options.runtime.interactionRuntime.clearConnectionPreview();
+  }
+
+  /** 校验两个端口当前是否允许建立正式连线。 */
+  canCreateConnection(
+    source: LeaferGraphConnectionPortState,
+    target: LeaferGraphConnectionPortState
+  ): LeaferGraphConnectionValidationResult {
+    return this.options.runtime.interactionRuntime.canCreateLink(source, target);
   }
 
   /** 创建一个新的节点实例并立即挂到主包场景中。 */

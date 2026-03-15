@@ -6,7 +6,8 @@
  */
 
 import type { Group } from "leafer-ui";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
+import type { LeaferGraphConnectionPortState } from "../api/graph_api_types";
 import type {
   GraphDragNodePosition,
   LeaferGraphInteractionRuntimeLike
@@ -36,6 +37,35 @@ interface GraphResizeState {
   startPageY: number;
 }
 
+/** 拖拽中的最小连接状态。 */
+interface GraphConnectionState {
+  sourceNodeId: string;
+  sourceSlot: number;
+  hoveredTarget: LeaferGraphConnectionPortState | null;
+}
+
+interface LeaferGraphInteractivePortViewState {
+  layout: {
+    direction: SlotDirection;
+    index: number;
+    portX: number;
+    portY: number;
+    portWidth: number;
+    portHeight: number;
+    slotType?: SlotType;
+  };
+  highlight: {
+    visible?: boolean | 0;
+    opacity?: number;
+  };
+  hitArea: LeaferGraphWidgetEventSource & {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  };
+}
+
 /** 交互宿主依赖的最小节点视图结构。 */
 export interface LeaferGraphInteractiveNodeViewState<
   TNodeState extends NodeRuntimeState = NodeRuntimeState
@@ -45,6 +75,7 @@ export interface LeaferGraphInteractiveNodeViewState<
   resizeHandle: LeaferGraphWidgetEventSource;
   shellView: {
     signalButton: LeaferGraphWidgetEventSource;
+    portViews: LeaferGraphInteractivePortViewState[];
   };
   hovered: boolean;
 }
@@ -76,8 +107,15 @@ export class LeaferGraphInteractionHost<
   private readonly ownerWindow: Window;
   private dragState: GraphDragState | null = null;
   private resizeState: GraphResizeState | null = null;
+  private connectionState: GraphConnectionState | null = null;
 
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
+    if (this.connectionState) {
+      const point = this.options.runtime.getPagePointByClient(event);
+      this.updateConnectionPreview(point);
+      return;
+    }
+
     if (this.resizeState) {
       const point = this.options.runtime.getPagePointByClient(event);
       const width =
@@ -107,7 +145,15 @@ export class LeaferGraphInteractionHost<
     this.options.container.style.cursor = "grabbing";
   };
 
-  private readonly handleWindowPointerUp = (): void => {
+  private readonly handleWindowPointerUp = (event?: PointerEvent): void => {
+    if (this.connectionState) {
+      const point = event
+        ? this.options.runtime.getPagePointByClient(event)
+        : undefined;
+      this.finishConnection(point);
+      return;
+    }
+
     const resizeNodeId = this.resizeState?.nodeId;
     const dragNodeId = this.dragState?.anchorNodeId;
 
@@ -153,6 +199,7 @@ export class LeaferGraphInteractionHost<
 
       if (
         !this.dragState &&
+        !this.connectionState &&
         !this.resizeState &&
         !this.isResizeHandleTarget(event.target)
       ) {
@@ -163,7 +210,7 @@ export class LeaferGraphInteractionHost<
     view.on("pointer.leave", () => {
       this.options.runtime.setNodeHovered(nodeId, false);
 
-      if (!this.dragState && !this.resizeState) {
+      if (!this.dragState && !this.resizeState && !this.connectionState) {
         this.options.container.style.cursor = "";
       }
     });
@@ -224,6 +271,32 @@ export class LeaferGraphInteractionHost<
   }
 
   /**
+   * 绑定节点端口的最小拖线交互。
+   * 当前只从输出端口发起拖线，并在窗口级 move / up 链路里完成候选解析与正式建线。
+   */
+  bindNodePorts(nodeId: string, state: TNodeViewState): void {
+    for (const portView of state.shellView.portViews) {
+      if (portView.layout.direction !== "output") {
+        continue;
+      }
+
+      portView.hitArea.on(
+        "pointer.down",
+        (event: LeaferGraphWidgetPointerEvent) => {
+          if (event.right || event.middle) {
+            return;
+          }
+
+          event.stopNow?.();
+          event.stop?.();
+          this.options.runtime.focusNode(nodeId);
+          this.startConnectionDrag(nodeId, portView.layout.index, event);
+        }
+      );
+    }
+  }
+
+  /**
    * 绑定左上角信号球的折叠开关。
    * 这里直接在 `pointer.down` 阶段消费事件，避免它被根节点拖拽逻辑抢走。
    */
@@ -258,6 +331,14 @@ export class LeaferGraphInteractionHost<
       cleared = true;
     }
 
+    if (
+      this.connectionState?.sourceNodeId === nodeId ||
+      this.connectionState?.hoveredTarget?.nodeId === nodeId
+    ) {
+      this.clearConnectionState();
+      cleared = true;
+    }
+
     if (cleared) {
       this.options.container.style.cursor = "";
     }
@@ -267,6 +348,7 @@ export class LeaferGraphInteractionHost<
   clearInteractionState(): void {
     this.dragState = null;
     this.resizeState = null;
+    this.clearConnectionState();
     this.options.container.style.cursor = "";
   }
 
@@ -319,6 +401,104 @@ export class LeaferGraphInteractionHost<
     };
     this.options.runtime.syncNodeResizeHandleVisibility(nodeId);
     this.options.container.style.cursor = "grabbing";
+  }
+
+  /** 启动一次输出端口拖线。 */
+  private startConnectionDrag(
+    nodeId: string,
+    slot: number,
+    event: LeaferGraphWidgetPointerEvent
+  ): void {
+    const sourcePort = this.options.runtime.resolvePort(nodeId, "output", slot);
+    if (!sourcePort) {
+      return;
+    }
+
+    this.dragState = null;
+    this.resizeState = null;
+    this.connectionState = {
+      sourceNodeId: nodeId,
+      sourceSlot: sourcePort.slot,
+      hoveredTarget: null
+    };
+
+    this.options.runtime.setConnectionSourcePort(sourcePort);
+    this.options.runtime.setConnectionCandidatePort(null);
+    this.options.runtime.setConnectionPreview(
+      sourcePort,
+      this.options.runtime.getPagePointFromGraphEvent(event)
+    );
+    this.options.container.style.cursor = "crosshair";
+  }
+
+  /** 根据当前鼠标位置刷新拖线预览和候选目标。 */
+  private updateConnectionPreview(point: { x: number; y: number }): void {
+    if (!this.connectionState) {
+      return;
+    }
+
+    const sourcePort = this.options.runtime.resolvePort(
+      this.connectionState.sourceNodeId,
+      "output",
+      this.connectionState.sourceSlot
+    );
+    if (!sourcePort) {
+      this.clearConnectionState();
+      this.options.container.style.cursor = "";
+      return;
+    }
+
+    const rawTarget = this.options.runtime.resolvePortAtPoint(point, "input");
+    const validation = rawTarget
+      ? this.options.runtime.canCreateLink(sourcePort, rawTarget)
+      : { valid: false as const };
+    const hoveredTarget = rawTarget && validation.valid ? rawTarget : null;
+
+    this.connectionState.hoveredTarget = hoveredTarget;
+    this.options.runtime.setConnectionCandidatePort(hoveredTarget);
+    this.options.runtime.setConnectionPreview(sourcePort, point, hoveredTarget ?? undefined);
+    this.options.container.style.cursor =
+      rawTarget && !validation.valid ? "not-allowed" : "crosshair";
+  }
+
+  /** 在窗口级 pointer up 时完成或取消一次拖线。 */
+  private finishConnection(point?: { x: number; y: number }): void {
+    const connection = this.connectionState;
+    if (!connection) {
+      return;
+    }
+
+    const sourcePort = this.options.runtime.resolvePort(
+      connection.sourceNodeId,
+      "output",
+      connection.sourceSlot
+    );
+    let targetPort = connection.hoveredTarget;
+
+    if (point && sourcePort) {
+      const rawTarget = this.options.runtime.resolvePortAtPoint(point, "input");
+      if (
+        rawTarget &&
+        this.options.runtime.canCreateLink(sourcePort, rawTarget).valid
+      ) {
+        targetPort = rawTarget;
+      }
+    }
+
+    if (sourcePort && targetPort) {
+      this.options.runtime.createLink(sourcePort, targetPort);
+    }
+
+    this.clearConnectionState();
+    this.options.container.style.cursor = "";
+  }
+
+  /** 清理当前拖线相关的视觉反馈和临时状态。 */
+  private clearConnectionState(): void {
+    this.connectionState = null;
+    this.options.runtime.setConnectionSourcePort(null);
+    this.options.runtime.setConnectionCandidatePort(null);
+    this.options.runtime.clearConnectionPreview();
   }
 
   /**

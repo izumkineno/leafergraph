@@ -49,7 +49,11 @@ export class LeaferGraphCanvasHost {
       tree: {}
     });
     const root = new Group({ name: "leafergraph-root" });
-    const linkLayer = new Group({ name: "links", hittable: false });
+    const linkLayer = new Group({
+      name: "links",
+      hitSelf: false,
+      hitChildren: true
+    });
     const nodeLayer = new Group({ name: "nodes" });
 
     root.add([linkLayer, nodeLayer]);
