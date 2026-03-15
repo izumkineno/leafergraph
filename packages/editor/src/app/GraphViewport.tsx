@@ -584,7 +584,7 @@ export function GraphViewport({
     };
     const duplicateNodeFromMenu = (
       nodeId: string,
-      context: LeaferGraphContextMenuContext
+      _context: LeaferGraphContextMenuContext
     ): void => {
       if (!graphReady) {
         return;
@@ -595,8 +595,8 @@ export function GraphViewport({
         return;
       }
 
-      const baseX = snapshot.x ?? context.pagePoint.x;
-      const baseY = snapshot.y ?? context.pagePoint.y;
+      const baseX = snapshot.layout.x;
+      const baseY = snapshot.layout.y;
       if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
         commands.duplicateSelectedNodes();
         return;
@@ -797,7 +797,11 @@ export function GraphViewport({
 
       for (const node of graphData.nodes) {
         boundNodeIds.add(node.id);
-        bindNodeContextMenu(graph, menu, handleNodePointerDown, node);
+        bindNodeContextMenu(graph, menu, handleNodePointerDown, {
+          id: node.id,
+          title: node.title ?? node.id,
+          type: node.type
+        });
       }
     });
 

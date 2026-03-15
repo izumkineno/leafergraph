@@ -1,4 +1,4 @@
-import type { LeaferGraphNodeData } from "./demo";
+import type { NodeSerializeResult } from "./types";
 
 /**
  * 图连线端点描述。
@@ -46,14 +46,14 @@ export interface LeaferGraphLinkData {
 
 /**
  * 图模型输入结构。
- * 当前阶段它仍然使用 `LeaferGraphNodeData` 作为节点输入桥接类型，
- * 但已经把节点集合与连线集合正式组织到同一份图数据中。
+ * 节点集合直接使用正式可恢复的 `NodeSerializeResult`，
+ * 避免再把 demo 输入类型暴露成长期图协议。
  */
 export interface LeaferGraphData {
   /**
    * 图内节点集合。
    */
-  nodes: LeaferGraphNodeData[];
+  nodes: NodeSerializeResult[];
   /**
    * 图内连线集合。
    */

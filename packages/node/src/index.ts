@@ -39,7 +39,6 @@ export type { RegisterNodeOptions } from "./registry";
 export type { RegisterWidgetOptions, WidgetDefinitionReader } from "./widget";
 export type { InstallNodeModuleOptions, ResolvedNodeModule } from "./module";
 export type { NodeConfigureInput } from "./configure";
-export type { LeaferGraphNodeData, LeaferGraphOptions } from "./demo";
 export type {
   LeaferGraphData,
   LeaferGraphLinkData,

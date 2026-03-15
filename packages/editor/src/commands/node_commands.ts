@@ -7,6 +7,11 @@ import type { EditorNodeSelectionController } from "../state/selection";
  */
 export type EditorNodeCommandResult = Array<ReturnType<LeaferGraph["createNode"]>>;
 
+/** 从主包读取到的正式节点快照。 */
+export type EditorNodeSnapshot = NonNullable<
+  ReturnType<LeaferGraph["getNodeSnapshot"]>
+>;
+
 /**
  * 剪贴板中的单个节点条目。
  * `offsetX / offsetY` 记录的是相对选区左上角的偏移，
@@ -14,7 +19,7 @@ export type EditorNodeCommandResult = Array<ReturnType<LeaferGraph["createNode"]
  */
 export interface EditorNodeClipboardEntry {
   sourceNodeId: string;
-  snapshot: LeaferGraphCreateNodeInput;
+  snapshot: EditorNodeSnapshot;
   offsetX: number;
   offsetY: number;
 }
@@ -115,6 +120,32 @@ export function relocateNodeCreateInput(
   return next;
 }
 
+/** 将正式节点快照重新包装成 `createNode(...)` 可消费的便捷输入。 */
+export function createNodeInputFromSnapshot(
+  snapshot: EditorNodeSnapshot,
+  x: number = snapshot.layout.x,
+  y: number = snapshot.layout.y
+): LeaferGraphCreateNodeInput {
+  return relocateNodeCreateInput(
+    structuredClone({
+      type: snapshot.type,
+      title: snapshot.title,
+      x: snapshot.layout.x,
+      y: snapshot.layout.y,
+      width: snapshot.layout.width,
+      height: snapshot.layout.height,
+      properties: snapshot.properties,
+      propertySpecs: snapshot.propertySpecs,
+      inputs: snapshot.inputs,
+      outputs: snapshot.outputs,
+      widgets: snapshot.widgets,
+      data: snapshot.data
+    } satisfies LeaferGraphCreateNodeInput),
+    x,
+    y
+  );
+}
+
 /** 把任意节点 ID 列表整理成稳定且无重复的顺序集合。 */
 export function normalizeNodeIdList(nodeIds: readonly string[]): string[] {
   const orderedNodeIds: string[] = [];
@@ -160,7 +191,7 @@ export function copyNodesToClipboard(
         entry
       ): entry is {
         sourceNodeId: string;
-        snapshot: LeaferGraphCreateNodeInput;
+        snapshot: EditorNodeSnapshot;
       } => Boolean(entry)
     );
 
@@ -169,10 +200,10 @@ export function copyNodesToClipboard(
   }
 
   const anchorX = Math.min(
-    ...snapshotEntries.map(({ snapshot }) => snapshot.x ?? 0)
+    ...snapshotEntries.map(({ snapshot }) => snapshot.layout.x)
   );
   const anchorY = Math.min(
-    ...snapshotEntries.map(({ snapshot }) => snapshot.y ?? 0)
+    ...snapshotEntries.map(({ snapshot }) => snapshot.layout.y)
   );
 
   return {
@@ -182,8 +213,8 @@ export function copyNodesToClipboard(
     entries: snapshotEntries.map(({ sourceNodeId, snapshot }) => ({
       sourceNodeId,
       snapshot,
-      offsetX: (snapshot.x ?? 0) - anchorX,
-      offsetY: (snapshot.y ?? 0) - anchorY
+      offsetX: snapshot.layout.x - anchorX,
+      offsetY: snapshot.layout.y - anchorY
     }))
   };
 }
@@ -216,8 +247,8 @@ export function resolveKeyboardPastePosition(
     const selectedSnapshot = graph.getNodeSnapshot(selectedNodeId);
     if (selectedSnapshot) {
       return {
-        x: (selectedSnapshot.x ?? 0) + 48,
-        y: (selectedSnapshot.y ?? 0) + 48
+        x: selectedSnapshot.layout.x + 48,
+        y: selectedSnapshot.layout.y + 48
       };
     }
   }
@@ -240,7 +271,7 @@ export function createNodesFromClipboard(
 ): EditorNodeCommandResult {
   return clipboard.entries.map((entry) =>
     graph.createNode(
-      relocateNodeCreateInput(
+      createNodeInputFromSnapshot(
         entry.snapshot,
         x + entry.offsetX,
         y + entry.offsetY
@@ -264,7 +295,7 @@ export function duplicateNodeFromSnapshot(
     return undefined;
   }
 
-  return graph.createNode(relocateNodeCreateInput(snapshot, x, y));
+  return graph.createNode(createNodeInputFromSnapshot(snapshot, x, y));
 }
 
 /**
@@ -302,8 +333,8 @@ export function resolveNodeResizeCommandState(
   }
 
   const snapshot = graph.getNodeSnapshot(nodeId);
-  const width = snapshot?.width ?? constraint.defaultWidth;
-  const height = snapshot?.height ?? constraint.defaultHeight;
+  const width = snapshot?.layout.width ?? constraint.defaultWidth;
+  const height = snapshot?.layout.height ?? constraint.defaultHeight;
   const isDefaultSize =
     Math.round(width) === Math.round(constraint.defaultWidth) &&
     Math.round(height) === Math.round(constraint.defaultHeight);
@@ -426,7 +457,7 @@ export function createEditorNodeCommandController(
     }
 
     const inputs = clipboard.entries.map((entry) =>
-      relocateNodeCreateInput(
+      createNodeInputFromSnapshot(
         entry.snapshot,
         x + entry.offsetX,
         y + entry.offsetY
@@ -446,7 +477,7 @@ export function createEditorNodeCommandController(
       return undefined;
     }
 
-    return createNode(relocateNodeCreateInput(snapshot, x, y));
+    return createNode(createNodeInputFromSnapshot(snapshot, x, y));
   };
 
   const duplicateSelectedNodes = ():
@@ -466,7 +497,7 @@ export function createEditorNodeCommandController(
     }
 
     const inputs = selectionClipboard.entries.map((entry) =>
-      relocateNodeCreateInput(
+      createNodeInputFromSnapshot(
         entry.snapshot,
         selectionClipboard.anchorX + 48 + entry.offsetX,
         selectionClipboard.anchorY + 48 + entry.offsetY
@@ -496,8 +527,8 @@ export function createEditorNodeCommandController(
 
     const node = duplicateNode(
       nodeId,
-      (snapshot.x ?? 0) + 48,
-      (snapshot.y ?? 0) + 48
+      snapshot.layout.x + 48,
+      snapshot.layout.y + 48
     );
     return node ? [node] : undefined;
   };

@@ -16,9 +16,9 @@ import {
   serializeNode,
   type LeaferGraphData,
   type LeaferGraphLinkData,
-  type LeaferGraphNodeData,
   type InstallNodeModuleOptions,
   type NodeDefinition,
+  type NodePropertySpec,
   type NodeResizeConfig,
   type NodeModule,
   type NodeRuntimeState,
@@ -33,8 +33,7 @@ export { LeaferUI };
 export type {
   LeaferGraphData,
   LeaferGraphLinkData,
-  LeaferGraphLinkEndpoint,
-  LeaferGraphNodeData
+  LeaferGraphLinkEndpoint
 } from "@leafergraph/node";
 export {
   LEAFER_GRAPH_POINTER_MENU_EVENT,
@@ -462,48 +461,42 @@ export type LeaferGraphNodeSlotInput = string | NodeSlotSpec;
 
 /**
  * 主包创建节点时使用的输入结构。
- * 当前阶段仍然沿用 `LeaferGraphNodeData` 这组过渡层字段，但允许省略 `id`，
- * 以便直接复用节点 SDK 的默认 ID 生成能力。
+ * 这里保留 editor 友好的顶层 `x / y / width / height` 写法，
+ * 但不再继承 demo 输入类型。
  */
-export interface LeaferGraphCreateNodeInput
-  extends Omit<
-    LeaferGraphNodeData,
-    | "id"
-    | "type"
-    | "title"
-    | "inputs"
-    | "outputs"
-    | "controlLabel"
-    | "controlValue"
-    | "controlProgress"
-  > {
+export interface LeaferGraphCreateNodeInput extends GraphNodeProperties {
   id?: string;
   type: string;
   title?: string;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  properties?: Record<string, unknown>;
+  propertySpecs?: NodePropertySpec[];
   inputs?: LeaferGraphNodeSlotInput[];
   outputs?: LeaferGraphNodeSlotInput[];
+  widgets?: NodeRuntimeState["widgets"];
+  data?: Record<string, unknown>;
 }
 
 /**
  * 主包更新节点时使用的输入结构。
  * 这一轮先聚焦“内容与布局更新”，不支持在 `updateNode(...)` 中直接修改节点 ID。
  */
-export interface LeaferGraphUpdateNodeInput
-  extends Partial<
-    Omit<
-      LeaferGraphNodeData,
-      | "id"
-      | "type"
-      | "inputs"
-      | "outputs"
-      | "controlLabel"
-      | "controlValue"
-      | "controlProgress"
-    >
-  > {
+export interface LeaferGraphUpdateNodeInput extends Partial<GraphNodeProperties> {
   id?: string;
+  title?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  properties?: Record<string, unknown>;
+  propertySpecs?: NodePropertySpec[];
   inputs?: LeaferGraphNodeSlotInput[];
   outputs?: LeaferGraphNodeSlotInput[];
+  widgets?: NodeRuntimeState["widgets"];
+  data?: Record<string, unknown>;
 }
 
 /**
@@ -939,16 +932,16 @@ export class LeaferGraph {
   }
 
   /**
-   * 读取一个可再次传入 `createNode(...)` 的节点快照。
-   * 它会主动去掉原节点 ID，避免复制或粘贴时把新节点错误地落到旧 ID 上。
+   * 读取一个正式可序列化节点快照。
+   * 返回值直接使用 `NodeSerializeResult` 语义，供 editor 复制、持久化和外部恢复复用。
    */
-  getNodeSnapshot(nodeId: string): LeaferGraphCreateNodeInput | undefined {
+  getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined {
     const node = this.graphState.nodes.get(nodeId);
     if (!node) {
       return undefined;
     }
 
-    return this.toCreateNodeInput(serializeNode(this.nodeRegistry, node));
+    return serializeNode(this.nodeRegistry, node);
   }
 
   /**
@@ -1117,6 +1110,7 @@ export class LeaferGraph {
       title: input.title,
       layout: this.resolvePatchedNodeLayout(node, input),
       properties: this.resolvePatchedNodeProperties(node, input),
+      propertySpecs: input.propertySpecs,
       inputs: input.inputs !== undefined ? this.toSlotSpecs(input.inputs) : undefined,
       outputs: input.outputs !== undefined ? this.toSlotSpecs(input.outputs) : undefined,
       widgets: this.resolvePatchedNodeWidgets(node, input),
@@ -1346,7 +1340,7 @@ export class LeaferGraph {
 
   /**
    * 解析启动时的图数据。
-   * 当前优先使用正式 `graph` 入口；若外部仍传入旧的 `nodes`，则仅把它们包装成图结构。
+   * 当前只接受正式 `graph` 入口；未提供时回退为空图。
    */
   private resolveInitialGraphData(options: LeaferGraphOptions): LeaferGraphData {
     if (options.graph) {
@@ -1358,7 +1352,7 @@ export class LeaferGraph {
     }
 
     return {
-      nodes: options.nodes ?? [],
+      nodes: [],
       links: []
     };
   }
@@ -1380,7 +1374,7 @@ export class LeaferGraph {
     this.linkLayer.removeAll();
 
     const localNodes = graph.nodes.map((node) =>
-      this.createGraphNodeState(this.normalizeCreateNodeInput(node))
+      this.createGraphNodeStateFromSnapshot(this.normalizeGraphNodeSnapshot(node))
     );
 
     for (const node of localNodes) {
@@ -2044,12 +2038,12 @@ export class LeaferGraph {
   }
 
   /**
-   * 将对外图数据中的节点输入归一为主包内部创建输入。
-   * 这里显式要求节点必须提供 `type`，避免编辑器示例逻辑再次渗回主包。
+   * 将图数据中的节点快照归一成正式恢复输入。
+   * 这里显式要求节点必须提供 `type`，避免无效数据静默落图。
    */
-  private normalizeCreateNodeInput(
-    node: LeaferGraphNodeData
-  ): LeaferGraphCreateNodeInput {
+  private normalizeGraphNodeSnapshot(
+    node: NodeSerializeResult
+  ): NodeSerializeResult {
     const type = node.type?.trim();
     if (!type) {
       throw new Error(`节点缺少 type：${node.id}`);
@@ -2057,26 +2051,10 @@ export class LeaferGraph {
 
     return {
       ...node,
-      type
-    };
-  }
-
-  /** 把已序列化节点结果转换回主包 `createNode(...)` 可消费的输入结构。 */
-  private toCreateNodeInput(
-    data: NodeSerializeResult
-  ): LeaferGraphCreateNodeInput {
-    return {
-      type: data.type,
-      title: data.title,
-      x: data.layout.x,
-      y: data.layout.y,
-      width: data.layout.width,
-      height: data.layout.height,
-      properties: data.properties,
-      inputs: data.inputs,
-      outputs: data.outputs,
-      widgets: data.widgets,
-      data: data.data
+      type,
+      layout: {
+        ...node.layout
+      }
     };
   }
 
@@ -2115,9 +2093,34 @@ export class LeaferGraph {
         height: node.height
       },
       properties,
+      propertySpecs: node.propertySpecs,
       inputs: node.inputs !== undefined ? this.toSlotSpecs(node.inputs) : undefined,
       outputs: node.outputs !== undefined ? this.toSlotSpecs(node.outputs) : undefined,
       widgets: node.widgets,
+      data: node.data
+    }) as GraphNodeState;
+  }
+
+  /** 将正式图快照恢复为运行时节点实例。 */
+  private createGraphNodeStateFromSnapshot(
+    node: NodeSerializeResult
+  ): GraphNodeState {
+    const type = node.type?.trim();
+    if (!type) {
+      throw new Error(`节点 type 不能为空：${node.id}`);
+    }
+
+    return createNodeState(this.nodeRegistry, {
+      id: node.id,
+      type,
+      title: node.title,
+      layout: node.layout,
+      properties: node.properties,
+      propertySpecs: node.propertySpecs,
+      inputs: node.inputs,
+      outputs: node.outputs,
+      widgets: node.widgets,
+      flags: node.flags,
       data: node.data
     }) as GraphNodeState;
   }

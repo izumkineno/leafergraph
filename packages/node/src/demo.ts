@@ -2,7 +2,7 @@ import type { NodeModule } from "./definition";
 import type { LeaferGraphData } from "./graph";
 import type { NodeSlotSpec, NodeWidgetSpec } from "./types";
 
-// 这组类型只服务当前 demo / editor 接入，后续可再迁回主包或专门的 demo 包。
+// 这组类型只服务当前仓库内的 demo / editor 过渡场景，不再从包根入口导出。
 
 /**
  * Demo 节点输入结构。

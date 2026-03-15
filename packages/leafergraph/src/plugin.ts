@@ -1,6 +1,6 @@
 import type {
   InstallNodeModuleOptions,
-  LeaferGraphOptions as BaseLeaferGraphOptions,
+  LeaferGraphData,
   NodeDefinition,
   NodeModule,
   NodeRuntimeState,
@@ -276,9 +276,12 @@ export interface LeaferGraphNodePlugin {
 
 /**
  * 主包初始化配置。
- * 在节点图基础配置上，额外支持插件批量安装。
+ * 这里显式只保留正式宿主入口，不再透传 demo 专用 `nodes` 初始化字段。
  */
-export interface LeaferGraphOptions extends BaseLeaferGraphOptions {
+export interface LeaferGraphOptions {
+  fill?: string;
+  graph?: LeaferGraphData;
+  modules?: NodeModule[];
   plugins?: LeaferGraphNodePlugin[];
   themeMode?: LeaferGraphThemeMode;
   widgetEditing?: LeaferGraphWidgetEditingOptions;

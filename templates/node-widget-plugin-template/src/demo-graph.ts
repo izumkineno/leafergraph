@@ -23,11 +23,15 @@ export const templateDemoGraph: LeaferGraphData = {
       id: "template-source",
       type: TEMPLATE_CATEGORY_NODE_TYPE,
       title: "Texture",
-      subtitle: "Template source",
-      x: 44,
-      y: 112,
-      accent: "#3B82F6",
-      status: "LIVE",
+      layout: {
+        x: 44,
+        y: 112
+      },
+      properties: {
+        subtitle: "Template source",
+        accent: "#3B82F6",
+        status: "LIVE"
+      },
       inputs: [{ name: "Seed", type: "number" }],
       outputs: [{ name: "Texture", type: "image" }],
       widgets: [createTemplateControlWidget("Exposure", 0.58, "1.10")]
@@ -36,11 +40,15 @@ export const templateDemoGraph: LeaferGraphData = {
       id: "template-math",
       type: TEMPLATE_CATEGORY_NODE_TYPE,
       title: "Multiply",
-      subtitle: "Template math",
-      x: 344,
-      y: 248,
-      accent: "#6366F1",
-      status: "LIVE",
+      layout: {
+        x: 344,
+        y: 248
+      },
+      properties: {
+        subtitle: "Template math",
+        accent: "#6366F1",
+        status: "LIVE"
+      },
       inputs: [
         { name: "A", type: "float" },
         { name: "B", type: "float" }
@@ -52,20 +60,28 @@ export const templateDemoGraph: LeaferGraphData = {
       id: "template-widget-kit",
       type: TEMPLATE_BASIC_WIDGET_NODE_TYPE,
       title: "Widgets",
-      subtitle: "Template widget set",
-      x: 120,
-      y: 372,
-      accent: "#22C55E",
-      status: "READY"
+      layout: {
+        x: 120,
+        y: 372
+      },
+      properties: {
+        subtitle: "Template widget set",
+        accent: "#22C55E",
+        status: "READY"
+      }
     },
     {
       id: "template-external-widget",
       type: TEMPLATE_EXTERNAL_WIDGET_NODE_TYPE,
       title: "External Widget",
-      subtitle: "Template plugin widget",
-      x: 486,
-      y: 348,
-      status: "PLUGIN"
+      layout: {
+        x: 486,
+        y: 348
+      },
+      properties: {
+        subtitle: "Template plugin widget",
+        status: "PLUGIN"
+      }
     }
   ],
   links: [
