@@ -26,6 +26,8 @@ export const templateBasicWidgetsNodeDefinition: NodeDefinition = {
     minHeight: TEMPLATE_NODE_MIN_HEIGHT,
     snap: 4
   },
+  inputs: [{ name: "Input", type: "string" }],
+  outputs: [{ name: "Output", type: "event" }],
   widgets: [
     {
       type: "number",

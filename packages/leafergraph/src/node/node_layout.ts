@@ -91,6 +91,10 @@ export function resolveNodeSlotsHeight(
   slotCount: number,
   metrics: NodeShellLayoutMetrics
 ): number {
+  if (slotCount <= 0) {
+    return 0;
+  }
+
   if (slotCount <= 1) {
     return metrics.slotRowHeight;
   }

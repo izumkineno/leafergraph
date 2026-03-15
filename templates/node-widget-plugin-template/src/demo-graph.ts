@@ -50,10 +50,10 @@ export const templateDemoGraph: LeaferGraphData = {
         status: "LIVE"
       },
       inputs: [
-        { name: "A", type: "float" },
-        { name: "B", type: "float" }
+        { name: "A", type: "image" },
+        { name: "B", type: "image" }
       ],
-      outputs: [{ name: "Result", type: "float" }],
+      outputs: [{ name: "Result", type: "image" }],
       widgets: [createTemplateControlWidget("Factor", 0.5, "2.50")]
     },
     {

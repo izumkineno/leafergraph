@@ -39,8 +39,9 @@ interface GraphResizeState {
 
 /** 拖拽中的最小连接状态。 */
 interface GraphConnectionState {
-  sourceNodeId: string;
-  sourceSlot: number;
+  originNodeId: string;
+  originDirection: SlotDirection;
+  originSlot: number;
   hoveredTarget: LeaferGraphConnectionPortState | null;
 }
 
@@ -229,6 +230,7 @@ export class LeaferGraphInteractionHost<
         event.right ||
         event.middle ||
         isWidgetInteractionTarget(event.target) ||
+        this.isPortHitTarget(event.target) ||
         this.isResizeHandleTarget(event.target) ||
         this.isResizeHandleHit(event, state)
       ) {
@@ -272,14 +274,10 @@ export class LeaferGraphInteractionHost<
 
   /**
    * 绑定节点端口的最小拖线交互。
-   * 当前只从输出端口发起拖线，并在窗口级 move / up 链路里完成候选解析与正式建线。
+   * 当前允许从输入或输出端口发起拖线，并在窗口级 move / up 链路里完成候选解析与正式建线。
    */
   bindNodePorts(nodeId: string, state: TNodeViewState): void {
     for (const portView of state.shellView.portViews) {
-      if (portView.layout.direction !== "output") {
-        continue;
-      }
-
       portView.hitArea.on(
         "pointer.down",
         (event: LeaferGraphWidgetPointerEvent) => {
@@ -290,7 +288,12 @@ export class LeaferGraphInteractionHost<
           event.stopNow?.();
           event.stop?.();
           this.options.runtime.focusNode(nodeId);
-          this.startConnectionDrag(nodeId, portView.layout.index, event);
+          this.startConnectionDrag(
+            nodeId,
+            portView.layout.direction,
+            portView.layout.index,
+            event
+          );
         }
       );
     }
@@ -332,7 +335,7 @@ export class LeaferGraphInteractionHost<
     }
 
     if (
-      this.connectionState?.sourceNodeId === nodeId ||
+      this.connectionState?.originNodeId === nodeId ||
       this.connectionState?.hoveredTarget?.nodeId === nodeId
     ) {
       this.clearConnectionState();
@@ -403,29 +406,31 @@ export class LeaferGraphInteractionHost<
     this.options.container.style.cursor = "grabbing";
   }
 
-  /** 启动一次输出端口拖线。 */
+  /** 启动一次端口拖线。 */
   private startConnectionDrag(
     nodeId: string,
+    direction: SlotDirection,
     slot: number,
     event: LeaferGraphWidgetPointerEvent
   ): void {
-    const sourcePort = this.options.runtime.resolvePort(nodeId, "output", slot);
-    if (!sourcePort) {
+    const originPort = this.options.runtime.resolvePort(nodeId, direction, slot);
+    if (!originPort) {
       return;
     }
 
     this.dragState = null;
     this.resizeState = null;
     this.connectionState = {
-      sourceNodeId: nodeId,
-      sourceSlot: sourcePort.slot,
+      originNodeId: nodeId,
+      originDirection: originPort.direction,
+      originSlot: originPort.slot,
       hoveredTarget: null
     };
 
-    this.options.runtime.setConnectionSourcePort(sourcePort);
+    this.options.runtime.setConnectionSourcePort(originPort);
     this.options.runtime.setConnectionCandidatePort(null);
     this.options.runtime.setConnectionPreview(
-      sourcePort,
+      originPort,
       this.options.runtime.getPagePointFromGraphEvent(event)
     );
     this.options.container.style.cursor = "crosshair";
@@ -437,26 +442,36 @@ export class LeaferGraphInteractionHost<
       return;
     }
 
-    const sourcePort = this.options.runtime.resolvePort(
-      this.connectionState.sourceNodeId,
-      "output",
-      this.connectionState.sourceSlot
+    const originPort = this.options.runtime.resolvePort(
+      this.connectionState.originNodeId,
+      this.connectionState.originDirection,
+      this.connectionState.originSlot
     );
-    if (!sourcePort) {
+    if (!originPort) {
       this.clearConnectionState();
       this.options.container.style.cursor = "";
       return;
     }
 
-    const rawTarget = this.options.runtime.resolvePortAtPoint(point, "input");
-    const validation = rawTarget
-      ? this.options.runtime.canCreateLink(sourcePort, rawTarget)
+    const rawTarget = this.options.runtime.resolvePortAtPoint(
+      point,
+      this.getOppositeDirection(originPort.direction)
+    );
+    const endpoints = rawTarget
+      ? this.resolveConnectionEndpoints(originPort, rawTarget)
+      : null;
+    const validation = endpoints
+      ? this.options.runtime.canCreateLink(endpoints.source, endpoints.target)
       : { valid: false as const };
     const hoveredTarget = rawTarget && validation.valid ? rawTarget : null;
 
     this.connectionState.hoveredTarget = hoveredTarget;
     this.options.runtime.setConnectionCandidatePort(hoveredTarget);
-    this.options.runtime.setConnectionPreview(sourcePort, point, hoveredTarget ?? undefined);
+    this.options.runtime.setConnectionPreview(
+      originPort,
+      point,
+      hoveredTarget ?? undefined
+    );
     this.options.container.style.cursor =
       rawTarget && !validation.valid ? "not-allowed" : "crosshair";
   }
@@ -468,25 +483,35 @@ export class LeaferGraphInteractionHost<
       return;
     }
 
-    const sourcePort = this.options.runtime.resolvePort(
-      connection.sourceNodeId,
-      "output",
-      connection.sourceSlot
+    const originPort = this.options.runtime.resolvePort(
+      connection.originNodeId,
+      connection.originDirection,
+      connection.originSlot
     );
     let targetPort = connection.hoveredTarget;
 
-    if (point && sourcePort) {
-      const rawTarget = this.options.runtime.resolvePortAtPoint(point, "input");
+    if (point && originPort) {
+      const rawTarget = this.options.runtime.resolvePortAtPoint(
+        point,
+        this.getOppositeDirection(originPort.direction)
+      );
+      const endpoints = rawTarget
+        ? this.resolveConnectionEndpoints(originPort, rawTarget)
+        : null;
       if (
         rawTarget &&
-        this.options.runtime.canCreateLink(sourcePort, rawTarget).valid
+        endpoints &&
+        this.options.runtime.canCreateLink(endpoints.source, endpoints.target).valid
       ) {
         targetPort = rawTarget;
       }
     }
 
-    if (sourcePort && targetPort) {
-      this.options.runtime.createLink(sourcePort, targetPort);
+    if (originPort && targetPort) {
+      const endpoints = this.resolveConnectionEndpoints(originPort, targetPort);
+      if (endpoints) {
+        this.options.runtime.createLink(endpoints.source, endpoints.target);
+      }
     }
 
     this.clearConnectionState();
@@ -520,6 +545,22 @@ export class LeaferGraphInteractionHost<
     return false;
   }
 
+  /** 判断当前事件命中是否来自节点端口热区，避免拖线按下被误识别成拖节点。 */
+  private isPortHitTarget(
+    target: LeaferGraphWidgetPointerEvent["target"]
+  ): boolean {
+    let current = target;
+
+    while (current) {
+      if ((current.name ?? "").startsWith("node-port-hit-")) {
+        return true;
+      }
+      current = current.parent ?? null;
+    }
+
+    return false;
+  }
+
   /**
    * 通过节点局部坐标兜底判断一次按下是否命中了 resize 热区。
    * 有些 Leafer 事件在冒泡到根 Group 时，`target` 可能已经不是句柄本身，
@@ -539,5 +580,38 @@ export class LeaferGraphInteractionHost<
     const localY = point.y - state.state.layout.y;
 
     return localX >= width - 20 && localY >= height - 20;
+  }
+
+  /** 根据拖线起点方向解析目标端应命中的相反方向。 */
+  private getOppositeDirection(direction: SlotDirection): SlotDirection {
+    return direction === "output" ? "input" : "output";
+  }
+
+  /**
+   * 把任意方向发起的拖线归一成正式 `output -> input` 端点对。
+   * 这样左侧输入端口也能发起拖线，但真正落图时仍保持统一连线模型。
+   */
+  private resolveConnectionEndpoints(
+    originPort: LeaferGraphConnectionPortState,
+    candidatePort: LeaferGraphConnectionPortState
+  ):
+    | {
+        source: LeaferGraphConnectionPortState;
+        target: LeaferGraphConnectionPortState;
+      }
+    | null {
+    if (originPort.direction === candidatePort.direction) {
+      return null;
+    }
+
+    return originPort.direction === "output"
+      ? {
+          source: originPort,
+          target: candidatePort
+        }
+      : {
+          source: candidatePort,
+          target: originPort
+        };
   }
 }

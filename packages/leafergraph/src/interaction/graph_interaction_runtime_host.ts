@@ -353,17 +353,25 @@ export class LeaferGraphInteractionRuntimeHost<
     pointer: { x: number; y: number },
     target?: LeaferGraphConnectionPortState
   ): void {
-    const endPoint = target?.center ?? pointer;
-    const endDirection =
-      target || endPoint.x >= source.center.x
+    const startDirection =
+      source.direction === "input"
         ? PORT_DIRECTION_LEFT
         : PORT_DIRECTION_RIGHT;
+    const endPoint = target?.center ?? pointer;
+    const endDirection =
+      target
+        ? target.direction === "input"
+          ? PORT_DIRECTION_LEFT
+          : PORT_DIRECTION_RIGHT
+        : endPoint.x >= source.center.x
+          ? PORT_DIRECTION_LEFT
+          : PORT_DIRECTION_RIGHT;
 
     this.previewPath.stroke = this.options.resolveConnectionPreviewStroke();
     this.previewPath.path = buildLinkPath(
       [source.center.x, source.center.y],
       [endPoint.x, endPoint.y],
-      PORT_DIRECTION_RIGHT,
+      startDirection,
       endDirection
     );
     this.previewPath.visible = true;

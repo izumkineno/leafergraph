@@ -279,6 +279,11 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   }
 
   for (const port of shellLayout.ports) {
+    const portHitAreaWidth = port.portWidth + 18;
+    const portHitAreaX =
+      port.direction === "input"
+        ? 0
+        : Math.max(0, shellLayout.width - portHitAreaWidth);
     const portHighlight = new Rect({
       x: port.portX - 4,
       y: port.portY - 4,
@@ -322,9 +327,9 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     });
     const portHitArea = new Rect({
       name: `node-port-hit-${nodeId}-${port.direction}-${port.index}`,
-      x: port.portX - 9,
+      x: portHitAreaX,
       y: port.portY - 9,
-      width: port.portWidth + 18,
+      width: portHitAreaWidth,
       height: port.portHeight + 18,
       fill: "rgba(255, 255, 255, 0.001)",
       cornerRadius: 999,

@@ -48,18 +48,14 @@ export interface NodePortsLayoutResult {
  */
 type NodePortSource = Pick<NodeRuntimeState, "layout" | "inputs" | "outputs" | "flags">;
 
-/** 提取输入槽位展示文案，空节点时回退到最小默认值。 */
+/** 提取输入槽位展示文案。没有真实输入槽位时，不额外制造展示型假端口。 */
 export function resolveNodeInputLabels(node: Pick<NodeRuntimeState, "inputs">): string[] {
-  return node.inputs.length
-    ? node.inputs.map((input) => input.label ?? input.name)
-    : ["Input"];
+  return node.inputs.map((input) => input.label ?? input.name);
 }
 
-/** 提取输出槽位展示文案，空节点时回退到最小默认值。 */
+/** 提取输出槽位展示文案。没有真实输出槽位时，不额外制造展示型假端口。 */
 export function resolveNodeOutputLabels(node: Pick<NodeRuntimeState, "outputs">): string[] {
-  return node.outputs.length
-    ? node.outputs.map((output) => output.label ?? output.name)
-    : ["Output"];
+  return node.outputs.map((output) => output.label ?? output.name);
 }
 
 /** 计算端口布局所需的统一槽位数。 */
@@ -67,7 +63,7 @@ export function resolveNodePortSlotCount(
   inputs: string[],
   outputs: string[]
 ): number {
-  return Math.max(inputs.length, outputs.length, 1);
+  return Math.max(inputs.length, outputs.length, 0);
 }
 
 /**
