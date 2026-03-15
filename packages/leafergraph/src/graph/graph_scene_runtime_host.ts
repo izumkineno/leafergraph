@@ -11,6 +11,7 @@ import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
+  LeaferGraphNodeStateChangeReason,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
 } from "../api/graph_api_types";
@@ -36,7 +37,7 @@ interface LeaferGraphSceneRuntimeSceneHostLike<TNodeViewState> {
     nodeId: string,
     widgetIndex: number,
     newValue: unknown
-  ): void;
+  ): boolean;
 }
 
 /**
@@ -71,7 +72,7 @@ interface LeaferGraphSceneRuntimeMutationHostLike<
     positions: readonly GraphDragNodePosition[],
     deltaX: number,
     deltaY: number
-  ): void;
+  ): string[];
 }
 
 /**
@@ -90,6 +91,10 @@ interface LeaferGraphSceneRuntimeHostOptions<
   sceneHost: LeaferGraphSceneRuntimeSceneHostLike<TNodeViewState>;
   mutationHost: LeaferGraphSceneRuntimeMutationHostLike<TNodeState>;
   requestRender(): void;
+  notifyNodeStateChanged?(
+    nodeId: string,
+    reason: LeaferGraphNodeStateChangeReason
+  ): void;
 }
 
 /**
@@ -182,7 +187,11 @@ export class LeaferGraphSceneRuntimeHost<
    * @param newValue - 待写回的新值。
    */
   setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
-    this.options.sceneHost.setNodeWidgetValue(nodeId, widgetIndex, newValue);
+    if (
+      this.options.sceneHost.setNodeWidgetValue(nodeId, widgetIndex, newValue)
+    ) {
+      this.options.notifyNodeStateChanged?.(nodeId, "widget-value");
+    }
   }
 
   /**
@@ -212,7 +221,9 @@ export class LeaferGraphSceneRuntimeHost<
    * @returns 新创建的节点状态。
    */
   createNode(input: LeaferGraphCreateNodeInput): TNodeState {
-    return this.options.mutationHost.createNode(input);
+    const node = this.options.mutationHost.createNode(input);
+    this.options.notifyNodeStateChanged?.(node.id, "created");
+    return node;
   }
 
   /**
@@ -222,7 +233,11 @@ export class LeaferGraphSceneRuntimeHost<
    * @returns 是否成功删除。
    */
   removeNode(nodeId: string): boolean {
-    return this.options.mutationHost.removeNode(nodeId);
+    const removed = this.options.mutationHost.removeNode(nodeId);
+    if (removed) {
+      this.options.notifyNodeStateChanged?.(nodeId, "removed");
+    }
+    return removed;
   }
 
   /**
@@ -236,7 +251,11 @@ export class LeaferGraphSceneRuntimeHost<
     nodeId: string,
     input: LeaferGraphUpdateNodeInput
   ): TNodeState | undefined {
-    return this.options.mutationHost.updateNode(nodeId, input);
+    const node = this.options.mutationHost.updateNode(nodeId, input);
+    if (node) {
+      this.options.notifyNodeStateChanged?.(nodeId, "updated");
+    }
+    return node;
   }
 
   /**
@@ -250,7 +269,11 @@ export class LeaferGraphSceneRuntimeHost<
     nodeId: string,
     position: LeaferGraphMoveNodeInput
   ): TNodeState | undefined {
-    return this.options.mutationHost.moveNode(nodeId, position);
+    const node = this.options.mutationHost.moveNode(nodeId, position);
+    if (node) {
+      this.options.notifyNodeStateChanged?.(nodeId, "moved");
+    }
+    return node;
   }
 
   /**
@@ -264,7 +287,11 @@ export class LeaferGraphSceneRuntimeHost<
     nodeId: string,
     size: LeaferGraphResizeNodeInput
   ): TNodeState | undefined {
-    return this.options.mutationHost.resizeNode(nodeId, size);
+    const node = this.options.mutationHost.resizeNode(nodeId, size);
+    if (node) {
+      this.options.notifyNodeStateChanged?.(nodeId, "resized");
+    }
+    return node;
   }
 
   /**
@@ -299,6 +326,14 @@ export class LeaferGraphSceneRuntimeHost<
     deltaX: number,
     deltaY: number
   ): void {
-    this.options.mutationHost.moveNodesByDelta(positions, deltaX, deltaY);
+    const movedNodeIds = this.options.mutationHost.moveNodesByDelta(
+      positions,
+      deltaX,
+      deltaY
+    );
+
+    for (const nodeId of movedNodeIds) {
+      this.options.notifyNodeStateChanged?.(nodeId, "moved");
+    }
   }
 }

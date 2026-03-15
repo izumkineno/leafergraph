@@ -3,6 +3,8 @@ import type { NodeModule } from "@leafergraph/node";
 import {
   templateBasicWidgetsNodeDefinition,
   templateCategoryNodeDefinition,
+  templateExecuteCounterNodeDefinition,
+  templateExecuteDisplayNodeDefinition,
   templateExternalStatusNodeDefinition
 } from "./nodes";
 import { TEMPLATE_MODULE_SCOPE } from "./shared";
@@ -19,6 +21,8 @@ export const templateNodeWidgetDemoModule: NodeModule = {
   nodes: [
     templateCategoryNodeDefinition,
     templateBasicWidgetsNodeDefinition,
+    templateExecuteCounterNodeDefinition,
+    templateExecuteDisplayNodeDefinition,
     templateExternalStatusNodeDefinition
   ]
 };
@@ -29,7 +33,12 @@ export const templateNodeWidgetDemoModule: NodeModule = {
  */
 export const templateNodeOnlyDemoModule: NodeModule = {
   scope: TEMPLATE_MODULE_SCOPE,
-  nodes: [templateCategoryNodeDefinition, templateBasicWidgetsNodeDefinition]
+  nodes: [
+    templateCategoryNodeDefinition,
+    templateBasicWidgetsNodeDefinition,
+    templateExecuteCounterNodeDefinition,
+    templateExecuteDisplayNodeDefinition
+  ]
 };
 
 /**

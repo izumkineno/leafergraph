@@ -86,6 +86,10 @@ export type EditorCommandRequest =
       nodeId: string;
     }
   | {
+      type: "node.execute";
+      nodeId: string;
+    }
+  | {
       type: "node.reset-size";
       nodeId: string;
     }
@@ -333,6 +337,8 @@ function resolveCommandSummary(request: EditorCommandRequest): string {
       return `复制节点 ${request.nodeId}`;
     case "node.remove":
       return `删除节点 ${request.nodeId}`;
+    case "node.execute":
+      return `执行节点 ${request.nodeId}`;
     case "node.reset-size":
       return `重置节点 ${request.nodeId} 尺寸`;
     case "selection.clear":
@@ -427,6 +433,8 @@ export function createEditorCommandBus(
       case "node.duplicate":
         return Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.remove":
+        return Boolean(options.graph.getNodeSnapshot(request.nodeId));
+      case "node.execute":
         return Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.reset-size":
         return !nodeCommands.resolveResizeState(request.nodeId).disabled;
@@ -611,6 +619,15 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: true
+        });
+      }
+      case "node.execute": {
+        const result = options.graph.executeNode(request.nodeId);
+        return createExecution(request, result, {
+          historyPayload: undefined,
+          success: result,
+          changed: result,
+          recordable: false
         });
       }
       case "node.reset-size": {

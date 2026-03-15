@@ -12,7 +12,10 @@ import type {
   NodeRegistry,
   SlotType
 } from "@leafergraph/node";
-import type { LeaferGraphNodeResizeConstraint } from "../api/graph_api_types";
+import type {
+  LeaferGraphNodeExecutionState,
+  LeaferGraphNodeResizeConstraint
+} from "../api/graph_api_types";
 import {
   resolveNodeCategoryBadgeLayout,
   resolveNodeShellLayout,
@@ -39,6 +42,7 @@ interface LeaferGraphNodeShellHostOptions {
   getThemeMode(): LeaferGraphNodeShellThemeMode;
   resolveSelectedStroke(mode: LeaferGraphNodeShellThemeMode): string;
   resolveRenderTheme(mode: LeaferGraphNodeShellThemeMode): NodeShellRenderTheme;
+  resolveNodeExecutionState(nodeId: string): LeaferGraphNodeExecutionState | undefined;
   canResizeNode(nodeId: string): boolean;
   isNodeResizing(nodeId: string): boolean;
 }
@@ -98,6 +102,7 @@ export class LeaferGraphNodeShellHost<
       y: node.layout.y,
       title: node.title,
       signalColor: this.resolveSignalColor(node),
+      errorMessage: this.resolveExecutionErrorMessage(node.id),
       selectedStroke: this.resolveSelectedNodeStroke(),
       shellLayout: resolvedShellLayout,
       categoryLayout,
@@ -413,8 +418,27 @@ export class LeaferGraphNodeShellHost<
   }
 
   /** 解析节点状态灯颜色。 */
-  private resolveSignalColor(_node: TNodeState): string {
-    return this.options.style.signalFill;
+  private resolveSignalColor(node: TNodeState): string {
+    switch (this.options.resolveNodeExecutionState(node.id)?.status) {
+      case "running":
+        return this.options.style.signalRunningFill;
+      case "success":
+        return this.options.style.signalSuccessFill;
+      case "error":
+        return this.options.style.signalErrorFill;
+      default:
+        return this.options.style.signalFill;
+    }
+  }
+
+  /** 解析节点当前是否需要在画布里展示错误文案。 */
+  private resolveExecutionErrorMessage(nodeId: string): string | undefined {
+    const executionState = this.options.resolveNodeExecutionState(nodeId);
+    if (executionState?.status !== "error") {
+      return undefined;
+    }
+
+    return executionState.lastErrorMessage ?? "节点执行失败，请查看控制台日志";
   }
 
   /** 把类型名或分类名转换成更友好的首字母大写显示文本。 */

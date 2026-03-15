@@ -37,6 +37,12 @@ export const TEMPLATE_BASIC_WIDGET_NODE_LOCAL_TYPE = "basic-widgets";
 /** 外部 widget 节点的局部类型。 */
 export const TEMPLATE_EXTERNAL_WIDGET_NODE_LOCAL_TYPE = "external-widget-node";
 
+/** 执行源节点的局部类型。 */
+export const TEMPLATE_EXECUTE_COUNTER_NODE_LOCAL_TYPE = "execute-counter";
+
+/** 执行显示节点的局部类型。 */
+export const TEMPLATE_EXECUTE_DISPLAY_NODE_LOCAL_TYPE = "execute-display";
+
 /** 外部 widget 的完整类型。widget 不走模块 scope，因此这里直接写最终值。 */
 export const TEMPLATE_EXTERNAL_STATUS_WIDGET_TYPE = "template/external-status";
 
@@ -53,6 +59,16 @@ export const TEMPLATE_BASIC_WIDGET_NODE_TYPE = resolveTemplateScopedNodeType(
 /** 宿主真正会看到的外部 widget 节点类型。 */
 export const TEMPLATE_EXTERNAL_WIDGET_NODE_TYPE = resolveTemplateScopedNodeType(
   TEMPLATE_EXTERNAL_WIDGET_NODE_LOCAL_TYPE
+);
+
+/** 宿主真正会看到的执行源节点类型。 */
+export const TEMPLATE_EXECUTE_COUNTER_NODE_TYPE = resolveTemplateScopedNodeType(
+  TEMPLATE_EXECUTE_COUNTER_NODE_LOCAL_TYPE
+);
+
+/** 宿主真正会看到的执行显示节点类型。 */
+export const TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE = resolveTemplateScopedNodeType(
+  TEMPLATE_EXECUTE_DISPLAY_NODE_LOCAL_TYPE
 );
 
 /**

@@ -181,13 +181,17 @@ export class LeaferGraphSceneHost<
    * @param widgetIndex - 节点内部 Widget 索引。
    * @param newValue - 待写回的新值。
    */
-  setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
+  setNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    newValue: unknown
+  ): boolean {
     const state = this.options.nodeViews.get(nodeId);
     if (!state) {
-      return;
+      return false;
     }
 
-    this.options.widgetHost.updateNodeWidgetValue(
+    return this.options.widgetHost.updateNodeWidgetValue(
       state.state,
       widgetIndex,
       newValue,

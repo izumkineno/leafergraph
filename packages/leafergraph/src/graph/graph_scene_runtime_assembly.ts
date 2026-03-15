@@ -142,6 +142,8 @@ export function createLeaferGraphSceneRuntimeAssembly<
     getThemeMode: () => options.themeHost.getMode(),
     resolveSelectedStroke: options.resolveSelectedStroke,
     resolveRenderTheme: options.resolveNodeShellRenderTheme,
+    resolveNodeExecutionState: (nodeId) =>
+      nodeRuntimeHost.getNodeExecutionState(nodeId),
     canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
     isNodeResizing: (nodeId) => interactionHost.isResizingNode(nodeId)
   });
@@ -219,7 +221,10 @@ export function createLeaferGraphSceneRuntimeAssembly<
     updateConnectedLinks: (nodeId) => sceneHost.updateConnectedLinks(nodeId),
     updateConnectedLinksForNodes: (nodeIds) =>
       sceneHost.updateConnectedLinksForNodes(nodeIds),
-    handleNodeRemoved: (nodeId) => interactionHost.handleNodeRemoved(nodeId),
+    handleNodeRemoved: (nodeId) => {
+      interactionHost.handleNodeRemoved(nodeId);
+      nodeRuntimeHost.clearNodeExecutionState(nodeId);
+    },
     handleLinkCreated: (link) => nodeRuntimeHost.notifyLinkCreated(link),
     handleLinkRemoved: (link) => nodeRuntimeHost.notifyLinkRemoved(link),
     requestRender: options.requestRender,
@@ -232,7 +237,9 @@ export function createLeaferGraphSceneRuntimeAssembly<
     nodeViews: options.nodeViews,
     sceneHost,
     mutationHost,
-    requestRender: options.requestRender
+    requestRender: options.requestRender,
+    notifyNodeStateChanged: (nodeId, reason) =>
+      nodeRuntimeHost.notifyNodeStateChanged(nodeId, reason)
   });
 
   nodeRuntimeHost = new LeaferGraphNodeRuntimeHost({
@@ -300,6 +307,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     linkViews: options.linkViews,
     clearInteractionState: () => interactionHost.clearInteractionState(),
     resetRuntimeState: () => viewHost.resetViewState(),
+    resetNodeExecutionStates: () => nodeRuntimeHost.clearAllExecutionStates(),
     destroyNodeViewWidgets: (state) =>
       widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
     clearNodeLayer: () => options.canvasState.nodeLayer.removeAll(),

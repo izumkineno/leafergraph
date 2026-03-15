@@ -443,7 +443,7 @@ export class LeaferGraphMutationHost<
     positions: readonly GraphDragNodePosition[],
     deltaX: number,
     deltaY: number
-  ): void {
+  ): string[] {
     const movedNodeIds: string[] = [];
 
     for (const item of positions) {
@@ -458,11 +458,12 @@ export class LeaferGraphMutationHost<
     }
 
     if (!movedNodeIds.length) {
-      return;
+      return movedNodeIds;
     }
 
     this.options.updateConnectedLinksForNodes(movedNodeIds);
     this.options.requestRender();
+    return movedNodeIds;
   }
 
   /**

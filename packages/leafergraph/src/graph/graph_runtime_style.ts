@@ -39,6 +39,9 @@ const SLOT_LABEL_FILL = "#A1A1AA";
 const CATEGORY_FILL = "rgba(255, 255, 255, 0.08)";
 const CATEGORY_STROKE = "rgba(255, 255, 255, 0.05)";
 const CATEGORY_TEXT_FILL = "#A1A1AA";
+const ERROR_BADGE_FILL_DARK = "rgba(127, 29, 29, 0.92)";
+const ERROR_BADGE_STROKE_DARK = "rgba(248, 113, 113, 0.42)";
+const ERROR_BADGE_TEXT_FILL_DARK = "#FEE2E2";
 const WIDGET_FILL = "rgba(0, 0, 0, 0.15)";
 const INPUT_PORT_FILL = "#3B82F6";
 const OUTPUT_PORT_FILL = "#8B5CF6";
@@ -46,10 +49,16 @@ const GENERIC_PORT_FILL = "#94A3B8";
 const LINK_STROKE = "#60A5FA";
 const NODE_SELECTED_STROKE = "#2563EB";
 const NODE_SIGNAL_FILL = "#94A3B8";
+const NODE_SIGNAL_RUNNING_FILL = "#F59E0B";
+const NODE_SIGNAL_SUCCESS_FILL = "#10B981";
+const NODE_SIGNAL_ERROR_FILL = "#EF4444";
 const MISSING_NODE_FILL = "rgba(220, 38, 38, 0.92)";
 const MISSING_NODE_STROKE = "rgba(127, 29, 29, 0.86)";
 const MISSING_NODE_PRESS_FILL = "rgba(185, 28, 28, 0.96)";
 const MISSING_NODE_TEXT_FILL = "#FFF1F2";
+const ERROR_BADGE_FILL_LIGHT = "rgba(254, 226, 226, 0.96)";
+const ERROR_BADGE_STROKE_LIGHT = "rgba(239, 68, 68, 0.24)";
+const ERROR_BADGE_TEXT_FILL_LIGHT = "#991B1B";
 const SELECTED_RING_OUTSET = 4;
 const SELECTED_RING_STROKE_WIDTH = 3;
 
@@ -78,6 +87,9 @@ export interface LeaferGraphNodeShellStyleConfig {
   outputPortFill: string;
   genericPortFill: string;
   signalFill: string;
+  signalRunningFill: string;
+  signalSuccessFill: string;
+  signalErrorFill: string;
   slotTypeFillMap: Readonly<Record<string, string>>;
 }
 
@@ -145,6 +157,9 @@ export function createDefaultNodeShellStyleConfig(): LeaferGraphNodeShellStyleCo
     outputPortFill: OUTPUT_PORT_FILL,
     genericPortFill: GENERIC_PORT_FILL,
     signalFill: NODE_SIGNAL_FILL,
+    signalRunningFill: NODE_SIGNAL_RUNNING_FILL,
+    signalSuccessFill: NODE_SIGNAL_SUCCESS_FILL,
+    signalErrorFill: NODE_SIGNAL_ERROR_FILL,
     slotTypeFillMap: SLOT_TYPE_FILL_MAP
   };
 }
@@ -188,6 +203,9 @@ export function resolveDefaultNodeShellRenderTheme(
       categoryFontFamily: NODE_FONT_FAMILY,
       categoryFontSize: 9.5,
       categoryFontWeight: "600",
+      errorBadgeFill: ERROR_BADGE_FILL_DARK,
+      errorBadgeStroke: ERROR_BADGE_STROKE_DARK,
+      errorBadgeTextFill: ERROR_BADGE_TEXT_FILL_DARK,
       signalGlowX: 17,
       signalGlowY: 16,
       signalGlowSize: SIGNAL_GLOW_SIZE,
@@ -232,6 +250,9 @@ export function resolveDefaultNodeShellRenderTheme(
     categoryFontFamily: NODE_FONT_FAMILY,
     categoryFontSize: 9.5,
     categoryFontWeight: "600",
+    errorBadgeFill: ERROR_BADGE_FILL_LIGHT,
+    errorBadgeStroke: ERROR_BADGE_STROKE_LIGHT,
+    errorBadgeTextFill: ERROR_BADGE_TEXT_FILL_LIGHT,
     signalGlowX: 17,
     signalGlowY: 16,
     signalGlowSize: SIGNAL_GLOW_SIZE,

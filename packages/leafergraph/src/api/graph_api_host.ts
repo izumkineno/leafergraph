@@ -25,6 +25,10 @@ import type {
 import type { LeaferGraphContextMenuBindingTarget } from "../interaction/context_menu";
 import type {
   LeaferGraphConnectionPortState,
+  LeaferGraphNodeExecutionEvent,
+  LeaferGraphNodeStateChangeEvent,
+  LeaferGraphNodeInspectorState,
+  LeaferGraphNodeExecutionState,
   LeaferGraphConnectionValidationResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
@@ -108,12 +112,21 @@ export interface LeaferGraphApiRuntime<
   };
   nodeRuntimeHost: {
     getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined;
+    getNodeInspectorState(nodeId: string): LeaferGraphNodeInspectorState | undefined;
     setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
     getNodeResizeConstraint(
       nodeId: string
     ): LeaferGraphNodeResizeConstraint | undefined;
+    getNodeExecutionState(nodeId: string): LeaferGraphNodeExecutionState | undefined;
     canResizeNode(nodeId: string): boolean;
     resetNodeSize(nodeId: string): TNodeState | undefined;
+    executeNode(nodeId: string, context?: unknown): boolean;
+    subscribeNodeState(
+      listener: (event: LeaferGraphNodeStateChangeEvent) => void
+    ): () => void;
+    subscribeNodeExecution(
+      listener: (event: LeaferGraphNodeExecutionEvent) => void
+    ): () => void;
   };
   themeHost: {
     setThemeMode(mode: LeaferGraphThemeMode): void;
@@ -244,6 +257,13 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.getNodeSnapshot(nodeId);
   }
 
+  /** 读取一个节点当前的检查快照，供 editor 信息面板直接消费。 */
+  getNodeInspectorState(
+    nodeId: string
+  ): LeaferGraphNodeInspectorState | undefined {
+    return this.options.runtime.nodeRuntimeHost.getNodeInspectorState(nodeId);
+  }
+
   /** 设置单个节点的选中态。 */
   setNodeSelected(nodeId: string, selected: boolean): boolean {
     return this.options.runtime.viewHost.setNodeSelected(nodeId, selected);
@@ -261,6 +281,13 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.getNodeResizeConstraint(nodeId);
   }
 
+  /** 读取某个节点当前的最小执行反馈快照。 */
+  getNodeExecutionState(
+    nodeId: string
+  ): LeaferGraphNodeExecutionState | undefined {
+    return this.options.runtime.nodeRuntimeHost.getNodeExecutionState(nodeId);
+  }
+
   /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
   canResizeNode(nodeId: string): boolean {
     return this.options.runtime.nodeRuntimeHost.canResizeNode(nodeId);
@@ -269,6 +296,25 @@ export class LeaferGraphApiHost<
   /** 把节点尺寸恢复到定义默认值。 */
   resetNodeSize(nodeId: string): TNodeState | undefined {
     return this.options.runtime.nodeRuntimeHost.resetNodeSize(nodeId);
+  }
+
+  /** 执行单个节点的 `onExecute(...)`，并沿现有正式连线传播输出。 */
+  executeNode(nodeId: string, context?: unknown): boolean {
+    return this.options.runtime.nodeRuntimeHost.executeNode(nodeId, context);
+  }
+
+  /** 订阅节点执行完成事件。 */
+  subscribeNodeExecution(
+    listener: (event: LeaferGraphNodeExecutionEvent) => void
+  ): () => void {
+    return this.options.runtime.nodeRuntimeHost.subscribeNodeExecution(listener);
+  }
+
+  /** 订阅节点状态变化事件，供 editor 检查面板和调试工具复用。 */
+  subscribeNodeState(
+    listener: (event: LeaferGraphNodeStateChangeEvent) => void
+  ): () => void {
+    return this.options.runtime.nodeRuntimeHost.subscribeNodeState(listener);
   }
 
   /** 根据节点 ID 查询当前图中的所有关联连线。 */

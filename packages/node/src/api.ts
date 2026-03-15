@@ -22,6 +22,7 @@ import { type WidgetDefinitionReader, normalizeWidgetSpec } from "./widget";
 export interface CreateNodeApiOptions {
   definition?: NodeDefinition;
   widgetDefinitions?: WidgetDefinitionReader;
+  onSetOutputData?(slot: number, data: unknown): void;
 }
 
 /**
@@ -101,6 +102,8 @@ export function createNodeApi(
         Math.max(node.outputValues.length, slot + 1)
       );
       node.outputValues[slot] = data;
+      // 宿主可在这里把输出同步到连线、调试面板或执行调度器。
+      options.onSetOutputData?.(slot, data);
     },
     findInputSlot(name: string): number {
       return node.inputs.findIndex((input) => input.name === name);

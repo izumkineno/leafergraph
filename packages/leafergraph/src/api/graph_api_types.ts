@@ -7,6 +7,8 @@
 
 import type {
   LeaferGraphLinkData,
+  NodeFlags,
+  NodeLayout,
   NodePropertySpec,
   NodeRuntimeState,
   NodeSlotSpec,
@@ -146,6 +148,187 @@ export interface LeaferGraphNodeResizeConstraint {
   defaultWidth: number;
   /** 缺省高度。 */
   defaultHeight: number;
+}
+
+/**
+ * 节点执行反馈状态。
+ *
+ * @remarks
+ * 这是主包对外暴露的最小运行反馈协议，
+ * 专门服务 editor 调试提示、节点信号灯和后续执行面板。
+ */
+export type LeaferGraphNodeExecutionStatus =
+  | "idle"
+  | "running"
+  | "success"
+  | "error";
+
+/**
+ * 节点当前的最小执行反馈快照。
+ *
+ * @remarks
+ * 第一版只记录最小可见信息：
+ * - 当前状态
+ * - 总执行次数
+ * - 最近成功 / 失败时间
+ * - 最近错误信息
+ */
+export interface LeaferGraphNodeExecutionState {
+  /** 当前执行状态。 */
+  status: LeaferGraphNodeExecutionStatus;
+  /** 当前节点累计执行次数。 */
+  runCount: number;
+  /** 最近一次进入执行的时间戳。 */
+  lastExecutedAt?: number;
+  /** 最近一次成功执行的时间戳。 */
+  lastSucceededAt?: number;
+  /** 最近一次失败执行的时间戳。 */
+  lastFailedAt?: number;
+  /** 最近一次失败的最小错误信息。 */
+  lastErrorMessage?: string;
+}
+
+/**
+ * 节点执行事件的触发来源。
+ *
+ * @remarks
+ * 第一版先区分两类来源：
+ * - `direct`：来自显式 `executeNode(...)` 或 editor 菜单触发
+ * - `propagated`：来自上游 `setOutputData(...)` 后沿连线传播的递归执行
+ */
+export type LeaferGraphNodeExecutionTrigger = "direct" | "propagated";
+
+/**
+ * 主包对外暴露的最小节点执行事件。
+ *
+ * @remarks
+ * 这份事件专门服务 editor 的执行时间线、失败列表和未来调试面板：
+ * 1. 事件只在一次节点执行结束时发出，避免同步 `onExecute(...)` 期间产生重复噪音
+ * 2. `state` 已经是执行完成后的正式快照，外部无需再手动拼装状态
+ * 3. `trigger` 用来区分是显式执行还是链路传播带来的下游执行
+ */
+export interface LeaferGraphNodeExecutionEvent {
+  /** 当前执行链 ID。一次显式执行及其传播链共用同一个 ID。 */
+  chainId: string;
+  /** 当前执行链的根节点 ID。 */
+  rootNodeId: string;
+  /** 当前执行链根节点类型。 */
+  rootNodeType: string;
+  /** 当前执行链根节点标题。 */
+  rootNodeTitle: string;
+  /** 当前执行结束的节点 ID。 */
+  nodeId: string;
+  /** 当前节点类型。 */
+  nodeType: string;
+  /** 当前执行结束时的节点标题。 */
+  nodeTitle: string;
+  /** 当前节点位于执行链中的深度；显式执行节点为 `0`。 */
+  depth: number;
+  /** 当前节点在执行链里的进入顺序，从 `0` 开始。 */
+  sequence: number;
+  /** 当前执行来源。 */
+  trigger: LeaferGraphNodeExecutionTrigger;
+  /** 当前事件时间戳。 */
+  timestamp: number;
+  /** 节点执行完成后的正式状态快照。 */
+  state: LeaferGraphNodeExecutionState;
+}
+
+/**
+ * 节点 IO 槽位的运行时值快照。
+ *
+ * @remarks
+ * 右侧信息面板和未来调试面板都可以直接消费这份结构，
+ * 不需要再自己把槽位定义和运行值数组重新拼接。
+ */
+export interface LeaferGraphNodeIoValueEntry {
+  /** 槽位索引。 */
+  slot: number;
+  /** 槽位名称。 */
+  name: string;
+  /** 槽位展示标签；缺失时宿主可回退到 `name`。 */
+  label?: string;
+  /** 槽位类型。 */
+  type?: SlotType;
+  /** 当前运行值。 */
+  value: unknown;
+}
+
+/**
+ * 主包对外暴露的节点检查快照。
+ *
+ * @remarks
+ * 这份结构专门服务 editor 右侧信息面板：
+ * - `properties / data` 反映节点当前内部数据
+ * - `inputs / outputs` 反映当前运行时 IO 值
+ * - `executionState` 反映当前执行状态
+ */
+export interface LeaferGraphNodeInspectorState {
+  /** 节点 ID。 */
+  id: string;
+  /** 节点类型。 */
+  type: string;
+  /** 节点标题。 */
+  title: string;
+  /** 当前布局快照。 */
+  layout: NodeLayout;
+  /** 当前状态位。 */
+  flags: NodeFlags;
+  /** 节点业务属性。 */
+  properties: Record<string, unknown>;
+  /** 节点内部扩展数据。 */
+  data?: Record<string, unknown>;
+  /** 输入槽位运行值。 */
+  inputs: LeaferGraphNodeIoValueEntry[];
+  /** 输出槽位运行值。 */
+  outputs: LeaferGraphNodeIoValueEntry[];
+  /** 当前执行状态。 */
+  executionState: LeaferGraphNodeExecutionState;
+}
+
+/**
+ * 节点状态变化事件的最小原因枚举。
+ *
+ * @remarks
+ * 这条协议专门服务 editor 检查面板和后续调试面板刷新：
+ * - `widget-value` 表示节点内部 widget 值被正式写回
+ * - `input-values` 表示上游传播导致输入运行值变化
+ * - `execution` 表示节点执行状态、输出值或执行错误发生变化
+ */
+export type LeaferGraphNodeStateChangeReason =
+  | "created"
+  | "updated"
+  | "removed"
+  | "moved"
+  | "resized"
+  | "collapsed"
+  | "connections"
+  | "widget-value"
+  | "widget-action"
+  | "input-values"
+  | "execution";
+
+/**
+ * 主包对外暴露的最小节点状态变化事件。
+ *
+ * @remarks
+ * 这份事件不承载完整 diff，只表达：
+ * 1. 哪个节点刚刚发生了对检查面板有意义的变化
+ * 2. 当前节点是否仍然存在
+ * 3. 变化属于哪一类原因
+ *
+ * 外部消费方可以在收到事件后自行重新读取
+ * `getNodeInspectorState(...)` 或 `getNodeSnapshot(...)`。
+ */
+export interface LeaferGraphNodeStateChangeEvent {
+  /** 发生变化的节点 ID。 */
+  nodeId: string;
+  /** 节点是否仍然存在于当前图状态中。 */
+  exists: boolean;
+  /** 变化原因。 */
+  reason: LeaferGraphNodeStateChangeReason;
+  /** 事件发出时的时间戳。 */
+  timestamp: number;
 }
 
 /**

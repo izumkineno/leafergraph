@@ -43,6 +43,8 @@ export interface EditorNodeSelectionController {
   clear(): void;
   /** 如果当前选区中包含某个节点，则把它移出选区。 */
   clearIfContains(nodeId: string): void;
+  /** 订阅选区变化。 */
+  subscribe(listener: (selectedNodeIds: readonly string[]) => void): () => void;
 }
 
 /**
@@ -56,6 +58,7 @@ export function createEditorNodeSelection(
   graph: LeaferGraph
 ): EditorNodeSelectionController {
   let selectedNodeIds: string[] = [];
+  const listeners = new Set<(selectedNodeIds: readonly string[]) => void>();
 
   const syncNodeSelectedState = (nodeId: string, selected: boolean): void => {
     graph.setNodeSelected(nodeId, selected);
@@ -83,6 +86,10 @@ export function createEditorNodeSelection(
     }
 
     selectedNodeIds = [...uniqueNextSelectedNodeIds];
+
+    for (const listener of listeners) {
+      listener(selectedNodeIds);
+    }
   };
 
   return {
@@ -153,6 +160,15 @@ export function createEditorNodeSelection(
       if (this.isSelected(nodeId)) {
         this.remove(nodeId);
       }
+    },
+
+    subscribe(listener: (selectedNodeIds: readonly string[]) => void): () => void {
+      listeners.add(listener);
+      listener(selectedNodeIds);
+
+      return () => {
+        listeners.delete(listener);
+      };
     }
   };
 }

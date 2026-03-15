@@ -78,6 +78,14 @@ export type {
 } from "./api/plugin";
 export type {
   LeaferGraphConnectionPortState,
+  LeaferGraphNodeExecutionEvent,
+  LeaferGraphNodeStateChangeEvent,
+  LeaferGraphNodeStateChangeReason,
+  LeaferGraphNodeInspectorState,
+  LeaferGraphNodeIoValueEntry,
+  LeaferGraphNodeExecutionState,
+  LeaferGraphNodeExecutionStatus,
+  LeaferGraphNodeExecutionTrigger,
   LeaferGraphConnectionValidationResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
@@ -117,6 +125,10 @@ import {
 import type { LeaferGraphContextMenuBindingTarget } from "./interaction/context_menu";
 import type {
   LeaferGraphConnectionPortState,
+  LeaferGraphNodeExecutionEvent,
+  LeaferGraphNodeStateChangeEvent,
+  LeaferGraphNodeInspectorState,
+  LeaferGraphNodeExecutionState,
   LeaferGraphConnectionValidationResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
@@ -226,6 +238,13 @@ export class LeaferGraph {
     return this.apiHost.getNodeSnapshot(nodeId);
   }
 
+  /** 读取一个节点当前的检查快照，供 editor 右侧信息面板和调试工具复用。 */
+  getNodeInspectorState(
+    nodeId: string
+  ): LeaferGraphNodeInspectorState | undefined {
+    return this.apiHost.getNodeInspectorState(nodeId);
+  }
+
   /**
    * 设置单个节点的选中态。
    * 当前阶段的实现尽量轻量：只更新运行时 flag，并把视觉反馈直接同步到现有图元，
@@ -253,6 +272,11 @@ export class LeaferGraph {
     return this.apiHost.getNodeResizeConstraint(nodeId);
   }
 
+  /** 读取某个节点当前的最小执行反馈快照。 */
+  getNodeExecutionState(nodeId: string): LeaferGraphNodeExecutionState | undefined {
+    return this.apiHost.getNodeExecutionState(nodeId);
+  }
+
   /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
   canResizeNode(nodeId: string): boolean {
     return this.apiHost.canResizeNode(nodeId);
@@ -264,6 +288,28 @@ export class LeaferGraph {
    */
   resetNodeSize(nodeId: string): NodeRuntimeState | undefined {
     return this.apiHost.resetNodeSize(nodeId);
+  }
+
+  /**
+   * 执行单个节点的 `onExecute(...)`，并沿当前正式连线把输出传播到下游输入。
+   * 第一版保持最小闭环，不在这里引入完整调度器或循环图求值策略。
+   */
+  executeNode(nodeId: string, context?: unknown): boolean {
+    return this.apiHost.executeNode(nodeId, context);
+  }
+
+  /** 订阅节点执行完成事件，供 editor 调试面板或运行时间线复用。 */
+  subscribeNodeExecution(
+    listener: (event: LeaferGraphNodeExecutionEvent) => void
+  ): () => void {
+    return this.apiHost.subscribeNodeExecution(listener);
+  }
+
+  /** 订阅节点状态变化事件，供 editor 检查面板或调试工具复用。 */
+  subscribeNodeState(
+    listener: (event: LeaferGraphNodeStateChangeEvent) => void
+  ): () => void {
+    return this.apiHost.subscribeNodeState(listener);
   }
 
   /**

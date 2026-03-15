@@ -39,6 +39,7 @@ interface LeaferGraphRestoreHostOptions<
   linkViews: unknown[];
   clearInteractionState(): void;
   resetRuntimeState(): void;
+  resetNodeExecutionStates(): void;
   destroyNodeViewWidgets(state: TNodeViewState): void;
   clearNodeLayer(): void;
   clearLinkLayer(): void;
@@ -85,6 +86,7 @@ export class LeaferGraphRestoreHost<
     // 再统一清空运行时状态容器和图层，保证恢复过程从干净场景开始。
     this.options.clearInteractionState();
     this.options.resetRuntimeState();
+    this.options.resetNodeExecutionStates();
     this.options.graphNodes.clear();
     this.options.graphLinks.clear();
     this.options.nodeViews.clear();

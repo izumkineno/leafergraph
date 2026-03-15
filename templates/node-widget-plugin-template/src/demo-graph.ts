@@ -3,6 +3,8 @@ import type { LeaferGraphData } from "leafergraph";
 import {
   TEMPLATE_BASIC_WIDGET_NODE_TYPE,
   TEMPLATE_CATEGORY_NODE_TYPE,
+  TEMPLATE_EXECUTE_COUNTER_NODE_TYPE,
+  TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE,
   TEMPLATE_EXTERNAL_WIDGET_NODE_TYPE,
   createTemplateControlWidget
 } from "./shared";
@@ -82,6 +84,35 @@ export const templateDemoGraph: LeaferGraphData = {
         subtitle: "Template plugin widget",
         status: "PLUGIN"
       }
+    },
+    {
+      id: "template-execute-source",
+      type: TEMPLATE_EXECUTE_COUNTER_NODE_TYPE,
+      title: "Counter Source",
+      layout: {
+        x: 682,
+        y: 96
+      },
+      properties: {
+        subtitle: "右键执行后会递增并写出输出",
+        accent: "#F97316",
+        status: "READY",
+        count: 0
+      }
+    },
+    {
+      id: "template-execute-display",
+      type: TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE,
+      title: "Display",
+      layout: {
+        x: 1012,
+        y: 96
+      },
+      properties: {
+        subtitle: "等待上游执行传播",
+        accent: "#0EA5E9",
+        status: "WAITING"
+      }
     }
   ],
   links: [
@@ -93,6 +124,17 @@ export const templateDemoGraph: LeaferGraphData = {
       },
       target: {
         nodeId: "template-math",
+        slot: 0
+      }
+    },
+    {
+      id: "template-link:execute-source->display",
+      source: {
+        nodeId: "template-execute-source",
+        slot: 0
+      },
+      target: {
+        nodeId: "template-execute-display",
         slot: 0
       }
     }

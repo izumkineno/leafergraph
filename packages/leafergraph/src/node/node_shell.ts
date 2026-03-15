@@ -38,6 +38,9 @@ export interface NodeShellRenderTheme {
   categoryFontFamily: string;
   categoryFontSize: number;
   categoryFontWeight: string;
+  errorBadgeFill: string;
+  errorBadgeStroke: string;
+  errorBadgeTextFill: string;
   signalGlowX: number;
   signalGlowY: number;
   signalGlowSize: number;
@@ -67,6 +70,7 @@ export interface CreateNodeShellOptions {
   y: number;
   title: string;
   signalColor: string;
+  errorMessage?: string;
   selectedStroke: string;
   shellLayout: NodeShellLayout;
   categoryLayout: NodeShellCategoryLayout;
@@ -112,11 +116,13 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     y,
     title,
     signalColor,
+    errorMessage,
     selectedStroke,
     shellLayout,
     categoryLayout,
     theme
   } = options;
+  const normalizedErrorMessage = normalizeNodeErrorMessage(errorMessage);
 
   const group = new Group({
     x,
@@ -390,6 +396,38 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
 
   group.add([selectedRing, ...parts, widgetLayer, resizeHandle]);
 
+  if (normalizedErrorMessage) {
+    const errorBadgeX = 12;
+    const errorBadgeY = shellLayout.height + 10;
+    const errorBadgeWidth = Math.max(132, shellLayout.width - 24);
+    const errorBadgeHeight = 26;
+    const errorBadge = new Rect({
+      x: errorBadgeX,
+      y: errorBadgeY,
+      width: errorBadgeWidth,
+      height: errorBadgeHeight,
+      fill: theme.errorBadgeFill,
+      stroke: theme.errorBadgeStroke,
+      strokeWidth: 1,
+      cornerRadius: 999,
+      hittable: false
+    });
+    const errorLabel = new Text({
+      x: errorBadgeX + 12,
+      y: errorBadgeY + 7,
+      width: errorBadgeWidth - 24,
+      height: 14,
+      text: `执行失败：${normalizedErrorMessage}`,
+      fill: theme.errorBadgeTextFill,
+      fontFamily: theme.slotLabelFontFamily,
+      fontSize: 10.5,
+      fontWeight: "600",
+      hittable: false
+    });
+    errorLabel.textOverflow = "...";
+    group.add([errorBadge, errorLabel]);
+  }
+
   return {
     view: group,
     card,
@@ -405,4 +443,14 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     portViews,
     widgetLayer
   };
+}
+
+/** 归一化节点级错误文案，避免把空白或多行文本直接塞进画布标签。 */
+function normalizeNodeErrorMessage(errorMessage: string | undefined): string | null {
+  if (typeof errorMessage !== "string") {
+    return null;
+  }
+
+  const normalized = errorMessage.replace(/\s+/g, " ").trim();
+  return normalized || null;
 }
