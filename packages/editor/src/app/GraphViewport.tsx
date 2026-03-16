@@ -97,6 +97,7 @@ interface GraphViewportRuntimeChainGroup {
   rootNodeId: string;
   rootNodeTitle: string;
   rootNodeType: string | null;
+  source: LeaferGraphNodeExecutionEvent["source"];
   status: GraphViewportRuntimeHistoryStatus;
   startedAt: number;
   finishedAt: number;
@@ -105,7 +106,21 @@ interface GraphViewportRuntimeChainGroup {
   successCount: number;
   errorCount: number;
   skippedCount: number;
+  directCount: number;
+  propagatedCount: number;
+  latestEntry: GraphViewportRuntimeHistoryEntry | null;
   entries: GraphViewportRuntimeHistoryEntry[];
+}
+
+interface GraphViewportRuntimeFailureGroup {
+  nodeId: string;
+  nodeTitle: string;
+  nodeType: string | null;
+  failureCount: number;
+  latestTimestamp: number;
+  latestErrorMessage: string | null;
+  latestSource: LeaferGraphNodeExecutionEvent["source"];
+  latestTrigger: LeaferGraphNodeExecutionEvent["trigger"];
 }
 
 const MAX_RUNTIME_HISTORY_ENTRIES = 8;
@@ -311,6 +326,19 @@ function formatRuntimeSourceLabel(
   }
 }
 
+function formatRuntimeFocusModeLabel(
+  focusMode: GraphViewportRuntimeInspectorState["focusMode"]
+): string {
+  switch (focusMode) {
+    case "selection":
+      return "主选中节点";
+    case "recent-execution":
+      return "最近执行节点";
+    default:
+      return "未锁定节点";
+  }
+}
+
 function formatInspectorValue(value: unknown): string {
   if (value === undefined) {
     return "undefined";
@@ -441,6 +469,7 @@ function groupRuntimeHistoryEntries(
         rootNodeId: entry.rootNodeId,
         rootNodeTitle: entry.rootNodeTitle,
         rootNodeType: entry.rootNodeType,
+        source: entry.source,
         status: entry.status,
         startedAt: entry.timestamp,
         finishedAt: entry.timestamp,
@@ -449,6 +478,9 @@ function groupRuntimeHistoryEntries(
         successCount: 0,
         errorCount: 0,
         skippedCount: 0,
+        directCount: 0,
+        propagatedCount: 0,
+        latestEntry: null,
         entries: []
       };
       chainMap.set(entry.chainId, chain);
@@ -460,6 +492,7 @@ function groupRuntimeHistoryEntries(
     chain.stepCount += 1;
     chain.maxDepth = Math.max(chain.maxDepth, entry.depth);
     chain.entries.push(entry);
+    chain.source = entry.source;
 
     if (entry.status === "success") {
       chain.successCount += 1;
@@ -467,6 +500,12 @@ function groupRuntimeHistoryEntries(
       chain.errorCount += 1;
     } else if (entry.status === "skipped") {
       chain.skippedCount += 1;
+    }
+
+    if (entry.trigger === "direct") {
+      chain.directCount += 1;
+    } else {
+      chain.propagatedCount += 1;
     }
   }
 
@@ -476,9 +515,52 @@ function groupRuntimeHistoryEntries(
         left.sequence - right.sequence || left.timestamp - right.timestamp
     );
     chain.status = resolveRuntimeChainStatus(chain.entries);
+    chain.latestEntry = chain.entries[chain.entries.length - 1] ?? null;
   }
 
   return orderedChains.slice(0, MAX_RUNTIME_CHAIN_GROUPS);
+}
+
+function groupRuntimeFailureEntries(
+  entries: readonly GraphViewportRuntimeHistoryEntry[]
+): GraphViewportRuntimeFailureGroup[] {
+  const groups = new Map<string, GraphViewportRuntimeFailureGroup>();
+
+  for (const entry of entries) {
+    if (entry.status !== "error") {
+      continue;
+    }
+
+    const group = groups.get(entry.nodeId);
+    if (!group) {
+      groups.set(entry.nodeId, {
+        nodeId: entry.nodeId,
+        nodeTitle: entry.nodeTitle,
+        nodeType: entry.nodeType,
+        failureCount: 1,
+        latestTimestamp: entry.timestamp,
+        latestErrorMessage: entry.errorMessage,
+        latestSource: entry.source,
+        latestTrigger: entry.trigger
+      });
+      continue;
+    }
+
+    group.failureCount += 1;
+
+    if (entry.timestamp >= group.latestTimestamp) {
+      group.nodeTitle = entry.nodeTitle;
+      group.nodeType = entry.nodeType;
+      group.latestTimestamp = entry.timestamp;
+      group.latestErrorMessage = entry.errorMessage;
+      group.latestSource = entry.source;
+      group.latestTrigger = entry.trigger;
+    }
+  }
+
+  return [...groups.values()]
+    .sort((left, right) => right.latestTimestamp - left.latestTimestamp)
+    .slice(0, MAX_RUNTIME_FAILURE_ENTRIES);
 }
 
 /**
@@ -2159,11 +2241,44 @@ export function GraphViewport({
     quickCreateNodeType
   ]);
 
-  const runtimeFailureEntries = runtimeHistoryEntries
-    .filter((entry) => entry.status === "error")
-    .slice(0, MAX_RUNTIME_FAILURE_ENTRIES);
   const runtimeChainGroups = groupRuntimeHistoryEntries(runtimeHistoryEntries);
-  const latestRuntimeHistoryEntry = runtimeHistoryEntries[0] ?? null;
+  const runtimeFailureGroups = groupRuntimeFailureEntries(runtimeHistoryEntries);
+  const activeRuntimeChainGroup = runtimeChainGroups[0] ?? null;
+  const activeRuntimeChainLatestEntry = activeRuntimeChainGroup?.latestEntry ?? null;
+  const primaryInspectorStatus =
+    graphExecutionState.status !== "idle"
+      ? graphExecutionState.status
+      : activeRuntimeChainGroup?.status ??
+        runtimeInspectorState.executionState?.status ??
+        "idle";
+  const primaryInspectorStatusLabel =
+    graphExecutionState.status !== "idle"
+      ? formatGraphExecutionStatusLabel(graphExecutionState.status)
+      : formatRuntimeStatusLabel(
+          activeRuntimeChainGroup?.status ??
+            runtimeInspectorState.executionState?.status ??
+            "idle"
+        );
+  const runtimePanelLead =
+    graphExecutionState.status !== "idle"
+      ? "当前正在跟随图级运行状态，可同时检查最新执行链和焦点节点快照。"
+      : activeRuntimeChainGroup
+        ? "当前默认展开最近一次执行链，右侧已按“运行概览 / 执行链 / 失败聚合 / 节点快照”收敛。"
+        : runtimeInspectorState.focusNodeId
+          ? "当前没有活动运行，面板会继续保留焦点节点快照与最近命令信息。"
+          : "当前还没有执行记录，先点击顶栏 Play / Step，或从节点菜单里直接起跑一个节点。";
+  const runtimeOverviewLatestRoot =
+    activeRuntimeChainGroup?.rootNodeTitle ?? "无";
+  const runtimeOverviewLatestDuration = activeRuntimeChainGroup
+    ? formatExecutionDuration(
+        activeRuntimeChainGroup.startedAt,
+        activeRuntimeChainGroup.finishedAt
+      )
+    : "0 ms";
+  const runtimePanelErrorMessage =
+    activeRuntimeChainLatestEntry?.errorMessage ??
+    runtimeInspectorState.executionState?.lastErrorMessage ??
+    null;
   const nodeLayout = nodeInspectorState?.layout;
   const nodeFlags = nodeInspectorState?.flags;
   const nodeProperties = nodeInspectorState?.properties;
@@ -2182,94 +2297,69 @@ export function GraphViewport({
       </div>
       <aside
         class="graph-runtime-panel"
-        data-status={
-          graphExecutionState.status !== "idle"
-            ? graphExecutionState.status
-            : runtimeInspectorState.executionState?.status ?? "idle"
-        }
+        data-status={primaryInspectorStatus}
         aria-live="polite"
       >
-        <p class="graph-runtime-panel__eyebrow">Inspector</p>
+        <p class="graph-runtime-panel__eyebrow">Execution Inspector</p>
         <div class="graph-runtime-panel__header">
           <div>
-            <h3>节点信息面板</h3>
-            <p>
-              {runtimeInspectorState.focusMode === "selection"
-                ? "当前跟随主选中节点"
-                : runtimeInspectorState.focusMode === "recent-execution"
-                  ? "当前显示最近一次运行命中的节点"
-                  : "当前还没有选中节点或执行记录"}
-            </p>
+            <h3>执行检查面板</h3>
+            <p>{runtimePanelLead}</p>
           </div>
-          <span
-            class="graph-runtime-panel__status"
-            data-status={
-              graphExecutionState.status !== "idle"
-                ? graphExecutionState.status
-                : runtimeInspectorState.executionState?.status ?? "idle"
-            }
-          >
-            {graphExecutionState.status !== "idle"
-              ? formatGraphExecutionStatusLabel(graphExecutionState.status)
-              : formatRuntimeStatusLabel(
-                  runtimeInspectorState.executionState?.status ?? "idle"
-                )}
+          <span class="graph-runtime-panel__status" data-status={primaryInspectorStatus}>
+            {primaryInspectorStatusLabel}
           </span>
         </div>
 
-        <dl class="graph-runtime-panel__info">
-          <div>
-            <dt>节点</dt>
-            <dd>{runtimeInspectorState.focusNodeTitle ?? "未命中"}</dd>
-          </div>
-          <div>
-            <dt>类型</dt>
-            <dd>{runtimeInspectorState.focusNodeType ?? "无"}</dd>
-          </div>
-          <div>
-            <dt>选区</dt>
-            <dd>{runtimeInspectorState.selectionCount || 0} 个节点</dd>
-          </div>
-          <div>
-            <dt>执行次数</dt>
-            <dd>{runtimeInspectorState.executionState?.runCount ?? 0}</dd>
-          </div>
-          <div>
-            <dt>最近成功</dt>
-            <dd>
-              {formatExecutionTimestamp(
-                runtimeInspectorState.executionState?.lastSucceededAt ?? null
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>最近失败</dt>
-            <dd>
-              {formatExecutionTimestamp(
-                runtimeInspectorState.executionState?.lastFailedAt ?? null
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>最近命令</dt>
-            <dd>{runtimeInspectorState.lastCommandSummary ?? "无"}</dd>
-          </div>
-          <div>
-            <dt>命令时间</dt>
-            <dd>{formatExecutionTimestamp(runtimeInspectorState.lastCommandTimestamp)}</dd>
-          </div>
-        </dl>
-
         <section class="graph-runtime-panel__section">
           <div class="graph-runtime-panel__section-header">
-            <h4>图级运行</h4>
-            <span>{formatGraphExecutionStatusLabel(graphExecutionState.status)}</span>
+            <h4>运行概览</h4>
+            <span>图级与焦点摘要</span>
+          </div>
+          <div class="graph-runtime-panel__summary-grid">
+            <article class="graph-runtime-panel__summary-card">
+              <p class="graph-runtime-panel__summary-label">图级状态</p>
+              <strong class="graph-runtime-panel__summary-value">
+                {formatGraphExecutionStatusLabel(graphExecutionState.status)}
+              </strong>
+              <p class="graph-runtime-panel__summary-meta">
+                {graphExecutionState.runId
+                  ? `Run ${graphExecutionState.runId}`
+                  : "等待新的图级运行"}
+              </p>
+            </article>
+            <article class="graph-runtime-panel__summary-card">
+              <p class="graph-runtime-panel__summary-label">焦点节点</p>
+              <strong class="graph-runtime-panel__summary-value">
+                {runtimeInspectorState.focusNodeTitle ?? "未命中"}
+              </strong>
+              <p class="graph-runtime-panel__summary-meta">
+                {formatRuntimeFocusModeLabel(runtimeInspectorState.focusMode)} ·{" "}
+                {runtimeInspectorState.selectionCount || 0} 个节点
+              </p>
+            </article>
+            <article class="graph-runtime-panel__summary-card">
+              <p class="graph-runtime-panel__summary-label">最近检查链</p>
+              <strong class="graph-runtime-panel__summary-value">
+                {runtimeOverviewLatestRoot}
+              </strong>
+              <p class="graph-runtime-panel__summary-meta">
+                {activeRuntimeChainGroup
+                  ? `${runtimeOverviewLatestDuration} · ${activeRuntimeChainGroup.stepCount} 步`
+                  : "当前还没有执行批次"}
+              </p>
+            </article>
+            <article class="graph-runtime-panel__summary-card">
+              <p class="graph-runtime-panel__summary-label">失败聚合</p>
+              <strong class="graph-runtime-panel__summary-value">
+                {runtimeFailureGroups.length} 个节点
+              </strong>
+              <p class="graph-runtime-panel__summary-meta">
+                保留最近 {MAX_RUNTIME_FAILURE_ENTRIES} 个失败节点聚合
+              </p>
+            </article>
           </div>
           <dl class="graph-runtime-panel__info">
-            <div>
-              <dt>当前状态</dt>
-              <dd>{formatGraphExecutionStatusLabel(graphExecutionState.status)}</dd>
-            </div>
             <div>
               <dt>当前 Run ID</dt>
               <dd>{graphExecutionState.runId ?? "无"}</dd>
@@ -2291,36 +2381,248 @@ export function GraphViewport({
               </dd>
             </div>
             <div>
-              <dt>开始时间</dt>
-              <dd>{formatExecutionTimestamp(graphExecutionState.startedAt ?? null)}</dd>
+              <dt>最近命令</dt>
+              <dd>{runtimeInspectorState.lastCommandSummary ?? "无"}</dd>
             </div>
             <div>
-              <dt>结束时间</dt>
-              <dd>{formatExecutionTimestamp(graphExecutionState.stoppedAt ?? null)}</dd>
+              <dt>命令时间</dt>
+              <dd>{formatExecutionTimestamp(runtimeInspectorState.lastCommandTimestamp)}</dd>
+            </div>
+            <div>
+              <dt>最近成功</dt>
+              <dd>
+                {formatExecutionTimestamp(
+                  runtimeInspectorState.executionState?.lastSucceededAt ?? null
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>最近失败</dt>
+              <dd>
+                {formatExecutionTimestamp(
+                  runtimeInspectorState.executionState?.lastFailedAt ?? null
+                )}
+              </dd>
             </div>
           </dl>
         </section>
 
-        {runtimeInspectorState.executionState?.lastErrorMessage ? (
-          <p class="graph-runtime-panel__error">
-            {runtimeInspectorState.executionState.lastErrorMessage}
+        {runtimePanelErrorMessage ? (
+          <p class="graph-runtime-panel__error">{runtimePanelErrorMessage}</p>
+        ) : (
+          <p class="graph-runtime-panel__hint">
+            右侧已经按“运行概览 / 当前检查链 / 失败聚合 / 节点快照”收敛，选中节点后会继续显示 properties、内部数据和 IO 值。
           </p>
-            ) : (
-            <p class="graph-runtime-panel__hint">
-              选中节点后，右侧会同时显示节点内部数据、属性和 IO 值。
-            </p>
-          )}
+        )}
 
         <section class="graph-runtime-panel__section">
           <div class="graph-runtime-panel__section-header">
-            <h4>节点概览</h4>
-            <span>
-              {runtimeInspectorState.focusMode === "selection"
-                ? "当前选中"
-                : runtimeInspectorState.focusMode === "recent-execution"
-                  ? "最近执行"
-                  : "未命中"}
-            </span>
+            <h4>当前检查链</h4>
+            <span>{activeRuntimeChainGroup ? activeRuntimeChainGroup.chainId : "未命中"}</span>
+          </div>
+          {activeRuntimeChainGroup ? (
+            <>
+              <dl class="graph-runtime-panel__info">
+                <div>
+                  <dt>根节点</dt>
+                  <dd>{activeRuntimeChainGroup.rootNodeTitle}</dd>
+                </div>
+                <div>
+                  <dt>根类型</dt>
+                  <dd>{activeRuntimeChainGroup.rootNodeType ?? "未知类型"}</dd>
+                </div>
+                <div>
+                  <dt>来源</dt>
+                  <dd>{formatRuntimeSourceLabel(activeRuntimeChainGroup.source)}</dd>
+                </div>
+                <div>
+                  <dt>状态</dt>
+                  <dd>{formatRuntimeStatusLabel(activeRuntimeChainGroup.status)}</dd>
+                </div>
+                <div>
+                  <dt>最深层级</dt>
+                  <dd>{activeRuntimeChainGroup.maxDepth}</dd>
+                </div>
+                <div>
+                  <dt>命中步数</dt>
+                  <dd>{activeRuntimeChainGroup.stepCount}</dd>
+                </div>
+                <div>
+                  <dt>持续时间</dt>
+                  <dd>
+                    {formatExecutionDuration(
+                      activeRuntimeChainGroup.startedAt,
+                      activeRuntimeChainGroup.finishedAt
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>最近时间</dt>
+                  <dd>{formatExecutionTimestamp(activeRuntimeChainGroup.finishedAt)}</dd>
+                </div>
+                <div>
+                  <dt>主动执行</dt>
+                  <dd>{activeRuntimeChainGroup.directCount} 次</dd>
+                </div>
+                <div>
+                  <dt>传播命中</dt>
+                  <dd>{activeRuntimeChainGroup.propagatedCount} 次</dd>
+                </div>
+                <div>
+                  <dt>成功 / 失败</dt>
+                  <dd>
+                    {activeRuntimeChainGroup.successCount} / {activeRuntimeChainGroup.errorCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt>最新节点</dt>
+                  <dd>{activeRuntimeChainLatestEntry?.nodeTitle ?? "无"}</dd>
+                </div>
+              </dl>
+              {activeRuntimeChainLatestEntry ? (
+                activeRuntimeChainLatestEntry.errorMessage ? (
+                  <p class="graph-runtime-panel__timeline-error">
+                    {activeRuntimeChainLatestEntry.errorMessage}
+                  </p>
+                ) : (
+                  <p class="graph-runtime-panel__timeline-summary">
+                    {activeRuntimeChainLatestEntry.summary}
+                  </p>
+                )
+              ) : null}
+              <ul class="graph-runtime-panel__chain-steps">
+                {activeRuntimeChainGroup.entries.map((entry) => (
+                  <li
+                    class="graph-runtime-panel__chain-step"
+                    key={`${activeRuntimeChainGroup.chainId}:${entry.sequence}:${entry.nodeId}`}
+                  >
+                    <div class="graph-runtime-panel__timeline-row">
+                      <strong class="graph-runtime-panel__timeline-node">
+                        {entry.sequence + 1}. {entry.nodeTitle}
+                      </strong>
+                      <span
+                        class="graph-runtime-panel__status graph-runtime-panel__status--small"
+                        data-status={entry.status}
+                      >
+                        {formatRuntimeStatusLabel(entry.status)}
+                      </span>
+                    </div>
+                    <p class="graph-runtime-panel__timeline-meta">
+                      depth {entry.depth} · {formatRuntimeSourceLabel(entry.source)} ·{" "}
+                      {formatRuntimeTriggerLabel(entry.trigger)} ·{" "}
+                      {formatExecutionTimestamp(entry.timestamp)} · 第 {entry.runCount} 次
+                    </p>
+                    {entry.errorMessage ? (
+                      <p class="graph-runtime-panel__timeline-error">
+                        {entry.errorMessage}
+                      </p>
+                    ) : (
+                      <p class="graph-runtime-panel__timeline-summary">
+                        {entry.summary}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p class="graph-runtime-panel__hint">
+              当前还没有执行链，先点击顶栏 Play / Step，或从节点菜单里直接起跑一个节点。
+            </p>
+          )}
+        </section>
+
+        <section class="graph-runtime-panel__section">
+          <div class="graph-runtime-panel__section-header">
+            <h4>最近执行批次</h4>
+            <span>保留最近 {MAX_RUNTIME_CHAIN_GROUPS} 组</span>
+          </div>
+          {runtimeChainGroups.length ? (
+            <ul class="graph-runtime-panel__chain-list">
+              {runtimeChainGroups.map((chain) => (
+                <li class="graph-runtime-panel__chain-item" key={chain.chainId}>
+                  <div class="graph-runtime-panel__chain-header">
+                    <div>
+                      <strong class="graph-runtime-panel__timeline-node">
+                        {chain.rootNodeTitle}
+                      </strong>
+                      <p class="graph-runtime-panel__timeline-meta">
+                        {chain.rootNodeType ?? "未知类型"} ·{" "}
+                        {formatExecutionTimestamp(chain.finishedAt)}
+                      </p>
+                    </div>
+                    <span
+                      class="graph-runtime-panel__status graph-runtime-panel__status--small"
+                      data-status={chain.status}
+                    >
+                      {formatRuntimeStatusLabel(chain.status)}
+                    </span>
+                  </div>
+                  <p class="graph-runtime-panel__chain-summary">
+                    {formatRuntimeSourceLabel(chain.source)} · {chain.stepCount} 步 · 最深{" "}
+                    {chain.maxDepth} 层 · 主动 {chain.directCount} 次 · 传播{" "}
+                    {chain.propagatedCount} 次 ·{" "}
+                    {formatExecutionDuration(chain.startedAt, chain.finishedAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="graph-runtime-panel__hint">
+              当前还没有执行批次，先用图级 Play / Step，或从某个节点开始运行一条链。
+            </p>
+          )}
+        </section>
+
+        <section class="graph-runtime-panel__section">
+          <div class="graph-runtime-panel__section-header">
+            <h4>失败聚合</h4>
+            <span>{runtimeFailureGroups.length} 个节点</span>
+          </div>
+          {runtimeFailureGroups.length ? (
+            <ul class="graph-runtime-panel__timeline">
+              {runtimeFailureGroups.map((entry) => (
+                <li
+                  class="graph-runtime-panel__timeline-item"
+                  key={`${entry.nodeId}:failure-group`}
+                >
+                  <div class="graph-runtime-panel__timeline-row">
+                    <strong class="graph-runtime-panel__timeline-node">
+                      {entry.nodeTitle}
+                    </strong>
+                    <span
+                      class="graph-runtime-panel__status graph-runtime-panel__status--small"
+                      data-status="error"
+                    >
+                      失败
+                    </span>
+                  </div>
+                  <p class="graph-runtime-panel__timeline-meta">
+                    {entry.nodeType ?? "未知类型"} ·{" "}
+                    {formatRuntimeSourceLabel(entry.latestSource)} ·{" "}
+                    {formatRuntimeTriggerLabel(entry.latestTrigger)} ·{" "}
+                    {formatExecutionTimestamp(entry.latestTimestamp)}
+                  </p>
+                  <p class="graph-runtime-panel__timeline-summary">
+                    累计失败 {entry.failureCount} 次
+                  </p>
+                  {entry.latestErrorMessage ? (
+                    <p class="graph-runtime-panel__timeline-error">
+                      {entry.latestErrorMessage}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="graph-runtime-panel__hint">当前没有失败聚合记录。</p>
+          )}
+        </section>
+
+        <section class="graph-runtime-panel__section">
+          <div class="graph-runtime-panel__section-header">
+            <h4>焦点节点快照</h4>
+            <span>{formatRuntimeFocusModeLabel(runtimeInspectorState.focusMode)}</span>
           </div>
           {nodeInspectorState ? (
             <dl class="graph-runtime-panel__info">
@@ -2339,6 +2641,10 @@ export function GraphViewport({
               <div>
                 <dt>选区</dt>
                 <dd>{runtimeInspectorState.selectionCount || 0} 个节点</dd>
+              </div>
+              <div>
+                <dt>焦点来源</dt>
+                <dd>{formatRuntimeFocusModeLabel(runtimeInspectorState.focusMode)}</dd>
               </div>
               <div>
                 <dt>位置</dt>
@@ -2362,137 +2668,26 @@ export function GraphViewport({
                 <dt>执行次数</dt>
                 <dd>{nodeInspectorState.executionState.runCount}</dd>
               </div>
+              <div>
+                <dt>最近成功</dt>
+                <dd>
+                  {formatExecutionTimestamp(
+                    nodeInspectorState.executionState.lastSucceededAt ?? null
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>最近失败</dt>
+                <dd>
+                  {formatExecutionTimestamp(
+                    nodeInspectorState.executionState.lastFailedAt ?? null
+                  )}
+                </dd>
+              </div>
             </dl>
           ) : (
             <p class="graph-runtime-panel__hint">
               当前还没有焦点节点，先选中一个节点，或用顶栏 Play / Step，或从节点菜单里直接起跑。
-            </p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>最近一次执行详情</h4>
-            <span>{latestRuntimeHistoryEntry ? "已记录" : "暂无"}</span>
-          </div>
-          {latestRuntimeHistoryEntry ? (
-            <>
-              <dl class="graph-runtime-panel__info">
-                <div>
-                  <dt>节点</dt>
-                  <dd>{latestRuntimeHistoryEntry.nodeTitle}</dd>
-                </div>
-                <div>
-                  <dt>类型</dt>
-                  <dd>{latestRuntimeHistoryEntry.nodeType ?? "未知类型"}</dd>
-                </div>
-                <div>
-                  <dt>状态</dt>
-                  <dd>{formatRuntimeStatusLabel(latestRuntimeHistoryEntry.status)}</dd>
-                </div>
-                <div>
-                  <dt>来源</dt>
-                  <dd>{formatRuntimeSourceLabel(latestRuntimeHistoryEntry.source)}</dd>
-                </div>
-                <div>
-                  <dt>触发</dt>
-                  <dd>{formatRuntimeTriggerLabel(latestRuntimeHistoryEntry.trigger)}</dd>
-                </div>
-                <div>
-                  <dt>时间</dt>
-                  <dd>{formatExecutionTimestamp(latestRuntimeHistoryEntry.timestamp)}</dd>
-                </div>
-                <div>
-                  <dt>执行次数</dt>
-                  <dd>第 {latestRuntimeHistoryEntry.runCount} 次</dd>
-                </div>
-              </dl>
-              <p class="graph-runtime-panel__timeline-summary">
-                {latestRuntimeHistoryEntry.summary}
-              </p>
-              {latestRuntimeHistoryEntry.errorMessage ? (
-                <p class="graph-runtime-panel__timeline-error">
-                  {latestRuntimeHistoryEntry.errorMessage}
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p class="graph-runtime-panel__hint">
-              当前还没有执行详情，先点击顶栏 Play / Step，或从节点菜单里选择“从此节点开始运行”。
-            </p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>最近执行检查</h4>
-            <span>保留最近 {MAX_RUNTIME_CHAIN_GROUPS} 组</span>
-          </div>
-          {runtimeChainGroups.length ? (
-            <ul class="graph-runtime-panel__chain-list">
-              {runtimeChainGroups.map((chain) => (
-                <li class="graph-runtime-panel__chain-item" key={chain.chainId}>
-                  <div class="graph-runtime-panel__chain-header">
-                    <div>
-                      <strong class="graph-runtime-panel__timeline-node">
-                        {chain.rootNodeTitle}
-                      </strong>
-                      <p class="graph-runtime-panel__timeline-meta">
-                        根节点 · {chain.rootNodeType ?? "未知类型"} ·
-                        {formatExecutionTimestamp(chain.finishedAt)}
-                      </p>
-                    </div>
-                    <span
-                      class="graph-runtime-panel__status graph-runtime-panel__status--small"
-                      data-status={chain.status}
-                    >
-                      {formatRuntimeStatusLabel(chain.status)}
-                    </span>
-                  </div>
-                  <p class="graph-runtime-panel__chain-summary">
-                    {chain.stepCount} 步 · 最深 {chain.maxDepth} 层 ·
-                    {chain.successCount} 成功 · {chain.errorCount} 失败 ·
-                    {chain.skippedCount} 未执行 ·
-                    {formatExecutionDuration(chain.startedAt, chain.finishedAt)}
-                  </p>
-                  <ul class="graph-runtime-panel__chain-steps">
-                    {chain.entries.map((entry) => (
-                      <li
-                        class="graph-runtime-panel__chain-step"
-                        key={`${chain.chainId}:${entry.sequence}:${entry.nodeId}`}
-                      >
-                        <div class="graph-runtime-panel__timeline-row">
-                          <strong class="graph-runtime-panel__timeline-node">
-                            {entry.sequence + 1}. {entry.nodeTitle}
-                          </strong>
-                          <span class="graph-runtime-panel__io-badge">
-                            depth {entry.depth} · {formatRuntimeSourceLabel(entry.source)} ·
-                            {formatRuntimeTriggerLabel(entry.trigger)}
-                          </span>
-                        </div>
-                        <p class="graph-runtime-panel__timeline-meta">
-                          {entry.nodeType ?? "未知类型"} ·
-                          {formatExecutionTimestamp(entry.timestamp)} ·
-                          第 {entry.runCount} 次
-                        </p>
-                        {entry.errorMessage ? (
-                          <p class="graph-runtime-panel__timeline-error">
-                            {entry.errorMessage}
-                          </p>
-                        ) : (
-                          <p class="graph-runtime-panel__timeline-summary">
-                            {entry.summary}
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="graph-runtime-panel__hint">
-              当前还没有执行链记录，先用图级 Play / Step，或从某个节点开始运行一条链。
             </p>
           )}
         </section>
@@ -2598,83 +2793,6 @@ export function GraphViewport({
             </ul>
           ) : (
             <p class="graph-runtime-panel__hint">当前节点没有输出槽位。</p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>最近执行链</h4>
-            <span>保留最近 {MAX_RUNTIME_HISTORY_ENTRIES} 条</span>
-          </div>
-          {runtimeHistoryEntries.length ? (
-            <ul class="graph-runtime-panel__timeline">
-              {runtimeHistoryEntries.map((entry) => (
-                <li class="graph-runtime-panel__timeline-item" key={entry.id}>
-                  <div class="graph-runtime-panel__timeline-row">
-                    <strong class="graph-runtime-panel__timeline-node">
-                      {entry.nodeTitle}
-                    </strong>
-                    <span
-                      class="graph-runtime-panel__status graph-runtime-panel__status--small"
-                      data-status={entry.status}
-                    >
-                      {formatRuntimeStatusLabel(entry.status)}
-                    </span>
-                  </div>
-                  <p class="graph-runtime-panel__timeline-summary">{entry.summary}</p>
-                  <p class="graph-runtime-panel__timeline-meta">
-                    {formatRuntimeSourceLabel(entry.source)} ·
-                    {formatRuntimeTriggerLabel(entry.trigger)} ·
-                    {entry.nodeType ?? "未知类型"} ·
-                    {formatExecutionTimestamp(entry.timestamp)} ·
-                    第 {entry.runCount} 次
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="graph-runtime-panel__hint">
-              当前还没有执行日志，先点击顶栏 Play / Step，或从节点菜单里直接起跑一个节点。
-            </p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>最近失败</h4>
-            <span>{runtimeFailureEntries.length} 条</span>
-          </div>
-          {runtimeFailureEntries.length ? (
-            <ul class="graph-runtime-panel__timeline">
-              {runtimeFailureEntries.map((entry) => (
-                <li class="graph-runtime-panel__timeline-item" key={`${entry.id}:failure`}>
-                  <div class="graph-runtime-panel__timeline-row">
-                    <strong class="graph-runtime-panel__timeline-node">
-                      {entry.nodeTitle}
-                    </strong>
-                    <span
-                      class="graph-runtime-panel__status graph-runtime-panel__status--small"
-                      data-status={entry.status}
-                    >
-                      {formatRuntimeStatusLabel(entry.status)}
-                    </span>
-                  </div>
-                  <p class="graph-runtime-panel__timeline-meta">
-                    {formatRuntimeSourceLabel(entry.source)} ·
-                    {formatRuntimeTriggerLabel(entry.trigger)} ·
-                    {formatExecutionTimestamp(entry.timestamp)} ·
-                    {entry.nodeType ?? "未知类型"}
-                  </p>
-                  {entry.errorMessage ? (
-                    <p class="graph-runtime-panel__timeline-error">
-                      {entry.errorMessage}
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="graph-runtime-panel__hint">当前没有失败记录。</p>
           )}
         </section>
       </aside>

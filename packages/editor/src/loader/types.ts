@@ -55,6 +55,8 @@ export interface EditorBundleSlotState {
   enabled: boolean;
   loading: boolean;
   error: string | null;
+  persisted: boolean;
+  restoredFromPersistence: boolean;
 }
 
 /** editor 对每个槽位计算后的展示状态。 */

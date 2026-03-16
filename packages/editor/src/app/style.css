@@ -97,6 +97,10 @@ code {
     color 180ms ease;
 }
 
+.shell[data-workspace-mode="canvas"] {
+  grid-template-columns: 280px 1fr;
+}
+
 .shell[data-theme="light"] {
   --app-background:
     radial-gradient(circle at top left, rgba(14, 165, 233, 0.14), transparent 24%),
@@ -151,6 +155,10 @@ code {
   transition:
     border-color 180ms ease,
     background 180ms ease;
+}
+
+.shell[data-workspace-mode="canvas"] .sidebar {
+  padding: 24px 20px;
 }
 
 .eyebrow {
@@ -215,6 +223,11 @@ code {
   overflow: hidden;
   padding: 20px;
   gap: 16px;
+}
+
+.shell[data-workspace-mode="canvas"] .workspace {
+  padding: 14px;
+  gap: 12px;
 }
 
 .toolbar {
@@ -411,7 +424,7 @@ code {
 
 .graph-viewport {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 21vw, 360px);
   gap: 16px;
   width: 100%;
   height: 100%;
@@ -420,23 +433,19 @@ code {
   align-items: stretch;
 }
 
-.graph-viewport--idle {
-  display: flex;
-}
-
-.graph-viewport--active {
-  min-height: 0;
+.shell[data-workspace-mode="canvas"] .graph-viewport {
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 20vw, 336px);
+  gap: 12px;
 }
 
 .workspace-page-shell {
   display: flex;
   height: 100%;
   min-height: 0;
+  min-width: 0;
 }
 
-.workspace-page-shell > .canvas-page,
-.graph-viewport--active > .canvas-page,
-.graph-viewport--idle > .canvas-page {
+.workspace-page-shell > .canvas-page {
   flex: 1;
   min-height: 0;
 }
@@ -450,12 +459,21 @@ code {
   backdrop-filter: blur(16px);
 }
 
+.canvas-pages--compact {
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+
 .canvas-pages__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 14px;
+}
+
+.canvas-pages--compact .canvas-pages__header {
+  margin-bottom: 10px;
 }
 
 .canvas-pages__header h3 {
@@ -520,6 +538,11 @@ code {
   box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
 }
 
+.canvas-pages--compact .canvas-pages__tab {
+  min-width: 180px;
+  padding: 12px 14px;
+}
+
 .canvas-pages__tab-title {
   color: var(--text-strong);
   font-size: 14px;
@@ -543,6 +566,16 @@ code {
     border-color 180ms ease,
     background 180ms ease,
     box-shadow 180ms ease;
+}
+
+.shell[data-workspace-mode="canvas"] .toolbar {
+  padding: 14px 16px;
+  border-radius: 18px;
+}
+
+.shell[data-workspace-mode="canvas"] .panel {
+  margin-top: 14px;
+  padding: 16px;
 }
 
 .bundle-panel--embedded {
@@ -580,6 +613,13 @@ code {
 .bundle-panel__summary strong {
   margin: 0 4px;
   color: var(--text-strong);
+}
+
+.bundle-panel__note {
+  margin: 0 0 16px;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .bundle-grid {
@@ -848,6 +888,49 @@ code {
   font-size: 10px;
 }
 
+.graph-runtime-panel__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.graph-runtime-panel__summary-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(125, 211, 252, 0.08), transparent 72%),
+    rgba(148, 163, 184, 0.08);
+}
+
+.graph-runtime-panel__summary-label,
+.graph-runtime-panel__summary-meta {
+  margin: 0;
+}
+
+.graph-runtime-panel__summary-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.graph-runtime-panel__summary-value {
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.graph-runtime-panel__summary-meta {
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .graph-runtime-panel__info {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1088,11 +1171,20 @@ code {
   backdrop-filter: blur(16px);
 }
 
+.canvas-page--canvas {
+  padding: 12px 14px;
+  gap: 10px;
+}
+
 .canvas-page__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.canvas-page--canvas .canvas-page__header {
+  gap: 12px;
 }
 
 .canvas-page__header h3 {
@@ -1113,6 +1205,8 @@ code {
   flex: 1;
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
 }
 
 .canvas-page__body--scroll {
@@ -1121,6 +1215,9 @@ code {
 }
 
 .canvas-page__body > .graph-viewport {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
   height: 100%;
 }
@@ -1208,6 +1305,10 @@ code {
   .graph-runtime-panel {
     width: 100%;
     max-height: none;
+  }
+
+  .graph-runtime-panel__summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .graph-viewport {

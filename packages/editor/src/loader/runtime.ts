@@ -43,7 +43,9 @@ export function createInitialBundleSlotState(
     fileName: null,
     enabled: false,
     loading: false,
-    error: null
+    error: null,
+    persisted: false,
+    restoredFromPersistence: false
   };
 }
 
@@ -231,9 +233,10 @@ export function ensureEditorBundleRuntimeGlobals(): void {
  * 读取一个本地 JS 文件，并按 IIFE bundle 协议完成注入。
  * 成功后返回已归一化的 manifest；失败时不会污染现有槽位状态。
  */
-export async function loadLocalEditorBundle(
+export async function loadEditorBundleSource(
   slot: EditorBundleSlot,
-  file: File
+  sourceCode: string,
+  sourceLabel = "inline bundle"
 ): Promise<EditorBundleManifest> {
   ensureEditorBundleRuntimeGlobals();
 
@@ -241,7 +244,11 @@ export async function loadLocalEditorBundle(
     throw new Error("当前已有一个 bundle 正在加载，请稍后再试");
   }
 
-  const objectUrl = URL.createObjectURL(file);
+  const objectUrl = URL.createObjectURL(
+    new Blob([sourceCode], {
+      type: "text/javascript"
+    })
+  );
   const script = document.createElement("script");
   const ownerWindow = document.defaultView ?? window;
 
@@ -293,7 +300,7 @@ export async function loadLocalEditorBundle(
       };
 
       script.onerror = () => {
-        reject(new Error(`无法执行本地 bundle：${file.name}`));
+        reject(new Error(`无法执行本地 bundle：${sourceLabel}`));
       };
 
       document.head.append(script);
@@ -301,6 +308,17 @@ export async function loadLocalEditorBundle(
   } finally {
     cleanup();
   }
+}
+
+/**
+ * 读取一个本地 JS 文件，并按 IIFE bundle 协议完成注入。
+ * 成功后返回已归一化的 manifest；失败时不会污染现有槽位状态。
+ */
+export async function loadLocalEditorBundle(
+  slot: EditorBundleSlot,
+  file: File
+): Promise<EditorBundleManifest> {
+  return loadEditorBundleSource(slot, await file.text(), file.name);
 }
 
 /** 判断一个槽位当前是否真的参与运行时装配。 */

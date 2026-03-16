@@ -13,10 +13,16 @@ import {
   createInitialBundleSlotState,
   EDITOR_BUNDLE_SLOTS,
   ensureEditorBundleRuntimeGlobals,
-  loadLocalEditorBundle,
+  loadEditorBundleSource,
   resolveEditorBundleRuntimeSetup,
   toErrorMessage
 } from "../loader/runtime";
+import {
+  persistEditorBundleRecord,
+  readPersistedEditorBundleRecords,
+  removePersistedEditorBundleRecord,
+  updatePersistedEditorBundleEnabled
+} from "../loader/persistence";
 import type {
   EditorBundleResolvedStatus,
   EditorBundleSlot,
@@ -81,6 +87,9 @@ const WORKSPACE_PAGES = [
   }
 ] as const;
 
+/** 浏览器恢复 bundle 时使用的固定顺序。 */
+const RESTORE_BUNDLE_SLOTS = ["widget", "node", "demo"] as const;
+
 type EditorWorkspacePageId = (typeof WORKSPACE_PAGES)[number]["id"];
 
 /** 创建 editor 的初始 bundle 槽位映射。 */
@@ -114,6 +123,21 @@ function resolveBundleActivationLabel(slot: {
   return "当前已启用";
 }
 
+/** 将浏览器持久化状态格式化为面板文案。 */
+function formatBundlePersistenceLabel(slot: EditorBundleSlotState): string {
+  if (!slot.manifest) {
+    return "无";
+  }
+
+  if (!slot.persisted) {
+    return "未写入浏览器";
+  }
+
+  return slot.restoredFromPersistence
+    ? "已从浏览器恢复"
+    : "已写入浏览器，刷新后自动恢复";
+}
+
 export function App() {
   const [theme, setTheme] = useState<EditorTheme>(() =>
     resolveInitialEditorTheme()
@@ -127,9 +151,95 @@ export function App() {
   const [bundleSlots, setBundleSlots] = useState<
     Record<EditorBundleSlot, EditorBundleSlotState>
   >(() => createInitialBundleSlots());
+  const isCanvasWorkspace =
+    hasStartedRendering && activeWorkspacePageId === "main-canvas";
 
   useEffect(() => {
     ensureEditorBundleRuntimeGlobals();
+
+    let cancelled = false;
+
+    const restorePersistedBundles = async (): Promise<void> => {
+      const records = await readPersistedEditorBundleRecords();
+      if (cancelled || records.length === 0) {
+        return;
+      }
+
+      const recordMap = new Map(records.map((record) => [record.slot, record]));
+
+      setBundleSlots((current) => {
+        const next = { ...current };
+
+        for (const slot of RESTORE_BUNDLE_SLOTS) {
+          if (!recordMap.has(slot)) {
+            continue;
+          }
+
+          next[slot] = {
+            ...current[slot],
+            loading: true,
+            error: null
+          };
+        }
+
+        return next;
+      });
+
+      for (const slot of RESTORE_BUNDLE_SLOTS) {
+        const record = recordMap.get(slot);
+        if (!record) {
+          continue;
+        }
+
+        try {
+          const manifest = await loadEditorBundleSource(
+            slot,
+            record.sourceCode,
+            record.fileName
+          );
+
+          if (cancelled) {
+            return;
+          }
+
+          setBundleSlots((current) => ({
+            ...current,
+            [slot]: {
+              slot,
+              manifest,
+              fileName: record.fileName,
+              enabled: record.enabled,
+              loading: false,
+              error: null,
+              persisted: true,
+              restoredFromPersistence: true
+            }
+          }));
+        } catch (error) {
+          await removePersistedEditorBundleRecord(slot);
+
+          if (cancelled) {
+            return;
+          }
+
+          setBundleSlots((current) => ({
+            ...current,
+            [slot]: {
+              ...createInitialBundleSlotState(slot),
+              fileName: record.fileName,
+              loading: false,
+              error: `浏览器恢复失败，已清除本地记录：${toErrorMessage(error)}`
+            }
+          }));
+        }
+      }
+    };
+
+    void restorePersistedBundles();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -209,17 +319,28 @@ export function App() {
       return;
     }
 
+    const previousSlotState = bundleSlots[slot];
+
     setBundleSlots((current) => ({
       ...current,
       [slot]: {
         ...current[slot],
         loading: true,
-        error: null
+        error: null,
+        restoredFromPersistence: false
       }
     }));
 
     try {
-      const manifest = await loadLocalEditorBundle(slot, file);
+      const sourceCode = await file.text();
+      const manifest = await loadEditorBundleSource(slot, sourceCode, file.name);
+      const persisted = await persistEditorBundleRecord({
+        slot,
+        fileName: file.name,
+        sourceCode,
+        enabled: true,
+        savedAt: Date.now()
+      });
 
       setBundleSlots((current) => ({
         ...current,
@@ -229,7 +350,9 @@ export function App() {
           fileName: file.name,
           enabled: true,
           loading: false,
-          error: null
+          error: null,
+          persisted,
+          restoredFromPersistence: false
         }
       }));
     } catch (error) {
@@ -238,22 +361,27 @@ export function App() {
       setBundleSlots((current) => ({
         ...current,
         [slot]: {
-          ...current[slot],
+          ...previousSlotState,
           loading: false,
-          error: errorMessage
+          error: errorMessage,
+          fileName: previousSlotState.fileName ?? file.name
         }
       }));
     }
   };
 
   const toggleBundleEnabled = (slot: EditorBundleSlot): void => {
+    const nextEnabled = !bundleSlots[slot].enabled;
+
     setBundleSlots((current) => ({
       ...current,
       [slot]: {
         ...current[slot],
-        enabled: !current[slot].enabled
+        enabled: nextEnabled
       }
     }));
+
+    void updatePersistedEditorBundleEnabled(slot, nextEnabled);
   };
 
   const unloadBundle = (slot: EditorBundleSlot): void => {
@@ -261,10 +389,16 @@ export function App() {
       ...current,
       [slot]: createInitialBundleSlotState(slot)
     }));
+
+    void removePersistedEditorBundleRecord(slot);
   };
 
   return (
-    <div class="shell" data-theme={theme}>
+    <div
+      class="shell"
+      data-theme={theme}
+      data-workspace-mode={isCanvasWorkspace ? "canvas" : "default"}
+    >
       <aside class="sidebar">
         <p class="eyebrow">LeaferGraph</p>
         <h1>Editor Sandbox</h1>
@@ -361,7 +495,10 @@ export function App() {
           </div>
         </header>
 
-        <section class="canvas-pages" aria-label="工作分页">
+        <section
+          class={`canvas-pages${isCanvasWorkspace ? " canvas-pages--compact" : ""}`}
+          aria-label="工作分页"
+        >
           <div class="canvas-pages__header">
             <div>
               <p class="toolbar__label">Workspace Pages</p>
@@ -455,6 +592,9 @@ export function App() {
                       作为优先创建节点
                     </p>
                   </div>
+                  <p class="bundle-panel__note">
+                    已加载 bundle 会记录到浏览器本地，刷新后自动恢复。
+                  </p>
 
                   <div class="bundle-grid">
                     {EDITOR_BUNDLE_SLOTS.map((slot) => {
@@ -510,6 +650,10 @@ export function App() {
                                   : "无"}
                               </dd>
                             </div>
+                            <div>
+                              <dt>记录</dt>
+                              <dd>{formatBundlePersistenceLabel(state)}</dd>
+                            </div>
                             {quickCreateNodeType !== undefined ? (
                               <div>
                                 <dt>快速创建</dt>
@@ -564,12 +708,8 @@ export function App() {
             </div>
           </section>
         ) : hasStartedRendering ? (
-          <section
-            ref={viewportSectionRef}
-            class="graph-viewport graph-viewport--active"
-            aria-live="polite"
-          >
-            <div class="canvas-page">
+          <section ref={viewportSectionRef} class="workspace-page-shell" aria-live="polite">
+            <div class="canvas-page canvas-page--canvas">
               <div class="canvas-page__header">
                 <div>
                   <p class="toolbar__label">Canvas View</p>
@@ -592,12 +732,8 @@ export function App() {
             </div>
           </section>
         ) : (
-          <section
-            ref={viewportSectionRef}
-            class="graph-viewport graph-viewport--idle"
-            aria-live="polite"
-          >
-            <div class="canvas-page">
+          <section ref={viewportSectionRef} class="workspace-page-shell" aria-live="polite">
+            <div class="canvas-page canvas-page--canvas">
               <div class="canvas-page__header">
                 <div>
                   <p class="toolbar__label">Canvas View</p>
