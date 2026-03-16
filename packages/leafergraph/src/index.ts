@@ -77,6 +77,12 @@ export type {
   LeaferGraphWidgetOptionsMenuRequest
 } from "./api/plugin";
 export type {
+  LeaferGraphExecutionContext,
+  LeaferGraphExecutionSource,
+  LeaferGraphGraphExecutionEvent,
+  LeaferGraphGraphExecutionEventType,
+  LeaferGraphGraphExecutionState,
+  LeaferGraphGraphExecutionStatus,
   LeaferGraphConnectionPortState,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
@@ -124,6 +130,8 @@ import {
 } from "./graph/graph_runtime_style";
 import type { LeaferGraphContextMenuBindingTarget } from "./interaction/context_menu";
 import type {
+  LeaferGraphGraphExecutionEvent,
+  LeaferGraphGraphExecutionState,
   LeaferGraphConnectionPortState,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
@@ -277,6 +285,11 @@ export class LeaferGraph {
     return this.apiHost.getNodeExecutionState(nodeId);
   }
 
+  /** 读取当前图级执行状态。 */
+  getGraphExecutionState(): LeaferGraphGraphExecutionState {
+    return this.apiHost.getGraphExecutionState();
+  }
+
   /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
   canResizeNode(nodeId: string): boolean {
     return this.apiHost.canResizeNode(nodeId);
@@ -290,12 +303,32 @@ export class LeaferGraph {
     return this.apiHost.resetNodeSize(nodeId);
   }
 
+  /** 从指定节点开始运行一条正式执行链。 */
+  playFromNode(nodeId: string, context?: unknown): boolean {
+    return this.apiHost.playFromNode(nodeId, context);
+  }
+
   /**
-   * 执行单个节点的 `onExecute(...)`，并沿当前正式连线把输出传播到下游输入。
-   * 第一版保持最小闭环，不在这里引入完整调度器或循环图求值策略。
+   * 兼容旧名称的节点级运行入口。
+   * 当前行为与 `playFromNode(...)` 完全一致。
    */
   executeNode(nodeId: string, context?: unknown): boolean {
     return this.apiHost.executeNode(nodeId, context);
+  }
+
+  /** 从全部 `OnPlay` 节点开始图级运行。 */
+  play(): boolean {
+    return this.apiHost.play();
+  }
+
+  /** 单步推进当前图级运行。 */
+  step(): boolean {
+    return this.apiHost.step();
+  }
+
+  /** 停止当前图级运行。 */
+  stop(): boolean {
+    return this.apiHost.stop();
   }
 
   /** 订阅节点执行完成事件，供 editor 调试面板或运行时间线复用。 */
@@ -303,6 +336,13 @@ export class LeaferGraph {
     listener: (event: LeaferGraphNodeExecutionEvent) => void
   ): () => void {
     return this.apiHost.subscribeNodeExecution(listener);
+  }
+
+  /** 订阅图级执行事件。 */
+  subscribeGraphExecution(
+    listener: (event: LeaferGraphGraphExecutionEvent) => void
+  ): () => void {
+    return this.apiHost.subscribeGraphExecution(listener);
   }
 
   /** 订阅节点状态变化事件，供 editor 检查面板或调试工具复用。 */

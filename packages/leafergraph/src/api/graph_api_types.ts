@@ -189,12 +189,46 @@ export interface LeaferGraphNodeExecutionState {
 }
 
 /**
+ * 节点执行来源。
+ *
+ * @remarks
+ * 这里显式区分“图级运行”和“节点级调试运行”，
+ * 方便 editor 在时间线和状态面板里给出更准确的语义反馈。
+ */
+export type LeaferGraphExecutionSource =
+  | "graph-play"
+  | "graph-step"
+  | "node-play";
+
+/**
+ * 统一执行上下文。
+ *
+ * @remarks
+ * 它会作为 `onExecute(...)` 的第二个参数传给节点，
+ * 同时也会被 `OnPlay` 一类入口节点写到输出槽位里，供下游节点读取。
+ */
+export interface LeaferGraphExecutionContext {
+  /** 当前执行来源。 */
+  source: LeaferGraphExecutionSource;
+  /** 当前图级运行 ID；节点级调试运行没有该字段。 */
+  runId?: string;
+  /** 当前执行链入口节点 ID。 */
+  entryNodeId: string;
+  /** 当前运行已推进到的步数，从 `0` 开始。 */
+  stepIndex: number;
+  /** 当前执行链的开始时间戳。 */
+  startedAt: number;
+  /** 供外部调用方补充的附加上下文。 */
+  payload?: unknown;
+}
+
+/**
  * 节点执行事件的触发来源。
  *
  * @remarks
  * 第一版先区分两类来源：
- * - `direct`：来自显式 `executeNode(...)` 或 editor 菜单触发
- * - `propagated`：来自上游 `setOutputData(...)` 后沿连线传播的递归执行
+ * - `direct`：来自图级入口节点或显式 `playFromNode(...)`
+ * - `propagated`：来自上游 `setOutputData(...)` 后沿连线传播的下游执行
  */
 export type LeaferGraphNodeExecutionTrigger = "direct" | "propagated";
 
@@ -222,16 +256,76 @@ export interface LeaferGraphNodeExecutionEvent {
   nodeType: string;
   /** 当前执行结束时的节点标题。 */
   nodeTitle: string;
-  /** 当前节点位于执行链中的深度；显式执行节点为 `0`。 */
+  /** 当前节点位于执行链中的深度；入口节点为 `0`。 */
   depth: number;
   /** 当前节点在执行链里的进入顺序，从 `0` 开始。 */
   sequence: number;
   /** 当前执行来源。 */
+  source: LeaferGraphExecutionSource;
+  /** 当前触发方式。 */
   trigger: LeaferGraphNodeExecutionTrigger;
   /** 当前事件时间戳。 */
   timestamp: number;
+  /** 当前节点执行时收到的正式上下文。 */
+  executionContext: LeaferGraphExecutionContext;
   /** 节点执行完成后的正式状态快照。 */
   state: LeaferGraphNodeExecutionState;
+}
+
+/**
+ * 图级执行状态。
+ *
+ * @remarks
+ * 这份状态专门服务图级 `play / step / stop`，
+ * 不和节点级调试运行共享同一套状态机。
+ */
+export type LeaferGraphGraphExecutionStatus = "idle" | "running" | "stepping";
+
+/**
+ * 图级执行状态快照。
+ */
+export interface LeaferGraphGraphExecutionState {
+  /** 当前图执行状态。 */
+  status: LeaferGraphGraphExecutionStatus;
+  /** 当前活动运行 ID；空闲时为空。 */
+  runId?: string;
+  /** 当前待执行队列长度。 */
+  queueSize: number;
+  /** 当前运行已经推进的总步数。 */
+  stepCount: number;
+  /** 当前运行开始时间戳。 */
+  startedAt?: number;
+  /** 最近一次停止时间戳。 */
+  stoppedAt?: number;
+  /** 最近一次图级入口来源。 */
+  lastSource?: Extract<LeaferGraphExecutionSource, "graph-play" | "graph-step">;
+}
+
+/**
+ * 图级执行事件类型。
+ */
+export type LeaferGraphGraphExecutionEventType =
+  | "started"
+  | "advanced"
+  | "drained"
+  | "stopped";
+
+/**
+ * 图级执行事件。
+ */
+export interface LeaferGraphGraphExecutionEvent {
+  /** 当前事件类型。 */
+  type: LeaferGraphGraphExecutionEventType;
+  /** 事件发生时的图级执行状态快照。 */
+  state: LeaferGraphGraphExecutionState;
+  /** 当前运行 ID；若处于空闲态则可能缺失。 */
+  runId?: string;
+  /** 当前图级来源。 */
+  source?: Extract<LeaferGraphExecutionSource, "graph-play" | "graph-step">;
+  /** 本次推进命中的节点 ID。 */
+  nodeId?: string;
+  /** 事件时间戳。 */
+  timestamp: number;
 }
 
 /**

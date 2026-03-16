@@ -22,6 +22,15 @@ import {
 export const templateDemoGraph: LeaferGraphData = {
   nodes: [
     {
+      id: "template-on-play",
+      type: "system/on-play",
+      title: "On Play",
+      layout: {
+        x: 452,
+        y: 96
+      }
+    },
+    {
       id: "template-source",
       type: TEMPLATE_CATEGORY_NODE_TYPE,
       title: "Texture",
@@ -90,11 +99,11 @@ export const templateDemoGraph: LeaferGraphData = {
       type: TEMPLATE_EXECUTE_COUNTER_NODE_TYPE,
       title: "Counter Source",
       layout: {
-        x: 682,
+        x: 736,
         y: 96
       },
       properties: {
-        subtitle: "右键执行后会递增并写出输出",
+        subtitle: "可由 On Play 驱动，也可从节点菜单单独起跑",
         accent: "#F97316",
         status: "READY",
         count: 0
@@ -135,6 +144,17 @@ export const templateDemoGraph: LeaferGraphData = {
       },
       target: {
         nodeId: "template-execute-display",
+        slot: 0
+      }
+    },
+    {
+      id: "template-link:on-play->execute-source",
+      source: {
+        nodeId: "template-on-play",
+        slot: 0
+      },
+      target: {
+        nodeId: "template-execute-source",
         slot: 0
       }
     }

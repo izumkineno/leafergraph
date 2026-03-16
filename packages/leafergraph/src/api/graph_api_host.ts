@@ -24,6 +24,8 @@ import type {
 } from "./plugin";
 import type { LeaferGraphContextMenuBindingTarget } from "../interaction/context_menu";
 import type {
+  LeaferGraphGraphExecutionEvent,
+  LeaferGraphGraphExecutionState,
   LeaferGraphConnectionPortState,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
@@ -120,12 +122,22 @@ export interface LeaferGraphApiRuntime<
     getNodeExecutionState(nodeId: string): LeaferGraphNodeExecutionState | undefined;
     canResizeNode(nodeId: string): boolean;
     resetNodeSize(nodeId: string): TNodeState | undefined;
+    playFromNode(nodeId: string, context?: unknown): boolean;
     executeNode(nodeId: string, context?: unknown): boolean;
     subscribeNodeState(
       listener: (event: LeaferGraphNodeStateChangeEvent) => void
     ): () => void;
     subscribeNodeExecution(
       listener: (event: LeaferGraphNodeExecutionEvent) => void
+    ): () => void;
+  };
+  graphExecutionHost: {
+    play(): boolean;
+    step(): boolean;
+    stop(): boolean;
+    getGraphExecutionState(): LeaferGraphGraphExecutionState;
+    subscribeGraphExecution(
+      listener: (event: LeaferGraphGraphExecutionEvent) => void
     ): () => void;
   };
   themeHost: {
@@ -288,6 +300,11 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.getNodeExecutionState(nodeId);
   }
 
+  /** 读取当前图级执行状态。 */
+  getGraphExecutionState(): LeaferGraphGraphExecutionState {
+    return this.options.runtime.graphExecutionHost.getGraphExecutionState();
+  }
+
   /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
   canResizeNode(nodeId: string): boolean {
     return this.options.runtime.nodeRuntimeHost.canResizeNode(nodeId);
@@ -298,9 +315,29 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.resetNodeSize(nodeId);
   }
 
+  /** 从指定节点开始运行一条正式执行链。 */
+  playFromNode(nodeId: string, context?: unknown): boolean {
+    return this.options.runtime.nodeRuntimeHost.playFromNode(nodeId, context);
+  }
+
   /** 执行单个节点的 `onExecute(...)`，并沿现有正式连线传播输出。 */
   executeNode(nodeId: string, context?: unknown): boolean {
     return this.options.runtime.nodeRuntimeHost.executeNode(nodeId, context);
+  }
+
+  /** 从全部入口节点开始图级运行。 */
+  play(): boolean {
+    return this.options.runtime.graphExecutionHost.play();
+  }
+
+  /** 单步推进当前图级运行。 */
+  step(): boolean {
+    return this.options.runtime.graphExecutionHost.step();
+  }
+
+  /** 停止当前图级运行。 */
+  stop(): boolean {
+    return this.options.runtime.graphExecutionHost.stop();
   }
 
   /** 订阅节点执行完成事件。 */
@@ -308,6 +345,15 @@ export class LeaferGraphApiHost<
     listener: (event: LeaferGraphNodeExecutionEvent) => void
   ): () => void {
     return this.options.runtime.nodeRuntimeHost.subscribeNodeExecution(listener);
+  }
+
+  /** 订阅图级执行事件。 */
+  subscribeGraphExecution(
+    listener: (event: LeaferGraphGraphExecutionEvent) => void
+  ): () => void {
+    return this.options.runtime.graphExecutionHost.subscribeGraphExecution(
+      listener
+    );
   }
 
   /** 订阅节点状态变化事件，供 editor 检查面板和调试工具复用。 */

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
-import { GraphViewport } from "./GraphViewport";
+import {
+  GraphViewport,
+  type GraphViewportRuntimeControlsState
+} from "./GraphViewport";
 import {
   EDITOR_THEME_STORAGE_KEY,
   resolveInitialEditorTheme,
@@ -23,6 +26,20 @@ import type {
 /** 切换到相反主题。 */
 function toggleEditorTheme(theme: EditorTheme): EditorTheme {
   return theme === "dark" ? "light" : "dark";
+}
+
+/** editor 顶栏展示用的图级运行状态文案。 */
+function formatGraphExecutionStatusLabel(
+  status: GraphViewportRuntimeControlsState["executionState"]["status"]
+): string {
+  switch (status) {
+    case "running":
+      return "图运行中";
+    case "stepping":
+      return "图单步中";
+    default:
+      return "图空闲";
+  }
 }
 
 /** 固定的 bundle 槽位标题。 */
@@ -105,6 +122,8 @@ export function App() {
     useState<EditorWorkspacePageId>("bundle-loader");
   const [hasStartedRendering, setHasStartedRendering] = useState(false);
   const viewportSectionRef = useRef<HTMLElement | null>(null);
+  const [graphRuntimeControls, setGraphRuntimeControls] =
+    useState<GraphViewportRuntimeControlsState | null>(null);
   const [bundleSlots, setBundleSlots] = useState<
     Record<EditorBundleSlot, EditorBundleSlotState>
   >(() => createInitialBundleSlots());
@@ -141,6 +160,27 @@ export function App() {
   const activeWorkspacePage = WORKSPACE_PAGES.find(
     (page) => page.id === activeWorkspacePageId
   )!;
+  const graphExecutionState: GraphViewportRuntimeControlsState["executionState"] =
+    graphRuntimeControls?.executionState ?? {
+      status: "idle",
+      queueSize: 0,
+      stepCount: 0
+    };
+  const canPlayGraph = Boolean(
+    graphRuntimeControls?.available &&
+      (graphExecutionState.status === "idle" ||
+        graphExecutionState.status === "stepping")
+  );
+  const canStepGraph = Boolean(
+    graphRuntimeControls?.available &&
+      (graphExecutionState.status === "idle" ||
+        graphExecutionState.status === "stepping")
+  );
+  const canStopGraph = Boolean(
+    graphRuntimeControls?.available &&
+      (graphExecutionState.status === "running" ||
+        graphExecutionState.status === "stepping")
+  );
 
   /** 统一进入主画布渲染态，避免多个入口各自维护同一组状态。 */
   const startRendering = (): void => {
@@ -151,6 +191,7 @@ export function App() {
   /** 卸载当前画布宿主，让 GraphViewport 走完整销毁链路。 */
   const stopRendering = (): void => {
     setHasStartedRendering(false);
+    setGraphRuntimeControls(null);
   };
 
   const handleBundleFileChange = async (
@@ -258,6 +299,44 @@ export function App() {
             <h2>Leafer-first Node Graph</h2>
           </div>
           <div class="toolbar__actions">
+            <div class="toolbar__runtime-controls">
+              <span
+                class="badge badge--runtime"
+                data-status={graphExecutionState.status}
+              >
+                {formatGraphExecutionStatusLabel(graphExecutionState.status)}
+              </span>
+              <button
+                type="button"
+                class="render-toggle render-toggle--graph"
+                disabled={!canPlayGraph}
+                onClick={() => {
+                  graphRuntimeControls?.play();
+                }}
+              >
+                Play
+              </button>
+              <button
+                type="button"
+                class="render-toggle render-toggle--graph"
+                disabled={!canStepGraph}
+                onClick={() => {
+                  graphRuntimeControls?.step();
+                }}
+              >
+                Step
+              </button>
+              <button
+                type="button"
+                class="render-toggle render-toggle--graph render-toggle--stop"
+                disabled={!canStopGraph}
+                onClick={() => {
+                  graphRuntimeControls?.stop();
+                }}
+              >
+                Stop
+              </button>
+            </div>
             <span class="badge">
               {theme === "dark" ? "暗色工作区" : "亮色工作区"}
             </span>
@@ -507,6 +586,7 @@ export function App() {
                   plugins={runtimeSetup.plugins}
                   quickCreateNodeType={runtimeSetup.quickCreateNodeType}
                   theme={theme}
+                  onGraphRuntimeControlsChange={setGraphRuntimeControls}
                 />
               </div>
             </div>

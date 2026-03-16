@@ -30,13 +30,14 @@ export const templateExecuteCounterNodeDefinition: NodeDefinition = {
     { name: "status", type: "string", default: "READY" },
     { name: "count", type: "number", default: 0 }
   ],
+  inputs: [{ name: "Start", type: "event" }],
   outputs: [{ name: "Count", type: "number" }],
   onExecute(node, _context, api) {
     const prevCount = Number(node.properties.count ?? 0);
     const nextCount = Number.isFinite(prevCount) ? prevCount + 1 : 1;
 
     node.properties.count = nextCount;
-    node.properties.subtitle = "右键菜单里选择“执行节点”即可递增";
+    node.properties.subtitle = "可从节点菜单起跑，也可接到 On Play 作为图级入口";
     node.properties.status = `RUN ${nextCount}`;
     node.title = `Counter ${nextCount}`;
     api?.setOutputData(0, nextCount);

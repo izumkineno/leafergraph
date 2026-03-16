@@ -20,6 +20,7 @@ import { LeaferGraphWidgetHost } from "../widgets/widget_host";
 import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
 import type { LeaferGraphCanvasState } from "./graph_canvas_host";
 import { LeaferGraphMutationHost } from "./graph_mutation_host";
+import { LeaferGraphExecutionRuntimeHost } from "./graph_execution_runtime_host";
 import type { LeaferGraphNodeShellStyleConfig } from "./graph_runtime_style";
 import type {
   GraphRuntimeState,
@@ -83,6 +84,7 @@ export interface LeaferGraphSceneRuntimeAssemblyResult<
     TNodeState,
     NodeViewState<TNodeState>
   >;
+  graphExecutionRuntimeHost: LeaferGraphExecutionRuntimeHost<TNodeState>;
   interactionHost: LeaferGraphInteractionHost<
     TNodeState,
     NodeViewState<TNodeState>
@@ -122,6 +124,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     TNodeState,
     NodeViewState<TNodeState>
   >;
+  let graphExecutionRuntimeHost!: LeaferGraphExecutionRuntimeHost<TNodeState>;
 
   const widgetHost = new LeaferGraphWidgetHost({
     registry: options.widgetRegistry,
@@ -253,6 +256,10 @@ export function createLeaferGraphSceneRuntimeAssembly<
       nodeShellHost.resolveNodeResizeConstraint(node)
   });
 
+  graphExecutionRuntimeHost = new LeaferGraphExecutionRuntimeHost({
+    nodeRuntimeHost
+  });
+
   const interactionRuntimeHost = new LeaferGraphInteractionRuntimeHost<
     TNodeState,
     NodeViewState<TNodeState>
@@ -308,6 +315,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     clearInteractionState: () => interactionHost.clearInteractionState(),
     resetRuntimeState: () => viewHost.resetViewState(),
     resetNodeExecutionStates: () => nodeRuntimeHost.clearAllExecutionStates(),
+    resetGraphExecutionState: () => graphExecutionRuntimeHost.resetState(),
     destroyNodeViewWidgets: (state) =>
       widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
     clearNodeLayer: () => options.canvasState.nodeLayer.removeAll(),
@@ -326,6 +334,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     viewHost,
     sceneRuntimeHost,
     nodeRuntimeHost,
+    graphExecutionRuntimeHost,
     interactionHost,
     interactionRuntimeHost,
     restoreHost

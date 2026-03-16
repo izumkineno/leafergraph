@@ -256,6 +256,13 @@ code {
   flex-wrap: wrap;
 }
 
+.toolbar__runtime-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -266,6 +273,18 @@ code {
   color: var(--badge-text);
   font-size: 13px;
   white-space: nowrap;
+}
+
+.badge--runtime[data-status="running"] {
+  border-color: rgba(234, 179, 8, 0.32);
+  background: rgba(234, 179, 8, 0.14);
+  color: #f59e0b;
+}
+
+.badge--runtime[data-status="stepping"] {
+  border-color: rgba(14, 165, 233, 0.3);
+  background: rgba(14, 165, 233, 0.14);
+  color: #0284c7;
 }
 
 .render-toggle {
@@ -306,6 +325,12 @@ code {
 .render-toggle--hero {
   min-height: 44px;
   padding: 0 20px;
+}
+
+.render-toggle--graph {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
 .render-toggle--stop {
@@ -800,6 +825,11 @@ code {
 .graph-runtime-panel__status[data-status="running"] {
   background: var(--bundle-warn-fill);
   color: var(--bundle-warn-text);
+}
+
+.graph-runtime-panel__status[data-status="stepping"] {
+  background: rgba(14, 165, 233, 0.16);
+  color: #0284c7;
 }
 
 .graph-runtime-panel__status[data-status="success"] {

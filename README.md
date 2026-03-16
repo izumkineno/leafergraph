@@ -40,12 +40,13 @@ bun run build
 - 编辑器包：`leafergraph-editor`
 - 编辑器通过包依赖和 Vite alias 直接引用库源码
 
-后续可以在这个基础上继续补：
+当前已经具备这几类基础能力：
 
 - graph / node / link 数据结构
 - scene sync
 - viewport / selection / connect
-- play / step
+- 图级 `play / step / stop`
+- 节点级 `playFromNode(...)`
 
 ## 设计文档
 

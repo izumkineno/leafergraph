@@ -4,6 +4,7 @@ import {
   createLeaferGraph,
   createLeaferGraphContextMenu,
   type LeaferGraphConnectionPortState,
+  type LeaferGraphGraphExecutionState,
   type LeaferGraph,
   type LeaferGraphContextMenuBindingTarget,
   type LeaferGraphData,
@@ -38,15 +39,27 @@ interface GraphViewportProps {
   plugins?: LeaferGraphOptions["plugins"];
   quickCreateNodeType?: string;
   theme: EditorTheme;
+  onGraphRuntimeControlsChange?(
+    controls: GraphViewportRuntimeControlsState | null
+  ): void;
 }
 
 type GraphViewportNodeExecutionSnapshot = NonNullable<
   ReturnType<LeaferGraph["getNodeExecutionState"]>
 >;
+type GraphViewportGraphExecutionSnapshot = LeaferGraphGraphExecutionState;
 
 type GraphViewportRuntimeHistoryStatus =
   | GraphViewportNodeExecutionSnapshot["status"]
   | "skipped";
+
+export interface GraphViewportRuntimeControlsState {
+  available: boolean;
+  executionState: GraphViewportGraphExecutionSnapshot;
+  play(): void;
+  step(): void;
+  stop(): void;
+}
 
 interface GraphViewportRuntimeInspectorState {
   focusMode: "idle" | "selection" | "recent-execution";
@@ -71,6 +84,7 @@ interface GraphViewportRuntimeHistoryEntry {
   depth: number;
   sequence: number;
   status: GraphViewportRuntimeHistoryStatus;
+  source: LeaferGraphNodeExecutionEvent["source"];
   trigger: LeaferGraphNodeExecutionEvent["trigger"];
   summary: string;
   timestamp: number;
@@ -98,6 +112,14 @@ const MAX_RUNTIME_HISTORY_ENTRIES = 8;
 const MAX_RUNTIME_CHAIN_GROUPS = 4;
 const MAX_RUNTIME_FAILURE_ENTRIES = 4;
 
+function createIdleGraphExecutionState(): GraphViewportGraphExecutionSnapshot {
+  return {
+    status: "idle",
+    queueSize: 0,
+    stepCount: 0
+  };
+}
+
 function resolveInspectorFocusState(
   graph: LeaferGraph,
   selection: ReturnType<typeof createEditorNodeSelection>,
@@ -115,7 +137,7 @@ function resolveInspectorFocusState(
     lastRuntimeExecution?.nodeId ?? null
   );
   const recentExecutedNodeId = resolveExistingNodeId(
-    lastExecution?.request.type === "node.execute"
+    lastExecution?.request.type === "node.play"
       ? lastExecution.request.nodeId
       : null
   );
@@ -255,10 +277,38 @@ function formatRuntimeStatusLabel(
   }
 }
 
+function formatGraphExecutionStatusLabel(
+  status: GraphViewportGraphExecutionSnapshot["status"] | null | undefined
+): string {
+  switch (status) {
+    case "running":
+      return "图运行中";
+    case "stepping":
+      return "图单步中";
+    default:
+      return "图空闲";
+  }
+}
+
 function formatRuntimeTriggerLabel(
   trigger: LeaferGraphNodeExecutionEvent["trigger"]
 ): string {
   return trigger === "propagated" ? "链路传播" : "主动执行";
+}
+
+function formatRuntimeSourceLabel(
+  source: LeaferGraphNodeExecutionEvent["source"] | null | undefined
+): string {
+  switch (source) {
+    case "graph-play":
+      return "图级 Play";
+    case "graph-step":
+      return "图级 Step";
+    case "node-play":
+      return "节点起跑";
+    default:
+      return "未知来源";
+  }
 }
 
 function formatInspectorValue(value: unknown): string {
@@ -298,19 +348,23 @@ function formatSlotTypeLabel(type: unknown): string {
 }
 
 function resolveRuntimeHistorySummary(
+  source: LeaferGraphNodeExecutionEvent["source"],
   status: GraphViewportRuntimeHistoryStatus,
   trigger: LeaferGraphNodeExecutionEvent["trigger"],
   errorMessage: string | null
 ): string {
+  const sourceLabel = formatRuntimeSourceLabel(source);
+  const triggerLabel = formatRuntimeTriggerLabel(trigger);
+
   switch (status) {
     case "running":
-      return `${formatRuntimeTriggerLabel(trigger)}开始，节点已进入执行中。`;
+      return `${sourceLabel}触发，${triggerLabel}已进入执行中。`;
     case "success":
-      return `${formatRuntimeTriggerLabel(trigger)}成功，当前结果已经写回运行时。`;
+      return `${sourceLabel}触发成功，${triggerLabel}结果已经写回运行时。`;
     case "error":
       return errorMessage
-        ? `${formatRuntimeTriggerLabel(trigger)}失败：${errorMessage}`
-        : `${formatRuntimeTriggerLabel(trigger)}失败，请查看控制台日志。`;
+        ? `${sourceLabel}触发失败：${errorMessage}`
+        : `${sourceLabel}触发失败，请查看控制台日志。`;
     case "skipped":
       return "这次执行没有命中可用的 onExecute(...)。";
     default:
@@ -333,8 +387,10 @@ function createRuntimeHistoryEntryFromEvent(
     depth: event.depth,
     sequence: event.sequence,
     status: event.state.status,
+    source: event.source,
     trigger: event.trigger,
     summary: resolveRuntimeHistorySummary(
+      event.source,
       event.state.status,
       event.trigger,
       event.state.lastErrorMessage ?? null
@@ -342,35 +398,6 @@ function createRuntimeHistoryEntryFromEvent(
     timestamp: event.timestamp,
     runCount: event.state.runCount,
     errorMessage: event.state.lastErrorMessage ?? null
-  };
-}
-
-function createSkippedRuntimeHistoryEntry(
-  graph: LeaferGraph,
-  nodeId: string,
-  timestamp: number
-): GraphViewportRuntimeHistoryEntry {
-  const snapshot = graph.getNodeSnapshot(nodeId);
-  const rootNodeTitle = snapshot?.title ?? nodeId;
-  const rootNodeType = snapshot?.type ?? null;
-
-  return {
-    id: `${timestamp}:${nodeId}:skipped`,
-    chainId: `skipped:${timestamp}:${nodeId}`,
-    rootNodeId: nodeId,
-    rootNodeTitle,
-    rootNodeType,
-    nodeId,
-    nodeTitle: rootNodeTitle,
-    nodeType: rootNodeType,
-    depth: 0,
-    sequence: 0,
-    status: "skipped",
-    trigger: "direct",
-    summary: resolveRuntimeHistorySummary("skipped", "direct", null),
-    timestamp,
-    runCount: graph.getNodeExecutionState(nodeId)?.runCount ?? 0,
-    errorMessage: null
   };
 }
 
@@ -721,7 +748,8 @@ export function GraphViewport({
   modules,
   plugins,
   quickCreateNodeType,
-  theme
+  theme,
+  onGraphRuntimeControlsChange
 }: GraphViewportProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const selectionBoxRef = useRef<HTMLDivElement | null>(null);
@@ -735,6 +763,10 @@ export function GraphViewport({
   const [runtimeHistoryEntries, setRuntimeHistoryEntries] = useState<
     GraphViewportRuntimeHistoryEntry[]
   >([]);
+  const [graphExecutionState, setGraphExecutionState] =
+    useState<GraphViewportGraphExecutionSnapshot>(() =>
+      createIdleGraphExecutionState()
+    );
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -758,6 +790,7 @@ export function GraphViewport({
     setRuntimeInspectorState(createIdleRuntimeInspectorState());
     setNodeInspectorState(null);
     setRuntimeHistoryEntries([]);
+    setGraphExecutionState(createIdleGraphExecutionState());
 
     const graph = createLeaferGraph(host, {
       graph: graphData,
@@ -772,6 +805,19 @@ export function GraphViewport({
       }
     });
     graphRef.current = graph;
+    onGraphRuntimeControlsChange?.({
+      available: false,
+      executionState: graph.getGraphExecutionState(),
+      play: () => {
+        graph.play();
+      },
+      step: () => {
+        graph.step();
+      },
+      stop: () => {
+        graph.stop();
+      }
+    });
     const selection = createEditorNodeSelection(graph);
     const ownerWindow = host.ownerDocument.defaultView ?? window;
     let latestExecution: EditorCommandExecution | null = null;
@@ -796,6 +842,27 @@ export function GraphViewport({
     let commandBus!: EditorCommandBus;
     let commandHistory!: EditorCommandHistory;
     let disposed = false;
+    const syncGraphRuntimeControls = (): void => {
+      if (disposed) {
+        return;
+      }
+
+      const nextGraphExecutionState = graph.getGraphExecutionState();
+      setGraphExecutionState(nextGraphExecutionState);
+      onGraphRuntimeControlsChange?.({
+        available: graphReady,
+        executionState: nextGraphExecutionState,
+        play: () => {
+          graph.play();
+        },
+        step: () => {
+          graph.step();
+        },
+        stop: () => {
+          graph.stop();
+        }
+      });
+    };
     const syncInfoPanelState = (): void => {
       if (disposed) {
         return;
@@ -830,6 +897,9 @@ export function GraphViewport({
         syncInfoPanelState();
       }
     );
+    const disposeGraphExecutionSubscription = graph.subscribeGraphExecution(() => {
+      syncGraphRuntimeControls();
+    });
     const disposeNodeStateSubscription = graph.subscribeNodeState((event) => {
       if (!event.exists) {
         selection.clearIfContains(event.nodeId);
@@ -1352,13 +1422,13 @@ export function GraphViewport({
         return;
       }
 
-      commandBus.execute({ type: "node.execute", nodeId });
+      commandBus.execute({ type: "node.play", nodeId });
     };
     const resolveExecuteNodeDescription = (nodeId: string): string => {
       const executionState = graph.getNodeExecutionState(nodeId);
 
       if (!executionState || executionState.status === "idle") {
-        return "调用当前节点的 onExecute(...)；若节点未实现执行钩子则不会产生运行结果";
+        return "从当前节点开始运行正式执行链；若节点未实现 onExecute(...) 则不会产生运行结果";
       }
 
       if (executionState.status === "running") {
@@ -1435,9 +1505,9 @@ export function GraphViewport({
           },
           {
             key: "execute-node",
-            label: "执行节点",
+            label: "从此节点开始运行",
             description: resolveExecuteNodeDescription(nodeId),
-            disabled: !graphReady || !commandBus.canExecute({ type: "node.execute", nodeId }),
+            disabled: !graphReady || !commandBus.canExecute({ type: "node.play", nodeId }),
             onSelect() {
               executeNodeFromMenu(nodeId);
             }
@@ -1647,19 +1717,6 @@ export function GraphViewport({
       onAfterFitView: schedulePointerWorldPointRefresh,
       onDidExecute(execution) {
         latestExecution = execution;
-        if (execution.request.type === "node.execute" && !execution.success) {
-          const nodeId = execution.request.nodeId;
-          setRuntimeHistoryEntries((entries) =>
-            appendRuntimeHistoryEntry(
-              entries,
-              createSkippedRuntimeHistoryEntry(
-                graph,
-                nodeId,
-                execution.timestamp
-              )
-            )
-          );
-        }
         commandHistory.record(execution);
         scheduleLinkContextMenuSync();
         syncInfoPanelState();
@@ -1676,6 +1733,7 @@ export function GraphViewport({
       }
 
       graphReady = true;
+      syncGraphRuntimeControls();
 
       for (const node of graphData.nodes) {
         bindEditorNode({
@@ -2085,13 +2143,21 @@ export function GraphViewport({
       commandHistory.clear();
       disposeNodeStateSubscription();
       disposeNodeExecutionSubscription();
+      disposeGraphExecutionSubscription();
       disposeSelectionSubscription();
       hideSelectionBox();
       menu.destroy();
+      onGraphRuntimeControlsChange?.(null);
       graphRef.current = null;
       graph.destroy();
     };
-  }, [graphData, modules, plugins, quickCreateNodeType]);
+  }, [
+    graphData,
+    modules,
+    onGraphRuntimeControlsChange,
+    plugins,
+    quickCreateNodeType
+  ]);
 
   const runtimeFailureEntries = runtimeHistoryEntries
     .filter((entry) => entry.status === "error")
@@ -2116,7 +2182,11 @@ export function GraphViewport({
       </div>
       <aside
         class="graph-runtime-panel"
-        data-status={runtimeInspectorState.executionState?.status ?? "idle"}
+        data-status={
+          graphExecutionState.status !== "idle"
+            ? graphExecutionState.status
+            : runtimeInspectorState.executionState?.status ?? "idle"
+        }
         aria-live="polite"
       >
         <p class="graph-runtime-panel__eyebrow">Inspector</p>
@@ -2127,17 +2197,23 @@ export function GraphViewport({
               {runtimeInspectorState.focusMode === "selection"
                 ? "当前跟随主选中节点"
                 : runtimeInspectorState.focusMode === "recent-execution"
-                  ? "当前显示最近一次执行节点"
+                  ? "当前显示最近一次运行命中的节点"
                   : "当前还没有选中节点或执行记录"}
             </p>
           </div>
           <span
             class="graph-runtime-panel__status"
-            data-status={runtimeInspectorState.executionState?.status ?? "idle"}
+            data-status={
+              graphExecutionState.status !== "idle"
+                ? graphExecutionState.status
+                : runtimeInspectorState.executionState?.status ?? "idle"
+            }
           >
-            {formatRuntimeStatusLabel(
-              runtimeInspectorState.executionState?.status ?? "idle"
-            )}
+            {graphExecutionState.status !== "idle"
+              ? formatGraphExecutionStatusLabel(graphExecutionState.status)
+              : formatRuntimeStatusLabel(
+                  runtimeInspectorState.executionState?.status ?? "idle"
+                )}
           </span>
         </div>
 
@@ -2183,6 +2259,47 @@ export function GraphViewport({
             <dd>{formatExecutionTimestamp(runtimeInspectorState.lastCommandTimestamp)}</dd>
           </div>
         </dl>
+
+        <section class="graph-runtime-panel__section">
+          <div class="graph-runtime-panel__section-header">
+            <h4>图级运行</h4>
+            <span>{formatGraphExecutionStatusLabel(graphExecutionState.status)}</span>
+          </div>
+          <dl class="graph-runtime-panel__info">
+            <div>
+              <dt>当前状态</dt>
+              <dd>{formatGraphExecutionStatusLabel(graphExecutionState.status)}</dd>
+            </div>
+            <div>
+              <dt>当前 Run ID</dt>
+              <dd>{graphExecutionState.runId ?? "无"}</dd>
+            </div>
+            <div>
+              <dt>队列长度</dt>
+              <dd>{graphExecutionState.queueSize}</dd>
+            </div>
+            <div>
+              <dt>已推进步数</dt>
+              <dd>{graphExecutionState.stepCount}</dd>
+            </div>
+            <div>
+              <dt>最近启动来源</dt>
+              <dd>
+                {graphExecutionState.lastSource
+                  ? formatRuntimeSourceLabel(graphExecutionState.lastSource)
+                  : "无"}
+              </dd>
+            </div>
+            <div>
+              <dt>开始时间</dt>
+              <dd>{formatExecutionTimestamp(graphExecutionState.startedAt ?? null)}</dd>
+            </div>
+            <div>
+              <dt>结束时间</dt>
+              <dd>{formatExecutionTimestamp(graphExecutionState.stoppedAt ?? null)}</dd>
+            </div>
+          </dl>
+        </section>
 
         {runtimeInspectorState.executionState?.lastErrorMessage ? (
           <p class="graph-runtime-panel__error">
@@ -2248,7 +2365,7 @@ export function GraphViewport({
             </dl>
           ) : (
             <p class="graph-runtime-panel__hint">
-              当前还没有焦点节点，先选中一个节点或执行一次节点。
+              当前还没有焦点节点，先选中一个节点，或用顶栏 Play / Step，或从节点菜单里直接起跑。
             </p>
           )}
         </section>
@@ -2275,6 +2392,10 @@ export function GraphViewport({
                 </div>
                 <div>
                   <dt>来源</dt>
+                  <dd>{formatRuntimeSourceLabel(latestRuntimeHistoryEntry.source)}</dd>
+                </div>
+                <div>
+                  <dt>触发</dt>
                   <dd>{formatRuntimeTriggerLabel(latestRuntimeHistoryEntry.trigger)}</dd>
                 </div>
                 <div>
@@ -2297,7 +2418,7 @@ export function GraphViewport({
             </>
           ) : (
             <p class="graph-runtime-panel__hint">
-              当前还没有执行详情，先从节点菜单里触发一次“执行节点”。
+              当前还没有执行详情，先点击顶栏 Play / Step，或从节点菜单里选择“从此节点开始运行”。
             </p>
           )}
         </section>
@@ -2345,7 +2466,7 @@ export function GraphViewport({
                             {entry.sequence + 1}. {entry.nodeTitle}
                           </strong>
                           <span class="graph-runtime-panel__io-badge">
-                            depth {entry.depth} ·
+                            depth {entry.depth} · {formatRuntimeSourceLabel(entry.source)} ·
                             {formatRuntimeTriggerLabel(entry.trigger)}
                           </span>
                         </div>
@@ -2371,7 +2492,7 @@ export function GraphViewport({
             </ul>
           ) : (
             <p class="graph-runtime-panel__hint">
-              当前还没有执行链记录，先执行一个可传播的节点。
+              当前还没有执行链记录，先用图级 Play / Step，或从某个节点开始运行一条链。
             </p>
           )}
         </section>
@@ -2502,6 +2623,7 @@ export function GraphViewport({
                   </div>
                   <p class="graph-runtime-panel__timeline-summary">{entry.summary}</p>
                   <p class="graph-runtime-panel__timeline-meta">
+                    {formatRuntimeSourceLabel(entry.source)} ·
                     {formatRuntimeTriggerLabel(entry.trigger)} ·
                     {entry.nodeType ?? "未知类型"} ·
                     {formatExecutionTimestamp(entry.timestamp)} ·
@@ -2512,7 +2634,7 @@ export function GraphViewport({
             </ul>
           ) : (
             <p class="graph-runtime-panel__hint">
-              当前还没有执行日志，先从节点菜单里触发一次“执行节点”。
+              当前还没有执行日志，先点击顶栏 Play / Step，或从节点菜单里直接起跑一个节点。
             </p>
           )}
         </section>
@@ -2538,6 +2660,7 @@ export function GraphViewport({
                     </span>
                   </div>
                   <p class="graph-runtime-panel__timeline-meta">
+                    {formatRuntimeSourceLabel(entry.source)} ·
                     {formatRuntimeTriggerLabel(entry.trigger)} ·
                     {formatExecutionTimestamp(entry.timestamp)} ·
                     {entry.nodeType ?? "未知类型"}
