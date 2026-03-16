@@ -59,6 +59,32 @@ export interface LeaferGraphNodeExecutionTaskResult {
   nextTasks: LeaferGraphNodeExecutionTask[];
 }
 
+/**
+ * 正式连线的真实传播事件。
+ *
+ * @remarks
+ * 这份事件只在 `setOutputData(...)` 命中正式下游连线并完成输入写回后发出，
+ * 供主包内部的连线数据流动画宿主复用。
+ */
+export interface LeaferGraphLinkPropagationEvent {
+  /** 命中的正式连线 ID。 */
+  linkId: string;
+  /** 当前传播所属的执行链 ID。 */
+  chainId: string;
+  /** 输出来源节点 ID。 */
+  sourceNodeId: string;
+  /** 输出来源槽位。 */
+  sourceSlot: number;
+  /** 输入目标节点 ID。 */
+  targetNodeId: string;
+  /** 输入目标槽位。 */
+  targetSlot: number;
+  /** 本次传播携带的原始 payload。 */
+  payload: unknown;
+  /** 事件时间戳。 */
+  timestamp: number;
+}
+
 let executionChainSeed = 1;
 
 /**
@@ -98,6 +124,10 @@ export class LeaferGraphNodeRuntimeHost<
   TNodeState extends LeaferGraphRenderableNodeState,
   TNodeViewState extends LeaferGraphRuntimeNodeViewState<TNodeState>
 > {
+  private readonly linkPropagationListeners = new Set<
+    (event: LeaferGraphLinkPropagationEvent) => void
+  >();
+
   private readonly executionListeners = new Set<
     (event: LeaferGraphNodeExecutionEvent) => void
   >();
@@ -513,6 +543,26 @@ export class LeaferGraphNodeRuntimeHost<
   }
 
   /**
+   * 订阅正式连线传播事件。
+   *
+   * @remarks
+   * 这条订阅只服务主包内部运行时反馈，例如数据流传输动画；
+   * 不进入对外公共 API。
+   *
+   * @param listener - 连线传播事件监听器。
+   * @returns 取消订阅函数。
+   */
+  subscribeLinkPropagation(
+    listener: (event: LeaferGraphLinkPropagationEvent) => void
+  ): () => void {
+    this.linkPropagationListeners.add(listener);
+
+    return () => {
+      this.linkPropagationListeners.delete(listener);
+    };
+  }
+
+  /**
    * 订阅节点状态变化事件。
    *
    * @param listener - 节点状态变化监听器。
@@ -738,6 +788,19 @@ export class LeaferGraphNodeRuntimeHost<
     }
   }
 
+  /** 向外分发一次“正式连线已真实传播”事件。 */
+  private emitLinkPropagationEvent(
+    event: LeaferGraphLinkPropagationEvent
+  ): void {
+    if (!this.linkPropagationListeners.size) {
+      return;
+    }
+
+    for (const listener of this.linkPropagationListeners) {
+      listener(event);
+    }
+  }
+
   /** 判断某个槽位在当前图状态里是否仍有至少一条连线。 */
   private hasRemainingConnections(
     nodeId: string,
@@ -838,6 +901,16 @@ export class LeaferGraphNodeRuntimeHost<
       const targetSlot = normalizeConnectionSlot(link.target.slot);
       writeRuntimeValue(targetNode.inputValues, targetSlot, data);
       this.notifyNodeStateChanged(targetNode.id, "input-values");
+      this.emitLinkPropagationEvent({
+        linkId: link.id,
+        chainId: task.chain.chainId,
+        sourceNodeId: link.source.nodeId,
+        sourceSlot: safeSourceSlot,
+        targetNodeId: targetNode.id,
+        targetSlot,
+        payload: data,
+        timestamp: Date.now()
+      });
 
       if (nextNodeIds.has(targetNode.id)) {
         continue;

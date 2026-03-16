@@ -22,7 +22,10 @@ import type { GraphLinkViewState } from "../link/link_host";
 import type { NodeViewState } from "../node/node_host";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import type { NodeShellRenderTheme } from "../node/node_shell";
-import type { LeaferGraphNodeShellStyleConfig } from "./graph_runtime_style";
+import type {
+  LeaferGraphDataFlowAnimationStyleConfig,
+  LeaferGraphNodeShellStyleConfig
+} from "./graph_runtime_style";
 import type {
   GraphRuntimeState,
   LeaferGraphRenderableNodeState
@@ -52,6 +55,7 @@ interface LeaferGraphRuntimeAssemblyOptions<
   linkDefaultNodeWidth: number;
   linkPortSize: number;
   linkStroke: string;
+  dataFlowAnimationStyle: LeaferGraphDataFlowAnimationStyleConfig;
 }
 
 export interface LeaferGraphRuntimeAssemblyResult<
@@ -91,6 +95,10 @@ export function createLeaferGraphRuntimeAssembly<
   const requestRender = (): void => {
     canvasState.app.forceRender();
   };
+  const renderFrame = (): void => {
+    canvasState.app.forceUpdate();
+    canvasState.app.forceRender(undefined, true);
+  };
   const sceneRuntime = createLeaferGraphSceneRuntimeAssembly({
     container: options.container,
     graphState: options.graphState,
@@ -103,6 +111,7 @@ export function createLeaferGraphRuntimeAssembly<
     widgetEditingManager: widgetEnvironment.widgetEditingManager,
     widgetEditingContext: widgetEnvironment.widgetEditingContext,
     requestRender,
+    renderFrame,
     nodeShellLayoutMetrics: options.nodeShellLayoutMetrics,
     nodeShellStyle: options.nodeShellStyle,
     resolveSelectedStroke: options.resolveSelectedStroke,
@@ -110,7 +119,8 @@ export function createLeaferGraphRuntimeAssembly<
     normalizeLinkSlotIndex: options.normalizeLinkSlotIndex,
     linkDefaultNodeWidth: options.linkDefaultNodeWidth,
     linkPortSize: options.linkPortSize,
-    linkStroke: options.linkStroke
+    linkStroke: options.linkStroke,
+    dataFlowAnimationStyle: options.dataFlowAnimationStyle
   });
   const bootstrapHost = new LeaferGraphBootstrapHost({
     nodeRegistry,
@@ -125,6 +135,7 @@ export function createLeaferGraphRuntimeAssembly<
     interactionHost: sceneRuntime.interactionHost,
     interactionRuntime: sceneRuntime.interactionRuntimeHost,
     nodeRuntimeHost: sceneRuntime.nodeRuntimeHost,
+    dataFlowAnimationHost: sceneRuntime.dataFlowAnimationHost,
     graphExecutionHost: sceneRuntime.graphExecutionRuntimeHost,
     themeHost: widgetEnvironment.themeHost,
     viewHost: sceneRuntime.viewHost,

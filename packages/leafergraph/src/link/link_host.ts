@@ -11,8 +11,9 @@ import type { LeaferGraphLinkData, NodeRuntimeState } from "@leafergraph/node";
 import {
   PORT_DIRECTION_LEFT,
   PORT_DIRECTION_RIGHT,
-  buildLinkPath,
-  resolveLinkEndpoints
+  buildLinkPathFromCurve,
+  resolveLinkCurve,
+  type LinkBezierCurve
 } from "./link";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import { resolveNodePortAnchorYForNode } from "../node/node_port";
@@ -29,10 +30,60 @@ export interface GraphLinkViewState<TNodeState = unknown> {
   target?: TNodeState;
 }
 
-type LeaferGraphLinkNodeState = Pick<
+export type LeaferGraphLinkNodeState = Pick<
   NodeRuntimeState,
   "layout" | "inputs" | "outputs" | "flags"
 >;
+
+/**
+ * 根据节点与槽位解析一条正式连线共享曲线所需的输入。
+ *
+ * @remarks
+ * 连线渲染与数据流动画都应复用这份输入，避免两边各自维护锚点规则。
+ */
+export interface ResolveGraphLinkCurveInput<
+  TNodeState extends LeaferGraphLinkNodeState
+> {
+  source: TNodeState;
+  target: TNodeState;
+  sourceSlot: number;
+  targetSlot: number;
+  layoutMetrics: NodeShellLayoutMetrics;
+  defaultNodeWidth: number;
+  portSize: number;
+}
+
+/** 根据节点与槽位解析一条正式连线的共享三次贝塞尔曲线。 */
+export function resolveGraphLinkCurve<
+  TNodeState extends LeaferGraphLinkNodeState
+>(input: ResolveGraphLinkCurveInput<TNodeState>): LinkBezierCurve {
+  const sourceWidth = input.source.layout.width ?? input.defaultNodeWidth;
+
+  return resolveLinkCurve(
+    {
+      sourceX: input.source.layout.x,
+      sourceY: input.source.layout.y,
+      sourceWidth,
+      targetX: input.target.layout.x,
+      targetY: input.target.layout.y,
+      sourcePortY: resolveNodePortAnchorYForNode(
+        input.source,
+        "output",
+        input.sourceSlot,
+        input.layoutMetrics
+      ),
+      targetPortY: resolveNodePortAnchorYForNode(
+        input.target,
+        "input",
+        input.targetSlot,
+        input.layoutMetrics
+      ),
+      portSize: input.portSize
+    },
+    PORT_DIRECTION_RIGHT,
+    PORT_DIRECTION_LEFT
+  );
+}
 
 interface LeaferGraphLinkHostOptions<TNodeState extends LeaferGraphLinkNodeState> {
   graphLinks: Map<string, LeaferGraphLinkData>;
@@ -161,35 +212,18 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     sourceSlot: number,
     targetSlot: number
   ): Arrow {
-    const sourceWidth = source.layout.width ?? this.options.defaultNodeWidth;
-    const endpoints = resolveLinkEndpoints({
-      sourceX: source.layout.x,
-      sourceY: source.layout.y,
-      sourceWidth,
-      targetX: target.layout.x,
-      targetY: target.layout.y,
-      sourcePortY: resolveNodePortAnchorYForNode(
-        source,
-        "output",
-        sourceSlot,
-        this.options.layoutMetrics
-      ),
-      targetPortY: resolveNodePortAnchorYForNode(
-        target,
-        "input",
-        targetSlot,
-        this.options.layoutMetrics
-      ),
+    const curve = resolveGraphLinkCurve({
+      source,
+      target,
+      sourceSlot,
+      targetSlot,
+      layoutMetrics: this.options.layoutMetrics,
+      defaultNodeWidth: this.options.defaultNodeWidth,
       portSize: this.options.portSize
     });
 
     return new Arrow({
-      path: buildLinkPath(
-        endpoints.start,
-        endpoints.end,
-        PORT_DIRECTION_RIGHT,
-        PORT_DIRECTION_LEFT
-      ),
+      path: buildLinkPathFromCurve(curve),
       endArrow: "none",
       fill: "transparent",
       stroke: this.options.stroke,
@@ -209,34 +243,17 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     source: TNodeState,
     target: TNodeState
   ): void {
-    const sourceWidth = source.layout.width ?? this.options.defaultNodeWidth;
-    const endpoints = resolveLinkEndpoints({
-      sourceX: source.layout.x,
-      sourceY: source.layout.y,
-      sourceWidth,
-      targetX: target.layout.x,
-      targetY: target.layout.y,
-      sourcePortY: resolveNodePortAnchorYForNode(
-        source,
-        "output",
-        link.sourceSlot,
-        this.options.layoutMetrics
-      ),
-      targetPortY: resolveNodePortAnchorYForNode(
-        target,
-        "input",
-        link.targetSlot,
-        this.options.layoutMetrics
-      ),
+    const curve = resolveGraphLinkCurve({
+      source,
+      target,
+      sourceSlot: link.sourceSlot,
+      targetSlot: link.targetSlot,
+      layoutMetrics: this.options.layoutMetrics,
+      defaultNodeWidth: this.options.defaultNodeWidth,
       portSize: this.options.portSize
     });
 
-    link.view.path = buildLinkPath(
-      endpoints.start,
-      endpoints.end,
-      PORT_DIRECTION_RIGHT,
-      PORT_DIRECTION_LEFT
-    );
+    link.view.path = buildLinkPathFromCurve(curve);
   }
 
   /**

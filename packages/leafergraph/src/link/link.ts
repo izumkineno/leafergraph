@@ -40,6 +40,16 @@ export interface LinkEndpoints {
   end: LinkPoint;
 }
 
+/** 三次贝塞尔连线曲线。 */
+export interface LinkBezierCurve {
+  start: LinkPoint;
+  end: LinkPoint;
+  control1: LinkPoint;
+  control2: LinkPoint;
+  startDirection: PortDirection;
+  endDirection: PortDirection;
+}
+
 /**
  * 根据节点边界和端口布局计算连线起止点。
  * 这里保持简单且高性能：布局决策放在外部，调用方可自行选择端口。
@@ -58,6 +68,57 @@ export function resolveLinkEndpoints(input: LinkEndpointInput): LinkEndpoints {
 }
 
 /**
+ * 根据起点、终点和端口方向生成共享的三次贝塞尔曲线。
+ *
+ * @remarks
+ * 正式连线渲染与数据流动画都应复用这份曲线，避免路径和采样各算各的。
+ */
+export function buildLinkCurve(
+  start: LinkPoint,
+  end: LinkPoint,
+  startDir: PortDirection,
+  endDir: PortDirection
+): LinkBezierCurve {
+  const safeStart: [number, number] = [start[0], start[1]];
+  const safeEnd: [number, number] = [end[0], end[1]];
+  const dx = safeEnd[0] - safeStart[0];
+  const dy = safeEnd[1] - safeStart[1];
+  const dist = Math.max(Math.hypot(dx, dy), 16);
+  const control1: [number, number] = [safeStart[0], safeStart[1]];
+  const control2: [number, number] = [safeEnd[0], safeEnd[1]];
+  const handle = Math.min(160, Math.max(24, dist * 0.25));
+
+  applyDirectionalHandle(control1, startDir, handle);
+  applyDirectionalHandle(control2, endDir, handle);
+
+  return {
+    start: safeStart,
+    end: safeEnd,
+    control1,
+    control2,
+    startDirection: startDir,
+    endDirection: endDir
+  };
+}
+
+/**
+ * 由节点端口几何直接生成共享的三次贝塞尔曲线。
+ */
+export function resolveLinkCurve(
+  input: LinkEndpointInput,
+  startDir: PortDirection,
+  endDir: PortDirection
+): LinkBezierCurve {
+  const endpoints = resolveLinkEndpoints(input);
+  return buildLinkCurve(endpoints.start, endpoints.end, startDir, endDir);
+}
+
+/** 把共享曲线转成最终路径字符串。 */
+export function buildLinkPathFromCurve(curve: LinkBezierCurve): string {
+  return `M ${curve.start[0]} ${curve.start[1]} C ${curve.control1[0]} ${curve.control1[1]}, ${curve.control2[0]} ${curve.control2[1]}, ${curve.end[0]} ${curve.end[1]}`;
+}
+
+/**
  * 生成三次贝塞尔路径字符串（LiteGraph 思路）：
  * 使用两个控制点沿端口方向外推，形成清晰的出线扩展。
  */
@@ -67,19 +128,28 @@ export function buildLinkPath(
   startDir: PortDirection,
   endDir: PortDirection
 ): string {
-  const safeStart: [number, number] = [start[0], start[1]];
-  const safeEnd: [number, number] = [end[0], end[1]];
-  const dx = safeEnd[0] - safeStart[0];
-  const dy = safeEnd[1] - safeStart[1];
-  const dist = Math.max(Math.hypot(dx, dy), 16);
-  const c1: [number, number] = [safeStart[0], safeStart[1]];
-  const c2: [number, number] = [safeEnd[0], safeEnd[1]];
-  const handle = Math.min(160, Math.max(24, dist * 0.25));
+  return buildLinkPathFromCurve(buildLinkCurve(start, end, startDir, endDir));
+}
 
-  applyDirectionalHandle(c1, startDir, handle);
-  applyDirectionalHandle(c2, endDir, handle);
+/** 按进度采样共享曲线上的一个世界坐标点。 */
+export function sampleLinkCurvePoint(
+  curve: LinkBezierCurve,
+  progress: number
+): LinkPoint {
+  const safeProgress = Math.min(Math.max(progress, 0), 1);
+  const inverse = 1 - safeProgress;
+  const x =
+    inverse * inverse * inverse * curve.start[0] +
+    3 * inverse * inverse * safeProgress * curve.control1[0] +
+    3 * inverse * safeProgress * safeProgress * curve.control2[0] +
+    safeProgress * safeProgress * safeProgress * curve.end[0];
+  const y =
+    inverse * inverse * inverse * curve.start[1] +
+    3 * inverse * inverse * safeProgress * curve.control1[1] +
+    3 * inverse * safeProgress * safeProgress * curve.control2[1] +
+    safeProgress * safeProgress * safeProgress * curve.end[1];
 
-  return `M ${safeStart[0]} ${safeStart[1]} C ${c1[0]} ${c1[1]}, ${c2[0]} ${c2[1]}, ${safeEnd[0]} ${safeEnd[1]}`;
+  return [x, y];
 }
 
 /**

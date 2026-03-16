@@ -15,6 +15,7 @@ import {
   NODE_SHELL_LAYOUT_METRICS,
   VIEWPORT_MAX_SCALE,
   VIEWPORT_MIN_SCALE,
+  createDefaultDataFlowAnimationStyleConfig,
   createDefaultNodeShellStyleConfig,
   resolveDefaultLinkStroke,
   resolveDefaultNodeShellRenderTheme,
@@ -91,7 +92,8 @@ export function createLeaferGraphEntryRuntime(
     normalizeLinkSlotIndex: (slot) => normalizeGraphLinkSlotIndex(slot),
     linkDefaultNodeWidth: NODE_SHELL_LAYOUT_METRICS.defaultNodeWidth,
     linkPortSize: NODE_SHELL_LAYOUT_METRICS.portSize,
-    linkStroke: resolveDefaultLinkStroke()
+    linkStroke: resolveDefaultLinkStroke(),
+    dataFlowAnimationStyle: createDefaultDataFlowAnimationStyleConfig()
   });
   const ready = runtime.apiHost.initialize(options);
   ready.catch((error) => {

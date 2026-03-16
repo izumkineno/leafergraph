@@ -71,6 +71,9 @@ export interface LeaferGraphApiRuntime<
   widgetEditingManager: {
     destroy(): void;
   };
+  dataFlowAnimationHost: {
+    destroy(): void;
+  };
   sceneRuntime: Pick<
     LeaferGraphSceneRuntimeHost<TNodeState, LeaferGraphApiNodeViewState<TNodeState>>,
     | "setNodeWidgetValue"
@@ -205,6 +208,7 @@ export class LeaferGraphApiHost<
     }
 
     this.options.runtime.interactionHost.destroy();
+    this.options.runtime.dataFlowAnimationHost.destroy();
     this.options.runtime.widgetEditingManager.destroy();
     this.options.runtime.app.destroy();
   }

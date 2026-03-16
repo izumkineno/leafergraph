@@ -52,6 +52,15 @@ const NODE_SIGNAL_FILL = "#94A3B8";
 const NODE_SIGNAL_RUNNING_FILL = "#F59E0B";
 const NODE_SIGNAL_SUCCESS_FILL = "#10B981";
 const NODE_SIGNAL_ERROR_FILL = "#EF4444";
+const DATA_FLOW_PARTICLE_SIZE = 8;
+const DATA_FLOW_GLOW_SIZE = 18;
+const DATA_FLOW_DURATION_MS = 420;
+const DATA_FLOW_CORE_OPACITY = 0.96;
+const DATA_FLOW_DARK_GLOW_OPACITY = 0.34;
+const DATA_FLOW_LIGHT_GLOW_OPACITY = 0.24;
+const DATA_FLOW_FADE_IN_RATIO = 0.16;
+const DATA_FLOW_FADE_OUT_RATIO = 0.2;
+const DATA_FLOW_MAX_PARTICLES = 48;
 const MISSING_NODE_FILL = "rgba(220, 38, 38, 0.92)";
 const MISSING_NODE_STROKE = "rgba(127, 29, 29, 0.86)";
 const MISSING_NODE_PRESS_FILL = "rgba(185, 28, 28, 0.96)";
@@ -91,6 +100,19 @@ export interface LeaferGraphNodeShellStyleConfig {
   signalSuccessFill: string;
   signalErrorFill: string;
   slotTypeFillMap: Readonly<Record<string, string>>;
+}
+
+/** 数据流传输动画样式配置。 */
+export interface LeaferGraphDataFlowAnimationStyleConfig {
+  particleSize: number;
+  glowSize: number;
+  durationMs: number;
+  coreOpacity: number;
+  darkGlowOpacity: number;
+  lightGlowOpacity: number;
+  fadeInRatio: number;
+  fadeOutRatio: number;
+  maxParticles: number;
 }
 
 /**
@@ -161,6 +183,21 @@ export function createDefaultNodeShellStyleConfig(): LeaferGraphNodeShellStyleCo
     signalSuccessFill: NODE_SIGNAL_SUCCESS_FILL,
     signalErrorFill: NODE_SIGNAL_ERROR_FILL,
     slotTypeFillMap: SLOT_TYPE_FILL_MAP
+  };
+}
+
+/** 创建默认的数据流传输动画样式配置。 */
+export function createDefaultDataFlowAnimationStyleConfig(): LeaferGraphDataFlowAnimationStyleConfig {
+  return {
+    particleSize: DATA_FLOW_PARTICLE_SIZE,
+    glowSize: DATA_FLOW_GLOW_SIZE,
+    durationMs: DATA_FLOW_DURATION_MS,
+    coreOpacity: DATA_FLOW_CORE_OPACITY,
+    darkGlowOpacity: DATA_FLOW_DARK_GLOW_OPACITY,
+    lightGlowOpacity: DATA_FLOW_LIGHT_GLOW_OPACITY,
+    fadeInRatio: DATA_FLOW_FADE_IN_RATIO,
+    fadeOutRatio: DATA_FLOW_FADE_OUT_RATIO,
+    maxParticles: DATA_FLOW_MAX_PARTICLES
   };
 }
 

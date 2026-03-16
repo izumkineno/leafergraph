@@ -10,6 +10,7 @@ import { NodeRegistry } from "@leafergraph/node";
 import type { LeaferGraphThemeMode, LeaferGraphWidgetEditingContext } from "../api/plugin";
 import { LeaferGraphInteractionRuntimeHost } from "../interaction/graph_interaction_runtime_host";
 import { LeaferGraphInteractionHost } from "../interaction/interaction_host";
+import { LeaferGraphLinkDataFlowAnimationHost } from "../link/link_data_flow_animation_host";
 import { LeaferGraphLinkHost, type GraphLinkViewState } from "../link/link_host";
 import { LeaferGraphNodeHost, type NodeViewState } from "../node/node_host";
 import { LeaferGraphNodeRuntimeHost } from "../node/node_runtime_host";
@@ -21,7 +22,10 @@ import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
 import type { LeaferGraphCanvasState } from "./graph_canvas_host";
 import { LeaferGraphMutationHost } from "./graph_mutation_host";
 import { LeaferGraphExecutionRuntimeHost } from "./graph_execution_runtime_host";
-import type { LeaferGraphNodeShellStyleConfig } from "./graph_runtime_style";
+import type {
+  LeaferGraphDataFlowAnimationStyleConfig,
+  LeaferGraphNodeShellStyleConfig
+} from "./graph_runtime_style";
 import type {
   GraphRuntimeState,
   LeaferGraphRenderableNodeState
@@ -55,6 +59,7 @@ export interface LeaferGraphSceneRuntimeAssemblyOptions<
   widgetEditingManager: LeaferGraphWidgetEditingManager;
   widgetEditingContext: LeaferGraphWidgetEditingContext;
   requestRender(): void;
+  renderFrame(): void;
   nodeShellLayoutMetrics: NodeShellLayoutMetrics;
   nodeShellStyle: LeaferGraphNodeShellStyleConfig;
   resolveSelectedStroke(mode: LeaferGraphThemeMode): string;
@@ -63,6 +68,7 @@ export interface LeaferGraphSceneRuntimeAssemblyOptions<
   linkDefaultNodeWidth: number;
   linkPortSize: number;
   linkStroke: string;
+  dataFlowAnimationStyle: LeaferGraphDataFlowAnimationStyleConfig;
 }
 
 /**
@@ -84,6 +90,7 @@ export interface LeaferGraphSceneRuntimeAssemblyResult<
     TNodeState,
     NodeViewState<TNodeState>
   >;
+  dataFlowAnimationHost: LeaferGraphLinkDataFlowAnimationHost<TNodeState>;
   graphExecutionRuntimeHost: LeaferGraphExecutionRuntimeHost<TNodeState>;
   interactionHost: LeaferGraphInteractionHost<
     TNodeState,
@@ -124,6 +131,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     TNodeState,
     NodeViewState<TNodeState>
   >;
+  let dataFlowAnimationHost!: LeaferGraphLinkDataFlowAnimationHost<TNodeState>;
   let graphExecutionRuntimeHost!: LeaferGraphExecutionRuntimeHost<TNodeState>;
 
   const widgetHost = new LeaferGraphWidgetHost({
@@ -256,6 +264,24 @@ export function createLeaferGraphSceneRuntimeAssembly<
       nodeShellHost.resolveNodeResizeConstraint(node)
   });
 
+  dataFlowAnimationHost = new LeaferGraphLinkDataFlowAnimationHost({
+    container: options.container,
+    linkLayer: options.canvasState.linkLayer,
+    graphNodes: options.graphState.nodes,
+    graphLinks: options.graphState.links,
+    layoutMetrics: options.nodeShellLayoutMetrics,
+    defaultNodeWidth: options.linkDefaultNodeWidth,
+    portSize: options.linkPortSize,
+    linkStroke: options.linkStroke,
+    slotTypeFillMap: options.nodeShellStyle.slotTypeFillMap,
+    style: options.dataFlowAnimationStyle,
+    getThemeMode: () => options.themeHost.getMode(),
+    requestRender: options.requestRender,
+    renderFrame: options.renderFrame,
+    subscribeLinkPropagation: (listener) =>
+      nodeRuntimeHost.subscribeLinkPropagation(listener)
+  });
+
   graphExecutionRuntimeHost = new LeaferGraphExecutionRuntimeHost({
     nodeRuntimeHost
   });
@@ -320,7 +346,9 @@ export function createLeaferGraphSceneRuntimeAssembly<
       widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
     clearNodeLayer: () => options.canvasState.nodeLayer.removeAll(),
     clearLinkLayer: () => {
+      dataFlowAnimationHost.clear();
       options.canvasState.linkLayer.removeAll();
+      dataFlowAnimationHost.restoreLayer();
       interactionRuntimeHost.restoreConnectionPreviewLayer();
     },
     mountNodeView: (node) => sceneHost.mountNodeView(node),
@@ -334,6 +362,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     viewHost,
     sceneRuntimeHost,
     nodeRuntimeHost,
+    dataFlowAnimationHost,
     graphExecutionRuntimeHost,
     interactionHost,
     interactionRuntimeHost,
