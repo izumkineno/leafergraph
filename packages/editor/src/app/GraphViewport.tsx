@@ -6,10 +6,7 @@ import {
   type LeaferGraphConnectionPortState,
   type LeaferGraphGraphExecutionState,
   type LeaferGraph,
-  type LeaferGraphContextMenuBindingTarget,
   type LeaferGraphData,
-  type LeaferGraphContextMenuContext,
-  type LeaferGraphContextMenuItem,
   type LeaferGraphContextMenuManager,
   type LeaferGraphLinkData,
   type LeaferGraphNodeExecutionEvent,
@@ -20,6 +17,7 @@ import {
 import {
   createEditorCommandBus,
   type EditorCommandBus,
+  type EditorCommandRequest,
   type EditorCommandExecution
 } from "../commands/command_bus";
 import {
@@ -32,6 +30,17 @@ import {
   resolveGraphViewportBackground,
   type EditorTheme
 } from "../theme";
+import {
+  bindLinkContextMenu,
+  bindNodeContextMenu,
+  createLinkMenuBindingKey,
+  createNodeMenuBindingKey,
+  type EditorNodePointerDownEvent
+} from "../menu/context_menu_bindings";
+import {
+  createEditorContextMenuBeforeOpenHandler,
+  createEditorContextMenuResolver
+} from "../menu/context_menu_resolver";
 
 interface GraphViewportProps {
   graph: LeaferGraphData;
@@ -39,6 +48,9 @@ interface GraphViewportProps {
   plugins?: LeaferGraphOptions["plugins"];
   quickCreateNodeType?: string;
   theme: EditorTheme;
+  onEditorToolbarControlsChange?(
+    controls: GraphViewportToolbarControlsState | null
+  ): void;
   onGraphRuntimeControlsChange?(
     controls: GraphViewportRuntimeControlsState | null
   ): void;
@@ -59,6 +71,48 @@ export interface GraphViewportRuntimeControlsState {
   play(): void;
   step(): void;
   stop(): void;
+}
+
+/** editor 顶栏工具栏当前支持的动作 ID。 */
+export type GraphViewportToolbarActionId =
+  | "undo"
+  | "redo"
+  | "fit-view"
+  | "select-all"
+  | "paste"
+  | "copy"
+  | "cut"
+  | "duplicate"
+  | "delete";
+
+/** editor 顶栏工具栏动作分组。 */
+export type GraphViewportToolbarActionGroup =
+  | "history"
+  | "canvas"
+  | "selection";
+
+/** 单个工具栏按钮的可见状态。 */
+export interface GraphViewportToolbarActionState {
+  id: GraphViewportToolbarActionId;
+  group: GraphViewportToolbarActionGroup;
+  label: string;
+  disabled: boolean;
+  description: string;
+  shortcut?: string;
+  danger?: boolean;
+}
+
+/**
+ * 顶栏工具栏控制态。
+ *
+ * @remarks
+ * GraphViewport 继续持有命令总线和历史记录；
+ * App 只消费这里暴露出来的展示态和执行入口，不直接触碰底层图命令实现。
+ */
+export interface GraphViewportToolbarControlsState {
+  available: boolean;
+  actions: readonly GraphViewportToolbarActionState[];
+  execute(actionId: GraphViewportToolbarActionId): void;
 }
 
 interface GraphViewportRuntimeInspectorState {
@@ -564,22 +618,6 @@ function groupRuntimeFailureEntries(
 }
 
 /**
- * editor 当前关心的节点按下事件最小子集。
- * 这里只读取修饰键，不直接依赖 Leafer 完整事件类型，避免把 editor 绑死到具体实现细节。
- */
-interface EditorNodePointerDownEvent {
-  button?: number;
-  ctrlKey?: boolean;
-  metaKey?: boolean;
-  shiftKey?: boolean;
-  left?: boolean;
-  right?: boolean;
-  origin?: {
-    button?: number;
-  };
-}
-
-/**
  * editor 只需要 Leafer 的最小坐标换算能力，
  * 用来把宿主 DOM 指针位置转换成画布世界坐标。
  */
@@ -627,26 +665,6 @@ interface GraphViewportMarqueeState {
 }
 
 /**
- * 节点菜单挂载元信息。
- * editor 当前还没有完整选区和命令系统，因此先把节点级菜单真正需要的最小信息集中到这里。
- */
-interface GraphViewportNodeMenuBindingMeta extends Record<string, unknown> {
-  nodeId: string;
-  nodeTitle: string;
-  nodeType?: string;
-}
-
-/** 连线菜单挂载元信息。 */
-interface GraphViewportLinkMenuBindingMeta extends Record<string, unknown> {
-  entity: "link";
-  linkId: string;
-  sourceNodeId: string;
-  sourceSlot: number;
-  targetNodeId: string;
-  targetSlot: number;
-}
-
-/**
  * editor 侧最小连线重连会话。
  *
  * @remarks
@@ -661,46 +679,6 @@ interface GraphViewportReconnectState {
     y: number;
   };
   hoveredTarget: LeaferGraphConnectionPortState | null;
-}
-
-/**
- * 为节点级菜单生成挂载 key。
- * 统一 key 规则后，新建、删除和未来的重绑逻辑都可以共用一条路径。
- */
-function createNodeMenuBindingKey(nodeId: string): string {
-  return `node:${nodeId}`;
-}
-
-/** 为连线级菜单生成挂载 key。 */
-function createLinkMenuBindingKey(linkId: string): string {
-  return `link:${linkId}`;
-}
-
-/** 规范化节点菜单挂载元信息。 */
-function createNodeMenuBindingMeta(node: {
-  id: string;
-  title: string;
-  type?: string;
-}): GraphViewportNodeMenuBindingMeta {
-  return {
-    nodeId: node.id,
-    nodeTitle: node.title,
-    nodeType: node.type
-  };
-}
-
-/** 规范化连线菜单挂载元信息。 */
-function createLinkMenuBindingMeta(
-  link: LeaferGraphLinkData
-): GraphViewportLinkMenuBindingMeta {
-  return {
-    entity: "link",
-    linkId: link.id,
-    sourceNodeId: link.source.nodeId,
-    sourceSlot: link.source.slot ?? 0,
-    targetNodeId: link.target.nodeId,
-    targetSlot: link.target.slot ?? 0
-  };
 }
 
 /** 判断当前激活元素是否处于文本编辑场景，避免快捷键误删。 */
@@ -721,54 +699,6 @@ function isTextEditingElement(element: EventTarget | null): boolean {
 /** 判断是否按下了当前平台的主命令修饰键。 */
 function hasPrimaryCommandModifier(event: KeyboardEvent): boolean {
   return event.ctrlKey || event.metaKey;
-}
-
-/**
- * 绑定或刷新单个节点的右键菜单。
- * 这里显式先解绑再绑定，避免后续节点视图被替换时菜单仍然挂在旧图元上。
- */
-function bindNodeContextMenu(
-  graph: LeaferGraph,
-  menu: LeaferGraphContextMenuManager,
-  onSelectNode: (nodeId: string, event?: EditorNodePointerDownEvent) => void,
-  node: {
-    id: string;
-    title: string;
-    type?: string;
-  }
-): void {
-  const key = createNodeMenuBindingKey(node.id);
-  const view = graph.getNodeView(node.id);
-  if (!view) {
-    return;
-  }
-
-  view.on("pointer.down", (event: EditorNodePointerDownEvent) => {
-    onSelectNode(node.id, event);
-  });
-  menu.unbindTarget(key);
-  menu.bindNode(key, view, createNodeMenuBindingMeta(node));
-}
-
-/** 绑定或刷新单条连线的右键菜单。 */
-function bindLinkContextMenu(
-  graph: LeaferGraph,
-  menu: LeaferGraphContextMenuManager,
-  link: LeaferGraphLinkData
-): void {
-  const key = createLinkMenuBindingKey(link.id);
-  const view = graph.getLinkView(link.id);
-  if (!view) {
-    return;
-  }
-
-  menu.unbindTarget(key);
-  menu.bindTarget({
-    key,
-    kind: "custom",
-    target: view as LeaferGraphContextMenuBindingTarget,
-    meta: createLinkMenuBindingMeta(link)
-  });
 }
 
 /** 判断节点点击是否应该走“切换选区”路径。 */
@@ -831,6 +761,7 @@ export function GraphViewport({
   plugins,
   quickCreateNodeType,
   theme,
+  onEditorToolbarControlsChange,
   onGraphRuntimeControlsChange
 }: GraphViewportProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -924,6 +855,7 @@ export function GraphViewport({
     let commandBus!: EditorCommandBus;
     let commandHistory!: EditorCommandHistory;
     let disposed = false;
+    let syncEditorToolbarControls = (): void => {};
     const syncGraphRuntimeControls = (): void => {
       if (disposed) {
         return;
@@ -969,6 +901,7 @@ export function GraphViewport({
     };
     const disposeSelectionSubscription = selection.subscribe(() => {
       syncInfoPanelState();
+      syncEditorToolbarControls();
     });
     const disposeNodeExecutionSubscription = graph.subscribeNodeExecution(
       (event) => {
@@ -977,6 +910,7 @@ export function GraphViewport({
           appendRuntimeHistoryEntry(entries, createRuntimeHistoryEntryFromEvent(event))
         );
         syncInfoPanelState();
+        syncEditorToolbarControls();
       }
     );
     const disposeGraphExecutionSubscription = graph.subscribeGraphExecution(() => {
@@ -998,6 +932,8 @@ export function GraphViewport({
       ) {
         syncInfoPanelState();
       }
+
+      syncEditorToolbarControls();
     });
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
@@ -1382,22 +1318,6 @@ export function GraphViewport({
 
       selection.select(nodeId);
     };
-    const removeNodeFromMenu = (nodeId: string): void => {
-      if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commandBus.execute({ type: "selection.remove" });
-        return;
-      }
-
-      commandBus.execute({ type: "node.remove", nodeId });
-    };
-    const removeLinkFromMenu = (linkId: string): void => {
-      if (!graphReady) {
-        return;
-      }
-
-      commandBus.execute({ type: "link.remove", linkId });
-      scheduleLinkContextMenuSync();
-    };
     const pasteCopiedNodeAtLatestPointer = (): void => {
       const pointerPagePoint = resolveLatestPointerPagePoint();
       commandBus.execute({
@@ -1405,18 +1325,17 @@ export function GraphViewport({
         point: pointerPagePoint
       });
     };
+    /** 统一从命令状态读取快捷键是否可触发，避免 GraphViewport 自己维护第二套禁用判断。 */
+    const isCommandShortcutEnabled = (request: EditorCommandRequest): boolean =>
+      !commandBus.resolveCommandState(request).disabled;
     const pasteCopiedNodeByKeyboard = (): void => {
-      if (
-        !graphReady ||
-        !commandBus.canExecute({ type: "clipboard.paste", point: null })
-      ) {
+      if (!isCommandShortcutEnabled({ type: "clipboard.paste", point: null })) {
         return;
       }
 
       runAfterViewportSettle(() => {
         if (
-          !graphReady ||
-          !commandBus.canExecute({ type: "clipboard.paste", point: null })
+          !isCommandShortcutEnabled({ type: "clipboard.paste", point: null })
         ) {
           return;
         }
@@ -1424,304 +1343,37 @@ export function GraphViewport({
         pasteCopiedNodeAtLatestPointer();
       });
     };
-    const createNodeFromMenu = (
-      context: LeaferGraphContextMenuContext
-    ): void => {
-      if (!graphReady) {
-        return;
-      }
-
-      commandBus.execute({ type: "canvas.create-node", context });
-    };
-    const copyNodeFromMenu = (nodeId: string): void => {
-      if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commandBus.execute({ type: "selection.copy" });
-        return;
-      }
-
-      commandBus.execute({ type: "clipboard.copy-node", nodeId });
-    };
-    const cutNodeFromMenu = (nodeId: string): void => {
-      if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commandBus.execute({ type: "clipboard.cut-selection" });
-        return;
-      }
-
-      selection.select(nodeId);
-      commandBus.execute({ type: "clipboard.cut-selection" });
-    };
-    const pasteCopiedNodeFromMenu = (
-      context: LeaferGraphContextMenuContext
-    ): void => {
-      if (
-        !graphReady ||
-        !commandBus.canExecute({ type: "clipboard.paste", point: null })
-      ) {
-        return;
-      }
-
-      commandBus.execute({
-        type: "clipboard.paste",
-        point: context.pagePoint
-      });
-    };
-    const duplicateNodeFromMenu = (
-      nodeId: string,
-      _context: LeaferGraphContextMenuContext
-    ): void => {
-      if (!graphReady) {
-        return;
-      }
-
-      const snapshot = graph.getNodeSnapshot(nodeId);
-      if (!snapshot) {
-        return;
-      }
-
-      const baseX = snapshot.layout.x;
-      const baseY = snapshot.layout.y;
-      if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        commandBus.execute({ type: "selection.duplicate" });
-        return;
-      }
-
-      commandBus.execute({
-        type: "node.duplicate",
-        nodeId,
-        x: baseX + 48,
-        y: baseY + 48
-      });
-    };
-    const resetNodeSizeFromMenu = (nodeId: string): void => {
-      if (!graphReady) {
-        return;
-      }
-
-      commandBus.execute({ type: "node.reset-size", nodeId });
-    };
-    const executeNodeFromMenu = (nodeId: string): void => {
-      if (!graphReady) {
-        return;
-      }
-
-      commandBus.execute({ type: "node.play", nodeId });
-    };
-    const resolveExecuteNodeDescription = (nodeId: string): string => {
-      const executionState = graph.getNodeExecutionState(nodeId);
-
-      if (!executionState || executionState.status === "idle") {
-        return "从当前节点开始运行正式执行链；若节点未实现 onExecute(...) 则不会产生运行结果";
-      }
-
-      if (executionState.status === "running") {
-        return `节点正在执行中，当前累计执行 ${executionState.runCount} 次`;
-      }
-
-      if (executionState.status === "success") {
-        return `最近一次执行成功，当前累计执行 ${executionState.runCount} 次`;
-      }
-
-      return executionState.lastErrorMessage
-        ? `最近一次执行失败：${executionState.lastErrorMessage}`
-        : "最近一次执行失败，请查看节点信号灯或控制台日志";
-    };
     /**
      * 使用主包已经接入的 `@leafer-in/view` 能力执行适配视图。
-     * 当前 editor 先只透传最小命令，不在这一层重复计算包围盒。
+     * 当前 editor 继续只透传最小命令，不在这一层重复计算包围盒。
      */
     const fitGraphView = (): void => {
-      if (!graphReady) {
+      const request: EditorCommandRequest = { type: "canvas.fit-view" };
+      if (!isCommandShortcutEnabled(request)) {
         return;
       }
 
-      commandBus.execute({ type: "canvas.fit-view" });
+      commandBus.execute(request);
     };
-    const resolveContextMenuItems = (
-      context: LeaferGraphContextMenuContext
-    ): LeaferGraphContextMenuItem[] => {
-      if (context.bindingKind === "node") {
-        const nodeId = String(context.bindingMeta?.nodeId ?? context.bindingKey);
-        const nodeTitle = String(context.bindingMeta?.nodeTitle ?? nodeId);
-        const isSelected = selection.isSelected(nodeId);
-        const isMultipleSelected = selection.hasMultipleSelected();
-        const selectedCount = selection.selectedNodeIds.length;
-        const isCopiedSource = commandBus.isClipboardSourceNode(nodeId);
-        const resizeMenuState = commandBus.resolveResizeState(nodeId);
-        const useBatchAction = isSelected && isMultipleSelected;
-
-        return [
-          {
-            key: "copy-node",
-            label: useBatchAction ? `复制所选 ${selectedCount} 个节点` : `复制 ${nodeTitle}`,
-            shortcut: "Ctrl+C",
-            description: useBatchAction
-              ? "把当前多选节点整体写入剪贴板，并保留相对布局"
-              : isCopiedSource
-              ? "当前节点已经在剪贴板中，再次复制会刷新快照"
-              : "保存当前节点快照，供画布菜单粘贴使用",
-            onSelect() {
-              copyNodeFromMenu(nodeId);
-            }
-          },
-          {
-            key: "cut-node",
-            label: useBatchAction ? `剪切所选 ${selectedCount} 个节点` : `剪切 ${nodeTitle}`,
-            shortcut: "Ctrl+X",
-            description: useBatchAction
-              ? "把当前多选节点写入剪贴板后，从画布中批量移除"
-              : "把当前节点写入剪贴板后，从画布中移除",
-            onSelect() {
-              cutNodeFromMenu(nodeId);
-            }
-          },
-          {
-            key: "duplicate-node",
-            label: useBatchAction ? "复制并粘贴选区" : "复制并粘贴",
-            shortcut: "Ctrl+D",
-            description: useBatchAction
-              ? "按当前多选节点的相对布局创建一组偏移副本"
-              : "基于当前节点快照创建一个偏移副本",
-            onSelect() {
-              duplicateNodeFromMenu(nodeId, context);
-            }
-          },
-          {
-            key: "execute-node",
-            label: "从此节点开始运行",
-            description: resolveExecuteNodeDescription(nodeId),
-            disabled: !graphReady || !commandBus.canExecute({ type: "node.play", nodeId }),
-            onSelect() {
-              executeNodeFromMenu(nodeId);
-            }
-          },
-          {
-            key: "reset-node-size",
-            label: "重置节点尺寸",
-            description: resizeMenuState.description,
-            disabled: resizeMenuState.disabled,
-            onSelect() {
-              resetNodeSizeFromMenu(nodeId);
-            }
-          },
-          { kind: "separator", key: "node-divider" },
-          {
-            key: "remove-node",
-            label: useBatchAction ? `删除所选 ${selectedCount} 个节点` : "删除节点",
-            shortcut: "Delete",
-            description:
-              (isSelected && isMultipleSelected) || isCopiedSource
-                ? "删除时会同步更新当前多选态和复制态"
-                : isSelected
-                  ? "删除时会同步清理当前节点的选中态和复制态"
-                  : "已接入主包 removeNode(...)",
-            danger: true,
-            onSelect() {
-              removeNodeFromMenu(nodeId);
-            }
-          }
-        ];
-      }
-
-      if (
-        context.bindingKind === "custom" &&
-        context.bindingMeta?.entity === "link"
-      ) {
-        const linkId = String(context.bindingMeta.linkId ?? context.bindingKey);
-        const sourceNodeId = String(context.bindingMeta.sourceNodeId ?? "");
-        const sourceSlot = Number(context.bindingMeta.sourceSlot ?? 0);
-        const targetNodeId = String(context.bindingMeta.targetNodeId ?? "");
-        const targetSlot = Number(context.bindingMeta.targetSlot ?? 0);
-
-        return [
-          {
-            key: "remove-link",
-            label: "删除连线",
-            shortcut: "Delete",
-            description: `断开 ${sourceNodeId}[${sourceSlot}] -> ${targetNodeId}[${targetSlot}]`,
-            disabled:
-              !graphReady || !commandBus.canExecute({ type: "link.remove", linkId }),
-            danger: true,
-            onSelect() {
-              removeLinkFromMenu(linkId);
-            }
-          },
-          {
-            key: "reconnect-link",
-            label: "重新连接",
-            description: "从当前输出端口重新选择目标输入端口，按 Esc 可取消",
-            disabled: !graphReady || !graph.getLink(linkId),
-            onSelect() {
-              startReconnectSession(linkId);
-            }
-          }
-        ];
-      }
-
-      const createNodeState = commandBus.resolveCreateNodeState();
-      const items: LeaferGraphContextMenuItem[] = [
-        {
-          key: "create-node-here",
-          label: "在这里创建节点",
-          description: graphReady
-            ? createNodeState.description
-            : "图初始化完成后可用",
-          disabled: !graphReady || createNodeState.disabled,
-          onSelect() {
-            createNodeFromMenu(context);
-          }
-        },
-        {
-          key: "fit-view",
-          label: "适配视图",
-          shortcut: "Shift+1",
-          description: graphReady
-            ? "已接入 @leafer-in/view 的 fitView()"
-            : "图初始化完成后可用",
-          disabled: !graphReady,
-          onSelect() {
-            fitGraphView();
-          }
-        }
-      ];
-
-      if (commandBus.canExecute({ type: "clipboard.paste", point: null })) {
-        const selectedNodeId = selection.primarySelectedNodeId;
-        items.splice(1, 0, {
-          key: "paste-copied-node",
-          label: "粘贴已复制节点",
-          shortcut: "Ctrl+V",
-          description: graphReady
-            ? `把最近复制的节点放到当前画布位置${
-                selectedNodeId ? "，并切换选中态" : ""
-              }`
-            : "图初始化完成后可用",
-          disabled: !graphReady,
-          onSelect() {
-            pasteCopiedNodeFromMenu(context);
-          }
-        });
-      }
-
-      return items;
-    };
-
     menu = createLeaferGraphContextMenu({
       app: graph.app,
       container: graph.container,
-      resolveItems: resolveContextMenuItems,
-      onBeforeOpen(context) {
-        if (context.bindingKind === "node") {
-          const nodeId = String(context.bindingMeta?.nodeId ?? context.bindingKey);
-          if (!selection.isSelected(nodeId)) {
-            selection.select(nodeId);
-          }
-          return;
+      resolveItems: createEditorContextMenuResolver({
+        graph,
+        selection,
+        resolveCommandBus: () => commandBus,
+        onRemoveLink(linkId) {
+          commandBus.execute({ type: "link.remove", linkId });
+          scheduleLinkContextMenuSync();
+        },
+        onStartReconnect(linkId) {
+          startReconnectSession(linkId);
         }
-
-        if (context.bindingKind === "canvas") {
-          commandBus.execute({ type: "selection.clear" });
-        }
-      }
+      }),
+      onBeforeOpen: createEditorContextMenuBeforeOpenHandler({
+        selection,
+        resolveCommandBus: () => commandBus
+      })
     });
     const bindEditorNode = (node: {
       id: string;
@@ -1796,14 +1448,181 @@ export function GraphViewport({
       bindNode: bindEditorNode,
       unbindNode: unbindEditorNode,
       quickCreateNodeType,
+      isRuntimeReady: () => graphReady,
       onAfterFitView: schedulePointerWorldPointRefresh,
       onDidExecute(execution) {
         latestExecution = execution;
         commandHistory.record(execution);
         scheduleLinkContextMenuSync();
         syncInfoPanelState();
+        syncEditorToolbarControls();
       }
     });
+    const executeEditorToolbarAction = (
+      actionId: GraphViewportToolbarActionId
+    ): void => {
+      switch (actionId) {
+        case "undo":
+          if (!commandHistory.canUndo) {
+            return;
+          }
+          commandHistory.undo();
+          scheduleLinkContextMenuSync();
+          syncInfoPanelState();
+          syncEditorToolbarControls();
+          return;
+        case "redo":
+          if (!commandHistory.canRedo) {
+            return;
+          }
+          commandHistory.redo();
+          scheduleLinkContextMenuSync();
+          syncInfoPanelState();
+          syncEditorToolbarControls();
+          return;
+        case "fit-view":
+          fitGraphView();
+          return;
+        case "select-all":
+          commandBus.execute({
+            type: "selection.select-all",
+            nodeIds: [...boundNodeIds]
+          });
+          return;
+        case "paste":
+          pasteCopiedNodeByKeyboard();
+          return;
+        case "copy":
+          commandBus.execute({ type: "selection.copy" });
+          return;
+        case "cut":
+          commandBus.execute({ type: "clipboard.cut-selection" });
+          return;
+        case "duplicate":
+          commandBus.execute({ type: "selection.duplicate" });
+          return;
+        case "delete":
+          commandBus.execute({ type: "selection.remove" });
+          return;
+      }
+    };
+    syncEditorToolbarControls = (): void => {
+      if (disposed) {
+        return;
+      }
+
+      const fitViewRequest: EditorCommandRequest = { type: "canvas.fit-view" };
+      const selectAllRequest: EditorCommandRequest = {
+        type: "selection.select-all",
+        nodeIds: [...boundNodeIds]
+      };
+      const pasteRequest: EditorCommandRequest = {
+        type: "clipboard.paste",
+        point: null
+      };
+      const copyRequest: EditorCommandRequest = { type: "selection.copy" };
+      const cutRequest: EditorCommandRequest = {
+        type: "clipboard.cut-selection"
+      };
+      const duplicateRequest: EditorCommandRequest = {
+        type: "selection.duplicate"
+      };
+      const deleteRequest: EditorCommandRequest = { type: "selection.remove" };
+      const fitViewState = commandBus.resolveCommandState(fitViewRequest);
+      const selectAllState = commandBus.resolveCommandState(selectAllRequest);
+      const pasteState = commandBus.resolveCommandState(pasteRequest);
+      const copyState = commandBus.resolveCommandState(copyRequest);
+      const cutState = commandBus.resolveCommandState(cutRequest);
+      const duplicateState = commandBus.resolveCommandState(duplicateRequest);
+      const deleteState = commandBus.resolveCommandState(deleteRequest);
+
+      onEditorToolbarControlsChange?.({
+        available: graphReady,
+        actions: [
+          {
+            id: "undo",
+            group: "history",
+            label: "撤销",
+            disabled: !commandHistory.canUndo,
+            description: commandHistory.undoEntry?.undoSummary ?? "当前没有可撤销操作",
+            shortcut: "Ctrl+Z"
+          },
+          {
+            id: "redo",
+            group: "history",
+            label: "重做",
+            disabled: !commandHistory.canRedo,
+            description: commandHistory.redoEntry?.redoSummary ?? "当前没有可重做操作",
+            shortcut: "Ctrl+Shift+Z / Ctrl+Y"
+          },
+          {
+            id: "fit-view",
+            group: "canvas",
+            label: "适配",
+            disabled: fitViewState.disabled,
+            description: fitViewState.description,
+            shortcut: fitViewState.shortcut,
+            danger: fitViewState.danger
+          },
+          {
+            id: "select-all",
+            group: "selection",
+            label: "全选",
+            disabled: selectAllState.disabled,
+            description: selectAllState.description,
+            shortcut: selectAllState.shortcut,
+            danger: selectAllState.danger
+          },
+          {
+            id: "paste",
+            group: "selection",
+            label: "粘贴",
+            disabled: pasteState.disabled,
+            description: pasteState.description,
+            shortcut: pasteState.shortcut,
+            danger: pasteState.danger
+          },
+          {
+            id: "copy",
+            group: "selection",
+            label: "复制",
+            disabled: copyState.disabled,
+            description: copyState.description,
+            shortcut: copyState.shortcut,
+            danger: copyState.danger
+          },
+          {
+            id: "cut",
+            group: "selection",
+            label: "剪切",
+            disabled: cutState.disabled,
+            description: cutState.description,
+            shortcut: cutState.shortcut,
+            danger: cutState.danger
+          },
+          {
+            id: "duplicate",
+            group: "selection",
+            label: "副本",
+            disabled: duplicateState.disabled,
+            description: duplicateState.description,
+            shortcut: duplicateState.shortcut,
+            danger: duplicateState.danger
+          },
+          {
+            id: "delete",
+            group: "selection",
+            label: "删除",
+            disabled: deleteState.disabled,
+            description: deleteState.description,
+            shortcut: deleteState.shortcut,
+            danger: deleteState.danger
+          }
+        ],
+        execute: executeEditorToolbarAction
+      });
+    };
+    syncEditorToolbarControls();
     (graph.app.tree as typeof graph.app.tree & GraphViewportViewEventHost).on(
       "leafer.transform",
       handleTreeTransform
@@ -1827,6 +1646,7 @@ export function GraphViewport({
 
       syncLinkContextMenus();
       syncInfoPanelState();
+      syncEditorToolbarControls();
     });
 
     /**
@@ -2056,23 +1876,27 @@ export function GraphViewport({
         !event.ctrlKey &&
         !event.metaKey
       ) {
+        if (!isCommandShortcutEnabled({ type: "canvas.fit-view" })) {
+          return;
+        }
+
         event.preventDefault();
         fitGraphView();
         return;
       }
 
       if (event.key === "Delete") {
-        if (
-          event.ctrlKey ||
-          event.metaKey ||
-          event.shiftKey ||
-          !selection.primarySelectedNodeId
-        ) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = { type: "selection.remove" };
+        if (!isCommandShortcutEnabled(request)) {
           return;
         }
 
         event.preventDefault();
-        commandBus.execute({ type: "selection.remove" });
+        commandBus.execute(request);
         return;
       }
 
@@ -2091,6 +1915,7 @@ export function GraphViewport({
           event.preventDefault();
           commandHistory.redo();
           scheduleLinkContextMenuSync();
+          syncEditorToolbarControls();
           return;
         }
 
@@ -2101,6 +1926,7 @@ export function GraphViewport({
         event.preventDefault();
         commandHistory.undo();
         scheduleLinkContextMenuSync();
+        syncEditorToolbarControls();
         return;
       }
 
@@ -2112,16 +1938,22 @@ export function GraphViewport({
         event.preventDefault();
         commandHistory.redo();
         scheduleLinkContextMenuSync();
+        syncEditorToolbarControls();
         return;
       }
 
       if (key === "c") {
-        if (!selection.primarySelectedNodeId || event.shiftKey) {
+        if (event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = { type: "selection.copy" };
+        if (!isCommandShortcutEnabled(request)) {
           return;
         }
 
         event.preventDefault();
-        commandBus.execute({ type: "selection.copy" });
+        commandBus.execute(request);
         return;
       }
 
@@ -2130,39 +1962,57 @@ export function GraphViewport({
           return;
         }
 
-        event.preventDefault();
-        commandBus.execute({
+        const request: EditorCommandRequest = {
           type: "selection.select-all",
           nodeIds: [...boundNodeIds]
-        });
+        };
+        if (!isCommandShortcutEnabled(request)) {
+          return;
+        }
+
+        event.preventDefault();
+        commandBus.execute(request);
         return;
       }
 
       if (key === "x") {
-        if (!selection.primarySelectedNodeId || event.shiftKey) {
+        if (event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = {
+          type: "clipboard.cut-selection"
+        };
+        if (!isCommandShortcutEnabled(request)) {
           return;
         }
 
         event.preventDefault();
-        commandBus.execute({ type: "clipboard.cut-selection" });
+        commandBus.execute(request);
         return;
       }
 
       if (key === "d") {
-        if (!selection.primarySelectedNodeId || event.shiftKey) {
+        if (event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = { type: "selection.duplicate" };
+        if (!isCommandShortcutEnabled(request)) {
           return;
         }
 
         event.preventDefault();
-        commandBus.execute({ type: "selection.duplicate" });
+        commandBus.execute(request);
         return;
       }
 
       if (key === "v") {
-        if (
-          !commandBus.canExecute({ type: "clipboard.paste", point: null }) ||
-          event.shiftKey
-        ) {
+        if (event.shiftKey) {
+          return;
+        }
+
+        if (!isCommandShortcutEnabled({ type: "clipboard.paste", point: null })) {
           return;
         }
 
@@ -2229,6 +2079,7 @@ export function GraphViewport({
       disposeSelectionSubscription();
       hideSelectionBox();
       menu.destroy();
+      onEditorToolbarControlsChange?.(null);
       onGraphRuntimeControlsChange?.(null);
       graphRef.current = null;
       graph.destroy();
@@ -2236,6 +2087,7 @@ export function GraphViewport({
   }, [
     graphData,
     modules,
+    onEditorToolbarControlsChange,
     onGraphRuntimeControlsChange,
     plugins,
     quickCreateNodeType

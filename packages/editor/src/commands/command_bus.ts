@@ -203,6 +203,26 @@ export interface EditorCommandExecution {
 }
 
 /**
+ * editor 命令展示状态。
+ *
+ * @remarks
+ * 这一层专门给右键菜单、快捷键提示和未来工具栏复用：
+ * - `disabled` 统一表达当前命令能否从交互入口发起
+ * - `description` 给菜单说明、按钮 tooltip 和后续命令面板使用
+ * - `shortcut` / `danger` 让不同 UI 入口共享同一份展示元数据
+ */
+export interface EditorCommandState {
+  /** 当前命令是否处于禁用态。 */
+  disabled: boolean;
+  /** 当前命令对用户可见的最小说明文案。 */
+  description: string;
+  /** 当前命令的默认快捷键提示。 */
+  shortcut?: string;
+  /** 当前命令是否属于危险动作。 */
+  danger?: boolean;
+}
+
+/**
  * editor 统一命令总线。
  *
  * @remarks
@@ -217,6 +237,8 @@ export interface EditorCommandBus {
   readonly lastExecution: EditorCommandExecution | null;
   /** 判断某个命令当前是否可执行。 */
   canExecute(request: EditorCommandRequest): boolean;
+  /** 读取某个命令当前的统一展示状态。 */
+  resolveCommandState(request: EditorCommandRequest): EditorCommandState;
   /** 执行一条命令。 */
   execute(request: EditorCommandRequest): EditorCommandExecution;
   /** 读取“快速创建节点”命令状态。 */
@@ -239,6 +261,8 @@ export interface CreateEditorCommandBusOptions
     Pick<CreateEditorCanvasCommandControllerOptions, "quickCreateNodeType" | "onAfterFitView"> {
   /** 命令真正执行完成后的订阅入口，供未来历史记录与调试面板复用。 */
   onDidExecute?(execution: EditorCommandExecution): void;
+  /** 当前图运行时是否已经准备完成。 */
+  isRuntimeReady?(): boolean;
 }
 
 /** 判断两份节点 ID 列表是否表达了同一组选区。 */
@@ -379,6 +403,7 @@ export function createEditorCommandBus(
 
   const hasSelection = (selection: EditorNodeSelectionController): boolean =>
     Boolean(selection.primarySelectedNodeId);
+  const isRuntimeReady = (): boolean => options.isRuntimeReady?.() ?? true;
   let lastExecution: EditorCommandExecution | null = null;
 
   const commitExecution = (
@@ -408,42 +433,249 @@ export function createEditorCommandBus(
       timestamp: Date.now()
     });
 
-  const canExecute = (request: EditorCommandRequest): boolean => {
+  const requiresRuntimeReady = (request: EditorCommandRequest): boolean => {
     switch (request.type) {
       case "canvas.create-node":
-        return !canvasCommands.resolveCreateNodeState().disabled;
       case "canvas.fit-view":
-        return true;
+      case "clipboard.paste":
       case "link.create":
-        return true;
       case "link.remove":
-        return linkCommands.hasLink(request.linkId);
       case "link.reconnect":
-        return linkCommands.hasLink(request.linkId);
+      case "node.play":
+      case "node.reset-size":
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const resolveCommandDisabled = (request: EditorCommandRequest): boolean => {
+    if (requiresRuntimeReady(request) && !isRuntimeReady()) {
+      return true;
+    }
+
+    switch (request.type) {
+      case "canvas.create-node":
+        return canvasCommands.resolveCreateNodeState().disabled;
+      case "canvas.fit-view":
+        return false;
+      case "link.create":
+        return false;
+      case "link.remove":
+        return !linkCommands.hasLink(request.linkId);
+      case "link.reconnect":
+        return !linkCommands.hasLink(request.linkId);
       case "clipboard.copy-node":
-        return Boolean(options.graph.getNodeSnapshot(request.nodeId));
+        return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "clipboard.copy-selection":
       case "clipboard.cut-selection":
       case "selection.copy":
       case "selection.duplicate":
       case "selection.remove":
-        return hasSelection(options.selection);
+        return !hasSelection(options.selection);
       case "clipboard.paste":
-        return Boolean(nodeCommands.clipboard);
+        return !Boolean(nodeCommands.clipboard);
       case "node.duplicate":
-        return Boolean(options.graph.getNodeSnapshot(request.nodeId));
+        return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.remove":
-        return Boolean(options.graph.getNodeSnapshot(request.nodeId));
+        return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.play":
-        return Boolean(options.graph.getNodeSnapshot(request.nodeId));
+        return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.reset-size":
-        return !nodeCommands.resolveResizeState(request.nodeId).disabled;
+        return nodeCommands.resolveResizeState(request.nodeId).disabled;
       case "selection.clear":
-        return options.selection.selectedNodeIds.length > 0;
+        return options.selection.selectedNodeIds.length === 0;
       case "selection.select-all":
-        return request.nodeIds.length > 0;
+        return request.nodeIds.length === 0;
       default:
-        return false;
+        return true;
+    }
+  };
+
+  const canExecute = (request: EditorCommandRequest): boolean =>
+    !resolveCommandDisabled(request);
+
+  const resolveCommandState = (
+    request: EditorCommandRequest
+  ): EditorCommandState => {
+    const disabled = resolveCommandDisabled(request);
+
+    switch (request.type) {
+      case "canvas.create-node": {
+        if (!isRuntimeReady()) {
+          return {
+            disabled,
+            description: "图初始化完成后可用"
+          };
+        }
+
+        return {
+          disabled,
+          description: canvasCommands.resolveCreateNodeState().description
+        };
+      }
+      case "canvas.fit-view":
+        return {
+          disabled,
+          description: isRuntimeReady()
+            ? "已接入 @leafer-in/view 的 fitView()"
+            : "图初始化完成后可用",
+          shortcut: "Shift+1"
+        };
+      case "link.create":
+        return {
+          disabled,
+          description: isRuntimeReady()
+            ? "创建一条正式连线"
+            : "图初始化完成后可用"
+        };
+      case "link.remove":
+        return {
+          disabled,
+          description: isRuntimeReady()
+            ? "删除当前正式连线"
+            : "图初始化完成后可用",
+          shortcut: "Delete",
+          danger: true
+        };
+      case "link.reconnect":
+        return {
+          disabled,
+          description: isRuntimeReady()
+            ? "从当前输出端口重新选择目标输入端口，按 Esc 可取消"
+            : "图初始化完成后可用"
+        };
+      case "clipboard.copy-node":
+        return {
+          disabled,
+          description: nodeCommands.isClipboardSourceNode(request.nodeId)
+            ? "当前节点已经在剪贴板中，再次复制会刷新快照"
+            : "保存当前节点快照，供画布菜单粘贴使用",
+          shortcut: "Ctrl+C"
+        };
+      case "clipboard.copy-selection":
+      case "selection.copy":
+        return {
+          disabled,
+          description: "把当前多选节点整体写入剪贴板，并保留相对布局",
+          shortcut: "Ctrl+C"
+        };
+      case "clipboard.cut-selection":
+        return {
+          disabled,
+          description:
+            options.selection.selectedNodeIds.length > 1
+              ? "把当前多选节点写入剪贴板后，从画布中批量移除"
+              : "把当前节点写入剪贴板后，从画布中移除",
+          shortcut: "Ctrl+X"
+        };
+      case "clipboard.paste":
+        return {
+          disabled,
+          description: isRuntimeReady()
+            ? `把最近复制的节点放到当前画布位置${
+                options.selection.primarySelectedNodeId ? "，并切换选中态" : ""
+              }`
+            : "图初始化完成后可用",
+          shortcut: "Ctrl+V"
+        };
+      case "node.duplicate":
+        return {
+          disabled,
+          description: "基于当前节点快照创建一个偏移副本",
+          shortcut: "Ctrl+D"
+        };
+      case "node.remove": {
+        const isSelected = options.selection.isSelected(request.nodeId);
+        const isMultipleSelected = options.selection.hasMultipleSelected();
+        const isCopiedSource = nodeCommands.isClipboardSourceNode(request.nodeId);
+
+        return {
+          disabled,
+          description:
+            (isSelected && isMultipleSelected) || isCopiedSource
+              ? "删除时会同步更新当前多选态和复制态"
+              : isSelected
+                ? "删除时会同步清理当前节点的选中态和复制态"
+                : "已接入主包 removeNode(...)",
+          shortcut: "Delete",
+          danger: true
+        };
+      }
+      case "node.play": {
+        if (!isRuntimeReady()) {
+          return {
+            disabled,
+            description: "图初始化完成后可用"
+          };
+        }
+
+        const executionState = options.graph.getNodeExecutionState(request.nodeId);
+        if (!executionState || executionState.status === "idle") {
+          return {
+            disabled,
+            description:
+              "从当前节点开始运行正式执行链；若节点未实现 onExecute(...) 则不会产生运行结果"
+          };
+        }
+
+        if (executionState.status === "running") {
+          return {
+            disabled,
+            description: `节点正在执行中，当前累计执行 ${executionState.runCount} 次`
+          };
+        }
+
+        if (executionState.status === "success") {
+          return {
+            disabled,
+            description: `最近一次执行成功，当前累计执行 ${executionState.runCount} 次`
+          };
+        }
+
+        return {
+          disabled,
+          description: executionState.lastErrorMessage
+            ? `最近一次执行失败：${executionState.lastErrorMessage}`
+            : "最近一次执行失败，请查看节点信号灯或控制台日志"
+        };
+      }
+      case "node.reset-size":
+        return {
+          disabled,
+          description: isRuntimeReady()
+            ? nodeCommands.resolveResizeState(request.nodeId).description
+            : "图初始化完成后可用"
+        };
+      case "selection.clear":
+        return {
+          disabled,
+          description: "清空当前选区"
+        };
+      case "selection.duplicate":
+        return {
+          disabled,
+          description: "按当前多选节点的相对布局创建一组偏移副本",
+          shortcut: "Ctrl+D"
+        };
+      case "selection.remove":
+        return {
+          disabled,
+          description: "删除当前选区，并同步更新选中态和复制态",
+          shortcut: "Delete",
+          danger: true
+        };
+      case "selection.select-all":
+        return {
+          disabled,
+          description: `选中当前 ${request.nodeIds.length} 个节点`,
+          shortcut: "Ctrl+A"
+        };
+      default:
+        return {
+          disabled,
+          description: "执行 editor 命令"
+        };
     }
   };
 
@@ -729,6 +961,10 @@ export function createEditorCommandBus(
 
     canExecute(request: EditorCommandRequest): boolean {
       return canExecute(request);
+    },
+
+    resolveCommandState(request: EditorCommandRequest): EditorCommandState {
+      return resolveCommandState(request);
     },
 
     execute(request: EditorCommandRequest): EditorCommandExecution {

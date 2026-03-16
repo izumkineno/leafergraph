@@ -269,6 +269,82 @@ code {
   flex-wrap: wrap;
 }
 
+.toolbar__command-groups {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar__command-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.toolbar__command-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    opacity 160ms ease;
+}
+
+.toolbar__command-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 211, 252, 0.22);
+  background: rgba(125, 211, 252, 0.12);
+}
+
+.toolbar__command-button:disabled {
+  opacity: 0.46;
+  cursor: default;
+  transform: none;
+}
+
+.toolbar__command-button--danger {
+  color: var(--bundle-error-text);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.toolbar__command-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.18);
+  color: var(--text-muted);
+  font-family: "JetBrains Mono", "IBM Plex Mono", "Consolas", monospace;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.toolbar__command-placeholder {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .toolbar__runtime-controls {
   display: inline-flex;
   align-items: center;
@@ -1328,6 +1404,10 @@ code {
   }
 
   .toolbar__actions {
+    justify-content: flex-start;
+  }
+
+  .toolbar__command-groups {
     justify-content: flex-start;
   }
 

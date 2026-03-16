@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import {
   GraphViewport,
+  type GraphViewportToolbarActionState,
+  type GraphViewportToolbarControlsState,
   type GraphViewportRuntimeControlsState
 } from "./GraphViewport";
 import {
@@ -89,8 +91,18 @@ const WORKSPACE_PAGES = [
 
 /** 浏览器恢复 bundle 时使用的固定顺序。 */
 const RESTORE_BUNDLE_SLOTS = ["widget", "node", "demo"] as const;
+const TOOLBAR_ACTION_GROUPS = ["history", "canvas", "selection"] as const;
 
 type EditorWorkspacePageId = (typeof WORKSPACE_PAGES)[number]["id"];
+
+/** 生成工具栏按钮 title，统一复用命令说明和快捷键信息。 */
+function formatToolbarActionTitle(
+  action: GraphViewportToolbarActionState
+): string {
+  return action.shortcut
+    ? `${action.description}（${action.shortcut}）`
+    : action.description;
+}
 
 /** 创建 editor 的初始 bundle 槽位映射。 */
 function createInitialBundleSlots(): Record<EditorBundleSlot, EditorBundleSlotState> {
@@ -148,6 +160,8 @@ export function App() {
   const viewportSectionRef = useRef<HTMLElement | null>(null);
   const [graphRuntimeControls, setGraphRuntimeControls] =
     useState<GraphViewportRuntimeControlsState | null>(null);
+  const [editorToolbarControls, setEditorToolbarControls] =
+    useState<GraphViewportToolbarControlsState | null>(null);
   const [bundleSlots, setBundleSlots] = useState<
     Record<EditorBundleSlot, EditorBundleSlotState>
   >(() => createInitialBundleSlots());
@@ -291,6 +305,12 @@ export function App() {
       (graphExecutionState.status === "running" ||
         graphExecutionState.status === "stepping")
   );
+  const toolbarActionGroups = TOOLBAR_ACTION_GROUPS.map((group) => ({
+    group,
+    actions:
+      editorToolbarControls?.actions.filter((action) => action.group === group) ??
+      []
+  })).filter((entry) => entry.actions.length > 0);
 
   /** 统一进入主画布渲染态，避免多个入口各自维护同一组状态。 */
   const startRendering = (): void => {
@@ -302,6 +322,7 @@ export function App() {
   const stopRendering = (): void => {
     setHasStartedRendering(false);
     setGraphRuntimeControls(null);
+    setEditorToolbarControls(null);
   };
 
   const handleBundleFileChange = async (
@@ -433,6 +454,40 @@ export function App() {
             <h2>Leafer-first Node Graph</h2>
           </div>
           <div class="toolbar__actions">
+            {toolbarActionGroups.length ? (
+              <div class="toolbar__command-groups" aria-label="编辑工具栏">
+                {toolbarActionGroups.map(({ group, actions }) => (
+                  <div class="toolbar__command-group" data-group={group} key={group}>
+                    {actions.map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        class={`toolbar__command-button${
+                          action.danger ? " toolbar__command-button--danger" : ""
+                        }`}
+                        disabled={action.disabled}
+                        title={formatToolbarActionTitle(action)}
+                        aria-label={formatToolbarActionTitle(action)}
+                        onClick={() => {
+                          editorToolbarControls?.execute(action.id);
+                        }}
+                      >
+                        <span>{action.label}</span>
+                        {action.shortcut ? (
+                          <span class="toolbar__command-shortcut">
+                            {action.shortcut}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p class="toolbar__command-placeholder">
+                主画布挂载后，这里会显示复用命令总线的编辑工具栏。
+              </p>
+            )}
             <div class="toolbar__runtime-controls">
               <span
                 class="badge badge--runtime"
@@ -726,6 +781,7 @@ export function App() {
                   plugins={runtimeSetup.plugins}
                   quickCreateNodeType={runtimeSetup.quickCreateNodeType}
                   theme={theme}
+                  onEditorToolbarControlsChange={setEditorToolbarControls}
                   onGraphRuntimeControlsChange={setGraphRuntimeControls}
                 />
               </div>
