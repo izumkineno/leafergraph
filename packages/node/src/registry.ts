@@ -1,11 +1,11 @@
-import type { NodeDefinition } from "./definition";
-import { NodeDefinitionExistsError, UnknownNodeTypeError } from "./errors";
-import { cloneDefinition } from "./utils";
+import type { NodeDefinition } from "./definition.js";
+import { NodeDefinitionExistsError, UnknownNodeTypeError } from "./errors.js";
+import { cloneDefinition } from "./utils.js";
 import {
   type WidgetDefinitionReader,
   validateWidgetPropertySpec,
   validateWidgetSpec
-} from "./widget";
+} from "./widget.js";
 
 /**
  * 注册节点定义时的控制项。

@@ -1,6 +1,6 @@
-import type { NodeDefinition, NodeModule, NodeModuleScope } from "./definition";
-import type { NodeRegistry, RegisterNodeOptions } from "./registry";
-import { cloneDefinition } from "./utils";
+import type { NodeDefinition, NodeModule, NodeModuleScope } from "./definition.js";
+import type { NodeRegistry, RegisterNodeOptions } from "./registry.js";
+import { cloneDefinition } from "./utils.js";
 
 /**
  * 安装节点模块时的控制项。

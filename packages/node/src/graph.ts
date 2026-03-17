@@ -1,4 +1,4 @@
-import type { NodeSerializeResult } from "./types";
+import type { NodeSerializeResult } from "./types.js";
 
 /**
  * 图连线端点描述。

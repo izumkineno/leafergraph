@@ -1,6 +1,7 @@
 import {
   type EditorRemoteAuthorityAppSource
 } from "./remote_authority_app_runtime";
+import type { EditorBundleSlot } from "../loader/types";
 import type { GraphViewportHostBridge } from "./GraphViewport";
 import {
   DEMO_WORKER_REMOTE_AUTHORITY_HOST_ADAPTER_ID,
@@ -78,6 +79,18 @@ export interface EditorAppBootstrapDemoWorkerAuthority {
 export interface EditorAppBootstrapRemoteAuthorityAdapter
   extends EditorRemoteAuthorityHostAdapterDescriptor {}
 
+/** editor 浏览器入口允许读取的最小预装 bundle 描述。 */
+export interface EditorAppBootstrapPreloadedBundle {
+  /** 需要装入的 bundle 槽位。 */
+  slot: EditorBundleSlot;
+  /** 浏览器可访问的 bundle URL。 */
+  url: string;
+  /** 可选展示文件名；未提供时由 URL 自动推断。 */
+  fileName?: string;
+  /** 是否默认启用该 bundle。 */
+  enabled?: boolean;
+}
+
 export interface EditorAppBootstrap {
   remoteAuthoritySource?: EditorRemoteAuthorityAppSource;
   remoteAuthorityAdapter?: EditorAppBootstrapRemoteAuthorityAdapter;
@@ -86,6 +99,7 @@ export interface EditorAppBootstrap {
   remoteAuthorityWorker?: EditorAppBootstrapWorkerAuthority;
   remoteAuthorityWindow?: EditorAppBootstrapWindowAuthority;
   remoteAuthorityDemoWorker?: EditorAppBootstrapDemoWorkerAuthority;
+  preloadedBundles?: readonly EditorAppBootstrapPreloadedBundle[];
   onViewportHostBridgeChange?(
     bridge: GraphViewportHostBridge | null
   ): void;
@@ -189,6 +203,32 @@ function isEditorAppBootstrapDemoWorkerAuthority(
   );
 }
 
+function isEditorBundleSlot(value: unknown): value is EditorBundleSlot {
+  return value === "demo" || value === "node" || value === "widget";
+}
+
+function isEditorAppBootstrapPreloadedBundle(
+  value: unknown
+): value is EditorAppBootstrapPreloadedBundle {
+  return (
+    isRecord(value) &&
+    isEditorBundleSlot(value.slot) &&
+    typeof value.url === "string" &&
+    value.url.trim().length > 0 &&
+    (value.fileName === undefined || typeof value.fileName === "string") &&
+    (value.enabled === undefined || typeof value.enabled === "boolean")
+  );
+}
+
+function isEditorAppBootstrapPreloadedBundleArray(
+  value: unknown
+): value is readonly EditorAppBootstrapPreloadedBundle[] {
+  return (
+    Array.isArray(value) &&
+    value.every(isEditorAppBootstrapPreloadedBundle)
+  );
+}
+
 function isEditorRemoteAuthorityHostAdapterArray(
   value: unknown
 ): value is readonly EditorRemoteAuthorityHostAdapter[] {
@@ -266,6 +306,14 @@ export function resolveEditorAppBootstrap(
   }
   if (customHostAdapters) {
     nextBootstrap.remoteAuthorityHostAdapters = customHostAdapters;
+  }
+  if (isEditorAppBootstrapPreloadedBundleArray(bootstrap.preloadedBundles)) {
+    nextBootstrap.preloadedBundles = bootstrap.preloadedBundles.map((bundle) => ({
+      slot: bundle.slot,
+      url: bundle.url,
+      fileName: bundle.fileName,
+      enabled: bundle.enabled
+    }));
   }
   if (typeof bootstrap.onViewportHostBridgeChange === "function") {
     nextBootstrap.onViewportHostBridgeChange =

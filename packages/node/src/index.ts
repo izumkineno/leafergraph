@@ -26,28 +26,28 @@ export type {
   NodeWidgetType,
   SlotDirection,
   SlotType
-} from "./types";
-export type { NodeApi, NodeLifecycle } from "./lifecycle";
+} from "./types.js";
+export type { NodeApi, NodeLifecycle } from "./lifecycle.js";
 export type {
   NodeDefinition,
   NodeModule,
   NodeModuleScope,
   NodeResizeConfig,
   WidgetDefinition
-} from "./definition";
-export type { RegisterNodeOptions } from "./registry";
-export type { RegisterWidgetOptions, WidgetDefinitionReader } from "./widget";
-export type { InstallNodeModuleOptions, ResolvedNodeModule } from "./module";
-export type { NodeConfigureInput } from "./configure";
+} from "./definition.js";
+export type { RegisterNodeOptions } from "./registry.js";
+export type { RegisterWidgetOptions, WidgetDefinitionReader } from "./widget.js";
+export type { InstallNodeModuleOptions, ResolvedNodeModule } from "./module.js";
+export type { NodeConfigureInput } from "./configure.js";
 export type {
   AdapterBinding,
   CapabilityProfile,
   GraphDocument,
   GraphLink,
   GraphLinkEndpoint
-} from "./graph";
+} from "./graph.js";
 
-export { NodeRegistry } from "./registry";
+export { NodeRegistry } from "./registry.js";
 export {
   BUILTIN_WIDGET_TYPES,
   hasWidgetDefinition,
@@ -58,11 +58,11 @@ export {
   serializeWidgetSpecs,
   validateWidgetPropertySpec,
   validateWidgetSpec
-} from "./widget";
-export { createNodeApi } from "./api";
-export { createNodeState } from "./factory";
-export { configureNode } from "./configure";
-export { serializeNode } from "./serialize";
+} from "./widget.js";
+export { createNodeApi } from "./api.js";
+export { createNodeState } from "./factory.js";
+export { configureNode } from "./configure.js";
+export { serializeNode } from "./serialize.js";
 export {
   applyNodeModuleScope,
   installNodeModule,
@@ -70,4 +70,4 @@ export {
   resolveNodeModule,
   resolveNodeModuleScope,
   resolveScopedNodeType
-} from "./module";
+} from "./module.js";

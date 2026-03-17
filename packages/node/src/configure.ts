@@ -1,6 +1,6 @@
-import { createNodeApi } from "./api";
-import type { NodeRegistry } from "./registry";
-import type { NodeRuntimeState, NodeSerializeResult } from "./types";
+import { createNodeApi } from "./api.js";
+import type { NodeRegistry } from "./registry.js";
+import type { NodeRuntimeState, NodeSerializeResult } from "./types.js";
 import {
   createMissingNodeDefinition,
   cloneFlags,
@@ -11,8 +11,8 @@ import {
   createPropertyValues,
   resizeRuntimeValues,
   resolveNodeLayout
-} from "./utils";
-import { normalizeWidgetSpecs } from "./widget";
+} from "./utils.js";
+import { normalizeWidgetSpecs } from "./widget.js";
 
 /**
  * 重新配置节点实例时允许传入的数据结构。

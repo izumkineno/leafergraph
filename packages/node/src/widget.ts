@@ -1,7 +1,7 @@
-import type { WidgetDefinition } from "./definition";
-import { UnknownWidgetTypeError } from "./errors";
-import type { NodePropertySpec, NodeWidgetSpec } from "./types";
-import { cloneWidgetSpec } from "./utils";
+import type { WidgetDefinition } from "./definition.js";
+import { UnknownWidgetTypeError } from "./errors.js";
+import type { NodePropertySpec, NodeWidgetSpec } from "./types.js";
+import { cloneWidgetSpec } from "./utils.js";
 
 /**
  * 当前内建 Widget 类型列表。

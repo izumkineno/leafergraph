@@ -1,6 +1,6 @@
-import type { NodeModule } from "./definition";
-import type { GraphDocument } from "./graph";
-import type { NodeSlotSpec, NodeWidgetSpec } from "./types";
+import type { NodeModule } from "./definition.js";
+import type { GraphDocument } from "./graph.js";
+import type { NodeSlotSpec, NodeWidgetSpec } from "./types.js";
 
 // 这组类型只服务当前仓库内的 demo / editor 过渡场景，不再从包根入口导出。
 

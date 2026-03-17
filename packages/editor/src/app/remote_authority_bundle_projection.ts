@@ -1,0 +1,50 @@
+import type { GraphDocument } from "leafergraph";
+
+import type { ResolvedEditorRemoteAuthorityAppRuntime } from "./remote_authority_app_runtime";
+import type { EditorBundleRuntimeSetup } from "../loader/types";
+
+export interface RemoteAuthorityBundleProjection {
+  readonly bundleId: string;
+  readonly bundleName: string;
+  readonly document: GraphDocument;
+}
+
+export interface RemoteAuthorityBundleProjectionCheckpoint {
+  readonly runtime: ResolvedEditorRemoteAuthorityAppRuntime;
+  readonly document: GraphDocument;
+}
+
+/** 从当前 bundle 装配结果里挑出“需要投影到远端 authority”的 demo document。 */
+export function resolveRemoteAuthorityBundleProjection(
+  runtimeSetup: EditorBundleRuntimeSetup
+): RemoteAuthorityBundleProjection | null {
+  const demoSlot = runtimeSetup.slots.demo;
+  const manifest = demoSlot.manifest;
+
+  if (!demoSlot.active || manifest?.kind !== "demo") {
+    return null;
+  }
+
+  return {
+    bundleId: manifest.id,
+    bundleName: manifest.name,
+    document: manifest.document
+  };
+}
+
+/** 判断当前这份 demo document 是否还需要重新投影到远端 authority。 */
+export function shouldApplyRemoteAuthorityBundleProjection(options: {
+  runtime: ResolvedEditorRemoteAuthorityAppRuntime;
+  projection: RemoteAuthorityBundleProjection;
+  checkpoint: RemoteAuthorityBundleProjectionCheckpoint | null;
+}): boolean {
+  const { runtime, projection, checkpoint } = options;
+
+  if (!checkpoint) {
+    return true;
+  }
+
+  return (
+    checkpoint.runtime !== runtime || checkpoint.document !== projection.document
+  );
+}

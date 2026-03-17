@@ -9,10 +9,13 @@
   "scripts": {
     "dev:editor": "bun run --filter leafergraph-editor dev",
     "dev:editor:lan": "bun run --filter leafergraph-editor dev:lan",
+    "build:testbundles": "node ./scripts/build_editor_testbundles.mjs",
+    "build:node": "bun run --filter @leafergraph/node build",
     "build:leafergraph": "bun run --filter leafergraph build",
     "build:editor": "bun run --filter leafergraph-editor build",
-    "build": "bun run build:leafergraph && bun run build:editor",
-    "preview:editor": "bun run --filter leafergraph-editor preview"
+    "build": "bun run build:node && bun run build:leafergraph && bun run build:editor",
+    "preview:editor": "bun run --filter leafergraph-editor preview",
+    "start:node-authority-demo": "bun run build:node && node ./packages/node/dist/authority/demo_server.js"
   },
   "devDependencies": {
     "@types/node": "^25.4.0",

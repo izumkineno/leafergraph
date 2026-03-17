@@ -37,6 +37,12 @@ import {
   type EditorRemoteAuthorityAppSource,
   type ResolvedEditorRemoteAuthorityAppRuntime
 } from "./remote_authority_app_runtime";
+import {
+  resolveRemoteAuthorityBundleProjection,
+  shouldApplyRemoteAuthorityBundleProjection,
+  type RemoteAuthorityBundleProjectionCheckpoint
+} from "./remote_authority_bundle_projection";
+import type { EditorAppBootstrapPreloadedBundle } from "./editor_app_bootstrap";
 
 /** 切换到相反主题。 */
 function toggleEditorTheme(theme: EditorTheme): EditorTheme {
@@ -182,12 +188,35 @@ function formatBundlePersistenceLabel(slot: EditorBundleSlotState): string {
     : "已写入浏览器，刷新后自动恢复";
 }
 
+function resolvePreloadedBundleFileName(
+  bundle: EditorAppBootstrapPreloadedBundle
+): string {
+  if (typeof bundle.fileName === "string" && bundle.fileName.trim().length > 0) {
+    return bundle.fileName.trim();
+  }
+
+  try {
+    const url = new URL(bundle.url, window.location.href);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const lastSegment = segments.at(-1);
+    if (lastSegment) {
+      return lastSegment;
+    }
+  } catch {
+    // ignore invalid URL and fall back to slot name below
+  }
+
+  return `${bundle.slot}.bundle.js`;
+}
+
 export interface AppProps {
+  preloadedBundles?: readonly EditorAppBootstrapPreloadedBundle[];
   remoteAuthoritySource?: EditorRemoteAuthorityAppSource;
   onViewportHostBridgeChange?(bridge: GraphViewportHostBridge | null): void;
 }
 
 export function App({
+  preloadedBundles,
   remoteAuthoritySource,
   onViewportHostBridgeChange
 }: AppProps) {
@@ -219,6 +248,8 @@ export function App({
   const [remoteAuthorityReloadKey, setRemoteAuthorityReloadKey] = useState(0);
   const [viewportHostBridge, setViewportHostBridge] =
     useState<GraphViewportHostBridge | null>(null);
+  const remoteAuthorityBundleProjectionCheckpointRef =
+    useRef<RemoteAuthorityBundleProjectionCheckpoint | null>(null);
   const isCanvasWorkspace =
     hasStartedRendering && activeWorkspacePageId === "main-canvas";
   const remoteAuthorityRuntimeRef =
@@ -256,20 +287,25 @@ export function App({
 
     const restorePersistedBundles = async (): Promise<void> => {
       const records = await readPersistedEditorBundleRecords();
-      if (cancelled || records.length === 0) {
+      if (cancelled) {
         return;
       }
 
+      const preloadedBundleMap = new Map(
+        (preloadedBundles ?? []).map((bundle) => [bundle.slot, bundle])
+      );
       const recordMap = new Map(records.map((record) => [record.slot, record]));
+      const restoreSlots = RESTORE_BUNDLE_SLOTS.filter(
+        (slot) => preloadedBundleMap.has(slot) || recordMap.has(slot)
+      );
+      if (restoreSlots.length === 0) {
+        return;
+      }
 
       setBundleSlots((current) => {
         const next = { ...current };
 
-        for (const slot of RESTORE_BUNDLE_SLOTS) {
-          if (!recordMap.has(slot)) {
-            continue;
-          }
-
+        for (const slot of restoreSlots) {
           next[slot] = {
             ...current[slot],
             loading: true,
@@ -281,6 +317,57 @@ export function App({
       });
 
       for (const slot of RESTORE_BUNDLE_SLOTS) {
+        const preloadedBundle = preloadedBundleMap.get(slot);
+        if (preloadedBundle) {
+          const fileName = resolvePreloadedBundleFileName(preloadedBundle);
+
+          try {
+            const response = await fetch(preloadedBundle.url);
+            if (!response.ok) {
+              throw new Error(
+                `无法加载预装 bundle：${response.status} ${response.statusText}`.trim()
+              );
+            }
+
+            const sourceCode = await response.text();
+            const manifest = await loadEditorBundleSource(slot, sourceCode, fileName);
+
+            if (cancelled) {
+              return;
+            }
+
+            setBundleSlots((current) => ({
+              ...current,
+              [slot]: {
+                slot,
+                manifest,
+                fileName,
+                enabled: preloadedBundle.enabled ?? true,
+                loading: false,
+                error: null,
+                persisted: false,
+                restoredFromPersistence: false
+              }
+            }));
+          } catch (error) {
+            if (cancelled) {
+              return;
+            }
+
+            setBundleSlots((current) => ({
+              ...current,
+              [slot]: {
+                ...createInitialBundleSlotState(slot),
+                fileName,
+                loading: false,
+                error: `预装 bundle 加载失败：${toErrorMessage(error)}`
+              }
+            }));
+          }
+
+          continue;
+        }
+
         const record = recordMap.get(slot);
         if (!record) {
           continue;
@@ -335,7 +422,7 @@ export function App({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [preloadedBundles]);
 
   useEffect(() => {
     document.documentElement.style.colorScheme = theme;
@@ -425,12 +512,58 @@ export function App({
     () => resolveEditorBundleRuntimeSetup(bundleSlots),
     [bundleSlots]
   );
+  const remoteAuthorityBundleProjection = useMemo(
+    () => resolveRemoteAuthorityBundleProjection(runtimeSetup),
+    [runtimeSetup]
+  );
   const effectiveDocument =
-    remoteAuthorityRuntime?.document ?? runtimeSetup.document;
+    remoteAuthorityDocument ??
+    remoteAuthorityRuntime?.document ??
+    runtimeSetup.document;
   const effectiveCreateDocumentSessionBinding =
     remoteAuthorityRuntime?.createDocumentSessionBinding;
   const effectiveRuntimeFeedbackInlet =
     remoteAuthorityRuntime?.runtimeFeedbackInlet;
+
+  useEffect(() => {
+    if (!remoteAuthorityRuntime) {
+      remoteAuthorityBundleProjectionCheckpointRef.current = null;
+    }
+  }, [remoteAuthorityRuntime]);
+
+  useEffect(() => {
+    if (!remoteAuthorityBundleProjection) {
+      remoteAuthorityBundleProjectionCheckpointRef.current = null;
+      return;
+    }
+
+    if (!remoteAuthorityRuntime || !viewportHostBridge) {
+      return;
+    }
+
+    if (
+      !shouldApplyRemoteAuthorityBundleProjection({
+        runtime: remoteAuthorityRuntime,
+        projection: remoteAuthorityBundleProjection,
+        checkpoint: remoteAuthorityBundleProjectionCheckpointRef.current
+      })
+    ) {
+      return;
+    }
+
+    remoteAuthorityBundleProjectionCheckpointRef.current = {
+      runtime: remoteAuthorityRuntime,
+      document: remoteAuthorityBundleProjection.document
+    };
+
+    viewportHostBridge.replaceDocument(
+      structuredClone(remoteAuthorityBundleProjection.document)
+    );
+  }, [
+    remoteAuthorityBundleProjection,
+    remoteAuthorityRuntime,
+    viewportHostBridge
+  ]);
   const activeWorkspacePage = WORKSPACE_PAGES.find(
     (page) => page.id === activeWorkspacePageId
   )!;

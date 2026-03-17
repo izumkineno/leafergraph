@@ -10,6 +10,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./authority": {
+      "types": "./src/authority/index.ts",
+      "import": "./src/authority/index.ts"
     }
   },
   "files": [
@@ -17,6 +21,13 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "start:authority-demo": "node ./dist/authority/demo_server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
   }
 }
