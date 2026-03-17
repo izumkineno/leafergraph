@@ -777,7 +777,7 @@ export function App() {
 
               <div class="canvas-page__body">
                 <GraphViewport
-                  graph={runtimeSetup.graph}
+                  document={runtimeSetup.document}
                   plugins={runtimeSetup.plugins}
                   quickCreateNodeType={runtimeSetup.quickCreateNodeType}
                   theme={theme}

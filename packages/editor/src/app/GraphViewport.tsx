@@ -3,16 +3,17 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import {
   createLeaferGraph,
   createLeaferGraphContextMenu,
+  type GraphDocument,
+  type GraphLink,
   type LeaferGraphConnectionPortState,
   type LeaferGraphGraphExecutionState,
   type LeaferGraph,
-  type LeaferGraphData,
   type LeaferGraphContextMenuManager,
-  type LeaferGraphLinkData,
   type LeaferGraphNodeExecutionEvent,
   type LeaferGraphNodeInspectorState,
   type LeaferGraphNodeStateChangeEvent,
-  type LeaferGraphOptions
+  type LeaferGraphOptions,
+  type RuntimeFeedbackEvent
 } from "leafergraph";
 import {
   createEditorCommandBus,
@@ -24,6 +25,10 @@ import {
   createEditorCommandHistory,
   type EditorCommandHistory
 } from "../commands/command_history";
+import {
+  createLoopbackGraphDocumentSessionBinding,
+  type EditorGraphDocumentSessionBindingFactory
+} from "../session/graph_document_session_binding";
 import { createEditorNodeSelection } from "../state/selection";
 import {
   GRAPH_VIEWPORT_BACKGROUND_SIZE,
@@ -43,9 +48,10 @@ import {
 } from "../menu/context_menu_resolver";
 
 interface GraphViewportProps {
-  graph: LeaferGraphData;
+  document: GraphDocument;
   modules?: LeaferGraphOptions["modules"];
   plugins?: LeaferGraphOptions["plugins"];
+  createDocumentSessionBinding?: EditorGraphDocumentSessionBindingFactory;
   quickCreateNodeType?: string;
   theme: EditorTheme;
   onEditorToolbarControlsChange?(
@@ -756,9 +762,10 @@ function intersectsWorldBounds(
  * 除了负责图初始化，这里也承担画布背景与 editor 主题同步的职责。
  */
 export function GraphViewport({
-  graph: graphData,
+  document: documentData,
   modules,
   plugins,
+  createDocumentSessionBinding,
   quickCreateNodeType,
   theme,
   onEditorToolbarControlsChange,
@@ -806,7 +813,7 @@ export function GraphViewport({
     setGraphExecutionState(createIdleGraphExecutionState());
 
     const graph = createLeaferGraph(host, {
-      graph: graphData,
+      document: documentData,
       modules,
       plugins,
       fill: resolveGraphViewportBackground(themeRef.current),
@@ -818,6 +825,14 @@ export function GraphViewport({
       }
     });
     graphRef.current = graph;
+    const documentSessionBinding = (
+      createDocumentSessionBinding ??
+      createLoopbackGraphDocumentSessionBinding
+    )({
+      graph,
+      document: documentData
+    });
+    const documentSession = documentSessionBinding.session;
     onGraphRuntimeControlsChange?.({
       available: false,
       executionState: graph.getGraphExecutionState(),
@@ -903,38 +918,54 @@ export function GraphViewport({
       syncInfoPanelState();
       syncEditorToolbarControls();
     });
-    const disposeNodeExecutionSubscription = graph.subscribeNodeExecution(
-      (event) => {
-        latestRuntimeExecution = event;
-        setRuntimeHistoryEntries((entries) =>
-          appendRuntimeHistoryEntry(entries, createRuntimeHistoryEntryFromEvent(event))
-        );
-        syncInfoPanelState();
-        syncEditorToolbarControls();
+    const disposeRuntimeFeedbackSubscription = graph.subscribeRuntimeFeedback(
+      (feedback: RuntimeFeedbackEvent) => {
+        documentSessionBinding.handleRuntimeFeedback(feedback);
+
+        switch (feedback.type) {
+          case "node.execution": {
+            const event = feedback.event;
+            latestRuntimeExecution = event;
+            setRuntimeHistoryEntries((entries) =>
+              appendRuntimeHistoryEntry(
+                entries,
+                createRuntimeHistoryEntryFromEvent(event)
+              )
+            );
+            syncInfoPanelState();
+            syncEditorToolbarControls();
+            return;
+          }
+          case "graph.execution": {
+            syncGraphRuntimeControls();
+            return;
+          }
+          case "node.state": {
+            const event = feedback.event;
+            if (!event.exists) {
+              selection.clearIfContains(event.nodeId);
+            }
+
+            if (
+              shouldSyncInspectorForNodeState(
+                graph,
+                event,
+                selection,
+                latestRuntimeExecution,
+                latestExecution
+              )
+            ) {
+              syncInfoPanelState();
+            }
+
+            syncEditorToolbarControls();
+            return;
+          }
+          case "link.propagation":
+            return;
+        }
       }
     );
-    const disposeGraphExecutionSubscription = graph.subscribeGraphExecution(() => {
-      syncGraphRuntimeControls();
-    });
-    const disposeNodeStateSubscription = graph.subscribeNodeState((event) => {
-      if (!event.exists) {
-        selection.clearIfContains(event.nodeId);
-      }
-
-      if (
-        shouldSyncInspectorForNodeState(
-          graph,
-          event,
-          selection,
-          latestRuntimeExecution,
-          latestExecution
-        )
-      ) {
-        syncInfoPanelState();
-      }
-
-      syncEditorToolbarControls();
-    });
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
       if (!selectionBox) {
@@ -1387,7 +1418,7 @@ export function GraphViewport({
       boundNodeIds.delete(nodeId);
       menu.unbindTarget(createNodeMenuBindingKey(nodeId));
     };
-    const bindEditorLink = (link: LeaferGraphLinkData): void => {
+    const bindEditorLink = (link: GraphLink): void => {
       boundLinkIds.add(link.id);
       bindLinkContextMenu(graph, menu, link);
     };
@@ -1395,8 +1426,8 @@ export function GraphViewport({
       boundLinkIds.delete(linkId);
       menu.unbindTarget(createLinkMenuBindingKey(linkId));
     };
-    const collectCurrentLinks = (): LeaferGraphLinkData[] => {
-      const linkMap = new Map<string, LeaferGraphLinkData>();
+    const collectCurrentLinks = (): GraphLink[] => {
+      const linkMap = new Map<string, GraphLink>();
 
       for (const nodeId of boundNodeIds) {
         for (const link of graph.findLinksByNode(nodeId)) {
@@ -1438,12 +1469,14 @@ export function GraphViewport({
     };
     commandHistory = createEditorCommandHistory({
       graph,
+      session: documentSession,
       selection,
       bindNode: bindEditorNode,
       unbindNode: unbindEditorNode
     });
     commandBus = createEditorCommandBus({
       graph,
+      session: documentSession,
       selection,
       bindNode: bindEditorNode,
       unbindNode: unbindEditorNode,
@@ -1451,6 +1484,7 @@ export function GraphViewport({
       isRuntimeReady: () => graphReady,
       onAfterFitView: schedulePointerWorldPointRefresh,
       onDidExecute(execution) {
+        documentSessionBinding.handleCommandExecution(execution);
         latestExecution = execution;
         commandHistory.record(execution);
         scheduleLinkContextMenuSync();
@@ -1636,7 +1670,7 @@ export function GraphViewport({
       graphReady = true;
       syncGraphRuntimeControls();
 
-      for (const node of graphData.nodes) {
+      for (const node of documentData.nodes) {
         bindEditorNode({
           id: node.id,
           title: node.title ?? node.id,
@@ -2073,10 +2107,9 @@ export function GraphViewport({
       }
       clearReconnectSession();
       commandHistory.clear();
-      disposeNodeStateSubscription();
-      disposeNodeExecutionSubscription();
-      disposeGraphExecutionSubscription();
+      disposeRuntimeFeedbackSubscription();
       disposeSelectionSubscription();
+      documentSessionBinding.dispose();
       hideSelectionBox();
       menu.destroy();
       onEditorToolbarControlsChange?.(null);
@@ -2085,7 +2118,8 @@ export function GraphViewport({
       graph.destroy();
     };
   }, [
-    graphData,
+    createDocumentSessionBinding,
+    documentData,
     modules,
     onEditorToolbarControlsChange,
     onGraphRuntimeControlsChange,

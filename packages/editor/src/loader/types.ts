@@ -1,5 +1,5 @@
 import type {
-  LeaferGraphData,
+  GraphDocument,
   LeaferGraphNodePlugin
 } from "leafergraph";
 
@@ -29,7 +29,7 @@ export interface EditorBundleManifestBase {
 /** demo bundle 只负责提供图数据。 */
 export interface EditorDemoBundleManifest extends EditorBundleManifestBase {
   kind: "demo";
-  graph: LeaferGraphData;
+  document: GraphDocument;
 }
 
 /**
@@ -76,7 +76,7 @@ export interface EditorResolvedBundleSlotState extends EditorBundleSlotState {
 
 /** editor 真正传给 GraphViewport 的运行时装配结果。 */
 export interface EditorBundleRuntimeSetup {
-  graph: LeaferGraphData;
+  document: GraphDocument;
   plugins: LeaferGraphNodePlugin[];
   quickCreateNodeType?: string;
   slots: Record<EditorBundleSlot, EditorResolvedBundleSlotState>;

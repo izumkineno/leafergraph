@@ -1,8 +1,11 @@
 import type {
+  GraphLink,
   LeaferGraph,
-  LeaferGraphCreateLinkInput,
-  LeaferGraphLinkData
+  LeaferGraphCreateLinkInput
 } from "leafergraph";
+import {
+  createEditorGraphOperation
+} from "./graph_operation_utils";
 
 /** 连线重连时允许覆写的端点补丁。 */
 export interface EditorLinkReconnectInput {
@@ -13,28 +16,28 @@ export interface EditorLinkReconnectInput {
 /** editor 当前阶段的最小连线命令控制器。 */
 export interface EditorLinkCommandController {
   /** 根据连线 ID 读取正式连线快照。 */
-  getLink(linkId: string): LeaferGraphLinkData | undefined;
+  getLink(linkId: string): GraphLink | undefined;
   /** 判断某条连线当前是否存在。 */
   hasLink(linkId: string): boolean;
   /** 创建一条正式连线。 */
-  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData;
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink;
   /** 删除一条正式连线。 */
   removeLink(linkId: string): boolean;
   /** 使用新端点重连一条既有连线，并尽量保留原始 ID。 */
   reconnectLink(
     linkId: string,
     input: EditorLinkReconnectInput
-  ): LeaferGraphLinkData | undefined;
+  ): GraphLink | undefined;
 }
 
 /** 深拷贝正式连线快照。 */
-export function cloneEditorLink(link: LeaferGraphLinkData): LeaferGraphLinkData {
+export function cloneEditorLink(link: GraphLink): GraphLink {
   return structuredClone(link);
 }
 
 /** 用新的端点补丁构造下一份正式连线输入。 */
 export function createReconnectLinkInput(
-  link: LeaferGraphLinkData,
+  link: GraphLink,
   input: EditorLinkReconnectInput
 ): LeaferGraphCreateLinkInput {
   return structuredClone({
@@ -48,8 +51,8 @@ export function createReconnectLinkInput(
 
 /** 判断两条正式连线是否表达了同一组端点。 */
 export function isSameLinkEndpoint(
-  left: Pick<LeaferGraphLinkData, "source" | "target">,
-  right: Pick<LeaferGraphLinkData, "source" | "target">
+  left: Pick<GraphLink, "source" | "target">,
+  right: Pick<GraphLink, "source" | "target">
 ): boolean {
   return (
     left.source.nodeId === right.source.nodeId &&
@@ -70,7 +73,7 @@ export function createEditorLinkCommandController(
   graph: LeaferGraph
 ): EditorLinkCommandController {
   return {
-    getLink(linkId: string): LeaferGraphLinkData | undefined {
+    getLink(linkId: string): GraphLink | undefined {
       return graph.getLink(linkId);
     },
 
@@ -78,18 +81,38 @@ export function createEditorLinkCommandController(
       return Boolean(graph.getLink(linkId));
     },
 
-    createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
-      return graph.createLink(structuredClone(input));
+    createLink(input: LeaferGraphCreateLinkInput): GraphLink {
+      const result = graph.applyGraphOperation(
+        createEditorGraphOperation("link.create", {
+          input: structuredClone(input)
+        })
+      );
+      if (!result.accepted || !result.changed) {
+        throw new Error(result.reason ?? "创建连线失败");
+      }
+
+      const linkId = result.affectedLinkIds[0];
+      const link = linkId ? graph.getLink(linkId) : undefined;
+      if (!link) {
+        throw new Error("创建连线后未能读取正式快照");
+      }
+
+      return link;
     },
 
     removeLink(linkId: string): boolean {
-      return graph.removeLink(linkId);
+      const result = graph.applyGraphOperation(
+        createEditorGraphOperation("link.remove", {
+          linkId
+        })
+      );
+      return result.accepted && result.changed;
     },
 
     reconnectLink(
       linkId: string,
       input: EditorLinkReconnectInput
-    ): LeaferGraphLinkData | undefined {
+    ): GraphLink | undefined {
       const currentLink = graph.getLink(linkId);
       if (!currentLink) {
         return undefined;
@@ -100,21 +123,17 @@ export function createEditorLinkCommandController(
         return currentLink;
       }
 
-      if (!graph.removeLink(linkId)) {
-        return undefined;
+      const result = graph.applyGraphOperation(
+        createEditorGraphOperation("link.reconnect", {
+          linkId,
+          input: structuredClone(input)
+        })
+      );
+      if (!result.accepted) {
+        throw new Error(result.reason ?? "重连连线失败");
       }
 
-      try {
-        return graph.createLink(nextInput);
-      } catch (error) {
-        try {
-          graph.createLink(currentLink);
-        } catch {
-          // 如果恢复旧连线也失败，当前阶段保留第一次错误作为真正根因。
-        }
-
-        throw error;
-      }
+      return graph.getLink(linkId);
     }
   };
 }

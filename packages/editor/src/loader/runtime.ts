@@ -1,5 +1,5 @@
 import * as LeaferGraphRuntime from "leafergraph";
-import type { LeaferGraphData, LeaferGraphNodePlugin } from "leafergraph";
+import type { GraphDocument, LeaferGraphNodePlugin } from "leafergraph";
 
 import type {
   EditorBundleManifest,
@@ -14,7 +14,10 @@ import type {
 export const EDITOR_BUNDLE_SLOTS = ["demo", "node", "widget"] as const;
 
 /** editor 在没有任何 demo bundle 时使用的空图。 */
-export const EMPTY_EDITOR_GRAPH: LeaferGraphData = {
+export const EMPTY_EDITOR_DOCUMENT: GraphDocument = {
+  documentId: "editor-empty-document",
+  revision: 0,
+  appKind: "leafergraph-local",
   nodes: [],
   links: []
 };
@@ -130,23 +133,42 @@ function normalizeQuickCreateNodeType(value: unknown): string | undefined {
   return type || undefined;
 }
 
-/** 归一化并校验图数据。 */
-function requireGraphData(value: unknown): LeaferGraphData {
+/** 归一化并校验图文档。 */
+function requireGraphDocument(value: unknown): GraphDocument {
   if (!isRecord(value)) {
-    throw new Error("Demo bundle 缺少 graph");
+    throw new Error("Demo bundle 缺少 document");
   }
 
   const nodes = value.nodes;
   const links = value.links;
 
   if (!Array.isArray(nodes) || !Array.isArray(links)) {
-    throw new Error("Demo bundle graph 必须包含 nodes 和 links 数组");
+    throw new Error("Demo bundle document 必须包含 nodes 和 links 数组");
   }
 
   return structuredClone({
+    documentId:
+      typeof value.documentId === "string" && value.documentId.trim()
+        ? value.documentId.trim()
+        : "bundle-document",
+    revision:
+      typeof value.revision === "number" || typeof value.revision === "string"
+        ? value.revision
+        : 0,
+    appKind:
+      typeof value.appKind === "string" && value.appKind.trim()
+        ? value.appKind.trim()
+        : "leafergraph-local",
     nodes,
-    links
-  }) as LeaferGraphData;
+    links,
+    meta: isRecord(value.meta) ? value.meta : undefined,
+    capabilityProfile: isRecord(value.capabilityProfile)
+      ? value.capabilityProfile
+      : undefined,
+    adapterBinding: isRecord(value.adapterBinding)
+      ? value.adapterBinding
+      : undefined
+  }) as GraphDocument;
 }
 
 /**
@@ -181,7 +203,7 @@ function normalizeBundleManifest(
       kind,
       version,
       requires,
-      graph: requireGraphData(manifest.graph)
+      document: requireGraphDocument(manifest.document)
     };
   }
 
@@ -453,7 +475,10 @@ export function resolveEditorBundleRuntimeSetup(
     : null;
 
   return {
-    graph: activeDemo?.kind === "demo" ? activeDemo.graph : EMPTY_EDITOR_GRAPH,
+    document:
+      activeDemo?.kind === "demo"
+        ? activeDemo.document
+        : EMPTY_EDITOR_DOCUMENT,
     plugins: resolveActivePlugins(slots, activityCache),
     quickCreateNodeType: resolveQuickCreateNodeType(slots, activityCache),
     slots: resolvedSlots

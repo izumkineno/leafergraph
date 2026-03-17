@@ -1,16 +1,22 @@
 import type { LeaferGraph, LeaferGraphCreateNodeInput } from "leafergraph";
+import {
+  createNodeCreateOperation,
+  createNodeRemoveOperation,
+  createNodeResizeOperation
+} from "./graph_operation_utils";
+import type { EditorGraphDocumentSession } from "../session/graph_document_session";
 import type { EditorNodeSelectionController } from "../state/selection";
-
-/**
- * 一次批量节点命令的创建结果。
- * 单节点命令也统一落到数组，便于多选和单选共用同一条调用链。
- */
-export type EditorNodeCommandResult = Array<ReturnType<LeaferGraph["createNode"]>>;
 
 /** 从主包读取到的正式节点快照。 */
 export type EditorNodeSnapshot = NonNullable<
   ReturnType<LeaferGraph["getNodeSnapshot"]>
 >;
+
+/**
+ * 一次批量节点命令的创建结果。
+ * 单节点命令也统一落到数组，便于多选和单选共用同一条调用链。
+ */
+export type EditorNodeCommandResult = EditorNodeSnapshot[];
 
 /**
  * 剪贴板中的单个节点条目。
@@ -53,7 +59,7 @@ export interface EditorNodeCommandController {
   /** 当前剪贴板，没有复制内容时返回 `null`。 */
   readonly clipboard: EditorNodeClipboard | null;
   /** 创建节点并自动绑定菜单与选区。 */
-  createNode(input: LeaferGraphCreateNodeInput): ReturnType<LeaferGraph["createNode"]>;
+  createNode(input: LeaferGraphCreateNodeInput): EditorNodeSnapshot | undefined;
   /** 删除当前选中节点；多选时删除整个选区。 */
   removePrimarySelectedNode(): boolean;
   /** 删除当前全部选中节点。 */
@@ -77,7 +83,7 @@ export interface EditorNodeCommandController {
     nodeId: string,
     x: number,
     y: number
-  ): ReturnType<LeaferGraph["createNode"]> | undefined;
+  ): EditorNodeSnapshot | undefined;
   /** 复制当前选区，并按默认偏移生成副本。 */
   duplicatePrimarySelectedNode(): EditorNodeCommandResult | undefined;
   /** 显式复制当前全部选中节点并生成副本。 */
@@ -96,6 +102,7 @@ export interface EditorNodeCommandController {
  */
 export interface CreateEditorNodeCommandControllerOptions {
   graph: LeaferGraph;
+  session: EditorGraphDocumentSession;
   selection: EditorNodeSelectionController;
   bindNode(node: { id: string; title: string; type?: string }): void;
   unbindNode(nodeId: string): void;
@@ -265,19 +272,25 @@ export function resolveKeyboardPastePosition(
  */
 export function createNodesFromClipboard(
   graph: LeaferGraph,
+  session: EditorGraphDocumentSession,
   clipboard: EditorNodeClipboard,
   x: number,
   y: number
 ): EditorNodeCommandResult {
-  return clipboard.entries.map((entry) =>
-    graph.createNode(
-      createNodeInputFromSnapshot(
-        entry.snapshot,
-        x + entry.offsetX,
-        y + entry.offsetY
+  return clipboard.entries
+    .map((entry) =>
+      session.submitOperation(
+        createNodeCreateOperation(
+          createNodeInputFromSnapshot(
+            entry.snapshot,
+            x + entry.offsetX,
+            y + entry.offsetY
+          )
+        )
       )
     )
-  );
+    .map((result) => graph.getNodeSnapshot(result.affectedNodeIds[0] ?? ""))
+    .filter((snapshot): snapshot is EditorNodeSnapshot => Boolean(snapshot));
 }
 
 /**
@@ -286,16 +299,20 @@ export function createNodesFromClipboard(
  */
 export function duplicateNodeFromSnapshot(
   graph: LeaferGraph,
+  session: EditorGraphDocumentSession,
   nodeId: string,
   x: number,
   y: number
-) {
+): EditorNodeSnapshot | undefined {
   const snapshot = graph.getNodeSnapshot(nodeId);
   if (!snapshot) {
     return undefined;
   }
 
-  return graph.createNode(createNodeInputFromSnapshot(snapshot, x, y));
+  const result = session.submitOperation(
+    createNodeCreateOperation(createNodeInputFromSnapshot(snapshot, x, y))
+  );
+  return graph.getNodeSnapshot(result.affectedNodeIds[0] ?? "");
 }
 
 /**
@@ -304,6 +321,7 @@ export function duplicateNodeFromSnapshot(
  */
 export function duplicateNodesFromSelection(
   graph: LeaferGraph,
+  session: EditorGraphDocumentSession,
   nodeIds: readonly string[],
   x: number,
   y: number
@@ -313,7 +331,7 @@ export function duplicateNodesFromSelection(
     return undefined;
   }
 
-  return createNodesFromClipboard(graph, clipboard, x, y);
+  return createNodesFromClipboard(graph, session, clipboard, x, y);
 }
 
 /**
@@ -355,9 +373,22 @@ export function resolveNodeResizeCommandState(
 /** 执行节点尺寸重置命令，并返回是否真的发生了尺寸回写。 */
 export function resetNodeSizeById(
   graph: LeaferGraph,
+  session: EditorGraphDocumentSession,
   nodeId: string
 ): boolean {
-  return Boolean(graph.resetNodeSize(nodeId));
+  const constraint = graph.getNodeResizeConstraint(nodeId);
+  if (!constraint?.enabled) {
+    return false;
+  }
+
+  const result = session.submitOperation(
+    createNodeResizeOperation(nodeId, {
+      width: constraint.defaultWidth,
+      height: constraint.defaultHeight
+    })
+  );
+
+  return result.accepted && result.changed;
 }
 
 /**
@@ -374,24 +405,44 @@ export function createEditorNodeCommandController(
 
   const createNode = (
     input: LeaferGraphCreateNodeInput
-  ): ReturnType<LeaferGraph["createNode"]> => {
-    const node = options.graph.createNode(input);
-    options.bindNode(node);
-    options.selection.select(node.id);
-    return node;
+  ): EditorNodeSnapshot | undefined => {
+    const result = options.session.submitOperation(createNodeCreateOperation(input));
+    if (!result.accepted || !result.changed) {
+      return undefined;
+    }
+
+    const nodeId = result.affectedNodeIds[0];
+    const snapshot = nodeId ? options.graph.getNodeSnapshot(nodeId) : undefined;
+    if (!snapshot) {
+      return undefined;
+    }
+
+    options.bindNode({
+      id: snapshot.id,
+      title: snapshot.title ?? snapshot.id,
+      type: snapshot.type
+    });
+    options.selection.select(snapshot.id);
+    return snapshot;
   };
 
   const createNodes = (
     inputs: readonly LeaferGraphCreateNodeInput[]
   ): EditorNodeCommandResult => {
-    const nodes = inputs.map((input) => options.graph.createNode(input));
+    const snapshots: EditorNodeSnapshot[] = [];
 
-    for (const node of nodes) {
-      options.bindNode(node);
+    for (const input of inputs) {
+      const snapshot = createNode(input);
+      if (snapshot) {
+        snapshots.push(snapshot);
+      }
     }
 
-    options.selection.setMany(nodes.map((node) => node.id));
-    return nodes;
+    if (snapshots.length) {
+      options.selection.setMany(snapshots.map((snapshot) => snapshot.id));
+    }
+
+    return snapshots;
   };
 
   const removeNodeIds = (
@@ -403,25 +454,36 @@ export function createEditorNodeCommandController(
       return false;
     }
 
+    const removedNodeIds: string[] = [];
+    for (const nodeId of orderedNodeIds) {
+      const result = options.session.submitOperation(
+        createNodeRemoveOperation(nodeId)
+      );
+      if (!result.accepted || !result.changed) {
+        continue;
+      }
+
+      options.unbindNode(nodeId);
+      removedNodeIds.push(nodeId);
+    }
+
+    if (!removedNodeIds.length) {
+      return false;
+    }
+
     if (
       !optionsOverride?.preserveClipboard &&
-      orderedNodeIds.some((nodeId) => isClipboardSourceNode(clipboard, nodeId))
+      removedNodeIds.some((nodeId) => isClipboardSourceNode(clipboard, nodeId))
     ) {
       clipboard = null;
     }
 
     const nextSelectedNodeIds = options.selection.selectedNodeIds.filter(
-      (selectedNodeId) => !orderedNodeIds.includes(selectedNodeId)
+      (selectedNodeId) => !removedNodeIds.includes(selectedNodeId)
     );
     options.selection.setMany(nextSelectedNodeIds);
 
-    let removed = false;
-    for (const nodeId of orderedNodeIds) {
-      options.unbindNode(nodeId);
-      removed = options.graph.removeNode(nodeId) || removed;
-    }
-
-    return removed;
+    return true;
   };
 
   const copyNode = (nodeId: string): boolean => {
@@ -471,7 +533,7 @@ export function createEditorNodeCommandController(
     nodeId: string,
     x: number,
     y: number
-  ): ReturnType<LeaferGraph["createNode"]> | undefined => {
+  ): EditorNodeSnapshot | undefined => {
     const snapshot = options.graph.getNodeSnapshot(nodeId);
     if (!snapshot) {
       return undefined;
@@ -564,7 +626,7 @@ export function createEditorNodeCommandController(
   };
 
   const resetNodeSize = (nodeId: string): boolean => {
-    const changed = resetNodeSizeById(options.graph, nodeId);
+    const changed = resetNodeSizeById(options.graph, options.session, nodeId);
     if (changed) {
       options.selection.select(nodeId);
     }

@@ -1,8 +1,8 @@
 import type {
+  GraphLink,
   LeaferGraph,
   LeaferGraphContextMenuBindingTarget,
-  LeaferGraphContextMenuManager,
-  LeaferGraphLinkData
+  LeaferGraphContextMenuManager
 } from "leafergraph";
 
 /**
@@ -66,7 +66,7 @@ export function createNodeMenuBindingMeta(node: {
 
 /** 规范化连线菜单挂载元信息。 */
 export function createLinkMenuBindingMeta(
-  link: LeaferGraphLinkData
+  link: GraphLink
 ): EditorLinkMenuBindingMeta {
   return {
     entity: "link",
@@ -118,7 +118,7 @@ export function bindNodeContextMenu(
 export function bindLinkContextMenu(
   graph: LeaferGraph,
   menu: LeaferGraphContextMenuManager,
-  link: LeaferGraphLinkData
+  link: GraphLink
 ): void {
   const key = createLinkMenuBindingKey(link.id);
   const view = graph.getLinkView(link.id);
