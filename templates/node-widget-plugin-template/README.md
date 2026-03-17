@@ -23,7 +23,7 @@ templates/node-widget-plugin-template/
   src/
     index.ts
     module.ts
-    demo-graph.ts
+    demo-document.ts
     shared.ts
     browser/
       register_bundle.ts
@@ -62,7 +62,7 @@ templates/node-widget-plugin-template/
 ### 3. browser bundle 如何拆分成 demo / node / widget 三类
 
 - `demo.iife.js`
-  - 只注册演示图数据
+  - 只注册演示 document 数据
   - 显式声明依赖 `node + widget`
 - `node.iife.js`
   - 只安装可独立成立的节点模块
@@ -108,12 +108,12 @@ bun run build
 ```ts
 import { createLeaferGraph } from "leafergraph";
 import templatePlugin, {
-  templateDemoGraph
+  templateDemoDocument
 } from "@template/node-widget-demo";
 
 const graph = createLeaferGraph(container, {
   plugins: [templatePlugin],
-  graph: templateDemoGraph
+  document: templateDemoDocument
 });
 ```
 

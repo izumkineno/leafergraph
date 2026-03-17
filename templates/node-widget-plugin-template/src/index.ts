@@ -1,6 +1,6 @@
 import type { LeaferGraphNodePlugin } from "leafergraph";
 
-import { templateDemoGraph } from "./demo-graph";
+import { templateDemoDocument } from "./demo-document";
 import {
   templateNodeOnlyDemoModule,
   templateNodeWidgetDemoModule,
@@ -12,7 +12,7 @@ import {
 } from "./shared";
 import { templateExternalStatusWidget } from "./widgets";
 
-export { templateDemoGraph } from "./demo-graph";
+export { templateDemoDocument } from "./demo-document";
 export {
   templateNodeOnlyDemoModule,
   templateNodeWidgetDemoModule,
@@ -28,8 +28,15 @@ export * from "./widgets";
  * 这是宿主最直接的接入方式：
  *
  * ```ts
- * import templatePlugin from "@template/node-widget-demo";
- * graph.use(templatePlugin);
+ * import { createLeaferGraph } from "leafergraph";
+ * import templatePlugin, {
+ *   templateDemoDocument
+ * } from "@template/node-widget-demo";
+ *
+ * const graph = createLeaferGraph(container, {
+ *   plugins: [templatePlugin],
+ *   document: templateDemoDocument
+ * });
  * ```
  *
  * 这里最重要的不是代码量，而是安装顺序：
@@ -68,12 +75,12 @@ export const templateWidgetOnlyDemoPlugin: LeaferGraphNodePlugin = {
 };
 
 /**
- * 额外导出一份默认 graph 数据，方便宿主快速确认模板已接通。
+ * 额外导出一份默认 document 数据，方便宿主快速确认模板已接通。
  *
  * 这样一个最小接入示例只需要：
  * - `plugins: [templateNodeWidgetDemoPlugin]`
- * - `graph: templateDemoGraph`
+ * - `document: templateDemoDocument`
  */
-export { templateDemoGraph as templateNodeWidgetDemoGraph };
+export { templateDemoDocument as templateNodeWidgetDemoDocument };
 
 export default templateNodeWidgetDemoPlugin;

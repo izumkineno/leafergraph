@@ -1,5 +1,5 @@
 import type { NodeModule } from "./definition";
-import type { LeaferGraphData } from "./graph";
+import type { GraphDocument } from "./graph";
 import type { NodeSlotSpec, NodeWidgetSpec } from "./types";
 
 // 这组类型只服务当前仓库内的 demo / editor 过渡场景，不再从包根入口导出。
@@ -8,7 +8,7 @@ import type { NodeSlotSpec, NodeWidgetSpec } from "./types";
  * Demo 节点输入结构。
  * 这里偏向演示用途，字段比正式 `NodeInit` 更接近页面层数据源。
  */
-export interface LeaferGraphNodeData {
+export interface LeaferGraphDemoNodeInput {
   id: string;
   type?: string;
   title: string;
@@ -31,12 +31,15 @@ export interface LeaferGraphNodeData {
 }
 
 /**
- * 主包初始化配置。
- * 当前阶段仍兼容直接传入 `nodes`，同时开始支持正式 `graph` 输入。
+ * 内部演示初始化输入。
+ *
+ * @remarks
+ * 这里只保留给 demo / editor 过渡逻辑使用，
+ * 不应再被当成主包长期公共配置语义。
  */
-export interface LeaferGraphOptions {
+export interface LeaferGraphDemoInputOptions {
   fill?: string;
-  nodes?: LeaferGraphNodeData[];
-  graph?: LeaferGraphData;
+  nodes?: LeaferGraphDemoNodeInput[];
+  document?: GraphDocument;
   modules?: NodeModule[];
 }

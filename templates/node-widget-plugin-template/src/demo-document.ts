@@ -1,4 +1,4 @@
-import type { LeaferGraphData } from "leafergraph";
+import type { GraphDocument } from "leafergraph";
 
 import {
   TEMPLATE_BASIC_WIDGET_NODE_TYPE,
@@ -10,16 +10,19 @@ import {
 } from "./shared";
 
 /**
- * 这份图数据是给宿主项目快速验证模板接入是否成功的。
+ * 这份 document 数据是给宿主项目快速验证模板接入是否成功的。
  *
  * 用法通常是：
  * 1. 先安装模板插件
- * 2. 再把这份 graph 作为初始化图数据传给宿主
+ * 2. 再把这份 document 作为初始化图数据传给宿主
  *
  * 注意这里的 `type` 必须写“安装后的最终类型”，
  * 也就是带 namespace 的那一套值。
  */
-export const templateDemoGraph: LeaferGraphData = {
+export const templateDemoDocument: GraphDocument = {
+  documentId: "template-demo-document",
+  revision: 1,
+  appKind: "leafergraph-local",
   nodes: [
     {
       id: "template-on-play",

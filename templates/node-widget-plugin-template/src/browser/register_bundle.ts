@@ -1,4 +1,4 @@
-import type { LeaferGraphData, LeaferGraphNodePlugin } from "leafergraph";
+import type { GraphDocument, LeaferGraphNodePlugin } from "leafergraph";
 
 /** browser bundle 可使用的固定槽位。 */
 type TemplateBrowserBundleSlot = "demo" | "node" | "widget";
@@ -16,7 +16,7 @@ interface TemplateBrowserBundleManifestBase {
 export interface TemplateBrowserDemoBundleManifest
   extends TemplateBrowserBundleManifestBase {
   kind: "demo";
-  graph: LeaferGraphData;
+  document: GraphDocument;
 }
 
 /** node / widget bundle manifest。 */

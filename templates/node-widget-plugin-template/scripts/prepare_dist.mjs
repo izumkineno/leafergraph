@@ -1,4 +1,4 @@
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -7,21 +7,12 @@ const distDirectory = path.resolve(scriptDirectory, "../dist");
 const browserDirectory = path.resolve(distDirectory, "browser");
 
 /**
- * 旧构建里曾经把 `dist/browser` 产成单个文件。
- * 新方案需要把它固定成目录，因此构建前先做一次幂等清理。
+ * 构建前先整体清理 `dist/`，避免历史声明文件和旧 browser 产物残留。
+ * 这样像 `demo-graph.d.ts`、`browser.js` 这类过时文件不会继续混进模板包。
  */
 async function ensureBrowserDirectory() {
+  await rm(distDirectory, { recursive: true, force: true });
   await mkdir(distDirectory, { recursive: true });
-
-  try {
-    const current = await stat(browserDirectory);
-    if (!current.isDirectory()) {
-      await rm(browserDirectory, { force: true });
-    }
-  } catch {
-    // 目录不存在时直接创建即可。
-  }
-
   await mkdir(browserDirectory, { recursive: true });
 }
 

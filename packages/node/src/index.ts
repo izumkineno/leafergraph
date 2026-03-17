@@ -40,9 +40,11 @@ export type { RegisterWidgetOptions, WidgetDefinitionReader } from "./widget";
 export type { InstallNodeModuleOptions, ResolvedNodeModule } from "./module";
 export type { NodeConfigureInput } from "./configure";
 export type {
-  LeaferGraphData,
-  LeaferGraphLinkData,
-  LeaferGraphLinkEndpoint
+  AdapterBinding,
+  CapabilityProfile,
+  GraphDocument,
+  GraphLink,
+  GraphLinkEndpoint
 } from "./graph";
 
 export { NodeRegistry } from "./registry";
