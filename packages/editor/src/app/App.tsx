@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import type { GraphDocument } from "leafergraph";
 
 import {
   GraphViewport,
+  type GraphViewportHostBridge,
   type GraphViewportToolbarActionState,
   type GraphViewportToolbarControlsState,
   type GraphViewportRuntimeControlsState
@@ -30,6 +32,11 @@ import type {
   EditorBundleSlot,
   EditorBundleSlotState
 } from "../loader/types";
+import {
+  createEditorRemoteAuthorityAppRuntime,
+  type EditorRemoteAuthorityAppSource,
+  type ResolvedEditorRemoteAuthorityAppRuntime
+} from "./remote_authority_app_runtime";
 
 /** 切换到相反主题。 */
 function toggleEditorTheme(theme: EditorTheme): EditorTheme {
@@ -47,6 +54,31 @@ function formatGraphExecutionStatusLabel(
       return "图单步中";
     default:
       return "图空闲";
+  }
+}
+
+type RemoteAuthorityRuntimeStatus =
+  | "disabled"
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error";
+
+/** editor 顶层 remote authority 状态文案。 */
+function formatRemoteAuthorityStatusLabel(
+  status: RemoteAuthorityRuntimeStatus
+): string {
+  switch (status) {
+    case "loading":
+      return "远端加载中";
+    case "ready":
+      return "远端已接通";
+    case "error":
+      return "远端连接失败";
+    case "idle":
+      return "远端待启动";
+    default:
+      return "本地模式";
   }
 }
 
@@ -150,7 +182,15 @@ function formatBundlePersistenceLabel(slot: EditorBundleSlotState): string {
     : "已写入浏览器，刷新后自动恢复";
 }
 
-export function App() {
+export interface AppProps {
+  remoteAuthoritySource?: EditorRemoteAuthorityAppSource;
+  onViewportHostBridgeChange?(bridge: GraphViewportHostBridge | null): void;
+}
+
+export function App({
+  remoteAuthoritySource,
+  onViewportHostBridgeChange
+}: AppProps) {
   const [theme, setTheme] = useState<EditorTheme>(() =>
     resolveInitialEditorTheme()
   );
@@ -165,8 +205,49 @@ export function App() {
   const [bundleSlots, setBundleSlots] = useState<
     Record<EditorBundleSlot, EditorBundleSlotState>
   >(() => createInitialBundleSlots());
+  const [remoteAuthorityStatus, setRemoteAuthorityStatus] =
+    useState<RemoteAuthorityRuntimeStatus>(
+      remoteAuthoritySource ? "idle" : "disabled"
+    );
+  const [remoteAuthorityError, setRemoteAuthorityError] = useState<string | null>(
+    null
+  );
+  const [remoteAuthorityRuntime, setRemoteAuthorityRuntime] =
+    useState<ResolvedEditorRemoteAuthorityAppRuntime | null>(null);
+  const [remoteAuthorityDocument, setRemoteAuthorityDocument] =
+    useState<GraphDocument | null>(null);
+  const [remoteAuthorityReloadKey, setRemoteAuthorityReloadKey] = useState(0);
+  const [viewportHostBridge, setViewportHostBridge] =
+    useState<GraphViewportHostBridge | null>(null);
   const isCanvasWorkspace =
     hasStartedRendering && activeWorkspacePageId === "main-canvas";
+  const remoteAuthorityRuntimeRef =
+    useRef<ResolvedEditorRemoteAuthorityAppRuntime | null>(null);
+  const isRemoteAuthorityEnabled = Boolean(remoteAuthoritySource);
+
+  useEffect(() => {
+    remoteAuthorityRuntimeRef.current = remoteAuthorityRuntime;
+  }, [remoteAuthorityRuntime]);
+
+  useEffect(() => {
+    if (!remoteAuthorityRuntime) {
+      setRemoteAuthorityDocument(null);
+      return;
+    }
+
+    setRemoteAuthorityDocument(remoteAuthorityRuntime.document);
+  }, [remoteAuthorityRuntime]);
+
+  useEffect(() => {
+    if (!remoteAuthorityRuntime || !viewportHostBridge) {
+      return;
+    }
+
+    setRemoteAuthorityDocument(viewportHostBridge.getCurrentDocument());
+    return viewportHostBridge.subscribeDocument((document) => {
+      setRemoteAuthorityDocument(document);
+    });
+  }, [remoteAuthorityRuntime, viewportHostBridge]);
 
   useEffect(() => {
     ensureEditorBundleRuntimeGlobals();
@@ -277,10 +358,79 @@ export function App() {
     });
   }, [hasStartedRendering]);
 
+  useEffect(() => {
+    if (!remoteAuthoritySource) {
+      setRemoteAuthorityStatus("disabled");
+      setRemoteAuthorityError(null);
+      setRemoteAuthorityRuntime((current) => {
+        current?.dispose();
+        return null;
+      });
+      return;
+    }
+
+    if (!hasStartedRendering || activeWorkspacePageId !== "main-canvas") {
+      setRemoteAuthorityStatus("idle");
+      setRemoteAuthorityError(null);
+      setRemoteAuthorityRuntime((current) => {
+        current?.dispose();
+        return null;
+      });
+      return;
+    }
+
+    let cancelled = false;
+    let createdRuntime: ResolvedEditorRemoteAuthorityAppRuntime | null = null;
+    setRemoteAuthorityStatus("loading");
+    setRemoteAuthorityError(null);
+    setRemoteAuthorityRuntime((current) => {
+      current?.dispose();
+      return null;
+    });
+
+    void createEditorRemoteAuthorityAppRuntime(remoteAuthoritySource).then(
+      (runtime) => {
+        if (cancelled) {
+          runtime.dispose();
+          return;
+        }
+
+        createdRuntime = runtime;
+        setRemoteAuthorityRuntime(runtime);
+        setRemoteAuthorityStatus("ready");
+      },
+      (error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        setRemoteAuthorityStatus("error");
+        setRemoteAuthorityError(toErrorMessage(error));
+      }
+    );
+
+    return () => {
+      cancelled = true;
+      createdRuntime?.dispose();
+      remoteAuthorityRuntimeRef.current = null;
+    };
+  }, [
+    activeWorkspacePageId,
+    hasStartedRendering,
+    remoteAuthorityReloadKey,
+    remoteAuthoritySource
+  ]);
+
   const runtimeSetup = useMemo(
     () => resolveEditorBundleRuntimeSetup(bundleSlots),
     [bundleSlots]
   );
+  const effectiveDocument =
+    remoteAuthorityRuntime?.document ?? runtimeSetup.document;
+  const effectiveCreateDocumentSessionBinding =
+    remoteAuthorityRuntime?.createDocumentSessionBinding;
+  const effectiveRuntimeFeedbackInlet =
+    remoteAuthorityRuntime?.runtimeFeedbackInlet;
   const activeWorkspacePage = WORKSPACE_PAGES.find(
     (page) => page.id === activeWorkspacePageId
   )!;
@@ -323,6 +473,10 @@ export function App() {
     setHasStartedRendering(false);
     setGraphRuntimeControls(null);
     setEditorToolbarControls(null);
+    setRemoteAuthorityRuntime((current) => {
+      current?.dispose();
+      return null;
+    });
   };
 
   const handleBundleFileChange = async (
@@ -414,6 +568,14 @@ export function App() {
     void removePersistedEditorBundleRecord(slot);
   };
 
+  const handleViewportHostBridgeChange = useCallback(
+    (bridge: GraphViewportHostBridge | null): void => {
+      setViewportHostBridge(bridge);
+      onViewportHostBridgeChange?.(bridge);
+    },
+    [onViewportHostBridgeChange]
+  );
+
   return (
     <div
       class="shell"
@@ -433,8 +595,53 @@ export function App() {
           <ul>
             <li>核心库：LeaferGraph API 与渲染宿主</li>
             <li>编辑器：Preact 组件树管理布局和状态</li>
-            <li>本地接入：通过 IIFE bundle 装载 demo、node、widget</li>
+            <li>
+              {isRemoteAuthorityEnabled
+                ? "远端 authority：由 App 装配 client、文档快照和反馈回流"
+                : "本地接入：通过 IIFE bundle 装载 demo、node、widget"}
+            </li>
           </ul>
+        </section>
+
+        <section class="panel">
+          <h2>Authority</h2>
+          <ul>
+            <li>
+              当前模式：
+              {isRemoteAuthorityEnabled ? "Remote Authority" : "Local Loopback"}
+            </li>
+            <li>当前状态：{formatRemoteAuthorityStatusLabel(remoteAuthorityStatus)}</li>
+            <li>
+              当前来源：
+              {remoteAuthorityRuntime?.sourceLabel ??
+                remoteAuthoritySource?.label ??
+                "未接入"}
+            </li>
+            <li>
+              当前文档：
+              {remoteAuthorityDocument
+                ? `${remoteAuthorityDocument.documentId} @ ${remoteAuthorityDocument.revision}`
+                : "使用当前本地图文档"}
+            </li>
+          </ul>
+          {remoteAuthorityRuntime?.sourceDescription ? (
+            <p class="bundle-panel__note">{remoteAuthorityRuntime.sourceDescription}</p>
+          ) : null}
+          {remoteAuthorityError ? (
+            <p class="bundle-card__error">{remoteAuthorityError}</p>
+          ) : null}
+          {isRemoteAuthorityEnabled ? (
+            <button
+              type="button"
+              class="bundle-card__button"
+              disabled={remoteAuthorityStatus === "loading"}
+              onClick={() => {
+                setRemoteAuthorityReloadKey((current) => current + 1);
+              }}
+            >
+              {remoteAuthorityStatus === "loading" ? "连接中" : "重新连接 Authority"}
+            </button>
+          ) : null}
         </section>
 
         <section class="panel">
@@ -640,7 +847,7 @@ export function App() {
                       <h3>从本地 dist IIFE 文件加载</h3>
                     </div>
                     <p class="bundle-panel__summary">
-                      当前激活：
+                    当前激活：
                       <strong>{runtimeSetup.plugins.length}</strong>
                       个插件，
                       <strong>{runtimeSetup.quickCreateNodeType ?? "无"}</strong>
@@ -776,14 +983,46 @@ export function App() {
               </div>
 
               <div class="canvas-page__body">
-                <GraphViewport
-                  document={runtimeSetup.document}
-                  plugins={runtimeSetup.plugins}
-                  quickCreateNodeType={runtimeSetup.quickCreateNodeType}
-                  theme={theme}
-                  onEditorToolbarControlsChange={setEditorToolbarControls}
-                  onGraphRuntimeControlsChange={setGraphRuntimeControls}
-                />
+                {isRemoteAuthorityEnabled && remoteAuthorityStatus !== "ready" ? (
+                  <div class="graph-root graph-root--idle">
+                    <div class="graph-empty-state">
+                      <p class="toolbar__label">Remote Authority</p>
+                      <h3>
+                        {remoteAuthorityStatus === "error"
+                          ? "Authority 连接失败"
+                          : "正在加载远端文档"}
+                      </h3>
+                      <p>
+                        {remoteAuthorityStatus === "error"
+                          ? remoteAuthorityError ??
+                            "当前 authority 未能返回可用文档，请重试或切回本地模式。"
+                          : "App 正在装配 authority client、拉取正式 GraphDocument，并等待反馈通道就绪。"}
+                      </p>
+                      <button
+                        type="button"
+                        class="render-toggle render-toggle--hero"
+                        disabled={remoteAuthorityStatus === "loading"}
+                        onClick={() => {
+                          setRemoteAuthorityReloadKey((current) => current + 1);
+                        }}
+                      >
+                        {remoteAuthorityStatus === "loading" ? "连接中" : "重试连接"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <GraphViewport
+                    document={effectiveDocument}
+                    plugins={runtimeSetup.plugins}
+                    createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
+                    runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
+                    onHostBridgeChange={handleViewportHostBridgeChange}
+                    quickCreateNodeType={runtimeSetup.quickCreateNodeType}
+                    theme={theme}
+                    onEditorToolbarControlsChange={setEditorToolbarControls}
+                    onGraphRuntimeControlsChange={setGraphRuntimeControls}
+                  />
+                )}
               </div>
             </div>
           </section>
