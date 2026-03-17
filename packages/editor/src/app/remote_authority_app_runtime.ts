@@ -9,7 +9,9 @@ import {
   type EditorRemoteAuthorityDocumentClient,
   type EditorRemoteAuthorityTransport
 } from "../session/graph_document_authority_transport";
+import type { EditorRemoteAuthorityDocumentService } from "../session/graph_document_authority_service";
 import { createMessagePortRemoteAuthorityTransport } from "../session/message_port_remote_authority_transport";
+import { createMessagePortRemoteAuthorityHost } from "../session/message_port_remote_authority_host";
 import { DEFAULT_REMOTE_AUTHORITY_BRIDGE_HANDSHAKE_TYPE } from "../session/message_port_remote_authority_bridge_host";
 
 /** editor 浏览器侧可装配的 remote authority 来源。 */
@@ -137,6 +139,35 @@ export interface CreateEditorRemoteAuthorityWindowSourceOptions {
   closePortOnDispose?: boolean;
 }
 
+/** 基于 authority service 创建 source 的最小参数。 */
+export interface CreateEditorRemoteAuthorityServiceSourceOptions {
+  /** 当前 authority 来源标题。 */
+  label?: string;
+  /** 当前 authority 来源说明。 */
+  description?: string;
+  /**
+   * 已存在的 authority service。
+   *
+   * @remarks
+   * 若直接传入 singleton service，默认不会在 runtime dispose 时自动释放；
+   * 如需自动释放，请显式传入 `disposeServiceOnDispose: true`。
+   */
+  service?: EditorRemoteAuthorityDocumentService;
+  /**
+   * 为一次 runtime 挂载创建新的 authority service。
+   *
+   * @remarks
+   * 若提供此工厂，默认会在 runtime dispose 时自动释放本次 service。
+   */
+  createService?():
+    | EditorRemoteAuthorityDocumentService
+    | Promise<EditorRemoteAuthorityDocumentService>;
+  /** 释放 transport 时是否关闭专用 MessagePort。 */
+  closePortOnDispose?: boolean;
+  /** 释放 runtime 时是否顺带释放 authority service。 */
+  disposeServiceOnDispose?: boolean;
+}
+
 /** App 装配 remote authority 后得到的最小运行时。 */
 export interface ResolvedEditorRemoteAuthorityAppRuntime {
   /** 当前 authority 来源标题。 */
@@ -189,6 +220,20 @@ function hasRuntimeFeedbackSubscribe(
   client: EditorRemoteAuthorityDocumentClient
 ): client is EditorRemoteAuthorityDocumentClient & EditorRuntimeFeedbackInlet {
   return typeof client.subscribe === "function";
+}
+
+async function resolveAuthorityService(
+  options: CreateEditorRemoteAuthorityServiceSourceOptions
+): Promise<EditorRemoteAuthorityDocumentService> {
+  if (typeof options.createService === "function") {
+    return options.createService();
+  }
+
+  if (options.service) {
+    return options.service;
+  }
+
+  throw new Error("authority service source 缺少 service/createService");
 }
 
 async function resolveAuthorityClient(
@@ -330,6 +375,59 @@ export function createEditorRemoteAuthorityWindowSource(
       );
     }
   });
+}
+
+/**
+ * 基于 authority service 创建浏览器侧 authority source。
+ *
+ * @remarks
+ * 这层把宿主已有的 authority service 重新桥接成标准 `MessagePort transport`：
+ * - editor 主链继续只消费 authority source / transport / client
+ * - 外部协议适配停留在 service 或更外层的 adapter
+ */
+export function createEditorRemoteAuthorityServiceSource(
+  options: CreateEditorRemoteAuthorityServiceSourceOptions
+): EditorRemoteAuthorityAppSource {
+  const shouldDisposeServiceOnDispose =
+    options.disposeServiceOnDispose ??
+    (typeof options.createService === "function");
+
+  return {
+    label: options.label ?? "Service Authority",
+    description: options.description,
+    async createTransport() {
+      const channel = new MessageChannel();
+      const service = await resolveAuthorityService(options);
+      let host: ReturnType<typeof createMessagePortRemoteAuthorityHost> | null =
+        null;
+
+      try {
+        host = createMessagePortRemoteAuthorityHost({
+          port: channel.port2,
+          service,
+          closePortOnDispose: options.closePortOnDispose ?? true,
+          disposeServiceOnDispose: shouldDisposeServiceOnDispose
+        });
+
+        return wrapMessagePortTransport({
+          port: channel.port1,
+          closePortOnDispose: options.closePortOnDispose ?? true,
+          onDispose() {
+            host?.dispose();
+          }
+        });
+      } catch (error) {
+        channel.port1.close();
+        channel.port2.close();
+
+        if (shouldDisposeServiceOnDispose) {
+          service.dispose?.();
+        }
+
+        throw error;
+      }
+    }
+  };
 }
 
 /**
