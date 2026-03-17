@@ -8,7 +8,8 @@
 import type { Box, Group } from "leafer-ui";
 import type {
   InstallNodeModuleOptions,
-  LeaferGraphLinkData,
+  GraphDocument,
+  GraphLink,
   NodeDefinition,
   NodeModule,
   NodeSerializeResult,
@@ -24,8 +25,12 @@ import type {
 } from "./plugin";
 import type { LeaferGraphContextMenuBindingTarget } from "../interaction/context_menu";
 import type {
+  GraphOperation,
+  GraphOperationApplyResult,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
+  RuntimeAdapter,
+  RuntimeFeedbackEvent,
   LeaferGraphConnectionPortState,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
@@ -68,6 +73,7 @@ export interface LeaferGraphApiRuntime<
     destroy(): void;
   };
   bootstrapRuntime: LeaferGraphBootstrapRuntimeLike;
+  runtimeAdapter: RuntimeAdapter;
   widgetEditingManager: {
     destroy(): void;
   };
@@ -79,6 +85,7 @@ export interface LeaferGraphApiRuntime<
     | "setNodeWidgetValue"
     | "findLinksByNode"
     | "getLink"
+    | "applyGraphOperation"
     | "createNode"
     | "removeNode"
     | "updateNode"
@@ -207,6 +214,7 @@ export class LeaferGraphApiHost<
       );
     }
 
+    this.options.runtime.runtimeAdapter.destroy?.();
     this.options.runtime.interactionHost.destroy();
     this.options.runtime.dataFlowAnimationHost.destroy();
     this.options.runtime.widgetEditingManager.destroy();
@@ -241,6 +249,11 @@ export class LeaferGraphApiHost<
   /** 列出当前已注册 Widget。 */
   listWidgets(): LeaferGraphWidgetEntry[] {
     return this.options.runtime.bootstrapRuntime.listWidgets();
+  }
+
+  /** 直接替换当前正式文档。 */
+  replaceGraphDocument(document: GraphDocument): void {
+    this.options.runtime.bootstrapRuntime.replaceGraphDocument(document);
   }
 
   /** 运行时切换主包主题，并局部刷新现有节点壳与 Widget。 */
@@ -367,14 +380,28 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.subscribeNodeState(listener);
   }
 
+  /** 订阅统一运行反馈事件。 */
+  subscribeRuntimeFeedback(
+    listener: (event: RuntimeFeedbackEvent) => void
+  ): () => void {
+    return this.options.runtime.runtimeAdapter.subscribe(listener);
+  }
+
   /** 根据节点 ID 查询当前图中的所有关联连线。 */
-  findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
+  findLinksByNode(nodeId: string): GraphLink[] {
     return this.options.runtime.sceneRuntime.findLinksByNode(nodeId);
   }
 
   /** 根据连线 ID 读取当前图中的正式连线快照。 */
-  getLink(linkId: string): LeaferGraphLinkData | undefined {
+  getLink(linkId: string): GraphLink | undefined {
     return this.options.runtime.sceneRuntime.getLink(linkId);
+  }
+
+  /** 应用一条正式图操作。 */
+  applyGraphOperation(
+    operation: GraphOperation
+  ): GraphOperationApplyResult {
+    return this.options.runtime.sceneRuntime.applyGraphOperation(operation);
   }
 
   /** 解析某个节点方向和槽位对应的正式端口几何。 */
@@ -474,7 +501,7 @@ export class LeaferGraphApiHost<
   }
 
   /** 创建一条正式连线并加入当前图状态。 */
-  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink {
     return this.options.runtime.sceneRuntime.createLink(input);
   }
 

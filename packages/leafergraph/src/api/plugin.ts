@@ -7,7 +7,7 @@
 
 import type {
   InstallNodeModuleOptions,
-  LeaferGraphData,
+  GraphDocument,
   NodeDefinition,
   NodeModule,
   NodeRuntimeState,
@@ -366,11 +366,11 @@ export interface LeaferGraphNodePlugin {
  *
  * @remarks
  * editor、模板工程和外部调用方都应该通过这份配置进入主包，
- * 其中 `graph` 是正式图输入，`modules/plugins` 负责扩展节点和 Widget 生态。
+ * 其中 `document` 是正式图输入，`modules/plugins` 负责扩展节点和 Widget 生态。
  */
 export interface LeaferGraphOptions {
   fill?: string;
-  graph?: LeaferGraphData;
+  document?: GraphDocument;
   modules?: NodeModule[];
   plugins?: LeaferGraphNodePlugin[];
   themeMode?: LeaferGraphThemeMode;

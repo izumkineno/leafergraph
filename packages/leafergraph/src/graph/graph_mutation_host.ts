@@ -8,7 +8,7 @@
 import {
   configureNode,
   createNodeState,
-  type LeaferGraphLinkData,
+  type GraphLink,
   type NodeRegistry,
   type NodeSlotSpec
 } from "@leafergraph/node";
@@ -60,18 +60,18 @@ interface LeaferGraphMutationHostOptions<
 > {
   nodeRegistry: NodeRegistry;
   graphNodes: Map<string, TNodeState>;
-  graphLinks: Map<string, LeaferGraphLinkData>;
+  graphLinks: Map<string, GraphLink>;
   nodeViews: Map<string, TNodeViewState>;
   mountNodeView(node: TNodeState): TNodeViewState;
   unmountNodeView(nodeId: string): TNodeViewState | undefined;
   refreshNodeView(state: TNodeViewState): void;
-  mountLinkView(link: LeaferGraphLinkData): unknown | null;
+  mountLinkView(link: GraphLink): unknown | null;
   removeLinkInternal(linkId: string): boolean;
   updateConnectedLinks(nodeId: string): void;
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void;
   handleNodeRemoved(nodeId: string): void;
-  handleLinkCreated(link: LeaferGraphLinkData): void;
-  handleLinkRemoved(link: LeaferGraphLinkData): void;
+  handleLinkCreated(link: GraphLink): void;
+  handleLinkRemoved(link: GraphLink): void;
   requestRender(): void;
   resolveNodeResizeConstraint(node: TNodeState): LeaferGraphNodeResizeConstraint;
 }
@@ -91,7 +91,7 @@ export function normalizeGraphLinkSlotIndex(slot: number | undefined): number {
 /** 归一化并拷贝连线数据，避免外部对象后续修改直接污染运行时状态。 */
 export function normalizeGraphLinkData(
   link: LeaferGraphCreateLinkInput
-): LeaferGraphLinkData {
+): GraphLink {
   return {
     // 连线数据一进入运行时就会被复制，避免调用方继续持有原对象后绕过正式 API 修改。
     id: link.id?.trim() || createGraphLinkId(link),
@@ -142,8 +142,8 @@ export class LeaferGraphMutationHost<
    * @param nodeId - 目标节点 ID。
    * @returns 一组安全副本；调用方修改返回值不会污染内部连线状态。
    */
-  findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
-    const links: LeaferGraphLinkData[] = [];
+  findLinksByNode(nodeId: string): GraphLink[] {
+    const links: GraphLink[] = [];
 
     for (const link of this.options.graphLinks.values()) {
       if (link.source.nodeId === nodeId || link.target.nodeId === nodeId) {
@@ -160,7 +160,7 @@ export class LeaferGraphMutationHost<
    * @param linkId - 目标连线 ID。
    * @returns 连线安全副本；未命中时返回 `undefined`。
    */
-  getLink(linkId: string): LeaferGraphLinkData | undefined {
+  getLink(linkId: string): GraphLink | undefined {
     const link = this.options.graphLinks.get(linkId);
     return link ? cloneGraphLinkData(link) : undefined;
   }
@@ -365,7 +365,7 @@ export class LeaferGraphMutationHost<
    * @param input - 连线创建输入。
    * @returns 对外暴露的连线安全副本。
    */
-  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink {
     const link = normalizeGraphLinkData(input);
     const sourceNode = this.options.graphNodes.get(link.source.nodeId);
     const targetNode = this.options.graphNodes.get(link.target.nodeId);
@@ -628,7 +628,7 @@ export class LeaferGraphMutationHost<
   }
 
   /** 判断当前图中是否已经存在同一组端点的正式连线。 */
-  private hasSameLink(link: LeaferGraphLinkData): boolean {
+  private hasSameLink(link: GraphLink): boolean {
     for (const current of this.options.graphLinks.values()) {
       if (
         current.source.nodeId === link.source.nodeId &&
@@ -660,7 +660,7 @@ function toSlotSpecs(slots: LeaferGraphNodeSlotInput[]): NodeSlotSpec[] {
 }
 
 /** 为对外查询返回一份安全副本，避免外部绕过正式 API 直接改内部状态。 */
-function cloneGraphLinkData(link: LeaferGraphLinkData): LeaferGraphLinkData {
+function cloneGraphLinkData(link: GraphLink): GraphLink {
   return {
     id: link.id,
     source: { ...link.source },

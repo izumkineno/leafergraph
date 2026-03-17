@@ -8,7 +8,7 @@
 import {
   createNodeApi,
   serializeNode,
-  type LeaferGraphLinkData,
+  type GraphLink,
   type NodeRegistry,
   type NodeSlotSpec,
   type NodeSerializeResult
@@ -16,6 +16,7 @@ import {
 import type {
   LeaferGraphExecutionContext,
   LeaferGraphExecutionSource,
+  LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeExecutionState,
   LeaferGraphNodeExecutionTrigger,
@@ -59,32 +60,6 @@ export interface LeaferGraphNodeExecutionTaskResult {
   nextTasks: LeaferGraphNodeExecutionTask[];
 }
 
-/**
- * 正式连线的真实传播事件。
- *
- * @remarks
- * 这份事件只在 `setOutputData(...)` 命中正式下游连线并完成输入写回后发出，
- * 供主包内部的连线数据流动画宿主复用。
- */
-export interface LeaferGraphLinkPropagationEvent {
-  /** 命中的正式连线 ID。 */
-  linkId: string;
-  /** 当前传播所属的执行链 ID。 */
-  chainId: string;
-  /** 输出来源节点 ID。 */
-  sourceNodeId: string;
-  /** 输出来源槽位。 */
-  sourceSlot: number;
-  /** 输入目标节点 ID。 */
-  targetNodeId: string;
-  /** 输入目标槽位。 */
-  targetSlot: number;
-  /** 本次传播携带的原始 payload。 */
-  payload: unknown;
-  /** 事件时间戳。 */
-  timestamp: number;
-}
-
 let executionChainSeed = 1;
 
 /**
@@ -102,7 +77,7 @@ interface LeaferGraphNodeRuntimeHostOptions<
   nodeRegistry: NodeRegistry;
   widgetRegistry: LeaferGraphWidgetRegistry;
   graphNodes: Map<string, TNodeState>;
-  graphLinks: Map<string, LeaferGraphLinkData>;
+  graphLinks: Map<string, GraphLink>;
   nodeViews: Map<string, TNodeViewState>;
   sceneRuntime: Pick<
     LeaferGraphSceneRuntimeHost<TNodeState, TNodeViewState>,
@@ -620,7 +595,7 @@ export class LeaferGraphNodeRuntimeHost<
    *
    * @param link - 已经成功进入图状态的正式连线数据。
    */
-  notifyLinkCreated(link: LeaferGraphLinkData): void {
+  notifyLinkCreated(link: GraphLink): void {
     this.dispatchConnectionsChange(
       link.source.nodeId,
       "output",
@@ -642,7 +617,7 @@ export class LeaferGraphNodeRuntimeHost<
    *
    * @param link - 刚刚被移除的正式连线数据。
    */
-  notifyLinkRemoved(link: LeaferGraphLinkData): void {
+  notifyLinkRemoved(link: GraphLink): void {
     const sourceSlot = normalizeConnectionSlot(link.source.slot);
     const targetSlot = normalizeConnectionSlot(link.target.slot);
 

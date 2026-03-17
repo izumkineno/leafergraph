@@ -30,6 +30,7 @@ import type {
   GraphRuntimeState,
   LeaferGraphRenderableNodeState
 } from "./graph_runtime_types";
+import { LeaferGraphLocalRuntimeAdapter } from "./graph_local_runtime_adapter";
 import { createLeaferGraphSceneRuntimeAssembly } from "./graph_scene_runtime_assembly";
 import { createLeaferGraphWidgetEnvironment } from "./graph_widget_runtime_host";
 
@@ -125,11 +126,23 @@ export function createLeaferGraphRuntimeAssembly<
   const bootstrapHost = new LeaferGraphBootstrapHost({
     nodeRegistry,
     widgetRegistry: widgetEnvironment.widgetRegistry,
-    restoreGraph: (graph) => sceneRuntime.restoreHost.restoreGraph(graph)
+    replaceGraphDocument: (document) =>
+      sceneRuntime.restoreHost.replaceGraphDocument(document)
+  });
+  const runtimeAdapter = new LeaferGraphLocalRuntimeAdapter({
+    subscribeNodeExecution: (listener) =>
+      sceneRuntime.nodeRuntimeHost.subscribeNodeExecution(listener),
+    subscribeGraphExecution: (listener) =>
+      sceneRuntime.graphExecutionRuntimeHost.subscribeGraphExecution(listener),
+    subscribeNodeState: (listener) =>
+      sceneRuntime.nodeRuntimeHost.subscribeNodeState(listener),
+    subscribeLinkPropagation: (listener) =>
+      sceneRuntime.nodeRuntimeHost.subscribeLinkPropagation(listener)
   });
   const apiRuntime: LeaferGraphApiRuntime<TNodeState> = {
     app: canvasState.app,
     bootstrapRuntime: bootstrapHost,
+    runtimeAdapter,
     widgetEditingManager: widgetEnvironment.widgetEditingManager,
     sceneRuntime: sceneRuntime.sceneRuntimeHost,
     interactionHost: sceneRuntime.interactionHost,

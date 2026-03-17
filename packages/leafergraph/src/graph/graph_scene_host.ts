@@ -5,7 +5,7 @@
  * 负责节点视图、连线视图和 Widget 值写回的场景级桥接。
  */
 
-import type { LeaferGraphLinkData, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphWidgetRenderInstance } from "../api/plugin";
 
 type LeaferGraphSceneNodeViewState<
@@ -38,7 +38,7 @@ interface LeaferGraphSceneNodeHostLike<
  * 节点和连线在主包内部由不同宿主维护，这里只关心连线能否被创建、移除和局部刷新。
  */
 interface LeaferGraphSceneLinkHostLike<TLinkViewState> {
-  mountLinkView(link: LeaferGraphLinkData): TLinkViewState | null;
+  mountLinkView(link: GraphLink): TLinkViewState | null;
   removeLink(linkId: string): boolean;
   updateConnectedLinks(nodeId: string): void;
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void;
@@ -138,7 +138,7 @@ export class LeaferGraphSceneHost<
    * @param link - 待挂载的正式连线数据。
    * @returns 连线视图状态；若创建失败则返回 `null`。
    */
-  mountLinkView(link: LeaferGraphLinkData): TLinkViewState | null {
+  mountLinkView(link: GraphLink): TLinkViewState | null {
     return this.options.linkHost.mountLinkView(link);
   }
 

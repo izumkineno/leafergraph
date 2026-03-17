@@ -5,9 +5,11 @@
  * 负责把场景刷新、连线刷新与正式图变更收敛为统一运行时壳面。
  */
 
-import type { LeaferGraphLinkData, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
 import type { GraphDragNodePosition } from "../interaction/graph_interaction_runtime_host";
 import type {
+  GraphOperation,
+  GraphOperationApplyResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
@@ -21,6 +23,15 @@ type LeaferGraphSceneRuntimeNodeViewState<
 > = {
   state: TNodeState;
 };
+
+type InternalGraphOperationApplyResult<
+  TNodeState extends NodeRuntimeState
+> = GraphOperationApplyResult & {
+  node?: TNodeState;
+  link?: GraphLink;
+};
+
+let graphOperationSeed = 1;
 
 /**
  * 场景运行时层依赖的场景桥接能力。
@@ -50,8 +61,8 @@ interface LeaferGraphSceneRuntimeSceneHostLike<TNodeViewState> {
 interface LeaferGraphSceneRuntimeMutationHostLike<
   TNodeState extends NodeRuntimeState
 > {
-  findLinksByNode(nodeId: string): LeaferGraphLinkData[];
-  getLink(linkId: string): LeaferGraphLinkData | undefined;
+  findLinksByNode(nodeId: string): GraphLink[];
+  getLink(linkId: string): GraphLink | undefined;
   createNode(input: LeaferGraphCreateNodeInput): TNodeState;
   removeNode(nodeId: string): boolean;
   updateNode(
@@ -66,7 +77,7 @@ interface LeaferGraphSceneRuntimeMutationHostLike<
     nodeId: string,
     size: LeaferGraphResizeNodeInput
   ): TNodeState | undefined;
-  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData;
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink;
   removeLink(linkId: string): boolean;
   moveNodesByDelta(
     positions: readonly GraphDragNodePosition[],
@@ -200,7 +211,7 @@ export class LeaferGraphSceneRuntimeHost<
    * @param nodeId - 目标节点 ID。
    * @returns 关联连线安全副本列表。
    */
-  findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
+  findLinksByNode(nodeId: string): GraphLink[] {
     return this.options.mutationHost.findLinksByNode(nodeId);
   }
 
@@ -210,8 +221,18 @@ export class LeaferGraphSceneRuntimeHost<
    * @param linkId - 目标连线 ID。
    * @returns 连线安全副本；未命中时返回 `undefined`。
    */
-  getLink(linkId: string): LeaferGraphLinkData | undefined {
+  getLink(linkId: string): GraphLink | undefined {
     return this.options.mutationHost.getLink(linkId);
+  }
+
+  /**
+   * 统一应用一条正式图操作。
+   *
+   * @param operation - 待应用的正式操作。
+   * @returns 标准化后的操作应用结果。
+   */
+  applyGraphOperation(operation: GraphOperation): GraphOperationApplyResult {
+    return this.applyGraphOperationInternal(operation);
   }
 
   /**
@@ -221,9 +242,18 @@ export class LeaferGraphSceneRuntimeHost<
    * @returns 新创建的节点状态。
    */
   createNode(input: LeaferGraphCreateNodeInput): TNodeState {
-    const node = this.options.mutationHost.createNode(input);
-    this.options.notifyNodeStateChanged?.(node.id, "created");
-    return node;
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "node.create",
+        input: structuredClone(input)
+      })
+    );
+
+    if (!result.accepted || !result.node) {
+      throw new Error(result.reason ?? "创建节点失败");
+    }
+
+    return result.node;
   }
 
   /**
@@ -233,11 +263,14 @@ export class LeaferGraphSceneRuntimeHost<
    * @returns 是否成功删除。
    */
   removeNode(nodeId: string): boolean {
-    const removed = this.options.mutationHost.removeNode(nodeId);
-    if (removed) {
-      this.options.notifyNodeStateChanged?.(nodeId, "removed");
-    }
-    return removed;
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "node.remove",
+        nodeId
+      })
+    );
+
+    return result.accepted && result.changed;
   }
 
   /**
@@ -251,11 +284,15 @@ export class LeaferGraphSceneRuntimeHost<
     nodeId: string,
     input: LeaferGraphUpdateNodeInput
   ): TNodeState | undefined {
-    const node = this.options.mutationHost.updateNode(nodeId, input);
-    if (node) {
-      this.options.notifyNodeStateChanged?.(nodeId, "updated");
-    }
-    return node;
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "node.update",
+        nodeId,
+        input: structuredClone(input)
+      })
+    );
+
+    return result.accepted ? result.node : undefined;
   }
 
   /**
@@ -269,11 +306,15 @@ export class LeaferGraphSceneRuntimeHost<
     nodeId: string,
     position: LeaferGraphMoveNodeInput
   ): TNodeState | undefined {
-    const node = this.options.mutationHost.moveNode(nodeId, position);
-    if (node) {
-      this.options.notifyNodeStateChanged?.(nodeId, "moved");
-    }
-    return node;
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "node.move",
+        nodeId,
+        input: structuredClone(position)
+      })
+    );
+
+    return result.accepted ? result.node : undefined;
   }
 
   /**
@@ -287,11 +328,15 @@ export class LeaferGraphSceneRuntimeHost<
     nodeId: string,
     size: LeaferGraphResizeNodeInput
   ): TNodeState | undefined {
-    const node = this.options.mutationHost.resizeNode(nodeId, size);
-    if (node) {
-      this.options.notifyNodeStateChanged?.(nodeId, "resized");
-    }
-    return node;
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "node.resize",
+        nodeId,
+        input: structuredClone(size)
+      })
+    );
+
+    return result.accepted ? result.node : undefined;
   }
 
   /**
@@ -300,8 +345,19 @@ export class LeaferGraphSceneRuntimeHost<
    * @param input - 连线创建输入。
    * @returns 连线安全副本。
    */
-  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
-    return this.options.mutationHost.createLink(input);
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink {
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "link.create",
+        input: structuredClone(input)
+      })
+    );
+
+    if (!result.accepted || !result.link) {
+      throw new Error(result.reason ?? "创建连线失败");
+    }
+
+    return result.link;
   }
 
   /**
@@ -311,7 +367,14 @@ export class LeaferGraphSceneRuntimeHost<
    * @returns 是否成功删除。
    */
   removeLink(linkId: string): boolean {
-    return this.options.mutationHost.removeLink(linkId);
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "link.remove",
+        linkId
+      })
+    );
+
+    return result.accepted && result.changed;
   }
 
   /**
@@ -336,4 +399,335 @@ export class LeaferGraphSceneRuntimeHost<
       this.options.notifyNodeStateChanged?.(nodeId, "moved");
     }
   }
+
+  /**
+   * 统一应用一条正式图操作，并在内部保留创建出的节点或连线结果。
+   *
+   * @param operation - 待应用的正式操作。
+   * @returns 带内部实体引用的应用结果。
+   */
+  private applyGraphOperationInternal(
+    operation: GraphOperation
+  ): InternalGraphOperationApplyResult<TNodeState> {
+    try {
+      switch (operation.type) {
+        case "node.create": {
+          const node = this.options.mutationHost.createNode(operation.input);
+          this.options.notifyNodeStateChanged?.(node.id, "created");
+          return {
+            accepted: true,
+            changed: true,
+            operation,
+            affectedNodeIds: [node.id],
+            affectedLinkIds: [],
+            node
+          };
+        }
+        case "node.update": {
+          const currentNode = this.options.graphNodes.get(operation.nodeId);
+          if (!currentNode) {
+            return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+          }
+
+          const before = createComparableNodeSnapshot(currentNode);
+          const node = this.options.mutationHost.updateNode(
+            operation.nodeId,
+            operation.input
+          );
+          if (!node) {
+            return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+          }
+
+          const changed = !isStructurallyEqual(
+            before,
+            createComparableNodeSnapshot(node)
+          );
+          if (changed) {
+            this.options.notifyNodeStateChanged?.(operation.nodeId, "updated");
+          }
+
+          return {
+            accepted: true,
+            changed,
+            operation,
+            affectedNodeIds: [operation.nodeId],
+            affectedLinkIds: [],
+            reason: changed ? undefined : "节点补丁没有产生变化",
+            node
+          };
+        }
+        case "node.move": {
+          const currentNode = this.options.graphNodes.get(operation.nodeId);
+          if (!currentNode) {
+            return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+          }
+
+          const before = {
+            x: currentNode.layout.x,
+            y: currentNode.layout.y
+          };
+          const node = this.options.mutationHost.moveNode(
+            operation.nodeId,
+            operation.input
+          );
+          if (!node) {
+            return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+          }
+
+          const changed =
+            before.x !== node.layout.x || before.y !== node.layout.y;
+          if (changed) {
+            this.options.notifyNodeStateChanged?.(operation.nodeId, "moved");
+          }
+
+          return {
+            accepted: true,
+            changed,
+            operation,
+            affectedNodeIds: [operation.nodeId],
+            affectedLinkIds: [],
+            reason: changed ? undefined : "节点位置没有变化",
+            node
+          };
+        }
+        case "node.resize": {
+          const currentNode = this.options.graphNodes.get(operation.nodeId);
+          if (!currentNode) {
+            return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+          }
+
+          const before = {
+            width: currentNode.layout.width,
+            height: currentNode.layout.height
+          };
+          const node = this.options.mutationHost.resizeNode(
+            operation.nodeId,
+            operation.input
+          );
+          if (!node) {
+            return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+          }
+
+          const changed =
+            before.width !== node.layout.width ||
+            before.height !== node.layout.height;
+          if (changed) {
+            this.options.notifyNodeStateChanged?.(operation.nodeId, "resized");
+          }
+
+          return {
+            accepted: true,
+            changed,
+            operation,
+            affectedNodeIds: [operation.nodeId],
+            affectedLinkIds: [],
+            reason: changed ? undefined : "节点尺寸没有变化或当前不允许调整",
+            node
+          };
+        }
+        case "node.remove": {
+          const node = this.options.graphNodes.get(operation.nodeId);
+          if (!node) {
+            return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+          }
+
+          const relatedLinks = this.options.mutationHost.findLinksByNode(node.id);
+          const removed = this.options.mutationHost.removeNode(operation.nodeId);
+          if (!removed) {
+            return rejectGraphOperation(operation, `节点删除失败：${operation.nodeId}`);
+          }
+
+          this.options.notifyNodeStateChanged?.(operation.nodeId, "removed");
+          return {
+            accepted: true,
+            changed: true,
+            operation,
+            affectedNodeIds: [operation.nodeId],
+            affectedLinkIds: relatedLinks.map((link) => link.id)
+          };
+        }
+        case "link.create": {
+          const link = this.options.mutationHost.createLink(operation.input);
+          return {
+            accepted: true,
+            changed: true,
+            operation,
+            affectedNodeIds: uniqueNodeIds([
+              link.source.nodeId,
+              link.target.nodeId
+            ]),
+            affectedLinkIds: [link.id],
+            link
+          };
+        }
+        case "link.remove": {
+          const currentLink = this.options.mutationHost.getLink(operation.linkId);
+          if (!currentLink) {
+            return rejectGraphOperation(operation, `连线不存在：${operation.linkId}`);
+          }
+
+          const removed = this.options.mutationHost.removeLink(operation.linkId);
+          if (!removed) {
+            return rejectGraphOperation(operation, `连线删除失败：${operation.linkId}`);
+          }
+
+          return {
+            accepted: true,
+            changed: true,
+            operation,
+            affectedNodeIds: uniqueNodeIds([
+              currentLink.source.nodeId,
+              currentLink.target.nodeId
+            ]),
+            affectedLinkIds: [operation.linkId]
+          };
+        }
+        case "link.reconnect": {
+          const currentLink = this.options.mutationHost.getLink(operation.linkId);
+          if (!currentLink) {
+            return rejectGraphOperation(operation, `连线不存在：${operation.linkId}`);
+          }
+
+          const nextInput: LeaferGraphCreateLinkInput = {
+            id: currentLink.id,
+            source: operation.input.source ?? currentLink.source,
+            target: operation.input.target ?? currentLink.target,
+            label: currentLink.label,
+            data: currentLink.data
+          };
+
+          if (isSameLinkEndpoint(currentLink, nextInput)) {
+            return {
+              accepted: true,
+              changed: false,
+              operation,
+              affectedNodeIds: uniqueNodeIds([
+                currentLink.source.nodeId,
+                currentLink.target.nodeId
+              ]),
+              affectedLinkIds: [currentLink.id],
+              reason: "连线端点没有变化",
+              link: currentLink
+            };
+          }
+
+          if (!this.options.mutationHost.removeLink(operation.linkId)) {
+            return rejectGraphOperation(operation, `连线删除失败：${operation.linkId}`);
+          }
+
+          try {
+            const link = this.options.mutationHost.createLink(nextInput);
+            return {
+              accepted: true,
+              changed: true,
+              operation,
+              affectedNodeIds: uniqueNodeIds([
+                currentLink.source.nodeId,
+                currentLink.target.nodeId,
+                link.source.nodeId,
+                link.target.nodeId
+              ]),
+              affectedLinkIds: [link.id],
+              link
+            };
+          } catch (error) {
+            try {
+              this.options.mutationHost.createLink(currentLink);
+            } catch {
+              // 当前阶段优先保留第一次失败作为真正根因。
+            }
+
+            return rejectGraphOperation(
+              operation,
+              error instanceof Error ? error.message : "连线重连失败"
+            );
+          }
+        }
+      }
+    } catch (error) {
+      return rejectGraphOperation(
+        operation,
+        error instanceof Error ? error.message : "图操作应用失败"
+      );
+    }
+  }
+}
+
+function createGraphOperation(
+  source: string,
+  input: GraphOperationInput
+): GraphOperation {
+  const type = input.type;
+  const operationId = `op:${type}:${Date.now()}:${graphOperationSeed}`;
+  graphOperationSeed += 1;
+
+  return {
+    ...input,
+    operationId,
+    timestamp: Date.now(),
+    source
+  } as GraphOperation;
+}
+
+function rejectGraphOperation(
+  operation: GraphOperation,
+  reason: string
+): GraphOperationApplyResult {
+  return {
+    accepted: false,
+    changed: false,
+    operation,
+    affectedNodeIds: [],
+    affectedLinkIds: [],
+    reason
+  };
+}
+
+type GraphOperationInput = {
+  [TType in GraphOperation["type"]]: Omit<
+    Extract<GraphOperation, { type: TType }>,
+    "operationId" | "timestamp" | "source"
+  >;
+}[GraphOperation["type"]];
+
+function createComparableNodeSnapshot<TNodeState extends NodeRuntimeState>(
+  node: TNodeState
+): unknown {
+  return structuredClone({
+    id: node.id,
+    type: node.type,
+    title: node.title,
+    layout: node.layout,
+    flags: node.flags,
+    properties: node.properties,
+    propertySpecs: node.propertySpecs,
+    inputs: node.inputs,
+    outputs: node.outputs,
+    widgets: node.widgets,
+    data: node.data
+  });
+}
+
+function isStructurallyEqual(left: unknown, right: unknown): boolean {
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return left === right;
+  }
+}
+
+function uniqueNodeIds(nodeIds: readonly string[]): string[] {
+  return [...new Set(nodeIds.filter(Boolean))];
+}
+
+function isSameLinkEndpoint(
+  left: Pick<GraphLink, "source" | "target">,
+  right: Pick<GraphLink, "source" | "target">
+): boolean {
+  return (
+    left.source.nodeId === right.source.nodeId &&
+    (left.source.slot ?? 0) === (right.source.slot ?? 0) &&
+    left.target.nodeId === right.target.nodeId &&
+    (left.target.slot ?? 0) === (right.target.slot ?? 0)
+  );
 }

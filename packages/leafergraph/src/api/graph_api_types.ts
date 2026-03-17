@@ -6,7 +6,8 @@
  */
 
 import type {
-  LeaferGraphLinkData,
+  GraphLink,
+  GraphLinkEndpoint,
   NodeFlags,
   NodeLayout,
   NodePropertySpec,
@@ -477,7 +478,196 @@ export interface LeaferGraphConnectionValidationResult {
  * 一旦进入运行时，连线输入会被浅拷贝并规范化，避免外部直接共享内部状态引用。
  */
 export interface LeaferGraphCreateLinkInput
-  extends Omit<LeaferGraphLinkData, "id"> {
+  extends Omit<GraphLink, "id"> {
   /** 连线 ID；未提供时由主包自动生成。 */
   id?: string;
+}
+
+/**
+ * 正式连线的真实传播事件。
+ *
+ * @remarks
+ * 这份事件只表达“哪条连线刚刚完成了一次真实传播”，
+ * 供数据流动画、运行反馈桥和未来外部 runtime 适配层复用。
+ */
+export interface LeaferGraphLinkPropagationEvent {
+  /** 命中的正式连线 ID。 */
+  linkId: string;
+  /** 当前传播所属的执行链 ID。 */
+  chainId: string;
+  /** 输出来源节点 ID。 */
+  sourceNodeId: string;
+  /** 输出来源槽位。 */
+  sourceSlot: number;
+  /** 输入目标节点 ID。 */
+  targetNodeId: string;
+  /** 输入目标槽位。 */
+  targetSlot: number;
+  /** 本次传播携带的原始 payload。 */
+  payload: unknown;
+  /** 事件时间戳。 */
+  timestamp: number;
+}
+
+/**
+ * 正式图操作的公共来源。
+ *
+ * @remarks
+ * 当前阶段不强行限制来源枚举，避免 editor、history、未来后端桥接各自再维护一套兼容层。
+ */
+export type GraphOperationSource = string;
+
+/**
+ * 正式图操作公共基类。
+ *
+ * @remarks
+ * 所有操作都必须带稳定 ID、时间戳和来源，
+ * 方便后续接入后端确认、回放与运行审计。
+ */
+export interface GraphOperationBase {
+  /** 操作唯一 ID。 */
+  operationId: string;
+  /** 操作产生时间。 */
+  timestamp: number;
+  /** 操作来源。 */
+  source: GraphOperationSource;
+}
+
+/** 创建节点操作。 */
+export interface GraphNodeCreateOperation extends GraphOperationBase {
+  type: "node.create";
+  input: LeaferGraphCreateNodeInput;
+}
+
+/** 更新节点操作。 */
+export interface GraphNodeUpdateOperation extends GraphOperationBase {
+  type: "node.update";
+  nodeId: string;
+  input: LeaferGraphUpdateNodeInput;
+}
+
+/** 移动节点操作。 */
+export interface GraphNodeMoveOperation extends GraphOperationBase {
+  type: "node.move";
+  nodeId: string;
+  input: LeaferGraphMoveNodeInput;
+}
+
+/** 调整节点尺寸操作。 */
+export interface GraphNodeResizeOperation extends GraphOperationBase {
+  type: "node.resize";
+  nodeId: string;
+  input: LeaferGraphResizeNodeInput;
+}
+
+/** 删除节点操作。 */
+export interface GraphNodeRemoveOperation extends GraphOperationBase {
+  type: "node.remove";
+  nodeId: string;
+}
+
+/** 创建连线操作。 */
+export interface GraphLinkCreateOperation extends GraphOperationBase {
+  type: "link.create";
+  input: LeaferGraphCreateLinkInput;
+}
+
+/** 删除连线操作。 */
+export interface GraphLinkRemoveOperation extends GraphOperationBase {
+  type: "link.remove";
+  linkId: string;
+}
+
+/** 重连连线操作。 */
+export interface GraphLinkReconnectOperation extends GraphOperationBase {
+  type: "link.reconnect";
+  linkId: string;
+  input: {
+    source?: GraphLinkEndpoint;
+    target?: GraphLinkEndpoint;
+  };
+}
+
+/**
+ * 主包当前阶段支持的正式图操作集合。
+ */
+export type GraphOperation =
+  | GraphNodeCreateOperation
+  | GraphNodeUpdateOperation
+  | GraphNodeMoveOperation
+  | GraphNodeResizeOperation
+  | GraphNodeRemoveOperation
+  | GraphLinkCreateOperation
+  | GraphLinkRemoveOperation
+  | GraphLinkReconnectOperation;
+
+/**
+ * 操作应用结果。
+ *
+ * @remarks
+ * `accepted` 表达操作是否进入正式应用路径，
+ * `changed` 表达是否真的产生状态变化。
+ */
+export interface GraphOperationApplyResult {
+  /** 当前操作是否被接受。 */
+  accepted: boolean;
+  /** 当前操作是否真的改动了图状态。 */
+  changed: boolean;
+  /** 已被处理的正式操作。 */
+  operation: GraphOperation;
+  /** 本次操作影响到的节点 ID。 */
+  affectedNodeIds: string[];
+  /** 本次操作影响到的连线 ID。 */
+  affectedLinkIds: string[];
+  /** 未接受或无变化时的原因。 */
+  reason?: string;
+}
+
+/** 节点执行反馈事件。 */
+export interface NodeExecutionRuntimeFeedbackEvent {
+  type: "node.execution";
+  event: LeaferGraphNodeExecutionEvent;
+}
+
+/** 图执行反馈事件。 */
+export interface GraphExecutionRuntimeFeedbackEvent {
+  type: "graph.execution";
+  event: LeaferGraphGraphExecutionEvent;
+}
+
+/** 节点状态反馈事件。 */
+export interface NodeStateRuntimeFeedbackEvent {
+  type: "node.state";
+  event: LeaferGraphNodeStateChangeEvent;
+}
+
+/** 连线传播反馈事件。 */
+export interface LinkPropagationRuntimeFeedbackEvent {
+  type: "link.propagation";
+  event: LeaferGraphLinkPropagationEvent;
+}
+
+/**
+ * 统一运行反馈事件。
+ *
+ * @remarks
+ * UI 和未来外部 runtime 桥接应优先消费这组事件，
+ * 而不是直接耦合到本地执行器内部宿主。
+ */
+export type RuntimeFeedbackEvent =
+  | NodeExecutionRuntimeFeedbackEvent
+  | GraphExecutionRuntimeFeedbackEvent
+  | NodeStateRuntimeFeedbackEvent
+  | LinkPropagationRuntimeFeedbackEvent;
+
+/**
+ * 运行时反馈接入口。
+ *
+ * @remarks
+ * 当前阶段只要求支持订阅统一反馈事件；
+ * 是否具备外部 runtime 控制能力留到后续 adapter 层再展开。
+ */
+export interface RuntimeAdapter {
+  subscribe(listener: (event: RuntimeFeedbackEvent) => void): () => void;
+  destroy?(): void;
 }

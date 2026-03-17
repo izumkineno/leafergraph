@@ -7,8 +7,8 @@
 
 import {
   createNodeState,
-  type LeaferGraphData,
-  type LeaferGraphLinkData,
+  type GraphDocument,
+  type GraphLink,
   type NodeRegistry,
   type NodeRuntimeState,
   type NodeSerializeResult
@@ -34,7 +34,7 @@ interface LeaferGraphRestoreHostOptions<
 > {
   nodeRegistry: NodeRegistry;
   graphNodes: Map<string, TNodeState>;
-  graphLinks: Map<string, LeaferGraphLinkData>;
+  graphLinks: Map<string, GraphLink>;
   nodeViews: Map<string, TNodeViewState>;
   linkViews: unknown[];
   clearInteractionState(): void;
@@ -45,8 +45,8 @@ interface LeaferGraphRestoreHostOptions<
   clearNodeLayer(): void;
   clearLinkLayer(): void;
   mountNodeView(node: TNodeState): TNodeViewState;
-  mountLinkView(link: LeaferGraphLinkData): unknown | null;
-  handleLinkRestored(link: LeaferGraphLinkData): void;
+  mountLinkView(link: GraphLink): unknown | null;
+  handleLinkRestored(link: GraphLink): void;
   requestRender(): void;
 }
 
@@ -70,14 +70,14 @@ export class LeaferGraphRestoreHost<
     this.options = options;
   }
 
-  /**
-   * 根据正式图输入重建整个主包场景。
-   * 未提供 graph 时自动回退到空图，避免启动期再散落一层空值判断。
+ /**
+   * 根据正式文档输入重建整个主包场景。
+   * 未提供 document 时自动回退到空文档，避免启动期再散落一层空值判断。
    *
-   * @param graph - 外部传入的正式图快照；可为空，空时回退为 `{ nodes: [], links: [] }`。
+   * @param document - 外部传入的正式文档快照；可为空，空时回退为空文档。
    */
-  restoreGraph(graph?: LeaferGraphData): void {
-    const resolvedGraph = this.resolveGraphData(graph);
+  replaceGraphDocument(document?: GraphDocument): void {
+    const resolvedDocument = this.resolveGraphDocument(document);
 
     // 先释放上一轮节点里残留的 Widget 生命周期，避免编辑器 DOM、事件监听和图元引用泄漏。
     for (const state of this.options.nodeViews.values()) {
@@ -97,7 +97,7 @@ export class LeaferGraphRestoreHost<
     this.options.clearLinkLayer();
 
     // 节点必须先恢复，因为连线挂载依赖节点视图和端口锚点已经存在。
-    const localNodes = resolvedGraph.nodes.map((node) =>
+    const localNodes = resolvedDocument.nodes.map((node) =>
       this.createGraphNodeStateFromSnapshot(this.normalizeGraphNodeSnapshot(node))
     );
 
@@ -107,7 +107,7 @@ export class LeaferGraphRestoreHost<
     }
 
     // 连线统一在节点完成挂载后恢复，避免连线初始化时找不到端点。
-    for (const link of resolvedGraph.links ?? []) {
+    for (const link of resolvedDocument.links) {
       const normalizedLink = normalizeGraphLinkData(link);
       const mounted = this.options.mountLinkView(normalizedLink);
       if (!mounted) {
@@ -122,25 +122,37 @@ export class LeaferGraphRestoreHost<
   }
 
   /**
-   * 把启动输入规整成正式图结构。
+   * 把启动输入规整成正式文档结构。
    *
    * @remarks
-   * 当前主包已经收敛到正式 `graph` 输入，因此这里不再接受 demo 级 nodes 输入。
-   * 如果调用方没有提供 graph，就统一回退为空图，减少启动期额外分支。
+   * 当前主包已经收敛到正式 `document` 输入，因此这里不再接受 demo 级 nodes 输入。
+   * 如果调用方没有提供 document，就统一回退为空文档，减少启动期额外分支。
    *
-   * @param graph - 外部传入的原始 graph。
-   * @returns 一个可直接进入恢复流程的正式图结构。
+   * @param document - 外部传入的原始 document。
+   * @returns 一个可直接进入恢复流程的正式文档结构。
    */
-  private resolveGraphData(graph?: LeaferGraphData): LeaferGraphData {
-    if (graph) {
+  private resolveGraphDocument(document?: GraphDocument): GraphDocument {
+    if (document) {
       return {
-        nodes: graph.nodes,
-        links: graph.links ?? [],
-        meta: graph.meta
+        documentId: document.documentId || "local-document",
+        revision: document.revision ?? 0,
+        appKind: document.appKind || "leafergraph-local",
+        nodes: document.nodes.map((node) => structuredClone(node)),
+        links: (document.links ?? []).map((link) => structuredClone(link)),
+        meta: document.meta ? structuredClone(document.meta) : undefined,
+        capabilityProfile: document.capabilityProfile
+          ? structuredClone(document.capabilityProfile)
+          : undefined,
+        adapterBinding: document.adapterBinding
+          ? structuredClone(document.adapterBinding)
+          : undefined
       };
     }
 
     return {
+      documentId: "local-document",
+      revision: 0,
+      appKind: "leafergraph-local",
       nodes: [],
       links: []
     };
