@@ -147,7 +147,8 @@ export function createNodeInputFromSnapshot(
       inputs: snapshot.inputs,
       outputs: snapshot.outputs,
       widgets: snapshot.widgets,
-      data: snapshot.data
+      data: snapshot.data,
+      flags: snapshot.flags
     } satisfies LeaferGraphCreateNodeInput),
     x,
     y
@@ -417,7 +418,7 @@ function createPendingNodeSnapshot(
       width: normalizedInput.width ?? 240,
       height: normalizedInput.height ?? 140
     },
-    flags: {},
+    flags: structuredClone(normalizedInput.flags ?? {}),
     properties: structuredClone(normalizedInput.properties ?? {}),
     propertySpecs: structuredClone(normalizedInput.propertySpecs ?? []),
     inputs: structuredClone(

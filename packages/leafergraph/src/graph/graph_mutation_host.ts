@@ -235,6 +235,7 @@ export class LeaferGraphMutationHost<
       type: node.type,
       title: input.title,
       layout: this.resolvePatchedNodeLayout(node, input),
+      flags: this.resolvePatchedNodeFlags(node, input),
       properties: this.resolvePatchedNodeProperties(node, input),
       propertySpecs: input.propertySpecs,
       inputs:
@@ -530,6 +531,23 @@ export class LeaferGraphMutationHost<
   }
 
   /**
+   * 把节点 flags 补丁整理成 `configureNode()` 可消费的正式结构。
+   */
+  private resolvePatchedNodeFlags(
+    node: TNodeState,
+    input: LeaferGraphUpdateNodeInput
+  ): TNodeState["flags"] | undefined {
+    if (!input.flags) {
+      return undefined;
+    }
+
+    return {
+      ...node.flags,
+      ...structuredClone(input.flags)
+    };
+  }
+
+  /**
    * 合并当前属性和外部补丁，保证展示层属性仍能走正式更新链路。
    *
    * @remarks
@@ -623,7 +641,8 @@ export class LeaferGraphMutationHost<
       outputs:
         node.outputs !== undefined ? toSlotSpecs(node.outputs) : undefined,
       widgets: node.widgets,
-      data: node.data
+      data: node.data,
+      flags: node.flags
     }) as TNodeState;
   }
 

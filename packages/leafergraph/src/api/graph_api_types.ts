@@ -64,6 +64,8 @@ export interface LeaferGraphCreateNodeInput extends GraphNodeDisplayProperties {
   widgets?: NodeRuntimeState["widgets"];
   /** 节点的扩展数据载荷。 */
   data?: Record<string, unknown>;
+  /** 节点初始运行时标记。 */
+  flags?: Partial<NodeFlags>;
 }
 
 /**
@@ -100,6 +102,8 @@ export interface LeaferGraphUpdateNodeInput
   widgets?: NodeRuntimeState["widgets"];
   /** 待替换的扩展数据。 */
   data?: Record<string, unknown>;
+  /** 待合并到节点上的运行时标记补丁。 */
+  flags?: Partial<NodeFlags>;
 }
 
 /**
@@ -622,6 +626,71 @@ export interface GraphOperationApplyResult {
   /** 未接受或无变化时的原因。 */
   reason?: string;
 }
+
+/** 一次节点移动提交里单个节点的前后位置快照。 */
+export interface LeaferGraphNodeMoveCommitEntry {
+  nodeId: string;
+  before: {
+    x: number;
+    y: number;
+  };
+  after: {
+    x: number;
+    y: number;
+  };
+}
+
+/** 一次节点拖拽结束后的正式提交事件。 */
+export interface NodeMoveInteractionCommitEvent {
+  type: "node.move.commit";
+  entries: LeaferGraphNodeMoveCommitEntry[];
+}
+
+/** 一次节点 resize 结束后的正式提交事件。 */
+export interface NodeResizeInteractionCommitEvent {
+  type: "node.resize.commit";
+  nodeId: string;
+  before: {
+    width: number;
+    height: number;
+  };
+  after: {
+    width: number;
+    height: number;
+  };
+}
+
+/** 一次节点折叠切换后的正式提交事件。 */
+export interface NodeCollapseInteractionCommitEvent {
+  type: "node.collapse.commit";
+  nodeId: string;
+  beforeCollapsed: boolean;
+  afterCollapsed: boolean;
+}
+
+/** 一次节点 Widget 提交后的正式文档变更事件。 */
+export interface NodeWidgetInteractionCommitEvent {
+  type: "node.widget.commit";
+  nodeId: string;
+  widgetIndex: number;
+  beforeValue: unknown;
+  afterValue: unknown;
+  beforeWidgets: NodeRuntimeState["widgets"];
+  afterWidgets: NodeRuntimeState["widgets"];
+}
+
+/**
+ * 主包对外暴露的交互提交事件。
+ *
+ * @remarks
+ * 这组事件专门服务 editor 把“本地预览已结束”的交互
+ * 统一转成正式 `GraphOperation` 并提交到 authority。
+ */
+export type LeaferGraphInteractionCommitEvent =
+  | NodeMoveInteractionCommitEvent
+  | NodeResizeInteractionCommitEvent
+  | NodeCollapseInteractionCommitEvent
+  | NodeWidgetInteractionCommitEvent;
 
 /** 节点执行反馈事件。 */
 export interface NodeExecutionRuntimeFeedbackEvent {

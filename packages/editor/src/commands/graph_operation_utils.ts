@@ -4,7 +4,9 @@ import type {
   LeaferGraph,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
-  LeaferGraphResizeNodeInput
+  LeaferGraphMoveNodeInput,
+  LeaferGraphResizeNodeInput,
+  LeaferGraphUpdateNodeInput
 } from "leafergraph";
 
 type GraphOperationType = GraphOperation["type"];
@@ -91,7 +93,8 @@ export function createNodeInputFromSnapshot(
     inputs: snapshot.inputs,
     outputs: snapshot.outputs,
     widgets: snapshot.widgets,
-    data: snapshot.data
+    data: snapshot.data,
+    flags: snapshot.flags
   } satisfies LeaferGraphCreateNodeInput);
 }
 
@@ -132,6 +135,38 @@ export function createNodeRemoveOperation(
     "node.remove",
     {
       nodeId
+    },
+    source
+  );
+}
+
+/** 生成一条 `node.update` 操作。 */
+export function createNodeUpdateOperation(
+  nodeId: string,
+  input: LeaferGraphUpdateNodeInput,
+  source = "editor"
+): Extract<GraphOperation, { type: "node.update" }> {
+  return createEditorGraphOperation(
+    "node.update",
+    {
+      nodeId,
+      input: structuredClone(input)
+    },
+    source
+  );
+}
+
+/** 生成一条 `node.move` 操作。 */
+export function createNodeMoveOperation(
+  nodeId: string,
+  position: LeaferGraphMoveNodeInput,
+  source = "editor"
+): Extract<GraphOperation, { type: "node.move" }> {
+  return createEditorGraphOperation(
+    "node.move",
+    {
+      nodeId,
+      input: structuredClone(position)
     },
     source
   );

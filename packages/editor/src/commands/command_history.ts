@@ -27,8 +27,10 @@ import {
   createLinkReconnectOperation,
   createLinkRemoveOperation,
   createNodeCreateOperationFromSnapshot,
+  createNodeMoveOperation,
   createNodeRemoveOperation,
   createNodeResizeOperation,
+  createNodeUpdateOperation,
   recreateGraphOperation
 } from "./graph_operation_utils";
 import type { EditorGraphDocumentSession } from "../session/graph_document_session";
@@ -316,6 +318,56 @@ export function createEditorCommandHistory(
           }
         };
       }
+      case "move-nodes": {
+        const movedNodeIds = payload.positions.map((item) => item.nodeId);
+        return {
+          ...baseEntry,
+          undo() {
+            let changed = false;
+            for (const item of payload.positions) {
+              const result = options.session.submitOperation(
+                createNodeMoveOperation(
+                  item.nodeId,
+                  item.beforePosition,
+                  "editor.history.undo"
+                )
+              );
+              changed = (result.accepted && result.changed) || changed;
+            }
+
+            if (changed) {
+              options.selection.setMany(movedNodeIds);
+            }
+          },
+          redo() {
+            const changed = recordedOperations.length
+              ? replayGraphOperations(
+                  options.session,
+                  recordedOperations,
+                  "editor.history.redo"
+                )
+              : (() => {
+                  let replayChanged = false;
+                  for (const item of payload.positions) {
+                    const result = options.session.submitOperation(
+                      createNodeMoveOperation(
+                        item.nodeId,
+                        item.afterPosition,
+                        "editor.history.redo"
+                      )
+                    );
+                    replayChanged =
+                      (result.accepted && result.changed) || replayChanged;
+                  }
+
+                  return replayChanged;
+                })();
+            if (changed) {
+              options.selection.setMany(movedNodeIds);
+            }
+          }
+        };
+      }
       case "create-links": {
         const linkIds = payload.links.map((link) => link.id);
         return {
@@ -393,6 +445,41 @@ export function createEditorCommandHistory(
                 "editor.history.redo"
               )
             );
+          }
+        };
+      }
+      case "update-node": {
+        return {
+          ...baseEntry,
+          undo() {
+            const result = options.session.submitOperation(
+              createNodeUpdateOperation(
+                payload.nodeId,
+                payload.beforeInput,
+                "editor.history.undo"
+              )
+            );
+            if (result.accepted && result.changed) {
+              options.selection.select(payload.nodeId);
+            }
+          },
+          redo() {
+            const changed = recordedOperations.length
+              ? replayGraphOperations(
+                  options.session,
+                  recordedOperations,
+                  "editor.history.redo"
+                )
+              : options.session.submitOperation(
+                    createNodeUpdateOperation(
+                      payload.nodeId,
+                      payload.afterInput,
+                      "editor.history.redo"
+                    )
+                  ).changed;
+            if (changed) {
+              options.selection.select(payload.nodeId);
+            }
           }
         };
       }

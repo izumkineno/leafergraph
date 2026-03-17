@@ -4,6 +4,7 @@ import type {
   LeaferGraphContextMenuItem,
   LeaferGraphContextMenuResolver
 } from "leafergraph";
+import type { NodeDefinition } from "@leafergraph/node";
 
 import type {
   EditorCommandBus,
@@ -11,6 +12,128 @@ import type {
 } from "../commands/command_bus";
 import type { EditorNodeSelectionController } from "../state/selection";
 import { isEditorLinkMenuBindingMeta } from "./context_menu_bindings";
+
+interface NodeMenuGroupTree {
+  groups: Map<string, NodeMenuGroupTree>;
+  definitions: NodeDefinition[];
+}
+
+function createNodeMenuGroupTree(): NodeMenuGroupTree {
+  return {
+    groups: new Map(),
+    definitions: []
+  };
+}
+
+function normalizeCategoryPath(category: string | undefined): string[] {
+  const safeCategory = category?.trim() || "Other";
+  const parts = safeCategory
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.length ? parts : ["Other"];
+}
+
+function insertNodeDefinitionIntoTree(
+  root: NodeMenuGroupTree,
+  definition: NodeDefinition
+): void {
+  let current = root;
+  for (const segment of normalizeCategoryPath(definition.category)) {
+    let next = current.groups.get(segment);
+    if (!next) {
+      next = createNodeMenuGroupTree();
+      current.groups.set(segment, next);
+    }
+    current = next;
+  }
+
+  current.definitions.push(definition);
+}
+
+function sortNodeDefinitions(
+  definitions: readonly NodeDefinition[]
+): NodeDefinition[] {
+  return [...definitions].sort((left, right) =>
+    (left.title ?? left.type).localeCompare(right.title ?? right.type)
+  );
+}
+
+function buildNodeCreateSubmenuItems(
+  tree: NodeMenuGroupTree,
+  context: LeaferGraphContextMenuContext,
+  commandBus: EditorCommandBus
+): LeaferGraphContextMenuItem[] {
+  const items: LeaferGraphContextMenuItem[] = [];
+  const sortedGroups = [...tree.groups.entries()].sort(([left], [right]) =>
+    left.localeCompare(right)
+  );
+
+  for (const [groupName, groupTree] of sortedGroups) {
+    const childItems = buildNodeCreateSubmenuItems(groupTree, context, commandBus);
+    if (!childItems.length) {
+      continue;
+    }
+
+    items.push({
+      kind: "submenu",
+      key: `create-group:${groupName}`,
+      label: groupName,
+      items: childItems
+    });
+  }
+
+  for (const definition of sortNodeDefinitions(tree.definitions)) {
+    const request: EditorCommandRequest = {
+      type: "canvas.create-node-by-type",
+      context,
+      nodeType: definition.type
+    };
+    const state = commandBus.resolveCommandState(request);
+    items.push({
+      key: `create-node:${definition.type}`,
+      label: definition.title ?? definition.type,
+      description: definition.description ?? definition.type,
+      disabled: state.disabled,
+      danger: state.danger,
+      onSelect() {
+        commandBus.execute(request);
+      }
+    });
+  }
+
+  return items;
+}
+
+function resolveCreateNodeRegistrySubmenu(
+  context: LeaferGraphContextMenuContext,
+  options: CreateEditorContextMenuResolverOptions,
+  commandBus: EditorCommandBus
+): LeaferGraphContextMenuItem | null {
+  const definitions = options.graph.listNodes();
+  if (!definitions.length) {
+    return null;
+  }
+
+  const tree = createNodeMenuGroupTree();
+  for (const definition of definitions) {
+    insertNodeDefinitionIntoTree(tree, definition);
+  }
+
+  const items = buildNodeCreateSubmenuItems(tree, context, commandBus);
+  if (!items.length) {
+    return null;
+  }
+
+  return {
+    kind: "submenu",
+    key: "create-node-from-registry",
+    label: "创建节点",
+    description: `已注册 ${definitions.length} 种节点`,
+    items
+  };
+}
 
 /**
  * editor 菜单解析器创建参数。
@@ -236,6 +359,15 @@ function resolveCanvasContextMenuItems(
       }
     }
   ];
+  const createNodeRegistrySubmenu = resolveCreateNodeRegistrySubmenu(
+    context,
+    options,
+    commandBus
+  );
+
+  if (createNodeRegistrySubmenu) {
+    items.splice(1, 0, createNodeRegistrySubmenu);
+  }
 
   const pasteRequest: EditorCommandRequest = {
     type: "clipboard.paste",

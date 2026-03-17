@@ -14,7 +14,8 @@ import type {
   GraphOperation,
   LeaferGraph,
   LeaferGraphCreateLinkInput,
-  LeaferGraphContextMenuContext
+  LeaferGraphContextMenuContext,
+  LeaferGraphUpdateNodeInput
 } from "leafergraph";
 import {
   createEditorCanvasCommandController,
@@ -56,6 +57,11 @@ export type EditorCommandRequest =
   | {
       type: "canvas.create-node";
       context: LeaferGraphContextMenuContext;
+    }
+  | {
+      type: "canvas.create-node-by-type";
+      context: LeaferGraphContextMenuContext;
+      nodeType: string;
     }
   | {
       type: "canvas.fit-view";
@@ -104,6 +110,24 @@ export type EditorCommandRequest =
   | {
       type: "node.reset-size";
       nodeId: string;
+    }
+  | {
+      type: "interaction.move";
+      nodeIds: readonly string[];
+    }
+  | {
+      type: "interaction.resize";
+      nodeId: string;
+    }
+  | {
+      type: "interaction.collapse";
+      nodeId: string;
+      collapsed: boolean;
+    }
+  | {
+      type: "interaction.widget-commit";
+      nodeId: string;
+      widgetIndex: number;
     }
   | {
       type: "selection.clear";
@@ -158,6 +182,20 @@ export type EditorCommandHistoryPayload =
       links: GraphLink[];
     }
   | {
+      kind: "move-nodes";
+      positions: Array<{
+        nodeId: string;
+        beforePosition: {
+          x: number;
+          y: number;
+        };
+        afterPosition: {
+          x: number;
+          y: number;
+        };
+      }>;
+    }
+  | {
       kind: "resize-node";
       nodeId: string;
       beforeSize: {
@@ -168,6 +206,12 @@ export type EditorCommandHistoryPayload =
         width: number;
         height: number;
       };
+    }
+  | {
+      kind: "update-node";
+      nodeId: string;
+      beforeInput: LeaferGraphUpdateNodeInput;
+      afterInput: LeaferGraphUpdateNodeInput;
     }
   | {
       kind: "create-links";
@@ -502,6 +546,8 @@ function resolveCommandSummary(request: EditorCommandRequest): string {
   switch (request.type) {
     case "canvas.create-node":
       return "在画布创建节点";
+    case "canvas.create-node-by-type":
+      return `创建节点 ${request.nodeType}`;
     case "canvas.fit-view":
       return "适配画布视图";
     case "link.create":
@@ -527,6 +573,16 @@ function resolveCommandSummary(request: EditorCommandRequest): string {
       return `从节点 ${request.nodeId} 开始运行`;
     case "node.reset-size":
       return `重置节点 ${request.nodeId} 尺寸`;
+    case "interaction.move":
+      return request.nodeIds.length > 1
+        ? `移动 ${request.nodeIds.length} 个节点`
+        : `移动节点 ${request.nodeIds[0] ?? ""}`;
+    case "interaction.resize":
+      return `调整节点 ${request.nodeId} 尺寸`;
+    case "interaction.collapse":
+      return `${request.collapsed ? "折叠" : "展开"}节点 ${request.nodeId}`;
+    case "interaction.widget-commit":
+      return `提交节点 ${request.nodeId} 的 Widget ${request.widgetIndex}`;
     case "selection.clear":
       return "清空当前选区";
     case "selection.duplicate":
@@ -695,6 +751,8 @@ export function createEditorCommandBus(
     switch (request.type) {
       case "canvas.create-node":
         return canvasCommands.resolveCreateNodeState().disabled;
+      case "canvas.create-node-by-type":
+        return canvasCommands.resolveCreateNodeState(request.nodeType).disabled;
       case "canvas.fit-view":
         return false;
       case "link.create":
@@ -750,6 +808,20 @@ export function createEditorCommandBus(
         return {
           disabled,
           description: canvasCommands.resolveCreateNodeState().description
+        };
+      }
+      case "canvas.create-node-by-type": {
+        if (!isRuntimeReady()) {
+          return {
+            disabled,
+            description: "图初始化完成后可用"
+          };
+        }
+
+        return {
+          disabled,
+          description: canvasCommands.resolveCreateNodeState(request.nodeType)
+            .description
         };
       }
       case "canvas.fit-view":
@@ -936,6 +1008,28 @@ export function createEditorCommandBus(
     switch (request.type) {
       case "canvas.create-node": {
         const result = canvasCommands.createNodeAt(request.context);
+        const nodeSnapshots = captureCreatedNodeSnapshots(result);
+        return createExecution(request, result, {
+          operations: nodeSnapshots.length
+            ? createNodeCreateOperations(nodeSnapshots)
+            : undefined,
+          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
+          historyPayload: nodeSnapshots.length
+            ? {
+                kind: "create-nodes",
+                nodeSnapshots
+              }
+            : undefined,
+          success: nodeSnapshots.length > 0,
+          changed: nodeSnapshots.length > 0,
+          recordable: true
+        }, pendingOperationIdsBefore);
+      }
+      case "canvas.create-node-by-type": {
+        const result = canvasCommands.createNodeAt(
+          request.context,
+          request.nodeType
+        );
         const nodeSnapshots = captureCreatedNodeSnapshots(result);
         return createExecution(request, result, {
           operations: nodeSnapshots.length
@@ -1271,6 +1365,15 @@ export function createEditorCommandBus(
           recordable: false
         }, pendingOperationIdsBefore);
       }
+      default:
+        return createExecution(request, undefined, {
+          operations: undefined,
+          documentRecorded: undefined,
+          historyPayload: undefined,
+          success: false,
+          changed: false,
+          recordable: false
+        }, pendingOperationIdsBefore);
     }
   };
 

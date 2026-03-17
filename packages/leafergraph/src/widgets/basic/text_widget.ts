@@ -157,7 +157,7 @@ export class TextFieldController extends BasicWidgetController<
       readOnly: state.options.readOnly,
       maxLength: state.options.maxLength,
       onCommit: (nextValue) => {
-        context.setValue(nextValue);
+        context.commitValue(nextValue);
       },
       onCancel: () => {
         state.syncValue(context, context.value);

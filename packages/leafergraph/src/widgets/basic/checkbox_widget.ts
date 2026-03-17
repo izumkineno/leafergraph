@@ -141,6 +141,6 @@ export class CheckboxFieldController extends BasicWidgetController<
   }
 
   private toggleValue(context: LeaferGraphWidgetRendererContext): void {
-    context.setValue(!Boolean(context.value));
+    context.commitValue(!Boolean(context.value));
   }
 }

@@ -254,7 +254,7 @@ export function createDemoRemoteAuthorityService(
         width: input.width ?? 240,
         height: input.height ?? 140
       },
-      flags: {},
+      flags: clone(input.flags ?? {}),
       properties: clone(input.properties ?? {}),
       propertySpecs: clone(input.propertySpecs ?? []),
       inputs: toNodeSlotSpecs(input.inputs) ?? [],
@@ -353,7 +353,14 @@ export function createDemoRemoteAuthorityService(
                   data:
                     operation.input.data !== undefined
                       ? clone(operation.input.data)
-                      : item.data
+                      : item.data,
+                  flags:
+                    operation.input.flags !== undefined
+                      ? {
+                          ...item.flags,
+                          ...clone(operation.input.flags)
+                        }
+                      : item.flags
                 }
               : item
           )

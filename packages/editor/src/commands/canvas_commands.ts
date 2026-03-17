@@ -23,9 +23,12 @@ export interface EditorCanvasCommandController {
   /** 当前是否存在可粘贴的剪贴板内容。 */
   readonly canPaste: boolean;
   /** 读取当前“快速创建节点”命令是否可用。 */
-  resolveCreateNodeState(): EditorCanvasCreateNodeState;
+  resolveCreateNodeState(nodeType?: string): EditorCanvasCreateNodeState;
   /** 在指定画布位置快速创建节点。 */
-  createNodeAt(context: LeaferGraphContextMenuContext): EditorNodeCommandResult | undefined;
+  createNodeAt(
+    context: LeaferGraphContextMenuContext,
+    nodeType?: string
+  ): EditorNodeCommandResult | undefined;
   /** 将剪贴板节点粘贴到指定位置；若未提供坐标则回退到选区附近。 */
   pasteClipboardAt(
     point: { x: number; y: number } | null
@@ -78,6 +81,23 @@ function resolveQuickCreateNodeType(
   return definitions[0]?.type;
 }
 
+/** 解析一个显式节点类型是否已注册；未提供时回退到快速创建节点类型。 */
+function resolveRequestedNodeType(
+  graph: LeaferGraph,
+  preferredType?: string,
+  explicitType?: string
+): string | undefined {
+  const definitions = graph.listNodes();
+  if (
+    explicitType &&
+    definitions.some((definition) => definition.type === explicitType)
+  ) {
+    return explicitType;
+  }
+
+  return resolveQuickCreateNodeType(graph, preferredType);
+}
+
 /**
  * 创建 editor 画布命令控制器。
  * 这层只做“画布语义”，不关心节点内部细节。
@@ -85,10 +105,13 @@ function resolveQuickCreateNodeType(
 export function createEditorCanvasCommandController(
   options: CreateEditorCanvasCommandControllerOptions
 ): EditorCanvasCommandController {
-  const resolveCreateNodeState = (): EditorCanvasCreateNodeState => {
-    const nodeType = resolveQuickCreateNodeType(
+  const resolveCreateNodeState = (
+    explicitType?: string
+  ): EditorCanvasCreateNodeState => {
+    const nodeType = resolveRequestedNodeType(
       options.graph,
-      options.quickCreateNodeType
+      options.quickCreateNodeType,
+      explicitType
     );
 
     if (!nodeType) {
@@ -105,11 +128,13 @@ export function createEditorCanvasCommandController(
   };
 
   const createNodeAt = (
-    context: LeaferGraphContextMenuContext
+    context: LeaferGraphContextMenuContext,
+    explicitType?: string
   ): EditorNodeCommandResult | undefined => {
-    const nodeType = resolveQuickCreateNodeType(
+    const nodeType = resolveRequestedNodeType(
       options.graph,
-      options.quickCreateNodeType
+      options.quickCreateNodeType,
+      explicitType
     );
     if (!nodeType) {
       return undefined;

@@ -49,6 +49,7 @@ import {
   createEditorContextMenuResolver
 } from "../menu/context_menu_resolver";
 import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
+import { createGraphInteractionCommitBridge } from "../interaction/graph_interaction_commit_bridge";
 
 interface GraphViewportProps {
   document: GraphDocument;
@@ -1552,6 +1553,14 @@ export function GraphViewport({
             syncAuthoritativeDocumentProjection(document);
           })
         : () => {};
+    const handleRecordedExecution = (execution: EditorCommandExecution): void => {
+      documentSessionBinding.handleCommandExecution(execution);
+      latestExecution = execution;
+      commandHistory.record(execution);
+      scheduleLinkContextMenuSync();
+      syncInfoPanelState();
+      syncEditorToolbarControls();
+    };
     commandHistory = createEditorCommandHistory({
       graph,
       session: documentSession,
@@ -1572,14 +1581,25 @@ export function GraphViewport({
       isRuntimeReady: () => graphReady,
       onAfterFitView: schedulePointerWorldPointRefresh,
       onDidExecute(execution) {
-        documentSessionBinding.handleCommandExecution(execution);
-        latestExecution = execution;
-        commandHistory.record(execution);
-        scheduleLinkContextMenuSync();
-        syncInfoPanelState();
-        syncEditorToolbarControls();
+        handleRecordedExecution(execution);
       }
     });
+    const interactionCommitBridge = createGraphInteractionCommitBridge({
+      session: documentSession,
+      rollbackToAuthorityDocument: () => {
+        syncAuthoritativeDocumentProjection(documentSession.currentDocument);
+      }
+    });
+    const disposeInteractionCommitSubscription = graph.subscribeInteractionCommit(
+      (event) => {
+        const execution = interactionCommitBridge.submit(event);
+        if (!execution) {
+          return;
+        }
+
+        handleRecordedExecution(execution);
+      }
+    );
     onHostBridgeChange?.({
       graph,
       executeCommand(request: EditorCommandRequest): EditorCommandExecution {
@@ -2222,6 +2242,7 @@ export function GraphViewport({
       disposeLocalRuntimeFeedbackSubscription();
       disposeExternalRuntimeFeedbackSubscription();
       disposeDocumentProjectionSubscription();
+      disposeInteractionCommitSubscription();
       disposeSelectionSubscription();
       documentSessionBinding.dispose();
       hideSelectionBox();

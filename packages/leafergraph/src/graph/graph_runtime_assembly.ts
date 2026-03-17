@@ -145,6 +145,7 @@ export function createLeaferGraphRuntimeAssembly<
     runtimeAdapter,
     widgetEditingManager: widgetEnvironment.widgetEditingManager,
     sceneRuntime: sceneRuntime.sceneRuntimeHost,
+    interactionCommitSource: sceneRuntime.interactionCommitSource,
     interactionHost: sceneRuntime.interactionHost,
     interactionRuntime: sceneRuntime.interactionRuntimeHost,
     nodeRuntimeHost: sceneRuntime.nodeRuntimeHost,

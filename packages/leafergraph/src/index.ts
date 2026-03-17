@@ -55,6 +55,7 @@ export type {
   LeaferGraphContextMenuPoint,
   LeaferGraphContextMenuResolver,
   LeaferGraphContextMenuSeparatorItem,
+  LeaferGraphContextMenuSubmenuItem,
   LeaferGraphMenuOriginEvent,
   LeaferGraphPointerMenuEvent
 } from "./interaction/context_menu";
@@ -82,7 +83,13 @@ export type {
 export type {
   GraphOperation,
   GraphOperationApplyResult,
+  LeaferGraphInteractionCommitEvent,
+  LeaferGraphNodeMoveCommitEntry,
   LeaferGraphLinkPropagationEvent,
+  NodeCollapseInteractionCommitEvent,
+  NodeMoveInteractionCommitEvent,
+  NodeResizeInteractionCommitEvent,
+  NodeWidgetInteractionCommitEvent,
   LeaferGraphExecutionContext,
   LeaferGraphExecutionSource,
   LeaferGraphGraphExecutionEvent,
@@ -140,6 +147,7 @@ import type { LeaferGraphContextMenuBindingTarget } from "./interaction/context_
 import type {
   GraphOperation,
   GraphOperationApplyResult,
+  LeaferGraphInteractionCommitEvent,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
   RuntimeFeedbackEvent,
@@ -373,6 +381,13 @@ export class LeaferGraph {
     listener: (event: RuntimeFeedbackEvent) => void
   ): () => void {
     return this.apiHost.subscribeRuntimeFeedback(listener);
+  }
+
+  /** 订阅交互结束后的正式提交事件。 */
+  subscribeInteractionCommit(
+    listener: (event: LeaferGraphInteractionCommitEvent) => void
+  ): () => void {
+    return this.apiHost.subscribeInteractionCommit(listener);
   }
 
   /**

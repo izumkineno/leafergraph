@@ -75,6 +75,32 @@ const CONTEXT_MENU_STYLE_TEXT = `
     opacity 120ms ease;
 }
 
+.${CONTEXT_MENU_ROOT_CLASS}__submenu-item {
+  position: relative;
+}
+
+.${CONTEXT_MENU_ROOT_CLASS}__submenu {
+  position: absolute;
+  top: -8px;
+  left: calc(100% + 6px);
+  z-index: 1;
+  display: none;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.${CONTEXT_MENU_ROOT_CLASS}__submenu-item:hover > .${CONTEXT_MENU_ROOT_CLASS}__submenu,
+.${CONTEXT_MENU_ROOT_CLASS}__submenu-item:focus-within > .${CONTEXT_MENU_ROOT_CLASS}__submenu {
+  display: block;
+}
+
 .${CONTEXT_MENU_ROOT_CLASS}__item:hover,
 .${CONTEXT_MENU_ROOT_CLASS}__item:focus-visible {
   outline: none;
@@ -120,6 +146,12 @@ const CONTEXT_MENU_STYLE_TEXT = `
 .${CONTEXT_MENU_ROOT_CLASS}__shortcut {
   color: #64748b;
   font-size: 11px;
+  line-height: 1;
+}
+
+.${CONTEXT_MENU_ROOT_CLASS}__submenu-arrow {
+  color: #94a3b8;
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -373,12 +405,28 @@ export interface LeaferGraphContextMenuActionItem {
 }
 
 /**
+ * 右键菜单子菜单项。
+ * 它只负责表达分组，不直接执行动作。
+ */
+export interface LeaferGraphContextMenuSubmenuItem {
+  kind: "submenu";
+  key: string;
+  label: string;
+  description?: string;
+  disabled?: boolean;
+  hidden?: boolean;
+  danger?: boolean;
+  items: LeaferGraphContextMenuItem[];
+}
+
+/**
  * 右键菜单项联合类型。
  * 当前仅提供 action 和 separator，两者已经足够覆盖主包基础设施阶段需求。
  */
 export type LeaferGraphContextMenuItem =
   | LeaferGraphContextMenuSeparatorItem
-  | LeaferGraphContextMenuActionItem;
+  | LeaferGraphContextMenuActionItem
+  | LeaferGraphContextMenuSubmenuItem;
 
 /**
  * 菜单项解析器。
@@ -1011,6 +1059,8 @@ export class LeaferGraphContextMenuManager {
     for (const item of items) {
       if (item.kind === "separator") {
         fragment.appendChild(this.createSeparatorElement(item));
+      } else if (item.kind === "submenu") {
+        fragment.appendChild(this.createSubmenuElement(item, context));
       } else {
         fragment.appendChild(this.createActionElement(item, context));
       }
@@ -1111,6 +1161,68 @@ export class LeaferGraphContextMenuManager {
   }
 
   /**
+   * 创建递归子菜单 DOM。
+   */
+  private createSubmenuElement(
+    item: LeaferGraphContextMenuSubmenuItem,
+    context: LeaferGraphContextMenuContext
+  ): HTMLDivElement {
+    const wrapper = this.ownerDocument.createElement("div");
+    wrapper.className = `${CONTEXT_MENU_ROOT_CLASS}__submenu-item`;
+    wrapper.dataset.key = item.key;
+
+    const button = this.ownerDocument.createElement("button");
+    button.type = "button";
+    button.className = `${CONTEXT_MENU_ROOT_CLASS}__item`;
+    button.dataset.key = item.key;
+    button.dataset.danger = String(Boolean(item.danger));
+    button.dataset.submenu = "true";
+    button.setAttribute("role", "menuitem");
+    button.setAttribute("aria-haspopup", "menu");
+    button.setAttribute("aria-expanded", "false");
+
+    if (item.disabled) {
+      button.disabled = true;
+    }
+
+    const content = this.ownerDocument.createElement("span");
+    content.className = `${CONTEXT_MENU_ROOT_CLASS}__content`;
+
+    const label = this.ownerDocument.createElement("span");
+    label.className = `${CONTEXT_MENU_ROOT_CLASS}__label`;
+    label.textContent = item.label;
+    content.appendChild(label);
+
+    if (item.description) {
+      const description = this.ownerDocument.createElement("span");
+      description.className = `${CONTEXT_MENU_ROOT_CLASS}__description`;
+      description.textContent = item.description;
+      content.appendChild(description);
+    }
+
+    const arrow = this.ownerDocument.createElement("span");
+    arrow.className = `${CONTEXT_MENU_ROOT_CLASS}__submenu-arrow`;
+    arrow.textContent = "›";
+
+    const submenu = this.ownerDocument.createElement("div");
+    submenu.className = `${CONTEXT_MENU_ROOT_CLASS}__submenu`;
+    submenu.setAttribute("role", "menu");
+    this.renderMenu(item.items, context, submenu);
+
+    button.appendChild(content);
+    button.appendChild(arrow);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.focus();
+    });
+
+    wrapper.appendChild(button);
+    wrapper.appendChild(submenu);
+    return wrapper;
+  }
+
+  /**
    * 把菜单吸附到 viewport 内。
    * 这是一个很重要的宿主级职责，因为 DOM 菜单一旦超出窗口会直接影响可用性。
    */
@@ -1203,6 +1315,19 @@ function normalizeContextMenuItems(
 
   for (const item of items) {
     if (item.kind !== "separator" && item.hidden) {
+      continue;
+    }
+
+    if (item.kind === "submenu") {
+      const nextItems = normalizeContextMenuItems(item.items);
+      if (!nextItems.length) {
+        continue;
+      }
+
+      normalized.push({
+        ...item,
+        items: nextItems
+      });
       continue;
     }
 

@@ -242,6 +242,18 @@ export interface LeaferGraphWidgetRendererContext {
    */
   setValue(newValue: unknown): void;
   /**
+   * 由 Widget 在“正式提交边界”回写值到宿主。
+   *
+   * @remarks
+   * 这条入口和 `setValue(...)` 的区别是：
+   * - `setValue(...)` 只负责本地预览态
+   * - `commitValue(...)` 负责把最终值标记为一次正式文档改动
+   *
+   * 文本输入、离散开关和滑块拖拽结束等场景都应优先走这里，
+   * 这样 editor 才能把最终值统一提交到 authority。
+   */
+  commitValue(newValue?: unknown): void;
+  /**
    * 请求宿主刷新当前 Leafer 场景。
    * 适合 Widget 在内部更新了图元但仍希望宿主统一安排下一帧渲染时使用。
    */

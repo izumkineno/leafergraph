@@ -197,12 +197,19 @@ export class LeaferGraphSceneRuntimeHost<
    * @param widgetIndex - Widget 索引。
    * @param newValue - 待写回的新值。
    */
-  setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
+  setNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    newValue: unknown
+  ): boolean {
     if (
       this.options.sceneHost.setNodeWidgetValue(nodeId, widgetIndex, newValue)
     ) {
       this.options.notifyNodeStateChanged?.(nodeId, "widget-value");
+      return true;
     }
+
+    return false;
   }
 
   /**

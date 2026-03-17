@@ -29,6 +29,7 @@ import type {
   GraphOperationApplyResult,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
+  LeaferGraphInteractionCommitEvent,
   RuntimeAdapter,
   RuntimeFeedbackEvent,
   LeaferGraphConnectionPortState,
@@ -47,6 +48,7 @@ import type {
 import type { LeaferGraphRenderableNodeState } from "../graph/graph_runtime_types";
 import type { LeaferGraphBootstrapRuntimeLike } from "../graph/graph_bootstrap_host";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
+import type { LeaferGraphInteractionCommitSource } from "../interaction/interaction_commit_source";
 
 type LeaferGraphApiNodeViewState<
   TNodeState extends LeaferGraphRenderableNodeState
@@ -93,6 +95,10 @@ export interface LeaferGraphApiRuntime<
     | "resizeNode"
     | "createLink"
     | "removeLink"
+  >;
+  interactionCommitSource: Pick<
+    LeaferGraphInteractionCommitSource,
+    "subscribe"
   >;
   interactionHost: {
     destroy(): void;
@@ -385,6 +391,13 @@ export class LeaferGraphApiHost<
     listener: (event: RuntimeFeedbackEvent) => void
   ): () => void {
     return this.options.runtime.runtimeAdapter.subscribe(listener);
+  }
+
+  /** 订阅交互结束后的正式提交事件。 */
+  subscribeInteractionCommit(
+    listener: (event: LeaferGraphInteractionCommitEvent) => void
+  ): () => void {
+    return this.options.runtime.interactionCommitSource.subscribe(listener);
   }
 
   /** 根据节点 ID 查询当前图中的所有关联连线。 */
