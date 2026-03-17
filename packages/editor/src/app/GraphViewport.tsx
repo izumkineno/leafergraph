@@ -5,6 +5,7 @@ import {
   createLeaferGraphContextMenu,
   type GraphDocument,
   type GraphLink,
+  type GraphOperation,
   type LeaferGraphConnectionPortState,
   type LeaferGraphGraphExecutionState,
   type LeaferGraph,
@@ -29,6 +30,7 @@ import {
   createLoopbackGraphDocumentSessionBinding,
   type EditorGraphDocumentSessionBindingFactory
 } from "../session/graph_document_session_binding";
+import type { EditorGraphOperationSubmission } from "../session/graph_document_session";
 import { createEditorNodeSelection } from "../state/selection";
 import {
   GRAPH_VIEWPORT_BACKGROUND_SIZE,
@@ -46,12 +48,15 @@ import {
   createEditorContextMenuBeforeOpenHandler,
   createEditorContextMenuResolver
 } from "../menu/context_menu_resolver";
+import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
 
 interface GraphViewportProps {
   document: GraphDocument;
   modules?: LeaferGraphOptions["modules"];
   plugins?: LeaferGraphOptions["plugins"];
   createDocumentSessionBinding?: EditorGraphDocumentSessionBindingFactory;
+  runtimeFeedbackInlet?: EditorRuntimeFeedbackInlet;
+  onHostBridgeChange?(bridge: GraphViewportHostBridge | null): void;
   quickCreateNodeType?: string;
   theme: EditorTheme;
   onEditorToolbarControlsChange?(
@@ -77,6 +82,22 @@ export interface GraphViewportRuntimeControlsState {
   play(): void;
   step(): void;
   stop(): void;
+}
+
+/** 外部宿主可选接入的最小视口桥。 */
+export interface GraphViewportHostBridge {
+  readonly graph: LeaferGraph;
+  executeCommand(request: EditorCommandRequest): EditorCommandExecution;
+  submitOperationWithAuthority(
+    operation: GraphOperation
+  ): EditorGraphOperationSubmission;
+  replaceDocument(document: GraphDocument): void;
+  getCurrentDocument(): GraphDocument;
+  subscribeDocument(listener: (document: GraphDocument) => void): () => void;
+  getPendingOperationIds(): readonly string[];
+  getSelectedNodeIds(): readonly string[];
+  getNodeSnapshot(nodeId: string): ReturnType<LeaferGraph["getNodeSnapshot"]>;
+  getLink(linkId: string): GraphLink | undefined;
 }
 
 /** editor 顶栏工具栏当前支持的动作 ID。 */
@@ -766,6 +787,8 @@ export function GraphViewport({
   modules,
   plugins,
   createDocumentSessionBinding,
+  runtimeFeedbackInlet,
+  onHostBridgeChange,
   quickCreateNodeType,
   theme,
   onEditorToolbarControlsChange,
@@ -833,6 +856,9 @@ export function GraphViewport({
       document: documentData
     });
     const documentSession = documentSessionBinding.session;
+    documentSessionBinding.replaceDocument(documentData);
+    const activeDocument = documentSession.currentDocument;
+    let projectedDocument = activeDocument;
     onGraphRuntimeControlsChange?.({
       available: false,
       executionState: graph.getGraphExecutionState(),
@@ -871,12 +897,13 @@ export function GraphViewport({
     let commandHistory!: EditorCommandHistory;
     let disposed = false;
     let syncEditorToolbarControls = (): void => {};
-    const syncGraphRuntimeControls = (): void => {
+    const syncGraphRuntimeControls = (
+      nextGraphExecutionState: GraphViewportGraphExecutionSnapshot = graph.getGraphExecutionState()
+    ): void => {
       if (disposed) {
         return;
       }
 
-      const nextGraphExecutionState = graph.getGraphExecutionState();
       setGraphExecutionState(nextGraphExecutionState);
       onGraphRuntimeControlsChange?.({
         available: graphReady,
@@ -918,54 +945,54 @@ export function GraphViewport({
       syncInfoPanelState();
       syncEditorToolbarControls();
     });
-    const disposeRuntimeFeedbackSubscription = graph.subscribeRuntimeFeedback(
-      (feedback: RuntimeFeedbackEvent) => {
-        documentSessionBinding.handleRuntimeFeedback(feedback);
+    const handleRuntimeFeedback = (feedback: RuntimeFeedbackEvent): void => {
+      documentSessionBinding.handleRuntimeFeedback(feedback);
 
-        switch (feedback.type) {
-          case "node.execution": {
-            const event = feedback.event;
-            latestRuntimeExecution = event;
-            setRuntimeHistoryEntries((entries) =>
-              appendRuntimeHistoryEntry(
-                entries,
-                createRuntimeHistoryEntryFromEvent(event)
-              )
-            );
-            syncInfoPanelState();
-            syncEditorToolbarControls();
-            return;
-          }
-          case "graph.execution": {
-            syncGraphRuntimeControls();
-            return;
-          }
-          case "node.state": {
-            const event = feedback.event;
-            if (!event.exists) {
-              selection.clearIfContains(event.nodeId);
-            }
-
-            if (
-              shouldSyncInspectorForNodeState(
-                graph,
-                event,
-                selection,
-                latestRuntimeExecution,
-                latestExecution
-              )
-            ) {
-              syncInfoPanelState();
-            }
-
-            syncEditorToolbarControls();
-            return;
-          }
-          case "link.propagation":
-            return;
+      switch (feedback.type) {
+        case "node.execution": {
+          const event = feedback.event;
+          latestRuntimeExecution = event;
+          setRuntimeHistoryEntries((entries) =>
+            appendRuntimeHistoryEntry(entries, createRuntimeHistoryEntryFromEvent(event))
+          );
+          syncInfoPanelState();
+          syncEditorToolbarControls();
+          return;
         }
+        case "graph.execution": {
+          syncGraphRuntimeControls(feedback.event.state);
+          return;
+        }
+        case "node.state": {
+          const event = feedback.event;
+          if (!event.exists) {
+            selection.clearIfContains(event.nodeId);
+          }
+
+          if (
+            shouldSyncInspectorForNodeState(
+              graph,
+              event,
+              selection,
+              latestRuntimeExecution,
+              latestExecution
+            )
+          ) {
+            syncInfoPanelState();
+          }
+
+          syncEditorToolbarControls();
+          return;
+        }
+        case "link.propagation":
+          return;
       }
+    };
+    const disposeLocalRuntimeFeedbackSubscription = graph.subscribeRuntimeFeedback(
+      handleRuntimeFeedback
     );
+    const disposeExternalRuntimeFeedbackSubscription =
+      runtimeFeedbackInlet?.subscribe(handleRuntimeFeedback) ?? (() => {});
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
       if (!selectionBox) {
@@ -1426,6 +1453,58 @@ export function GraphViewport({
       boundLinkIds.delete(linkId);
       menu.unbindTarget(createLinkMenuBindingKey(linkId));
     };
+    const syncNodeBindingsFromDocument = (document: GraphDocument): void => {
+      const nextNodeIds = new Set(document.nodes.map((node) => node.id));
+
+      for (const nodeId of [...boundNodeIds]) {
+        if (!nextNodeIds.has(nodeId)) {
+          unbindEditorNode(nodeId);
+        }
+      }
+
+      for (const node of document.nodes) {
+        bindEditorNode({
+          id: node.id,
+          title: node.title ?? node.id,
+          type: node.type
+        });
+      }
+    };
+    const syncLinkBindingsFromDocument = (document: GraphDocument): void => {
+      const nextLinkIds = new Set(document.links.map((link) => link.id));
+
+      for (const linkId of [...boundLinkIds]) {
+        if (!nextLinkIds.has(linkId)) {
+          unbindEditorLink(linkId);
+        }
+      }
+
+      for (const link of document.links) {
+        bindEditorLink(link);
+      }
+    };
+    const syncAuthoritativeDocumentProjection = (
+      document: GraphDocument
+    ): void => {
+      projectedDocument = document;
+      if (!graphReady || disposed) {
+        return;
+      }
+
+      graph.replaceGraphDocument(document);
+      syncNodeBindingsFromDocument(document);
+      syncLinkBindingsFromDocument(document);
+
+      const nextSelectedNodeIds = selection.selectedNodeIds.filter((nodeId) =>
+        document.nodes.some((node) => node.id === nodeId)
+      );
+      if (nextSelectedNodeIds.length !== selection.selectedNodeIds.length) {
+        selection.setMany(nextSelectedNodeIds);
+      }
+
+      syncInfoPanelState();
+      syncEditorToolbarControls();
+    };
     const collectCurrentLinks = (): GraphLink[] => {
       const linkMap = new Map<string, GraphLink>();
 
@@ -1467,12 +1546,21 @@ export function GraphViewport({
         syncLinkContextMenus();
       });
     };
+    const disposeDocumentProjectionSubscription =
+      documentSessionBinding.projectsSessionDocument
+        ? documentSession.subscribe((document) => {
+            syncAuthoritativeDocumentProjection(document);
+          })
+        : () => {};
     commandHistory = createEditorCommandHistory({
       graph,
       session: documentSession,
       selection,
       bindNode: bindEditorNode,
-      unbindNode: unbindEditorNode
+      unbindNode: unbindEditorNode,
+      onDidChange: () => {
+        syncEditorToolbarControls();
+      }
     });
     commandBus = createEditorCommandBus({
       graph,
@@ -1490,6 +1578,38 @@ export function GraphViewport({
         scheduleLinkContextMenuSync();
         syncInfoPanelState();
         syncEditorToolbarControls();
+      }
+    });
+    onHostBridgeChange?.({
+      graph,
+      executeCommand(request: EditorCommandRequest): EditorCommandExecution {
+        return commandBus.execute(request);
+      },
+      submitOperationWithAuthority(
+        operation: GraphOperation
+      ): EditorGraphOperationSubmission {
+        return documentSession.submitOperationWithAuthority(operation);
+      },
+      replaceDocument(document: GraphDocument): void {
+        documentSessionBinding.replaceDocument(document);
+      },
+      getCurrentDocument(): GraphDocument {
+        return documentSession.currentDocument;
+      },
+      subscribeDocument(listener: (document: GraphDocument) => void): () => void {
+        return documentSession.subscribe(listener);
+      },
+      getPendingOperationIds(): readonly string[] {
+        return documentSession.pendingOperationIds;
+      },
+      getSelectedNodeIds(): readonly string[] {
+        return [...selection.selectedNodeIds];
+      },
+      getNodeSnapshot(nodeId: string) {
+        return graph.getNodeSnapshot(nodeId);
+      },
+      getLink(linkId: string): GraphLink | undefined {
+        return graph.getLink(linkId);
       }
     });
     const executeEditorToolbarAction = (
@@ -1669,16 +1789,8 @@ export function GraphViewport({
 
       graphReady = true;
       syncGraphRuntimeControls();
-
-      for (const node of documentData.nodes) {
-        bindEditorNode({
-          id: node.id,
-          title: node.title ?? node.id,
-          type: node.type
-        });
-      }
-
-      syncLinkContextMenus();
+      syncNodeBindingsFromDocument(projectedDocument);
+      syncLinkBindingsFromDocument(projectedDocument);
       syncInfoPanelState();
       syncEditorToolbarControls();
     });
@@ -2107,11 +2219,14 @@ export function GraphViewport({
       }
       clearReconnectSession();
       commandHistory.clear();
-      disposeRuntimeFeedbackSubscription();
+      disposeLocalRuntimeFeedbackSubscription();
+      disposeExternalRuntimeFeedbackSubscription();
+      disposeDocumentProjectionSubscription();
       disposeSelectionSubscription();
       documentSessionBinding.dispose();
       hideSelectionBox();
       menu.destroy();
+      onHostBridgeChange?.(null);
       onEditorToolbarControlsChange?.(null);
       onGraphRuntimeControlsChange?.(null);
       graphRef.current = null;
@@ -2123,8 +2238,10 @@ export function GraphViewport({
     modules,
     onEditorToolbarControlsChange,
     onGraphRuntimeControlsChange,
+    onHostBridgeChange,
     plugins,
-    quickCreateNodeType
+    quickCreateNodeType,
+    runtimeFeedbackInlet
   ]);
 
   const runtimeChainGroups = groupRuntimeHistoryEntries(runtimeHistoryEntries);

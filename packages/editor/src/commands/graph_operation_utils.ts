@@ -20,6 +20,7 @@ export type EditorGraphNodeSnapshot = NonNullable<
 >;
 
 let editorGraphOperationSeed = 1;
+let editorGraphEntitySeed = 1;
 
 /**
  * 创建一条带稳定元数据的 editor 图操作。
@@ -44,6 +45,33 @@ export function createEditorGraphOperation<TType extends GraphOperationType>(
 
   editorGraphOperationSeed += 1;
   return operation as Extract<GraphOperation, { type: TType }>;
+}
+
+/** 为 editor 侧待创建实体生成稳定 ID。 */
+export function createEditorGraphEntityId(
+  kind: "node" | "link"
+): string {
+  const entityId = `editor:${kind}:${Date.now()}:${editorGraphEntitySeed}`;
+  editorGraphEntitySeed += 1;
+  return entityId;
+}
+
+/** 确保节点创建输入具备稳定 ID。 */
+export function ensureNodeCreateInputId(
+  input: LeaferGraphCreateNodeInput
+): LeaferGraphCreateNodeInput {
+  const nextInput = structuredClone(input);
+  nextInput.id ??= createEditorGraphEntityId("node");
+  return nextInput;
+}
+
+/** 确保连线创建输入具备稳定 ID。 */
+export function ensureLinkCreateInputId(
+  input: LeaferGraphCreateLinkInput
+): LeaferGraphCreateLinkInput {
+  const nextInput = structuredClone(input);
+  nextInput.id ??= createEditorGraphEntityId("link");
+  return nextInput;
 }
 
 /** 把正式节点快照重新包装成 `node.create` 可消费的输入。 */

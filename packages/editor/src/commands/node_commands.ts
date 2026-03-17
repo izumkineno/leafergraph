@@ -2,7 +2,8 @@ import type { LeaferGraph, LeaferGraphCreateNodeInput } from "leafergraph";
 import {
   createNodeCreateOperation,
   createNodeRemoveOperation,
-  createNodeResizeOperation
+  createNodeResizeOperation,
+  ensureNodeCreateInputId
 } from "./graph_operation_utils";
 import type { EditorGraphDocumentSession } from "../session/graph_document_session";
 import type { EditorNodeSelectionController } from "../state/selection";
@@ -277,19 +278,24 @@ export function createNodesFromClipboard(
   x: number,
   y: number
 ): EditorNodeCommandResult {
-  return clipboard.entries
-    .map((entry) =>
-      session.submitOperation(
-        createNodeCreateOperation(
-          createNodeInputFromSnapshot(
-            entry.snapshot,
-            x + entry.offsetX,
-            y + entry.offsetY
-          )
-        )
+  const createInputs = clipboard.entries.map((entry) =>
+    ensureNodeCreateInputId(
+      createNodeInputFromSnapshot(
+        entry.snapshot,
+        x + entry.offsetX,
+        y + entry.offsetY
       )
     )
-    .map((result) => graph.getNodeSnapshot(result.affectedNodeIds[0] ?? ""))
+  );
+
+  return createInputs
+    .map((input) => ({
+      input,
+      result: session.submitOperation(createNodeCreateOperation(input))
+    }))
+    .map(({ input, result }) =>
+      graph.getNodeSnapshot(result.affectedNodeIds[0] ?? input.id ?? "")
+    )
     .filter((snapshot): snapshot is EditorNodeSnapshot => Boolean(snapshot));
 }
 
@@ -309,10 +315,15 @@ export function duplicateNodeFromSnapshot(
     return undefined;
   }
 
-  const result = session.submitOperation(
-    createNodeCreateOperation(createNodeInputFromSnapshot(snapshot, x, y))
+  const createInput = ensureNodeCreateInputId(
+    createNodeInputFromSnapshot(snapshot, x, y)
   );
-  return graph.getNodeSnapshot(result.affectedNodeIds[0] ?? "");
+  const result = session.submitOperation(
+    createNodeCreateOperation(createInput)
+  );
+  return graph.getNodeSnapshot(
+    result.affectedNodeIds[0] ?? createInput.id ?? ""
+  );
 }
 
 /**
@@ -388,7 +399,36 @@ export function resetNodeSizeById(
     })
   );
 
-  return result.accepted && result.changed;
+  return result.accepted;
+}
+
+/** 为 authority pending 场景生成最小节点快照。 */
+function createPendingNodeSnapshot(
+  input: LeaferGraphCreateNodeInput
+): EditorNodeSnapshot {
+  const normalizedInput = ensureNodeCreateInputId(input);
+  return {
+    id: normalizedInput.id ?? "",
+    type: normalizedInput.type,
+    title: normalizedInput.title ?? normalizedInput.type,
+    layout: {
+      x: normalizedInput.x,
+      y: normalizedInput.y,
+      width: normalizedInput.width ?? 240,
+      height: normalizedInput.height ?? 140
+    },
+    flags: {},
+    properties: structuredClone(normalizedInput.properties ?? {}),
+    propertySpecs: structuredClone(normalizedInput.propertySpecs ?? []),
+    inputs: structuredClone(
+      normalizedInput.inputs ?? []
+    ) as EditorNodeSnapshot["inputs"],
+    outputs: structuredClone(
+      normalizedInput.outputs ?? []
+    ) as EditorNodeSnapshot["outputs"],
+    widgets: structuredClone(normalizedInput.widgets ?? []),
+    data: structuredClone(normalizedInput.data ?? {})
+  };
 }
 
 /**
@@ -406,24 +446,27 @@ export function createEditorNodeCommandController(
   const createNode = (
     input: LeaferGraphCreateNodeInput
   ): EditorNodeSnapshot | undefined => {
-    const result = options.session.submitOperation(createNodeCreateOperation(input));
-    if (!result.accepted || !result.changed) {
+    const normalizedInput = ensureNodeCreateInputId(input);
+    const result = options.session.submitOperation(
+      createNodeCreateOperation(normalizedInput)
+    );
+    if (!result.accepted) {
       return undefined;
     }
 
-    const nodeId = result.affectedNodeIds[0];
+    const nodeId = result.affectedNodeIds[0] ?? normalizedInput.id;
     const snapshot = nodeId ? options.graph.getNodeSnapshot(nodeId) : undefined;
-    if (!snapshot) {
-      return undefined;
+    if (snapshot) {
+      options.bindNode({
+        id: snapshot.id,
+        title: snapshot.title ?? snapshot.id,
+        type: snapshot.type
+      });
+      options.selection.select(snapshot.id);
+      return snapshot;
     }
 
-    options.bindNode({
-      id: snapshot.id,
-      title: snapshot.title ?? snapshot.id,
-      type: snapshot.type
-    });
-    options.selection.select(snapshot.id);
-    return snapshot;
+    return createPendingNodeSnapshot(normalizedInput);
   };
 
   const createNodes = (
@@ -438,8 +481,11 @@ export function createEditorNodeCommandController(
       }
     }
 
-    if (snapshots.length) {
-      options.selection.setMany(snapshots.map((snapshot) => snapshot.id));
+    const materializedNodeIds = snapshots
+      .map((snapshot) => options.graph.getNodeSnapshot(snapshot.id)?.id ?? null)
+      .filter((nodeId): nodeId is string => Boolean(nodeId));
+    if (materializedNodeIds.length) {
+      options.selection.setMany(materializedNodeIds);
     }
 
     return snapshots;
@@ -455,33 +501,41 @@ export function createEditorNodeCommandController(
     }
 
     const removedNodeIds: string[] = [];
+    let submitted = false;
     for (const nodeId of orderedNodeIds) {
       const result = options.session.submitOperation(
         createNodeRemoveOperation(nodeId)
       );
-      if (!result.accepted || !result.changed) {
+      if (!result.accepted) {
         continue;
       }
+      submitted = true;
 
+      if (!result.changed) {
+        continue;
+      }
       options.unbindNode(nodeId);
       removedNodeIds.push(nodeId);
     }
 
-    if (!removedNodeIds.length) {
+    if (!submitted) {
       return false;
     }
 
     if (
+      removedNodeIds.length &&
       !optionsOverride?.preserveClipboard &&
       removedNodeIds.some((nodeId) => isClipboardSourceNode(clipboard, nodeId))
     ) {
       clipboard = null;
     }
 
-    const nextSelectedNodeIds = options.selection.selectedNodeIds.filter(
-      (selectedNodeId) => !removedNodeIds.includes(selectedNodeId)
-    );
-    options.selection.setMany(nextSelectedNodeIds);
+    if (removedNodeIds.length) {
+      const nextSelectedNodeIds = options.selection.selectedNodeIds.filter(
+        (selectedNodeId) => !removedNodeIds.includes(selectedNodeId)
+      );
+      options.selection.setMany(nextSelectedNodeIds);
+    }
 
     return true;
   };

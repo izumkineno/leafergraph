@@ -4,8 +4,12 @@ import type {
   LeaferGraphCreateLinkInput
 } from "leafergraph";
 import {
-  createEditorGraphOperation
+  createLinkCreateOperation,
+  createLinkReconnectOperation,
+  createLinkRemoveOperation,
+  ensureLinkCreateInputId
 } from "./graph_operation_utils";
+import type { EditorGraphDocumentSession } from "../session/graph_document_session";
 
 /** 连线重连时允许覆写的端点补丁。 */
 export interface EditorLinkReconnectInput {
@@ -33,6 +37,20 @@ export interface EditorLinkCommandController {
 /** 深拷贝正式连线快照。 */
 export function cloneEditorLink(link: GraphLink): GraphLink {
   return structuredClone(link);
+}
+
+/** 把创建输入包装成正式连线快照。 */
+function createPendingLinkSnapshot(
+  input: LeaferGraphCreateLinkInput
+): GraphLink {
+  const normalizedInput = ensureLinkCreateInputId(input);
+  return {
+    id: normalizedInput.id ?? "",
+    source: structuredClone(normalizedInput.source),
+    target: structuredClone(normalizedInput.target),
+    label: normalizedInput.label,
+    data: structuredClone(normalizedInput.data)
+  };
 }
 
 /** 用新的端点补丁构造下一份正式连线输入。 */
@@ -70,50 +88,50 @@ export function isSameLinkEndpoint(
  * 让命令总线、历史记录和未来的右键菜单 / 快捷键共用同一条实现。
  */
 export function createEditorLinkCommandController(
-  graph: LeaferGraph
+  options: {
+    graph: LeaferGraph;
+    session: EditorGraphDocumentSession;
+  }
 ): EditorLinkCommandController {
   return {
     getLink(linkId: string): GraphLink | undefined {
-      return graph.getLink(linkId);
+      return options.graph.getLink(linkId);
     },
 
     hasLink(linkId: string): boolean {
-      return Boolean(graph.getLink(linkId));
+      return Boolean(options.graph.getLink(linkId));
     },
 
     createLink(input: LeaferGraphCreateLinkInput): GraphLink {
-      const result = graph.applyGraphOperation(
-        createEditorGraphOperation("link.create", {
-          input: structuredClone(input)
-        })
+      const nextInput = ensureLinkCreateInputId(input);
+      const result = options.session.submitOperation(
+        createLinkCreateOperation(nextInput)
       );
-      if (!result.accepted || !result.changed) {
+      if (!result.accepted) {
         throw new Error(result.reason ?? "创建连线失败");
       }
 
-      const linkId = result.affectedLinkIds[0];
-      const link = linkId ? graph.getLink(linkId) : undefined;
-      if (!link) {
-        throw new Error("创建连线后未能读取正式快照");
+      const linkId = result.affectedLinkIds[0] ?? nextInput.id;
+      const link = linkId ? options.graph.getLink(linkId) : undefined;
+      if (link) {
+        return link;
       }
 
-      return link;
+      return createPendingLinkSnapshot(nextInput);
     },
 
     removeLink(linkId: string): boolean {
-      const result = graph.applyGraphOperation(
-        createEditorGraphOperation("link.remove", {
-          linkId
-        })
+      const result = options.session.submitOperation(
+        createLinkRemoveOperation(linkId)
       );
-      return result.accepted && result.changed;
+      return result.accepted;
     },
 
     reconnectLink(
       linkId: string,
       input: EditorLinkReconnectInput
     ): GraphLink | undefined {
-      const currentLink = graph.getLink(linkId);
+      const currentLink = options.graph.getLink(linkId);
       if (!currentLink) {
         return undefined;
       }
@@ -123,17 +141,18 @@ export function createEditorLinkCommandController(
         return currentLink;
       }
 
-      const result = graph.applyGraphOperation(
-        createEditorGraphOperation("link.reconnect", {
-          linkId,
-          input: structuredClone(input)
-        })
+      const result = options.session.submitOperation(
+        createLinkReconnectOperation(linkId, structuredClone(input))
       );
       if (!result.accepted) {
         throw new Error(result.reason ?? "重连连线失败");
       }
 
-      return graph.getLink(linkId);
+      if (result.changed) {
+        return options.graph.getLink(linkId) ?? createPendingLinkSnapshot(nextInput);
+      }
+
+      return createPendingLinkSnapshot(nextInput);
     }
   };
 }

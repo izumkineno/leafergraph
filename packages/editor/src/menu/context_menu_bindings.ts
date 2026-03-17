@@ -5,6 +5,8 @@ import type {
   LeaferGraphContextMenuManager
 } from "leafergraph";
 
+const NODE_POINTER_DOWN_BOUND_FLAG = "__editorNodePointerDownBound";
+
 /**
  * editor 当前关心的节点按下事件最小子集。
  *
@@ -107,9 +109,15 @@ export function bindNodeContextMenu(
     return;
   }
 
-  view.on("pointer.down", (event: EditorNodePointerDownEvent) => {
-    onSelectNode(node.id, event);
-  });
+  const nodeView = view as typeof view & {
+    [NODE_POINTER_DOWN_BOUND_FLAG]?: boolean;
+  };
+  if (!nodeView[NODE_POINTER_DOWN_BOUND_FLAG]) {
+    view.on("pointer.down", (event: EditorNodePointerDownEvent) => {
+      onSelectNode(node.id, event);
+    });
+    nodeView[NODE_POINTER_DOWN_BOUND_FLAG] = true;
+  }
   menu.unbindTarget(key);
   menu.bindNode(key, view, createNodeMenuBindingMeta(node));
 }

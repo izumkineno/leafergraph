@@ -43,6 +43,7 @@ import {
   type EditorGraphNodeSnapshot
 } from "./graph_operation_utils";
 import type { EditorNodeSelectionController } from "../state/selection";
+import type { EditorGraphOperationAuthorityConfirmation } from "../session/graph_document_session";
 
 /**
  * editor 当前支持的统一命令请求。
@@ -182,6 +183,27 @@ export type EditorCommandHistoryPayload =
       afterLink: GraphLink;
     };
 
+/** editor 命令 authority 状态。 */
+export type EditorCommandAuthorityStatus =
+  | "not-applicable"
+  | "pending"
+  | "confirmed"
+  | "rejected";
+
+/** 一次命令执行对应的 authority 状态快照。 */
+export interface EditorCommandAuthorityState {
+  /** 当前 authority 状态。 */
+  status: EditorCommandAuthorityStatus;
+  /** 相关操作 ID。 */
+  operationIds: string[];
+  /** 当前状态附带的原因。 */
+  reason?: string;
+  /** 当前 pending 操作 ID。 */
+  pendingOperationIds?: string[];
+  /** authority 最终确认；仅在 `pending` 时存在。 */
+  confirmation?: Promise<EditorGraphOperationAuthorityConfirmation[]>;
+}
+
 /**
  * editor 单次命令执行记录。
  *
@@ -203,6 +225,8 @@ export interface EditorCommandExecution {
   documentRecorded?: boolean;
   /** 本次执行可供历史记录消费的最小前后状态。 */
   historyPayload?: EditorCommandHistoryPayload;
+  /** 本次执行对应的 authority 状态。 */
+  authority: EditorCommandAuthorityState;
   /** 命令是否成功进入真实执行路径。 */
   success: boolean;
   /** 命令是否真的对 editor / graph 状态产生了变更。 */
@@ -331,6 +355,46 @@ function captureRelatedLinks(
   return [...linkMap.values()];
 }
 
+/** 等待一组操作完成 authority 确认。 */
+function waitForOperationConfirmations(
+  session: CreateEditorCommandBusOptions["session"],
+  operationIds: readonly string[]
+): Promise<EditorGraphOperationAuthorityConfirmation[]> {
+  if (!operationIds.length) {
+    return Promise.resolve([]);
+  }
+
+  return new Promise<EditorGraphOperationAuthorityConfirmation[]>((resolve) => {
+    const pendingOperationIds = new Set(operationIds);
+    const confirmations = new Map<string, EditorGraphOperationAuthorityConfirmation>();
+
+    const unsubscribe = session.subscribeOperationConfirmation((confirmation) => {
+      if (!pendingOperationIds.has(confirmation.operationId)) {
+        return;
+      }
+
+      pendingOperationIds.delete(confirmation.operationId);
+      confirmations.set(confirmation.operationId, confirmation);
+
+      if (pendingOperationIds.size > 0) {
+        return;
+      }
+
+      unsubscribe();
+      resolve(
+        operationIds
+          .map((operationId) => confirmations.get(operationId))
+          .filter(
+            (
+              confirmation
+            ): confirmation is EditorGraphOperationAuthorityConfirmation =>
+              Boolean(confirmation)
+          )
+      );
+    });
+  });
+}
+
 /** 把一组正式节点快照映射成 `node.create` 操作。 */
 function createNodeCreateOperations(
   nodeSnapshots: readonly EditorCommandNodeSnapshot[],
@@ -371,6 +435,66 @@ function captureCreatedNodeSnapshots(
         )
     )
     .map(cloneNodeSnapshot);
+}
+
+/** 判断这组节点快照是否已经真实投影到当前 graph。 */
+function areNodeSnapshotsProjected(
+  graph: LeaferGraph,
+  nodeSnapshots: readonly EditorCommandNodeSnapshot[]
+): boolean {
+  return (
+    nodeSnapshots.length > 0 &&
+    nodeSnapshots.every((snapshot) => Boolean(graph.getNodeSnapshot(snapshot.id)))
+  );
+}
+
+/** 判断某条连线是否已经真实投影到当前 graph。 */
+function isLinkProjected(
+  graph: LeaferGraph,
+  link: GraphLink | undefined
+): boolean {
+  return Boolean(link?.id && graph.getLink(link.id));
+}
+
+/** 判断一组节点是否已经从当前 graph 中移除。 */
+function areNodeIdsRemoved(
+  graph: LeaferGraph,
+  nodeIds: readonly string[]
+): boolean {
+  return (
+    nodeIds.length > 0 &&
+    nodeIds.every((nodeId) => !graph.getNodeSnapshot(nodeId))
+  );
+}
+
+/** 判断当前节点尺寸是否已经投影到 graph。 */
+function isNodeSizeProjected(
+  graph: LeaferGraph,
+  nodeId: string,
+  size: { width: number; height: number }
+): boolean {
+  const snapshot = graph.getNodeSnapshot(nodeId);
+  if (!snapshot) {
+    return false;
+  }
+
+  return (
+    Math.round(snapshot.layout.width ?? 0) === Math.round(size.width) &&
+    Math.round(snapshot.layout.height ?? 0) === Math.round(size.height)
+  );
+}
+
+/** 判断当前连线端点是否已经投影到 graph。 */
+function isLinkEndpointProjected(
+  graph: LeaferGraph,
+  link: GraphLink | undefined
+): boolean {
+  if (!link) {
+    return false;
+  }
+
+  const currentLink = graph.getLink(link.id);
+  return Boolean(currentLink && JSON.stringify(currentLink) === JSON.stringify(link));
 }
 
 /** 为命令执行生成最小摘要文本。 */
@@ -432,7 +556,10 @@ export function createEditorCommandBus(
     bindNode: options.bindNode,
     unbindNode: options.unbindNode
   });
-  const linkCommands = createEditorLinkCommandController(options.graph);
+  const linkCommands = createEditorLinkCommandController({
+    graph: options.graph,
+    session: options.session
+  });
   const canvasCommands = createEditorCanvasCommandController({
     graph: options.graph,
     nodeCommands,
@@ -453,6 +580,66 @@ export function createEditorCommandBus(
     return execution;
   };
 
+  const resolveExecutionAuthorityState = (
+    executionState: Pick<
+      EditorCommandExecution,
+      "success" | "changed" | "operations"
+    >,
+    pendingOperationIdsBefore: ReadonlySet<string>
+  ): EditorCommandAuthorityState => {
+    const pendingOperationIdsAfter = new Set(options.session.pendingOperationIds);
+    const pendingOperationIds = [...pendingOperationIdsAfter].filter(
+      (operationId) => !pendingOperationIdsBefore.has(operationId)
+    );
+    const operationIds = [
+      ...new Set([
+        ...(executionState.operations?.map((operation) => operation.operationId) ?? []),
+        ...pendingOperationIds
+      ])
+    ];
+
+    if (pendingOperationIds.length > 0) {
+      return {
+        status: "pending",
+        operationIds,
+        pendingOperationIds,
+        reason: "等待 authority 确认",
+        confirmation: waitForOperationConfirmations(
+          options.session,
+          pendingOperationIds
+        )
+      };
+    }
+
+    if (!operationIds.length) {
+      return {
+        status: "not-applicable",
+        operationIds: []
+      };
+    }
+
+    if (executionState.success && executionState.changed) {
+      return {
+        status: "confirmed",
+        operationIds
+      };
+    }
+
+    if (executionState.success) {
+      return {
+        status: "confirmed",
+        operationIds,
+        reason: "操作已接受，但没有产生状态变化"
+      };
+    }
+
+    return {
+      status: "rejected",
+      operationIds,
+      reason: "命令执行未被 authority 接受"
+    };
+  };
+
   const createExecution = (
     request: EditorCommandRequest,
     result: EditorCommandResultValue,
@@ -464,7 +651,8 @@ export function createEditorCommandBus(
       | "historyPayload"
       | "operations"
       | "documentRecorded"
-    >
+    >,
+    pendingOperationIdsBefore: ReadonlySet<string>
   ): EditorCommandExecution =>
     commitExecution({
       request,
@@ -472,6 +660,10 @@ export function createEditorCommandBus(
       operations: executionState.operations,
       documentRecorded: executionState.documentRecorded,
       historyPayload: executionState.historyPayload,
+      authority: resolveExecutionAuthorityState(
+        executionState,
+        pendingOperationIdsBefore
+      ),
       success: executionState.success,
       changed: executionState.changed,
       recordable: executionState.recordable,
@@ -728,6 +920,8 @@ export function createEditorCommandBus(
   const execute = (
     request: EditorCommandRequest
   ): EditorCommandExecution => {
+    const pendingOperationIdsBefore = new Set(options.session.pendingOperationIds);
+
     if (!canExecute(request)) {
       return createExecution(request, undefined, {
         operations: undefined,
@@ -736,7 +930,7 @@ export function createEditorCommandBus(
         success: false,
         changed: false,
         recordable: false
-      });
+      }, pendingOperationIdsBefore);
     }
 
     switch (request.type) {
@@ -747,7 +941,7 @@ export function createEditorCommandBus(
           operations: nodeSnapshots.length
             ? createNodeCreateOperations(nodeSnapshots)
             : undefined,
-          documentRecorded: nodeSnapshots.length > 0,
+          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
           historyPayload: nodeSnapshots.length
             ? {
                 kind: "create-nodes",
@@ -757,7 +951,7 @@ export function createEditorCommandBus(
           success: nodeSnapshots.length > 0,
           changed: nodeSnapshots.length > 0,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "canvas.fit-view": {
         const result = canvasCommands.fitView();
@@ -768,13 +962,13 @@ export function createEditorCommandBus(
           success: true,
           changed: result,
           recordable: false
-        });
+        }, pendingOperationIdsBefore);
       }
       case "link.create": {
         const result = linkCommands.createLink(request.input);
         return createExecution(request, result, {
           operations: [createLinkCreateOperation(result)],
-          documentRecorded: false,
+          documentRecorded: isLinkProjected(options.graph, result),
           historyPayload: {
             kind: "create-links",
             links: [structuredClone(result)]
@@ -782,7 +976,7 @@ export function createEditorCommandBus(
           success: true,
           changed: true,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "link.remove": {
         const link = linkCommands.getLink(request.linkId);
@@ -791,7 +985,7 @@ export function createEditorCommandBus(
           operations: result
             ? [createLinkRemoveOperation(request.linkId)]
             : undefined,
-          documentRecorded: false,
+          documentRecorded: result ? !linkCommands.hasLink(request.linkId) : undefined,
           historyPayload:
             result && link
               ? {
@@ -802,7 +996,7 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "link.reconnect": {
         const beforeLink = linkCommands.getLink(request.linkId);
@@ -816,7 +1010,7 @@ export function createEditorCommandBus(
                 )
               ]
             : undefined,
-          documentRecorded: false,
+          documentRecorded: isLinkEndpointProjected(options.graph, result),
           historyPayload:
             beforeLink && result
               ? {
@@ -830,7 +1024,7 @@ export function createEditorCommandBus(
             Boolean(beforeLink && result) &&
             JSON.stringify(beforeLink) !== JSON.stringify(result),
           recordable: Boolean(beforeLink && result)
-        });
+        }, pendingOperationIdsBefore);
       }
       case "clipboard.copy-node": {
         const result = nodeCommands.copyNode(request.nodeId);
@@ -841,7 +1035,7 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: false
-        });
+        }, pendingOperationIdsBefore);
       }
       case "clipboard.copy-selection":
       case "selection.copy": {
@@ -853,7 +1047,7 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: false
-        });
+        }, pendingOperationIdsBefore);
       }
       case "clipboard.cut-selection": {
         const selectedNodeIds = [...options.selection.selectedNodeIds];
@@ -865,7 +1059,9 @@ export function createEditorCommandBus(
             result && selectedNodeIds.length
               ? createNodeRemoveOperations(selectedNodeIds)
               : undefined,
-          documentRecorded: result,
+          documentRecorded: result
+            ? areNodeIdsRemoved(options.graph, selectedNodeIds)
+            : undefined,
           historyPayload:
             result && nodeSnapshots.length
               ? {
@@ -877,7 +1073,7 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "clipboard.paste": {
         const result = canvasCommands.pasteClipboardAt(request.point);
@@ -886,7 +1082,7 @@ export function createEditorCommandBus(
           operations: nodeSnapshots.length
             ? createNodeCreateOperations(nodeSnapshots)
             : undefined,
-          documentRecorded: nodeSnapshots.length > 0,
+          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
           historyPayload: nodeSnapshots.length
             ? {
                 kind: "create-nodes",
@@ -896,7 +1092,7 @@ export function createEditorCommandBus(
           success: nodeSnapshots.length > 0,
           changed: nodeSnapshots.length > 0,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "node.duplicate": {
         const result = nodeCommands.duplicateNode(
@@ -909,7 +1105,7 @@ export function createEditorCommandBus(
           operations: nodeSnapshots.length
             ? createNodeCreateOperations(nodeSnapshots)
             : undefined,
-          documentRecorded: nodeSnapshots.length > 0,
+          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
           historyPayload: nodeSnapshots.length
             ? {
                 kind: "create-nodes",
@@ -919,7 +1115,7 @@ export function createEditorCommandBus(
           success: nodeSnapshots.length > 0,
           changed: nodeSnapshots.length > 0,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "node.remove": {
         const nodeSnapshots = captureNodeSnapshots(options.graph, [request.nodeId]);
@@ -929,7 +1125,9 @@ export function createEditorCommandBus(
           operations: result
             ? [createNodeRemoveOperation(request.nodeId)]
             : undefined,
-          documentRecorded: result,
+          documentRecorded: result
+            ? areNodeIdsRemoved(options.graph, [request.nodeId])
+            : undefined,
           historyPayload:
             result && nodeSnapshots.length
               ? {
@@ -941,7 +1139,7 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "node.play": {
         const result = options.graph.playFromNode(request.nodeId);
@@ -952,25 +1150,34 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: false
-        });
+        }, pendingOperationIdsBefore);
       }
       case "node.reset-size": {
         const beforeSnapshot = options.graph.getNodeSnapshot(request.nodeId);
+        const resizeConstraint = options.graph.getNodeResizeConstraint(request.nodeId);
         const result = nodeCommands.resetNodeSize(request.nodeId);
-        const afterSnapshot = options.graph.getNodeSnapshot(request.nodeId);
+        const targetSize = resizeConstraint
+          ? {
+              width: resizeConstraint.defaultWidth,
+              height: resizeConstraint.defaultHeight
+            }
+          : null;
         return createExecution(request, result, {
           operations:
-            result && afterSnapshot
+            result && targetSize
               ? [
                   createNodeResizeOperation(request.nodeId, {
-                    width: afterSnapshot.layout.width ?? 0,
-                    height: afterSnapshot.layout.height ?? 0
+                    width: targetSize.width,
+                    height: targetSize.height
                   })
                 ]
               : undefined,
-          documentRecorded: result,
+          documentRecorded:
+            result && targetSize
+              ? isNodeSizeProjected(options.graph, request.nodeId, targetSize)
+              : undefined,
           historyPayload:
-            result && beforeSnapshot && afterSnapshot
+            result && beforeSnapshot && targetSize
               ? {
                   kind: "resize-node",
                   nodeId: request.nodeId,
@@ -979,15 +1186,15 @@ export function createEditorCommandBus(
                     height: beforeSnapshot.layout.height ?? 0
                   },
                   afterSize: {
-                    width: afterSnapshot.layout.width ?? 0,
-                    height: afterSnapshot.layout.height ?? 0
+                    width: targetSize.width,
+                    height: targetSize.height
                   }
                 }
               : undefined,
           success: result,
           changed: result,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "selection.clear": {
         const prevSelectedNodeIds = [...options.selection.selectedNodeIds];
@@ -1000,7 +1207,7 @@ export function createEditorCommandBus(
           success: true,
           changed,
           recordable: false
-        });
+        }, pendingOperationIdsBefore);
       }
       case "selection.duplicate": {
         const result = nodeCommands.duplicateSelectedNodes();
@@ -1009,7 +1216,7 @@ export function createEditorCommandBus(
           operations: nodeSnapshots.length
             ? createNodeCreateOperations(nodeSnapshots)
             : undefined,
-          documentRecorded: nodeSnapshots.length > 0,
+          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
           historyPayload: nodeSnapshots.length
             ? {
                 kind: "create-nodes",
@@ -1019,7 +1226,7 @@ export function createEditorCommandBus(
           success: nodeSnapshots.length > 0,
           changed: nodeSnapshots.length > 0,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "selection.remove": {
         const selectedNodeIds = [...options.selection.selectedNodeIds];
@@ -1031,7 +1238,9 @@ export function createEditorCommandBus(
             result && selectedNodeIds.length
               ? createNodeRemoveOperations(selectedNodeIds)
               : undefined,
-          documentRecorded: result,
+          documentRecorded: result
+            ? areNodeIdsRemoved(options.graph, selectedNodeIds)
+            : undefined,
           historyPayload:
             result && nodeSnapshots.length
               ? {
@@ -1043,7 +1252,7 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: true
-        });
+        }, pendingOperationIdsBefore);
       }
       case "selection.select-all": {
         const prevSelectedNodeIds = [...options.selection.selectedNodeIds];
@@ -1060,7 +1269,7 @@ export function createEditorCommandBus(
           success: true,
           changed,
           recordable: false
-        });
+        }, pendingOperationIdsBefore);
       }
     }
   };

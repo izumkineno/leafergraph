@@ -91,6 +91,8 @@ export interface CreateEditorCommandHistoryOptions {
   unbindNode(nodeId: string): void;
   /** 历史栈最大保留条目数。 */
   maxEntries?: number;
+  /** 历史栈发生变化时的通知。 */
+  onDidChange?(): void;
 }
 
 interface EditorCommandHistoryStackEntry extends EditorCommandHistoryEntry {
@@ -404,6 +406,20 @@ export function createEditorCommandHistory(
     if (undoStack.length > maxEntries) {
       undoStack.shift();
     }
+    options.onDidChange?.();
+  };
+
+  const applyRecordedExecution = (
+    execution: EditorCommandExecution
+  ): EditorCommandHistoryEntry | null => {
+    const entry = buildHistoryEntry(execution);
+    if (!entry) {
+      return null;
+    }
+
+    pushUndoEntry(entry);
+    redoStack.length = 0;
+    return entry;
   };
 
   return {
@@ -428,14 +444,32 @@ export function createEditorCommandHistory(
     },
 
     record(execution: EditorCommandExecution): EditorCommandHistoryEntry | null {
-      const entry = buildHistoryEntry(execution);
-      if (!entry) {
+      if (execution.authority.status === "pending") {
+        void execution.authority.confirmation?.then((confirmations) => {
+          const hasRejectedConfirmation = confirmations.some(
+            (confirmation) => !confirmation.accepted
+          );
+          if (hasRejectedConfirmation) {
+            return;
+          }
+
+          applyRecordedExecution({
+            ...execution,
+            authority: {
+              ...execution.authority,
+              status: "confirmed",
+              pendingOperationIds: []
+            }
+          });
+        });
         return null;
       }
 
-      pushUndoEntry(entry);
-      redoStack.length = 0;
-      return entry;
+      if (execution.authority.status === "rejected") {
+        return null;
+      }
+
+      return applyRecordedExecution(execution);
     },
 
     undo(): EditorCommandHistoryStep | null {
@@ -446,6 +480,7 @@ export function createEditorCommandHistory(
 
       entry.undo();
       redoStack.push(entry);
+      options.onDidChange?.();
       return {
         direction: "undo",
         entry
@@ -469,6 +504,7 @@ export function createEditorCommandHistory(
     clear(): void {
       undoStack.length = 0;
       redoStack.length = 0;
+      options.onDidChange?.();
     }
   };
 }
