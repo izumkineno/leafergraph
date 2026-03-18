@@ -24,6 +24,10 @@ function createResizeOperation(): GraphOperation {
 describe("createDemoRemoteAuthorityService", () => {
   test("应处理文档、操作确认与运行反馈", async () => {
     const service = createDemoRemoteAuthorityService();
+    const pushedDocumentRevisions: string[] = [];
+    const disposeDocumentSubscription = service.subscribeDocument?.((document) => {
+      pushedDocumentRevisions.push(String(document.revision));
+    });
     const runtimeFeedbackEvents: RuntimeFeedbackEvent[] = [];
     const disposeRuntimeFeedbackSubscription = service.subscribe?.((event) => {
       runtimeFeedbackEvents.push(event);
@@ -61,6 +65,7 @@ describe("createDemoRemoteAuthorityService", () => {
           event.event.state.status === "success"
       )
     ).toBe(true);
+    expect(pushedDocumentRevisions).toEqual(["2"]);
 
     const replacedDocument = await service.replaceDocument(
       {
@@ -79,7 +84,9 @@ describe("createDemoRemoteAuthorityService", () => {
     );
     expect(replacedDocument?.documentId).toBe("demo-worker-doc-2");
     expect(replacedDocument?.revision).toBe("10");
+    expect(pushedDocumentRevisions).toEqual(["2", "10"]);
 
+    disposeDocumentSubscription?.();
     disposeRuntimeFeedbackSubscription?.();
   });
 });

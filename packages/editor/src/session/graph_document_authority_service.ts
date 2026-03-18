@@ -4,6 +4,7 @@ import type {
 } from "leafergraph";
 import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
 import type {
+  EditorRemoteAuthorityDocumentInlet,
   EditorRemoteAuthorityOperationContext,
   EditorRemoteAuthorityOperationResult,
   EditorRemoteAuthorityReplaceDocumentContext
@@ -17,7 +18,8 @@ import type {
  * 让 MessagePort、后续其他 transport 只做适配，不重复发明业务接口。
  */
 export interface EditorRemoteAuthorityDocumentService
-  extends Partial<EditorRuntimeFeedbackInlet> {
+  extends Partial<EditorRuntimeFeedbackInlet>,
+    Partial<EditorRemoteAuthorityDocumentInlet> {
   /** 返回当前 authority 持有的正式图文档。 */
   getDocument(): GraphDocument | Promise<GraphDocument>;
   /** 提交一条图操作，并返回 authority 确认结果。 */

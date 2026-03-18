@@ -124,17 +124,138 @@ describe("createRemoteGraphDocumentSession", () => {
       authority: "confirmed"
     });
   });
-});
 
-describe("remote-client session binding", () => {
-  test("应暴露 authoritative document projection 标记并在 dispose 时释放 client", () => {
-    let disposed = false;
+  test("应消费 authority 主动回推的 document 快照", async () => {
+    const initialDocument = createTestDocument();
+    let emitDocument: ((document: GraphDocument) => void) | null = null;
     const authorityClient: EditorRemoteAuthorityClient = {
       async submitOperation() {
         return {
           accepted: true,
           changed: false,
           revision: "1"
+        };
+      },
+      subscribeDocument(listener) {
+        emitDocument = listener;
+        return () => {
+          emitDocument = null;
+        };
+      }
+    };
+    const session = createRemoteGraphDocumentSession({
+      document: initialDocument,
+      client: authorityClient
+    });
+    const revisions: string[] = [];
+    session.subscribe((document) => {
+      revisions.push(String(document.revision));
+    });
+
+    emitDocument?.({
+      ...initialDocument,
+      revision: "3",
+      nodes: []
+    });
+    await Promise.resolve();
+
+    expect(session.currentDocument.revision).toBe("3");
+    expect(session.currentDocument.nodes).toHaveLength(0);
+    expect(revisions).toEqual(["1", "3"]);
+
+    session.dispose?.();
+  });
+
+  test("显式 resyncAuthorityDocument 应重新拉取并替换当前权威文档", async () => {
+    const initialDocument = createTestDocument();
+    let getDocumentCount = 0;
+    const authorityClient: EditorRemoteAuthorityClient = {
+      async getDocument() {
+        getDocumentCount += 1;
+        return {
+          ...initialDocument,
+          revision: "4",
+          nodes: []
+        };
+      },
+      async submitOperation() {
+        return {
+          accepted: true,
+          changed: false,
+          revision: "1"
+        };
+      }
+    };
+    const session = createRemoteGraphDocumentSession({
+      document: initialDocument,
+      client: authorityClient
+    });
+    const revisions: string[] = [];
+    session.subscribe((document) => {
+      revisions.push(String(document.revision));
+    });
+
+    const document = await session.resyncAuthorityDocument?.();
+
+    expect(getDocumentCount).toBe(1);
+    expect(document?.revision).toBe("4");
+    expect(session.currentDocument.revision).toBe("4");
+    expect(session.currentDocument.nodes).toHaveLength(0);
+    expect(revisions).toEqual(["1", "4"]);
+  });
+
+  test("authority 请求失败后应自动 resync 当前权威文档", async () => {
+    const initialDocument = createTestDocument();
+    let getDocumentCount = 0;
+    const authorityClient: EditorRemoteAuthorityClient = {
+      async getDocument() {
+        getDocumentCount += 1;
+        return {
+          ...initialDocument,
+          revision: "7",
+          nodes: []
+        };
+      },
+      async submitOperation() {
+        throw new Error("authority offline");
+      }
+    };
+    const session = createRemoteGraphDocumentSession({
+      document: initialDocument,
+      client: authorityClient
+    });
+
+    const submission = session.submitOperationWithAuthority(
+      createNodeRemoveOperation()
+    );
+    const confirmation = await submission.confirmation;
+
+    expect(getDocumentCount).toBe(1);
+    expect(confirmation.accepted).toBe(false);
+    expect(confirmation.changed).toBe(false);
+    expect(confirmation.reason).toBe("authority offline");
+    expect(confirmation.revision).toBe("7");
+    expect(session.currentDocument.revision).toBe("7");
+    expect(session.currentDocument.nodes).toHaveLength(0);
+    expect(session.pendingOperationIds).toHaveLength(0);
+  });
+});
+
+describe("remote-client session binding", () => {
+  test("应暴露 authoritative document projection 标记并在 dispose 时释放 client 与订阅", () => {
+    let disposed = false;
+    let unsubscribed = false;
+    const authorityClient: EditorRemoteAuthorityClient = {
+      async submitOperation() {
+        return {
+          accepted: true,
+          changed: false,
+          revision: "1"
+        };
+      },
+      subscribeDocument() {
+        return () => {
+          unsubscribed = true;
         };
       },
       dispose() {
@@ -154,6 +275,7 @@ describe("remote-client session binding", () => {
 
     expect(binding.projectsSessionDocument).toBe(true);
     binding.dispose();
+    expect(unsubscribed).toBe(true);
     expect(disposed).toBe(true);
   });
 });

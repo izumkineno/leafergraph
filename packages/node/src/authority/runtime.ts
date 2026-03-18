@@ -28,6 +28,7 @@ export interface NodeAuthorityRuntime {
   getDocument(): GraphDocument;
   submitOperation(operation: AuthorityGraphOperation): AuthorityOperationResult;
   replaceDocument(document: GraphDocument): GraphDocument;
+  subscribeDocument(listener: (document: GraphDocument) => void): () => void;
   subscribe(listener: (event: AuthorityRuntimeFeedbackEvent) => void): () => void;
 }
 
@@ -176,6 +177,7 @@ export function createNodeAuthorityRuntime(
   options: CreateNodeAuthorityRuntimeOptions = {}
 ): NodeAuthorityRuntime {
   const authorityName = options.authorityName ?? "node-authority";
+  const documentListeners = new Set<(document: GraphDocument) => void>();
   const runtimeFeedbackListeners = new Set<
     (event: AuthorityRuntimeFeedbackEvent) => void
   >();
@@ -189,6 +191,13 @@ export function createNodeAuthorityRuntime(
   const emitRuntimeFeedback = (event: AuthorityRuntimeFeedbackEvent): void => {
     const snapshot = clone(event);
     for (const listener of runtimeFeedbackListeners) {
+      listener(snapshot);
+    }
+  };
+
+  const emitDocument = (): void => {
+    const snapshot = clone(currentDocument);
+    for (const listener of documentListeners) {
       listener(snapshot);
     }
   };
@@ -313,16 +322,17 @@ export function createNodeAuthorityRuntime(
             operation.input,
             resolveGeneratedNodeId
           );
-          currentDocument = {
-            ...currentDocument,
-            revision: nextRevision(currentDocument.revision),
-            nodes: [
-              ...currentDocument.nodes.filter((node) => node.id !== nextNode.id),
-              nextNode
-            ]
-          };
-          emitNodeState(nextNode.id, "created", true);
-          emitNodeExecution(nextNode.id, operation.source);
+        currentDocument = {
+          ...currentDocument,
+          revision: nextRevision(currentDocument.revision),
+          nodes: [
+            ...currentDocument.nodes.filter((node) => node.id !== nextNode.id),
+            nextNode
+          ]
+        };
+        emitDocument();
+        emitNodeState(nextNode.id, "created", true);
+        emitNodeExecution(nextNode.id, operation.source);
           return {
             accepted: true,
             changed: true,
@@ -342,9 +352,9 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-          currentDocument = {
-            ...currentDocument,
-            revision: nextRevision(currentDocument.revision),
+        currentDocument = {
+          ...currentDocument,
+          revision: nextRevision(currentDocument.revision),
             nodes: currentDocument.nodes.map((item) =>
               item.id === operation.nodeId
                 ? {
@@ -392,8 +402,9 @@ export function createNodeAuthorityRuntime(
                 : item
             )
           };
-          emitNodeState(operation.nodeId, "updated", true);
-          emitNodeExecution(operation.nodeId, operation.source);
+        emitDocument();
+        emitNodeState(operation.nodeId, "updated", true);
+        emitNodeExecution(operation.nodeId, operation.source);
           return {
             accepted: true,
             changed: true,
@@ -413,9 +424,9 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-          currentDocument = {
-            ...currentDocument,
-            revision: nextRevision(currentDocument.revision),
+        currentDocument = {
+          ...currentDocument,
+          revision: nextRevision(currentDocument.revision),
             nodes: currentDocument.nodes.map((item) =>
               item.id === operation.nodeId
                 ? {
@@ -429,7 +440,8 @@ export function createNodeAuthorityRuntime(
                 : item
             )
           };
-          emitNodeState(operation.nodeId, "moved", true);
+        emitDocument();
+        emitNodeState(operation.nodeId, "moved", true);
           return {
             accepted: true,
             changed: true,
@@ -449,9 +461,9 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-          currentDocument = {
-            ...currentDocument,
-            revision: nextRevision(currentDocument.revision),
+        currentDocument = {
+          ...currentDocument,
+          revision: nextRevision(currentDocument.revision),
             nodes: currentDocument.nodes.map((item) =>
               item.id === operation.nodeId
                 ? {
@@ -465,8 +477,9 @@ export function createNodeAuthorityRuntime(
                 : item
             )
           };
-          emitNodeState(operation.nodeId, "resized", true);
-          emitNodeExecution(operation.nodeId, operation.source);
+        emitDocument();
+        emitNodeState(operation.nodeId, "resized", true);
+        emitNodeExecution(operation.nodeId, operation.source);
           return {
             accepted: true,
             changed: true,
@@ -491,10 +504,11 @@ export function createNodeAuthorityRuntime(
                 link.source.nodeId !== operation.nodeId &&
                 link.target.nodeId !== operation.nodeId
             )
-          };
-          if (existed) {
-            emitNodeState(operation.nodeId, "removed", false);
-          }
+        };
+        if (existed) {
+          emitDocument();
+          emitNodeState(operation.nodeId, "removed", false);
+        }
           return {
             accepted: true,
             changed: existed,
@@ -507,15 +521,16 @@ export function createNodeAuthorityRuntime(
             operation.input,
             resolveGeneratedLinkId
           );
-          currentDocument = {
-            ...currentDocument,
-            revision: nextRevision(currentDocument.revision),
+        currentDocument = {
+          ...currentDocument,
+          revision: nextRevision(currentDocument.revision),
             links: [
               ...currentDocument.links.filter((link) => link.id !== nextLink.id),
               nextLink
             ]
           };
-          emitNodeState(nextLink.source.nodeId, "connections", true);
+        emitDocument();
+        emitNodeState(nextLink.source.nodeId, "connections", true);
           emitNodeState(nextLink.target.nodeId, "connections", true);
           emitLinkPropagation(nextLink, operation.source);
           return {
@@ -529,16 +544,19 @@ export function createNodeAuthorityRuntime(
           const existed = currentDocument.links.some(
             (link) => link.id === operation.linkId
           );
-          currentDocument = {
-            ...currentDocument,
-            revision: existed
+        currentDocument = {
+          ...currentDocument,
+          revision: existed
               ? nextRevision(currentDocument.revision)
               : currentDocument.revision,
-            links: currentDocument.links.filter(
-              (link) => link.id !== operation.linkId
-            )
-          };
-          return {
+          links: currentDocument.links.filter(
+            (link) => link.id !== operation.linkId
+          )
+        };
+        if (existed) {
+          emitDocument();
+        }
+        return {
             accepted: true,
             changed: existed,
             revision: currentDocument.revision,
@@ -559,9 +577,9 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-          currentDocument = {
-            ...currentDocument,
-            revision: nextRevision(currentDocument.revision),
+        currentDocument = {
+          ...currentDocument,
+          revision: nextRevision(currentDocument.revision),
             links: currentDocument.links.map((item) =>
               item.id === operation.linkId
                 ? {
@@ -572,13 +590,14 @@ export function createNodeAuthorityRuntime(
                 : item
             )
           };
-          const nextLink = currentDocument.links.find(
-            (item) => item.id === operation.linkId
-          );
-          if (nextLink) {
-            emitNodeState(nextLink.source.nodeId, "connections", true);
-            emitNodeState(nextLink.target.nodeId, "connections", true);
-            emitLinkPropagation(nextLink, operation.source);
+        const nextLink = currentDocument.links.find(
+          (item) => item.id === operation.linkId
+        );
+        if (nextLink) {
+          emitDocument();
+          emitNodeState(nextLink.source.nodeId, "connections", true);
+          emitNodeState(nextLink.target.nodeId, "connections", true);
+          emitLinkPropagation(nextLink, operation.source);
           }
           return {
             accepted: true,
@@ -592,7 +611,16 @@ export function createNodeAuthorityRuntime(
 
     replaceDocument(document: GraphDocument): GraphDocument {
       currentDocument = clone(document);
+      emitDocument();
       return clone(currentDocument);
+    },
+
+    subscribeDocument(listener: (document: GraphDocument) => void): () => void {
+      documentListeners.add(listener);
+
+      return () => {
+        documentListeners.delete(listener);
+      };
     },
 
     subscribe(

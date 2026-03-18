@@ -8,8 +8,9 @@ import {
 } from "./graph_document_authority_transport";
 import type {
   EditorRemoteAuthorityInboundEnvelope,
-  EditorRemoteAuthorityRequestEnvelope
+  EditorRemoteAuthorityProtocolAdapter
 } from "./graph_document_authority_protocol";
+import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
 
 interface PendingRequestEntry {
   resolve: (response: EditorRemoteAuthorityTransportResponse) => void;
@@ -22,10 +23,8 @@ export interface CreateMessagePortRemoteAuthorityTransportOptions {
   port: MessagePort;
   /** 释放 transport 时是否一并关闭 port。 */
   closePortOnDispose?: boolean;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  /** 可选 authority 协议适配器。 */
+  protocolAdapter?: EditorRemoteAuthorityProtocolAdapter;
 }
 
 /**
@@ -46,6 +45,8 @@ export function createMessagePortRemoteAuthorityTransport(
     (event: EditorRemoteAuthorityTransportEvent) => void
   >();
   const pendingRequests = new Map<string, PendingRequestEntry>();
+  const protocolAdapter =
+    options.protocolAdapter ?? DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER;
   let requestSequence = 0;
   let disposed = false;
 
@@ -90,21 +91,11 @@ export function createMessagePortRemoteAuthorityTransport(
       return;
     }
 
-    const data = event.data;
-    if (!isRecord(data) || typeof data.channel !== "string") {
+    const envelope = protocolAdapter.parseInboundEnvelope(event.data);
+    if (!envelope) {
       return;
     }
-
-    if (
-      data.channel !== "authority.response" &&
-      data.channel !== "authority.event"
-    ) {
-      return;
-    }
-
-    handleInboundEnvelope(
-      data as unknown as EditorRemoteAuthorityInboundEnvelope
-    );
+    handleInboundEnvelope(envelope as EditorRemoteAuthorityInboundEnvelope);
   };
 
   options.port.addEventListener("message", handleMessage as EventListener);
@@ -119,11 +110,10 @@ export function createMessagePortRemoteAuthorityTransport(
       }
 
       const requestId = `message-port-request-${requestSequence += 1}`;
-      const message: EditorRemoteAuthorityRequestEnvelope = {
-        channel: "authority.request",
+      const message = protocolAdapter.createRequestEnvelope(
         requestId,
-        request: structuredClone(request)
-      };
+        structuredClone(request)
+      );
 
       return new Promise<TResponse>((resolve, reject) => {
         pendingRequests.set(requestId, {

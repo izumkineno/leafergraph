@@ -313,8 +313,16 @@ export interface AuthorityRuntimeFeedbackTransportEvent {
   event: AuthorityRuntimeFeedbackEvent;
 }
 
+/** authority transport 主动回推整图快照事件。 */
+export interface AuthorityDocumentTransportEvent {
+  type: "document";
+  document: GraphDocument;
+}
+
 /** authority transport 当前支持的最小事件集合。 */
-export type AuthorityTransportEvent = AuthorityRuntimeFeedbackTransportEvent;
+export type AuthorityTransportEvent =
+  | AuthorityRuntimeFeedbackTransportEvent
+  | AuthorityDocumentTransportEvent;
 
 /** authority 请求 envelope。 */
 export interface AuthorityRequestEnvelope {
@@ -353,3 +361,86 @@ export type AuthorityOutboundEnvelope =
   | AuthoritySuccessEnvelope
   | AuthorityFailureEnvelope
   | AuthorityEventEnvelope;
+
+/** Node authority 协议适配器。 */
+export interface AuthorityProtocolAdapter {
+  /** 构造一条 authority request envelope。 */
+  createRequestEnvelope(
+    requestId: string,
+    request: AuthorityTransportRequest
+  ): AuthorityRequestEnvelope;
+  /** 构造一条 authority 成功响应 envelope。 */
+  createSuccessEnvelope(
+    requestId: string,
+    response: AuthorityTransportResponse
+  ): AuthoritySuccessEnvelope;
+  /** 构造一条 authority 失败响应 envelope。 */
+  createFailureEnvelope(
+    requestId: string,
+    error: string
+  ): AuthorityFailureEnvelope;
+  /** 构造一条 authority 事件 envelope。 */
+  createEventEnvelope(event: AuthorityTransportEvent): AuthorityEventEnvelope;
+  /** 从未知消息里解析 request envelope。 */
+  parseRequestEnvelope(value: unknown): AuthorityRequestInboundEnvelope | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isRequestEnvelope(value: unknown): value is AuthorityRequestInboundEnvelope {
+  return (
+    isRecord(value) &&
+    value.channel === "authority.request" &&
+    typeof value.requestId === "string" &&
+    isRecord(value.request) &&
+    typeof value.request.action === "string"
+  );
+}
+
+/** 当前默认 authority envelope 协议适配器。 */
+export function createDefaultAuthorityProtocolAdapter(): AuthorityProtocolAdapter {
+  return {
+    createRequestEnvelope(requestId, request) {
+      return {
+        channel: "authority.request",
+        requestId,
+        request
+      };
+    },
+
+    createSuccessEnvelope(requestId, response) {
+      return {
+        channel: "authority.response",
+        requestId,
+        ok: true,
+        response
+      };
+    },
+
+    createFailureEnvelope(requestId, error) {
+      return {
+        channel: "authority.response",
+        requestId,
+        ok: false,
+        error
+      };
+    },
+
+    createEventEnvelope(event) {
+      return {
+        channel: "authority.event",
+        event
+      };
+    },
+
+    parseRequestEnvelope(value) {
+      return isRequestEnvelope(value) ? value : null;
+    }
+  };
+}
+
+/** Node authority 当前默认复用的协议适配器实例。 */
+export const DEFAULT_AUTHORITY_PROTOCOL_ADAPTER =
+  createDefaultAuthorityProtocolAdapter();

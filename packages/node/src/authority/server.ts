@@ -8,12 +8,10 @@ import {
   type CreateNodeAuthorityRuntimeOptions,
   type NodeAuthorityRuntime
 } from "./runtime.js";
-import type {
-  AuthorityEventEnvelope,
-  AuthorityFailureEnvelope,
-  AuthorityOutboundEnvelope,
-  AuthorityRequestInboundEnvelope,
-  AuthoritySuccessEnvelope
+import {
+  DEFAULT_AUTHORITY_PROTOCOL_ADAPTER,
+  type AuthorityProtocolAdapter,
+  type AuthorityOutboundEnvelope
 } from "./protocol.js";
 
 /** Node authority server 的最小启动参数。 */
@@ -25,6 +23,8 @@ export interface StartNodeAuthorityServerOptions
   port?: number;
   /** 已存在的 runtime；未提供时使用默认内存态 runtime。 */
   runtime?: NodeAuthorityRuntime;
+  /** 可选 authority 协议适配器。 */
+  protocolAdapter?: AuthorityProtocolAdapter;
 }
 
 /** Node authority server 的最小健康快照。 */
@@ -46,28 +46,12 @@ export interface StartedNodeAuthorityServer {
   close(): Promise<void>;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function toPublicHost(host: string): string {
   if (host === "0.0.0.0" || host === "::") {
     return "127.0.0.1";
   }
 
   return host;
-}
-
-function toFailureEnvelope(
-  requestId: string,
-  error: string
-): AuthorityFailureEnvelope {
-  return {
-    channel: "authority.response",
-    requestId,
-    ok: false,
-    error
-  };
 }
 
 function sendEnvelope(socket: WebSocket, envelope: AuthorityOutboundEnvelope): void {
@@ -98,6 +82,8 @@ export async function startNodeAuthorityServer(
       initialDocument: options.initialDocument,
       authorityName: options.authorityName
     });
+  const protocolAdapter =
+    options.protocolAdapter ?? DEFAULT_AUTHORITY_PROTOCOL_ADAPTER;
   const sockets = new Set<WebSocket>();
   const server = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/health") {
@@ -137,14 +123,18 @@ export async function startNodeAuthorityServer(
 
   webSocketServer.on("connection", (socket: WebSocket) => {
     sockets.add(socket);
+    const disposeDocumentSubscription = runtime.subscribeDocument((document) => {
+      const envelope = protocolAdapter.createEventEnvelope({
+          type: "document",
+          document
+        });
+      sendEnvelope(socket, envelope);
+    });
     const disposeRuntimeSubscription = runtime.subscribe((event) => {
-      const envelope: AuthorityEventEnvelope = {
-        channel: "authority.event",
-        event: {
+      const envelope = protocolAdapter.createEventEnvelope({
           type: "runtimeFeedback",
           event
-        }
-      };
+        });
       sendEnvelope(socket, envelope);
     });
 
@@ -156,7 +146,7 @@ export async function startNodeAuthorityServer(
       } catch (error) {
         sendEnvelope(
           socket,
-          toFailureEnvelope(
+          protocolAdapter.createFailureEnvelope(
             "invalid-json",
             error instanceof Error ? error.message : "无法解析 authority 请求"
           )
@@ -164,57 +154,48 @@ export async function startNodeAuthorityServer(
         return;
       }
 
-      if (
-        !isRecord(message) ||
-        message.channel !== "authority.request" ||
-        typeof message.requestId !== "string" ||
-        !isRecord(message.request) ||
-        typeof message.request.action !== "string"
-      ) {
-        sendEnvelope(socket, toFailureEnvelope("unknown-request", "未知 authority 请求"));
+      const envelope = protocolAdapter.parseRequestEnvelope(message);
+      if (!envelope) {
+        sendEnvelope(
+          socket,
+          protocolAdapter.createFailureEnvelope("unknown-request", "未知 authority 请求")
+        );
         return;
       }
 
-      const envelope = message as unknown as AuthorityRequestInboundEnvelope;
       try {
         switch (envelope.request.action) {
           case "getDocument": {
-            const successEnvelope: AuthoritySuccessEnvelope = {
-              channel: "authority.response",
-              requestId: envelope.requestId,
-              ok: true,
-              response: {
+            const successEnvelope = protocolAdapter.createSuccessEnvelope(
+              envelope.requestId,
+              {
                 action: "getDocument",
                 document: runtime.getDocument()
               }
-            };
+            );
             sendEnvelope(socket, successEnvelope);
             return;
           }
           case "submitOperation": {
-            const successEnvelope: AuthoritySuccessEnvelope = {
-              channel: "authority.response",
-              requestId: envelope.requestId,
-              ok: true,
-              response: {
+            const successEnvelope = protocolAdapter.createSuccessEnvelope(
+              envelope.requestId,
+              {
                 action: "submitOperation",
                 result: runtime.submitOperation(envelope.request.operation)
               }
-            };
+            );
             sendEnvelope(socket, successEnvelope);
             return;
           }
           case "replaceDocument": {
             const nextDocument = runtime.replaceDocument(envelope.request.document);
-            const successEnvelope: AuthoritySuccessEnvelope = {
-              channel: "authority.response",
-              requestId: envelope.requestId,
-              ok: true,
-              response: {
+            const successEnvelope = protocolAdapter.createSuccessEnvelope(
+              envelope.requestId,
+              {
                 action: "replaceDocument",
                 document: nextDocument
               }
-            };
+            );
             sendEnvelope(socket, successEnvelope);
             return;
           }
@@ -222,7 +203,7 @@ export async function startNodeAuthorityServer(
       } catch (error) {
         sendEnvelope(
           socket,
-          toFailureEnvelope(
+          protocolAdapter.createFailureEnvelope(
             envelope.requestId,
             error instanceof Error ? error.message : "authority 请求处理失败"
           )
@@ -231,11 +212,13 @@ export async function startNodeAuthorityServer(
     });
 
     socket.on("close", () => {
+      disposeDocumentSubscription();
       disposeRuntimeSubscription();
       sockets.delete(socket);
     });
 
     socket.on("error", () => {
+      disposeDocumentSubscription();
       disposeRuntimeSubscription();
       sockets.delete(socket);
     });

@@ -10,8 +10,9 @@ import {
 } from "./graph_document_authority_transport";
 import type {
   EditorRemoteAuthorityInboundEnvelope,
-  EditorRemoteAuthorityRequestEnvelope
+  EditorRemoteAuthorityProtocolAdapter
 } from "./graph_document_authority_protocol";
+import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
 
 interface PendingRequestEntry {
   resolve: (response: EditorRemoteAuthorityTransportResponse) => void;
@@ -24,10 +25,7 @@ export interface CreateNodeProcessRemoteAuthorityTransportOptions {
   args: readonly string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  protocolAdapter?: EditorRemoteAuthorityProtocolAdapter;
 }
 
 function formatProcessFailureReason(options: {
@@ -65,6 +63,8 @@ export function createNodeProcessRemoteAuthorityTransport(
     (event: EditorRemoteAuthorityTransportEvent) => void
   >();
   const pendingRequests = new Map<string, PendingRequestEntry>();
+  const protocolAdapter =
+    options.protocolAdapter ?? DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER;
   const stderrLines: string[] = [];
   let requestSequence = 0;
   let disposed = false;
@@ -130,13 +130,11 @@ export function createNodeProcessRemoteAuthorityTransport(
 
     try {
       const parsed = JSON.parse(line) as unknown;
-      if (!isRecord(parsed) || typeof parsed.channel !== "string") {
-        throw new Error("authority 返回了非法消息");
+      const envelope = protocolAdapter.parseInboundEnvelope(parsed);
+      if (!envelope) {
+        return;
       }
-
-      handleInboundEnvelope(
-        parsed as unknown as EditorRemoteAuthorityInboundEnvelope
-      );
+      handleInboundEnvelope(envelope as EditorRemoteAuthorityInboundEnvelope);
     } catch (error) {
       const reason =
         error instanceof Error && error.message
@@ -203,11 +201,10 @@ export function createNodeProcessRemoteAuthorityTransport(
       }
 
       const requestId = `node-process-request-${requestSequence += 1}`;
-      const message: EditorRemoteAuthorityRequestEnvelope = {
-        channel: "authority.request",
+      const message = protocolAdapter.createRequestEnvelope(
         requestId,
-        request: structuredClone(request)
-      };
+        structuredClone(request)
+      );
 
       return new Promise<TResponse>((resolve, reject) => {
         pendingRequests.set(requestId, {

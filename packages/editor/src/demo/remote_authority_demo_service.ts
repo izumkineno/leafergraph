@@ -110,6 +110,7 @@ function nextRevision(
 export function createDemoRemoteAuthorityService(
   options: CreateDemoRemoteAuthorityServiceOptions = {}
 ): EditorRemoteAuthorityDocumentService {
+  const documentListeners = new Set<(document: GraphDocument) => void>();
   const runtimeFeedbackListeners = new Set<
     (event: RuntimeFeedbackEvent) => void
   >();
@@ -124,6 +125,13 @@ export function createDemoRemoteAuthorityService(
   const emitRuntimeFeedback = (event: RuntimeFeedbackEvent): void => {
     const snapshot = clone(event);
     for (const listener of runtimeFeedbackListeners) {
+      listener(snapshot);
+    }
+  };
+
+  const emitDocument = (): void => {
+    const snapshot = clone(currentDocument);
+    for (const listener of documentListeners) {
       listener(snapshot);
     }
   };
@@ -294,6 +302,7 @@ export function createDemoRemoteAuthorityService(
             nextNode
           ]
         };
+        emitDocument();
         emitNodeState(nextNode.id, "created", true);
         emitNodeExecution(nextNode.id, operation.source);
         return {
@@ -365,6 +374,7 @@ export function createDemoRemoteAuthorityService(
               : item
           )
         };
+        emitDocument();
         emitNodeState(operation.nodeId, "updated", true);
         emitNodeExecution(operation.nodeId, operation.source);
         return {
@@ -402,6 +412,7 @@ export function createDemoRemoteAuthorityService(
               : item
           )
         };
+        emitDocument();
         emitNodeState(operation.nodeId, "moved", true);
         return {
           accepted: true,
@@ -438,6 +449,7 @@ export function createDemoRemoteAuthorityService(
               : item
           )
         };
+        emitDocument();
         emitNodeState(operation.nodeId, "resized", true);
         emitNodeExecution(operation.nodeId, operation.source);
         return {
@@ -466,6 +478,7 @@ export function createDemoRemoteAuthorityService(
           )
         };
         if (existed) {
+          emitDocument();
           emitNodeState(operation.nodeId, "removed", false);
         }
         return {
@@ -485,6 +498,7 @@ export function createDemoRemoteAuthorityService(
             nextLink
           ]
         };
+        emitDocument();
         emitNodeState(nextLink.source.nodeId, "connections", true);
         emitNodeState(nextLink.target.nodeId, "connections", true);
         emitLinkPropagation(nextLink, operation.source);
@@ -508,6 +522,9 @@ export function createDemoRemoteAuthorityService(
             (link) => link.id !== operation.linkId
           )
         };
+        if (existed) {
+          emitDocument();
+        }
         return {
           accepted: true,
           changed: existed,
@@ -544,6 +561,7 @@ export function createDemoRemoteAuthorityService(
           (item) => item.id === operation.linkId
         );
         if (nextLink) {
+          emitDocument();
           emitNodeState(nextLink.source.nodeId, "connections", true);
           emitNodeState(nextLink.target.nodeId, "connections", true);
           emitLinkPropagation(nextLink, operation.source);
@@ -569,6 +587,7 @@ export function createDemoRemoteAuthorityService(
 
     async replaceDocument(document: GraphDocument): Promise<GraphDocument> {
       currentDocument = clone(document);
+      emitDocument();
       return clone(currentDocument);
     },
 
@@ -576,6 +595,13 @@ export function createDemoRemoteAuthorityService(
       runtimeFeedbackListeners.add(listener);
       return () => {
         runtimeFeedbackListeners.delete(listener);
+      };
+    },
+
+    subscribeDocument(listener: (document: GraphDocument) => void): () => void {
+      documentListeners.add(listener);
+      return () => {
+        documentListeners.delete(listener);
       };
     }
   };

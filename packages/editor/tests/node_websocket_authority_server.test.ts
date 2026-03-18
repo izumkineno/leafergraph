@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import type { GraphOperation, RuntimeFeedbackEvent } from "leafergraph";
+import type {
+  GraphDocument,
+  GraphOperation,
+  RuntimeFeedbackEvent
+} from "leafergraph";
 import { startNodeAuthorityServer } from "../../node/src/authority";
 import { createTransportRemoteAuthorityClient } from "../src/session/graph_document_authority_transport";
 import { createWebSocketRemoteAuthorityTransport } from "../src/session/websocket_remote_authority_transport";
@@ -55,7 +59,11 @@ describe("node websocket authority server", () => {
     const client = createTransportRemoteAuthorityClient({
       transport
     });
+    const pushedDocuments: GraphDocument[] = [];
     const runtimeFeedbackEvents: RuntimeFeedbackEvent[] = [];
+    const disposeDocumentSubscription = client.subscribeDocument((document) => {
+      pushedDocuments.push(document);
+    });
     const disposeRuntimeFeedbackSubscription = client.subscribe((event) => {
       runtimeFeedbackEvents.push(event);
     });
@@ -73,6 +81,14 @@ describe("node websocket authority server", () => {
     expect(submitResult.revision).toBe("2");
 
     await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(
+      pushedDocuments.some(
+        (document) =>
+          document.revision === "2" &&
+          document.nodes.every((node) => node.id !== "node-1")
+      )
+    ).toBe(true);
 
     expect(
       runtimeFeedbackEvents.some(
@@ -101,6 +117,16 @@ describe("node websocket authority server", () => {
     expect(replacedDocument?.documentId).toBe("node-authority-doc-2");
     expect(replacedDocument?.revision).toBe("7");
 
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(
+      pushedDocuments.some(
+        (document) =>
+          document.documentId === "node-authority-doc-2" &&
+          document.revision === "7"
+      )
+    ).toBe(true);
+
+    disposeDocumentSubscription();
     disposeRuntimeFeedbackSubscription();
     client.dispose?.();
   });

@@ -49,3 +49,121 @@ export type EditorRemoteAuthorityOutboundEnvelope =
   | EditorRemoteAuthoritySuccessEnvelope
   | EditorRemoteAuthorityFailureEnvelope
   | EditorRemoteAuthorityEventEnvelope;
+
+/** editor authority 协议适配器。 */
+export interface EditorRemoteAuthorityProtocolAdapter {
+  /** 构造一条 authority request envelope。 */
+  createRequestEnvelope(
+    requestId: string,
+    request: EditorRemoteAuthorityTransportRequest
+  ): EditorRemoteAuthorityRequestEnvelope;
+  /** 构造一条 authority 成功响应 envelope。 */
+  createSuccessEnvelope(
+    requestId: string,
+    response: EditorRemoteAuthorityTransportResponse
+  ): EditorRemoteAuthoritySuccessEnvelope;
+  /** 构造一条 authority 失败响应 envelope。 */
+  createFailureEnvelope(
+    requestId: string,
+    error: string
+  ): EditorRemoteAuthorityFailureEnvelope;
+  /** 构造一条 authority 事件 envelope。 */
+  createEventEnvelope(
+    event: EditorRemoteAuthorityTransportEvent
+  ): EditorRemoteAuthorityEventEnvelope;
+  /** 从未知消息中解析 request envelope。 */
+  parseRequestEnvelope(
+    value: unknown
+  ): EditorRemoteAuthorityRequestInboundEnvelope | null;
+  /** 从未知消息中解析 response / event envelope。 */
+  parseInboundEnvelope(value: unknown): EditorRemoteAuthorityInboundEnvelope | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isRequestEnvelope(
+  value: unknown
+): value is EditorRemoteAuthorityRequestInboundEnvelope {
+  return (
+    isRecord(value) &&
+    value.channel === "authority.request" &&
+    typeof value.requestId === "string" &&
+    isRecord(value.request) &&
+    typeof value.request.action === "string"
+  );
+}
+
+function isInboundEnvelope(
+  value: unknown
+): value is EditorRemoteAuthorityInboundEnvelope {
+  if (!isRecord(value) || typeof value.channel !== "string") {
+    return false;
+  }
+
+  switch (value.channel) {
+    case "authority.event":
+      return isRecord(value.event) && typeof value.event.type === "string";
+    case "authority.response":
+      if (typeof value.requestId !== "string" || typeof value.ok !== "boolean") {
+        return false;
+      }
+
+      return value.ok
+        ? isRecord(value.response) && typeof value.response.action === "string"
+        : typeof value.error === "string";
+    default:
+      return false;
+  }
+}
+
+/** 当前默认 authority envelope 协议适配器。 */
+export function createDefaultEditorRemoteAuthorityProtocolAdapter(): EditorRemoteAuthorityProtocolAdapter {
+  return {
+    createRequestEnvelope(requestId, request) {
+      return {
+        channel: "authority.request",
+        requestId,
+        request
+      };
+    },
+
+    createSuccessEnvelope(requestId, response) {
+      return {
+        channel: "authority.response",
+        requestId,
+        ok: true,
+        response
+      };
+    },
+
+    createFailureEnvelope(requestId, error) {
+      return {
+        channel: "authority.response",
+        requestId,
+        ok: false,
+        error
+      };
+    },
+
+    createEventEnvelope(event) {
+      return {
+        channel: "authority.event",
+        event
+      };
+    },
+
+    parseRequestEnvelope(value) {
+      return isRequestEnvelope(value) ? value : null;
+    },
+
+    parseInboundEnvelope(value) {
+      return isInboundEnvelope(value) ? value : null;
+    }
+  };
+}
+
+/** editor 当前默认复用的 authority 协议适配器实例。 */
+export const DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER =
+  createDefaultEditorRemoteAuthorityProtocolAdapter();

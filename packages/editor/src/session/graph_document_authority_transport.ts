@@ -5,6 +5,7 @@ import type {
 } from "leafergraph";
 import type {
   EditorRemoteAuthorityClient,
+  EditorRemoteAuthorityConnectionStatus,
   EditorRemoteAuthorityOperationContext,
   EditorRemoteAuthorityOperationResult,
   EditorRemoteAuthorityReplaceDocumentContext
@@ -71,9 +72,16 @@ export interface EditorRemoteAuthorityRuntimeFeedbackTransportEvent {
   event: RuntimeFeedbackEvent;
 }
 
+/** transport 层 authority 主动回推的整图快照事件。 */
+export interface EditorRemoteAuthorityDocumentTransportEvent {
+  type: "document";
+  document: GraphDocument;
+}
+
 /** transport 当前允许上抛的最小事件集合。 */
 export type EditorRemoteAuthorityTransportEvent =
-  EditorRemoteAuthorityRuntimeFeedbackTransportEvent;
+  | EditorRemoteAuthorityRuntimeFeedbackTransportEvent
+  | EditorRemoteAuthorityDocumentTransportEvent;
 
 /**
  * editor authority transport 抽象。
@@ -92,13 +100,18 @@ export interface EditorRemoteAuthorityTransport {
   subscribe(
     listener: (event: EditorRemoteAuthorityTransportEvent) => void
   ): () => void;
+  getConnectionStatus?(): EditorRemoteAuthorityConnectionStatus;
+  subscribeConnectionStatus?(
+    listener: (status: EditorRemoteAuthorityConnectionStatus) => void
+  ): () => void;
   dispose?(): void;
 }
 
 /** 带整图拉取能力的 authority client。 */
 export interface EditorRemoteAuthorityDocumentClient
-  extends EditorRemoteAuthorityClient {
+  extends Omit<EditorRemoteAuthorityClient, "subscribeDocument"> {
   getDocument(): Promise<GraphDocument>;
+  subscribeDocument(listener: (document: GraphDocument) => void): () => void;
 }
 
 function cloneGraphDocument(document: GraphDocument): GraphDocument {
@@ -133,6 +146,20 @@ function cloneRuntimeFeedbackEvent(
   return structuredClone(event);
 }
 
+function hasConnectionStatusSource(
+  transport: EditorRemoteAuthorityTransport
+): transport is EditorRemoteAuthorityTransport & {
+  getConnectionStatus(): EditorRemoteAuthorityConnectionStatus;
+  subscribeConnectionStatus(
+    listener: (status: EditorRemoteAuthorityConnectionStatus) => void
+  ): () => void;
+} {
+  return (
+    typeof transport.getConnectionStatus === "function" &&
+    typeof transport.subscribeConnectionStatus === "function"
+  );
+}
+
 /**
  * 基于通用 transport 创建 authority client。
  *
@@ -146,14 +173,21 @@ export function createTransportRemoteAuthorityClient(options: {
   const runtimeFeedbackListeners = new Set<
     (event: RuntimeFeedbackEvent) => void
   >();
+  const documentListeners = new Set<(document: GraphDocument) => void>();
   const disposeTransportSubscription = options.transport.subscribe((event) => {
-    if (event.type !== "runtimeFeedback") {
+    if (event.type === "runtimeFeedback") {
+      const feedback = cloneRuntimeFeedbackEvent(event.event);
+      for (const listener of runtimeFeedbackListeners) {
+        listener(feedback);
+      }
       return;
     }
 
-    const feedback = cloneRuntimeFeedbackEvent(event.event);
-    for (const listener of runtimeFeedbackListeners) {
-      listener(feedback);
+    if (event.type === "document") {
+      const document = cloneGraphDocument(event.document);
+      for (const listener of documentListeners) {
+        listener(document);
+      }
     }
   });
 
@@ -204,9 +238,36 @@ export function createTransportRemoteAuthorityClient(options: {
       };
     },
 
+    subscribeDocument(
+      listener: (document: GraphDocument) => void
+    ): () => void {
+      documentListeners.add(listener);
+
+      return () => {
+        documentListeners.delete(listener);
+      };
+    },
+
+    getConnectionStatus(): EditorRemoteAuthorityConnectionStatus {
+      return hasConnectionStatusSource(options.transport)
+        ? options.transport.getConnectionStatus()
+        : "connected";
+    },
+
+    subscribeConnectionStatus(
+      listener: (status: EditorRemoteAuthorityConnectionStatus) => void
+    ): () => void {
+      if (!hasConnectionStatusSource(options.transport)) {
+        return () => {};
+      }
+
+      return options.transport.subscribeConnectionStatus(listener);
+    },
+
     dispose(): void {
       disposeTransportSubscription();
       runtimeFeedbackListeners.clear();
+      documentListeners.clear();
       options.transport.dispose?.();
     }
   };

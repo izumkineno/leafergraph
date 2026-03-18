@@ -92,6 +92,7 @@ export interface GraphViewportHostBridge {
   submitOperationWithAuthority(
     operation: GraphOperation
   ): EditorGraphOperationSubmission;
+  resyncAuthorityDocument(): Promise<GraphDocument>;
   replaceDocument(document: GraphDocument): void;
   getCurrentDocument(): GraphDocument;
   subscribeDocument(listener: (document: GraphDocument) => void): () => void;
@@ -857,7 +858,6 @@ export function GraphViewport({
       document: documentData
     });
     const documentSession = documentSessionBinding.session;
-    documentSessionBinding.replaceDocument(documentData);
     const activeDocument = documentSession.currentDocument;
     let projectedDocument = activeDocument;
     onGraphRuntimeControlsChange?.({
@@ -1609,6 +1609,11 @@ export function GraphViewport({
         operation: GraphOperation
       ): EditorGraphOperationSubmission {
         return documentSession.submitOperationWithAuthority(operation);
+      },
+      resyncAuthorityDocument(): Promise<GraphDocument> {
+        return documentSession.resyncAuthorityDocument
+          ? documentSession.resyncAuthorityDocument()
+          : Promise.resolve(documentSession.currentDocument);
       },
       replaceDocument(document: GraphDocument): void {
         documentSessionBinding.replaceDocument(document);

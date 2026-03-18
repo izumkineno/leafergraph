@@ -1,9 +1,8 @@
 import type {
-  EditorRemoteAuthorityRequestInboundEnvelope,
-  EditorRemoteAuthoritySuccessEnvelope,
-  EditorRemoteAuthorityFailureEnvelope,
-  EditorRemoteAuthorityEventEnvelope
+  EditorRemoteAuthorityProtocolAdapter,
+  EditorRemoteAuthorityRequestInboundEnvelope
 } from "./graph_document_authority_protocol";
+import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
 import type {
   EditorRemoteAuthorityGetDocumentResponse,
   EditorRemoteAuthorityReplaceDocumentResponse,
@@ -17,6 +16,8 @@ export interface CreateMessagePortRemoteAuthorityHostOptions {
   port: MessagePort;
   /** 协议对端真正实现的 authority 服务。 */
   service: EditorRemoteAuthorityDocumentService;
+  /** 可选 authority 协议适配器。 */
+  protocolAdapter?: EditorRemoteAuthorityProtocolAdapter;
   /** host 释放时是否关闭 port。 */
   closePortOnDispose?: boolean;
   /** host 释放时是否顺带释放 authority service。 */
@@ -26,22 +27,6 @@ export interface CreateMessagePortRemoteAuthorityHostOptions {
 /** MessagePort authority host 的最小句柄。 */
 export interface MessagePortRemoteAuthorityHost {
   dispose(): void;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isRequestEnvelope(
-  value: unknown
-): value is EditorRemoteAuthorityRequestInboundEnvelope {
-  return (
-    isRecord(value) &&
-    value.channel === "authority.request" &&
-    typeof value.requestId === "string" &&
-    isRecord(value.request) &&
-    typeof value.request.action === "string"
-  );
 }
 
 function toErrorMessage(error: unknown): string {
@@ -62,14 +47,11 @@ function toErrorMessage(error: unknown): string {
 export function createMessagePortRemoteAuthorityHost(
   options: CreateMessagePortRemoteAuthorityHostOptions
 ): MessagePortRemoteAuthorityHost {
+  const protocolAdapter =
+    options.protocolAdapter ?? DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER;
   let disposed = false;
 
-  const postMessage = (
-    message:
-      | EditorRemoteAuthoritySuccessEnvelope
-      | EditorRemoteAuthorityFailureEnvelope
-      | EditorRemoteAuthorityEventEnvelope
-  ): void => {
+  const postMessage = (message: unknown): void => {
     if (disposed) {
       return;
     }
@@ -84,33 +66,40 @@ export function createMessagePortRemoteAuthorityHost(
       | EditorRemoteAuthoritySubmitOperationResponse
       | EditorRemoteAuthorityReplaceDocumentResponse
   ): void => {
-    postMessage({
-      channel: "authority.response",
-      requestId,
-      ok: true,
-      response: structuredClone(response)
-    });
+    postMessage(
+      protocolAdapter.createSuccessEnvelope(
+        requestId,
+        structuredClone(response)
+      )
+    );
   };
 
   const respondFailure = (requestId: string, error: unknown): void => {
-    postMessage({
-      channel: "authority.response",
-      requestId,
-      ok: false,
-      error: toErrorMessage(error)
-    });
+    postMessage(
+      protocolAdapter.createFailureEnvelope(requestId, toErrorMessage(error))
+    );
   };
 
   const disposeRuntimeFeedbackSubscription =
     typeof options.service.subscribe === "function"
       ? options.service.subscribe((event) => {
-          postMessage({
-            channel: "authority.event",
-            event: {
+          postMessage(
+            protocolAdapter.createEventEnvelope({
               type: "runtimeFeedback",
               event: structuredClone(event)
-            }
-          });
+            })
+          );
+        })
+      : () => {};
+  const disposeDocumentSubscription =
+    typeof options.service.subscribeDocument === "function"
+      ? options.service.subscribeDocument((document) => {
+          postMessage(
+            protocolAdapter.createEventEnvelope({
+              type: "document",
+              document: structuredClone(document)
+            })
+          );
         })
       : () => {};
 
@@ -157,11 +146,12 @@ export function createMessagePortRemoteAuthorityHost(
   };
 
   const handleMessage = (event: MessageEvent<unknown>): void => {
-    if (disposed || !isRequestEnvelope(event.data)) {
+    const envelope = protocolAdapter.parseRequestEnvelope(event.data);
+    if (disposed || !envelope) {
       return;
     }
 
-    void handleRequestEnvelope(event.data);
+    void handleRequestEnvelope(envelope as EditorRemoteAuthorityRequestInboundEnvelope);
   };
 
   options.port.addEventListener("message", handleMessage as EventListener);
@@ -179,6 +169,7 @@ export function createMessagePortRemoteAuthorityHost(
         handleMessage as EventListener
       );
       disposeRuntimeFeedbackSubscription();
+      disposeDocumentSubscription();
 
       if (options.disposeServiceOnDispose !== false) {
         options.service.dispose?.();

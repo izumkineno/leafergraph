@@ -52,6 +52,8 @@ export interface EditorGraphDocumentSession {
   readonly currentDocument: GraphDocument;
   /** 当前仍在等待 authority 确认的操作 ID 列表。 */
   readonly pendingOperationIds: readonly string[];
+  /** 主动重新拉取 authority 文档并同步当前快照。 */
+  resyncAuthorityDocument?(): Promise<GraphDocument>;
   /** 提交一条正式操作，并返回可等待 authority 确认的回执。 */
   submitOperationWithAuthority(
     operation: GraphOperation
@@ -74,6 +76,8 @@ export interface EditorGraphDocumentSession {
   ): () => void;
   /** 订阅当前文档快照变化。 */
   subscribe(listener: GraphDocumentListener): () => void;
+  /** 释放 session 内部持有的订阅资源。 */
+  dispose?(): void;
 }
 
 interface CreateLoopbackGraphDocumentSessionOptions {
@@ -224,6 +228,10 @@ export function createLoopbackGraphDocumentSession(
 
     get pendingOperationIds(): readonly string[] {
       return [];
+    },
+
+    async resyncAuthorityDocument(): Promise<GraphDocument> {
+      return cloneGraphDocument(currentDocument);
     },
 
     submitOperationWithAuthority(
@@ -513,6 +521,10 @@ export function createMockRemoteGraphDocumentSession(
       return [...pendingOperations.keys()];
     },
 
+    async resyncAuthorityDocument(): Promise<GraphDocument> {
+      return cloneGraphDocument(currentDocument);
+    },
+
     submitOperationWithAuthority(
       operation: GraphOperation
     ): EditorGraphOperationSubmission {
@@ -634,6 +646,7 @@ export function createRemoteGraphDocumentSession(
     }
   >();
   let currentDocument = cloneGraphDocument(options.document);
+  let pendingResyncPromise: Promise<GraphDocument> | null = null;
 
   const emitDocument = (): void => {
     if (!listeners.size) {
@@ -679,16 +692,27 @@ export function createRemoteGraphDocumentSession(
     return currentDocument;
   };
 
+  const commitAuthorityDocument = (nextDocument: GraphDocument): GraphDocument => {
+    if (
+      nextDocument.documentId === currentDocument.documentId &&
+      nextDocument.revision === currentDocument.revision
+    ) {
+      return currentDocument;
+    }
+
+    return commitDocument(nextDocument);
+  };
+
   const commitResponseDocument = (
     response: EditorRemoteAuthorityOperationResult
   ): void => {
     if (response.document) {
-      commitDocument(cloneGraphDocument(response.document));
+      commitAuthorityDocument(cloneGraphDocument(response.document));
       return;
     }
 
     if (response.accepted && !response.changed) {
-      commitDocument({
+      commitAuthorityDocument({
         ...currentDocument,
         revision: response.revision
       });
@@ -714,6 +738,67 @@ export function createRemoteGraphDocumentSession(
     emitPending();
     return pendingOperation;
   };
+
+  const cancelPendingOperations = (reason: string): void => {
+    if (!pendingOperations.size) {
+      return;
+    }
+
+    const revision = currentDocument.revision;
+    for (const pendingOperation of pendingOperations.values()) {
+      const confirmation: EditorGraphOperationAuthorityConfirmation = {
+        operationId: pendingOperation.operation.operationId,
+        accepted: false,
+        changed: false,
+        reason,
+        revision
+      };
+      pendingOperation.resolveConfirmation(confirmation);
+      emitOperationConfirmation(confirmation);
+    }
+
+    pendingOperations.clear();
+    emitPending();
+  };
+
+  const resyncAuthorityDocument = async (resyncOptions?: {
+    cancelPending?: boolean;
+    pendingReason?: string;
+  }): Promise<GraphDocument> => {
+    if (typeof options.client.getDocument !== "function") {
+      return cloneGraphDocument(currentDocument);
+    }
+
+    if (resyncOptions?.cancelPending !== false) {
+      cancelPendingOperations(
+        resyncOptions?.pendingReason ?? "authority 已重新同步，待确认操作已取消"
+      );
+    }
+
+    if (pendingResyncPromise) {
+      return pendingResyncPromise;
+    }
+
+    const nextPendingResyncPromise = options.client
+      .getDocument()
+      .then((document: GraphDocument) => {
+        commitAuthorityDocument(cloneGraphDocument(document));
+        return cloneGraphDocument(currentDocument);
+      })
+      .finally(() => {
+        pendingResyncPromise = null;
+      });
+
+    pendingResyncPromise = nextPendingResyncPromise;
+    return nextPendingResyncPromise;
+  };
+
+  const disposeDocumentSubscription =
+    typeof options.client.subscribeDocument === "function"
+      ? options.client.subscribeDocument((document) => {
+          commitAuthorityDocument(cloneGraphDocument(document));
+        })
+      : () => {};
 
   const createDuplicatePendingSubmission = (
     operation: GraphOperation
@@ -795,10 +880,20 @@ export function createRemoteGraphDocumentSession(
         pendingOperation.resolveConfirmation(nextConfirmation);
         emitOperationConfirmation(nextConfirmation);
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         const pendingOperation = removePendingOperation(operation.operationId);
         if (!pendingOperation) {
           return;
+        }
+
+        let revision = currentDocument.revision;
+        try {
+          const authorityDocument = await resyncAuthorityDocument({
+            cancelPending: false
+          });
+          revision = authorityDocument.revision;
+        } catch {
+          revision = currentDocument.revision;
         }
 
         const reason =
@@ -810,7 +905,7 @@ export function createRemoteGraphDocumentSession(
           accepted: false,
           changed: false,
           reason,
-          revision: currentDocument.revision
+          revision
         };
         pendingOperation.resolveConfirmation(confirmation);
         emitOperationConfirmation(confirmation);
@@ -831,6 +926,10 @@ export function createRemoteGraphDocumentSession(
       return [...pendingOperations.keys()];
     },
 
+    resyncAuthorityDocument(): Promise<GraphDocument> {
+      return resyncAuthorityDocument();
+    },
+
     submitOperationWithAuthority(
       operation: GraphOperation
     ): EditorGraphOperationSubmission {
@@ -846,19 +945,7 @@ export function createRemoteGraphDocumentSession(
     reconcileNodeState(): void {},
 
     replaceDocument(document: GraphDocument): void {
-      for (const pendingOperation of pendingOperations.values()) {
-        const confirmation: EditorGraphOperationAuthorityConfirmation = {
-          operationId: pendingOperation.operation.operationId,
-          accepted: false,
-          changed: false,
-          reason: "文档已替换，待确认操作已取消",
-          revision: currentDocument.revision
-        };
-        pendingOperation.resolveConfirmation(confirmation);
-        emitOperationConfirmation(confirmation);
-      }
-      pendingOperations.clear();
-      emitPending();
+      cancelPendingOperations("文档已替换，待确认操作已取消");
 
       const previousDocument = cloneGraphDocument(currentDocument);
       const nextDocument = cloneGraphDocument(document);
@@ -874,11 +961,15 @@ export function createRemoteGraphDocumentSession(
         })
         .then((authorityDocument) => {
           if (authorityDocument) {
-            commitDocument(cloneGraphDocument(authorityDocument));
+            commitAuthorityDocument(cloneGraphDocument(authorityDocument));
           }
         })
         .catch(() => {
-          // 当前阶段先保持本地替换成功，真实回滚策略留到后续 authority 冲突阶段。
+          void resyncAuthorityDocument({
+            cancelPending: false
+          }).catch(() => {
+            // 当前阶段若 resync 也失败，先保留最后一次本地替换结果。
+          });
         });
     },
 
@@ -908,6 +999,10 @@ export function createRemoteGraphDocumentSession(
       return () => {
         listeners.delete(listener);
       };
+    },
+
+    dispose(): void {
+      disposeDocumentSubscription();
     }
   };
 }

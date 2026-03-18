@@ -129,6 +129,7 @@ function createSessionBinding(
     },
 
     dispose(): void {
+      session.dispose?.();
       options.dispose?.();
     }
   };

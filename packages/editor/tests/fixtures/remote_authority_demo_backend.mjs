@@ -106,6 +106,16 @@ function emitRuntimeFeedback(event) {
   });
 }
 
+function emitDocument(document) {
+  writeMessage({
+    channel: "authority.event",
+    event: {
+      type: "document",
+      document: clone(document)
+    }
+  });
+}
+
 function getNode(nodeId) {
   return currentDocument.nodes.find((node) => node.id === nodeId) ?? null;
 }
@@ -566,6 +576,7 @@ reader.on("line", (line) => {
       return;
     case "replaceDocument":
       currentDocument = clone(request.document);
+      emitDocument(currentDocument);
       respondSuccess(requestId, {
         action: "replaceDocument",
         document: clone(currentDocument)
@@ -573,6 +584,9 @@ reader.on("line", (line) => {
       return;
     case "submitOperation": {
       const result = applyOperation(request.operation);
+      if (result.accepted && result.document) {
+        emitDocument(result.document);
+      }
       respondSuccess(requestId, {
         action: "submitOperation",
         result
