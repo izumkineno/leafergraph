@@ -112,7 +112,8 @@ export function createNodeWebSocketHostDemoRemoteAuthorityHostAdapter(): EditorR
         description: `通过 Node WebSocket authority server 接入：${resolvedOptions.authorityUrl}`,
         async createTransport() {
           const transport = createWebSocketRemoteAuthorityTransport({
-            url: resolvedOptions.authorityUrl
+            url: resolvedOptions.authorityUrl,
+            autoReconnect: true
           });
 
           try {

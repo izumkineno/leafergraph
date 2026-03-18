@@ -10,6 +10,7 @@ import {
   type EditorRemoteAuthorityTransport
 } from "../session/graph_document_authority_transport";
 import type { EditorRemoteAuthorityDocumentService } from "../session/graph_document_authority_service";
+import type { EditorRemoteAuthorityConnectionStatus } from "../session/graph_document_authority_client";
 import { createMessagePortRemoteAuthorityTransport } from "../session/message_port_remote_authority_transport";
 import { createMessagePortRemoteAuthorityHost } from "../session/message_port_remote_authority_host";
 import { DEFAULT_REMOTE_AUTHORITY_BRIDGE_HANDSHAKE_TYPE } from "../session/message_port_remote_authority_bridge_host";
@@ -182,6 +183,12 @@ export interface ResolvedEditorRemoteAuthorityAppRuntime {
   createDocumentSessionBinding: EditorGraphDocumentSessionBindingFactory;
   /** 若 client 支持运行反馈订阅，则直接作为外部 feedback inlet 使用。 */
   runtimeFeedbackInlet?: EditorRuntimeFeedbackInlet;
+  /** 读取当前 authority 连接状态。 */
+  getConnectionStatus(): EditorRemoteAuthorityConnectionStatus;
+  /** 订阅 authority 连接状态变化。 */
+  subscribeConnectionStatus(
+    listener: (status: EditorRemoteAuthorityConnectionStatus) => void
+  ): () => void;
   /** 释放本次 authority runtime。 */
   dispose(): void;
 }
@@ -220,6 +227,20 @@ function hasRuntimeFeedbackSubscribe(
   client: EditorRemoteAuthorityDocumentClient
 ): client is EditorRemoteAuthorityDocumentClient & EditorRuntimeFeedbackInlet {
   return typeof client.subscribe === "function";
+}
+
+function hasConnectionStatusSubscribe(
+  client: EditorRemoteAuthorityDocumentClient
+): client is EditorRemoteAuthorityDocumentClient & {
+  getConnectionStatus(): EditorRemoteAuthorityConnectionStatus;
+  subscribeConnectionStatus(
+    listener: (status: EditorRemoteAuthorityConnectionStatus) => void
+  ): () => void;
+} {
+  return (
+    typeof client.getConnectionStatus === "function" &&
+    typeof client.subscribeConnectionStatus === "function"
+  );
 }
 
 async function resolveAuthorityService(
@@ -469,6 +490,20 @@ export async function createEditorRemoteAuthorityAppRuntime(
       runtimeFeedbackInlet: hasRuntimeFeedbackSubscribe(client)
         ? client
         : undefined,
+      getConnectionStatus(): EditorRemoteAuthorityConnectionStatus {
+        return hasConnectionStatusSubscribe(client)
+          ? client.getConnectionStatus()
+          : "connected";
+      },
+      subscribeConnectionStatus(
+        listener: (status: EditorRemoteAuthorityConnectionStatus) => void
+      ): () => void {
+        if (!hasConnectionStatusSubscribe(client)) {
+          return () => {};
+        }
+
+        return client.subscribeConnectionStatus(listener);
+      },
       dispose(): void {
         client.dispose?.();
       }

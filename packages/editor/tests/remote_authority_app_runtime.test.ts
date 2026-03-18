@@ -21,6 +21,7 @@ import type {
   EditorRemoteAuthorityTransportRequest,
   EditorRemoteAuthorityTransportResponse
 } from "../src/session/graph_document_authority_transport";
+import type { EditorRemoteAuthorityConnectionStatus } from "../src/session/graph_document_authority_client";
 
 function createDocument(revision: string): GraphDocument {
   return {
@@ -227,6 +228,55 @@ function createTransportStub(options?: {
   };
 }
 
+function createConnectionStatusClientStub(options?: {
+  document?: GraphDocument;
+}) {
+  let currentStatus: EditorRemoteAuthorityConnectionStatus = "connecting";
+  const listeners = new Set<
+    (status: EditorRemoteAuthorityConnectionStatus) => void
+  >();
+  const client: EditorRemoteAuthorityDocumentClient = {
+    async getDocument(): Promise<GraphDocument> {
+      currentStatus = "connected";
+      return structuredClone(options?.document ?? createDocument("21"));
+    },
+    async submitOperation() {
+      return {
+        accepted: true,
+        changed: false,
+        revision: "21"
+      };
+    },
+    async replaceDocument(document: GraphDocument): Promise<GraphDocument> {
+      return structuredClone(document);
+    },
+    getConnectionStatus() {
+      return currentStatus;
+    },
+    subscribeConnectionStatus(listener) {
+      listeners.add(listener);
+      listener(currentStatus);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    dispose() {},
+    subscribe() {
+      return () => {};
+    }
+  };
+
+  return {
+    client,
+    emitConnectionStatus(status: EditorRemoteAuthorityConnectionStatus): void {
+      currentStatus = status;
+      for (const listener of listeners) {
+        listener(status);
+      }
+    }
+  };
+}
+
 describe("createEditorRemoteAuthorityAppRuntime", () => {
   test("应装配 authority client、document、binding 和 feedback inlet", async () => {
     const source: EditorRemoteAuthorityAppSource = {
@@ -294,6 +344,39 @@ describe("createEditorRemoteAuthorityAppRuntime", () => {
 
     runtime.dispose();
     expect(disposed).toBe(true);
+  });
+
+  test("应透传 authority 连接状态给 App runtime", async () => {
+    const authority = createConnectionStatusClientStub({
+      document: createDocument("21")
+    });
+    const source: EditorRemoteAuthorityAppSource = {
+      label: "Connected Authority",
+      createClient() {
+        return authority.client;
+      }
+    };
+
+    const runtime = await createEditorRemoteAuthorityAppRuntime(source);
+    const connectionStates: EditorRemoteAuthorityConnectionStatus[] = [];
+    const disposeConnectionStatusSubscription =
+      runtime.subscribeConnectionStatus((status) => {
+        connectionStates.push(status);
+      });
+
+    expect(runtime.getConnectionStatus()).toBe("connected");
+
+    authority.emitConnectionStatus("reconnecting");
+    authority.emitConnectionStatus("connected");
+
+    expect(connectionStates).toEqual([
+      "connected",
+      "reconnecting",
+      "connected"
+    ]);
+
+    disposeConnectionStatusSubscription();
+    runtime.dispose();
   });
 
   test("应支持通过 MessagePort source 装配 authority runtime", async () => {

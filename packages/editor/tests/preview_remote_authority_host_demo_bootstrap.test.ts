@@ -57,6 +57,9 @@ function createHostBridge(): GraphViewportHostBridge {
     submitOperationWithAuthority() {
       throw new Error("not implemented");
     },
+    async resyncAuthorityDocument() {
+      return document;
+    },
     replaceDocument() {},
     getCurrentDocument() {
       return document;

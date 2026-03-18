@@ -37,6 +37,7 @@ import {
   type EditorRemoteAuthorityAppSource,
   type ResolvedEditorRemoteAuthorityAppRuntime
 } from "./remote_authority_app_runtime";
+import type { EditorRemoteAuthorityConnectionStatus } from "../session/graph_document_authority_client";
 import {
   resolveRemoteAuthorityBundleProjection,
   shouldApplyRemoteAuthorityBundleProjection,
@@ -70,6 +71,10 @@ type RemoteAuthorityRuntimeStatus =
   | "ready"
   | "error";
 
+type RemoteAuthorityConnectionDisplayStatus =
+  | "idle"
+  | EditorRemoteAuthorityConnectionStatus;
+
 /** editor 顶层 remote authority 状态文案。 */
 function formatRemoteAuthorityStatusLabel(
   status: RemoteAuthorityRuntimeStatus
@@ -85,6 +90,24 @@ function formatRemoteAuthorityStatusLabel(
       return "远端待启动";
     default:
       return "本地模式";
+  }
+}
+
+/** editor 顶层 authority 连接状态文案。 */
+function formatRemoteAuthorityConnectionStatusLabel(
+  status: RemoteAuthorityConnectionDisplayStatus
+): string {
+  switch (status) {
+    case "connecting":
+      return "正在建立连接";
+    case "connected":
+      return "已连接";
+    case "reconnecting":
+      return "自动重连中";
+    case "disconnected":
+      return "连接已断开";
+    default:
+      return "未建立连接";
   }
 }
 
@@ -245,6 +268,8 @@ export function App({
     useState<ResolvedEditorRemoteAuthorityAppRuntime | null>(null);
   const [remoteAuthorityDocument, setRemoteAuthorityDocument] =
     useState<GraphDocument | null>(null);
+  const [remoteAuthorityConnectionStatus, setRemoteAuthorityConnectionStatus] =
+    useState<RemoteAuthorityConnectionDisplayStatus>("idle");
   const [remoteAuthorityReloadKey, setRemoteAuthorityReloadKey] = useState(0);
   const [viewportHostBridge, setViewportHostBridge] =
     useState<GraphViewportHostBridge | null>(null);
@@ -254,6 +279,8 @@ export function App({
     hasStartedRendering && activeWorkspacePageId === "main-canvas";
   const remoteAuthorityRuntimeRef =
     useRef<ResolvedEditorRemoteAuthorityAppRuntime | null>(null);
+  const remoteAuthorityConnectionStatusRef =
+    useRef<RemoteAuthorityConnectionDisplayStatus>("idle");
   const isRemoteAuthorityEnabled = Boolean(remoteAuthoritySource);
 
   useEffect(() => {
@@ -261,8 +288,13 @@ export function App({
   }, [remoteAuthorityRuntime]);
 
   useEffect(() => {
+    remoteAuthorityConnectionStatusRef.current = remoteAuthorityConnectionStatus;
+  }, [remoteAuthorityConnectionStatus]);
+
+  useEffect(() => {
     if (!remoteAuthorityRuntime) {
       setRemoteAuthorityDocument(null);
+      setRemoteAuthorityConnectionStatus("idle");
       return;
     }
 
@@ -277,6 +309,49 @@ export function App({
     setRemoteAuthorityDocument(viewportHostBridge.getCurrentDocument());
     return viewportHostBridge.subscribeDocument((document) => {
       setRemoteAuthorityDocument(document);
+    });
+  }, [remoteAuthorityRuntime, viewportHostBridge]);
+
+  useEffect(() => {
+    if (!remoteAuthorityRuntime) {
+      remoteAuthorityConnectionStatusRef.current = "idle";
+      setRemoteAuthorityConnectionStatus("idle");
+      return;
+    }
+
+    const initialStatus = remoteAuthorityRuntime.getConnectionStatus();
+    remoteAuthorityConnectionStatusRef.current = initialStatus;
+    setRemoteAuthorityConnectionStatus(initialStatus);
+
+    return remoteAuthorityRuntime.subscribeConnectionStatus((status) => {
+      const previousStatus = remoteAuthorityConnectionStatusRef.current;
+      remoteAuthorityConnectionStatusRef.current = status;
+      setRemoteAuthorityConnectionStatus(status);
+
+      if (
+        status !== "connected" ||
+        (previousStatus !== "reconnecting" &&
+          previousStatus !== "disconnected" &&
+          previousStatus !== "connecting")
+      ) {
+        return;
+      }
+
+      if (!viewportHostBridge) {
+        return;
+      }
+
+      void viewportHostBridge
+        .resyncAuthorityDocument()
+        .then((document) => {
+          setRemoteAuthorityDocument(document);
+          setRemoteAuthorityError(null);
+        })
+        .catch((error: unknown) => {
+          setRemoteAuthorityError(
+            `Authority 已重连，但重新同步失败：${toErrorMessage(error)}`
+          );
+        });
     });
   }, [remoteAuthorityRuntime, viewportHostBridge]);
 
@@ -516,10 +591,12 @@ export function App({
     () => resolveRemoteAuthorityBundleProjection(runtimeSetup),
     [runtimeSetup]
   );
+  /**
+   * 远端 authority 的实时文档只用于状态展示和 bundle projection 判断，
+   * 不能反过来作为 GraphViewport 的初始化输入，否则每次 revision 变化都会触发整棵画布卸载重建。
+   */
   const effectiveDocument =
-    remoteAuthorityDocument ??
-    remoteAuthorityRuntime?.document ??
-    runtimeSetup.document;
+    remoteAuthorityRuntime?.document ?? runtimeSetup.document;
   const effectiveCreateDocumentSessionBinding =
     remoteAuthorityRuntime?.createDocumentSessionBinding;
   const effectiveRuntimeFeedbackInlet =
@@ -743,7 +820,13 @@ export function App({
               当前模式：
               {isRemoteAuthorityEnabled ? "Remote Authority" : "Local Loopback"}
             </li>
-            <li>当前状态：{formatRemoteAuthorityStatusLabel(remoteAuthorityStatus)}</li>
+            <li>装配状态：{formatRemoteAuthorityStatusLabel(remoteAuthorityStatus)}</li>
+            <li>
+              连接状态：
+              {formatRemoteAuthorityConnectionStatusLabel(
+                remoteAuthorityConnectionStatus
+              )}
+            </li>
             <li>
               当前来源：
               {remoteAuthorityRuntime?.sourceLabel ??
@@ -760,6 +843,12 @@ export function App({
           {remoteAuthorityRuntime?.sourceDescription ? (
             <p class="bundle-panel__note">{remoteAuthorityRuntime.sourceDescription}</p>
           ) : null}
+          {remoteAuthorityStatus === "ready" &&
+          remoteAuthorityConnectionStatus === "reconnecting" ? (
+            <p class="bundle-panel__note">
+              authority 连接已断开，正在自动重连；恢复后会重新拉取权威文档。
+            </p>
+          ) : null}
           {remoteAuthorityError ? (
             <p class="bundle-card__error">{remoteAuthorityError}</p>
           ) : null}
@@ -772,7 +861,11 @@ export function App({
                 setRemoteAuthorityReloadKey((current) => current + 1);
               }}
             >
-              {remoteAuthorityStatus === "loading" ? "连接中" : "重新连接 Authority"}
+              {remoteAuthorityStatus === "loading"
+                ? "连接中"
+                : remoteAuthorityConnectionStatus === "reconnecting"
+                  ? "自动重连中"
+                  : "重新连接 Authority"}
             </button>
           ) : null}
         </section>
