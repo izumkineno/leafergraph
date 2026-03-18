@@ -1,13 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import type { JSX } from "preact";
 import type { GraphDocument } from "leafergraph";
+import type { NodeDefinition } from "@leafergraph/node";
 
+import { AppDialog } from "./AppDialog";
+import { NodeLibraryHoverPreviewOverlay } from "./NodeLibraryHoverPreviewOverlay";
 import {
   GraphViewport,
   type GraphViewportHostBridge,
+  type GraphViewportRuntimeControlsState,
   type GraphViewportToolbarActionState,
   type GraphViewportToolbarControlsState,
-  type GraphViewportRuntimeControlsState
+  type GraphViewportWorkspaceState
 } from "./GraphViewport";
+import { InspectorPane, NodeLibraryPane } from "./WorkspacePanels";
+import {
+  shouldEnableNodeLibraryHoverPreview,
+  type NodeLibraryPreviewRequest
+} from "./node_library_hover_preview";
 import {
   EDITOR_THEME_STORAGE_KEY,
   resolveInitialEditorTheme,
@@ -38,19 +48,67 @@ import {
   type ResolvedEditorRemoteAuthorityAppRuntime
 } from "./remote_authority_app_runtime";
 import type { EditorRemoteAuthorityConnectionStatus } from "../session/graph_document_authority_client";
+import type {
+  EditorGraphDocumentResyncOptions,
+  EditorGraphOperationAuthorityConfirmation
+} from "../session/graph_document_session";
 import {
   resolveRemoteAuthorityBundleProjection,
   shouldApplyRemoteAuthorityBundleProjection,
   type RemoteAuthorityBundleProjectionCheckpoint
 } from "./remote_authority_bundle_projection";
 import type { EditorAppBootstrapPreloadedBundle } from "./editor_app_bootstrap";
+import {
+  resolveWorkspaceAdaptiveMode,
+  resolveWorkspaceStageLayout,
+  resolveWorkspacePanePresentation,
+  type WorkspaceAdaptiveMode
+} from "./workspace_adaptive";
 
-/** 切换到相反主题。 */
+type RemoteAuthorityRuntimeStatus =
+  | "disabled"
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error";
+
+type RemoteAuthorityConnectionDisplayStatus =
+  | "idle"
+  | EditorRemoteAuthorityConnectionStatus;
+type WorkspaceSettingsTab =
+  | "extensions"
+  | "authority"
+  | "preferences"
+  | "shortcuts";
+type RunConsoleTab = "overview" | "chains" | "failures" | "node-runtime";
+
+const TOOLBAR_ACTION_GROUPS = ["history", "selection"] as const;
+const VISIBLE_TITLEBAR_ACTION_IDS = ["undo", "redo", "delete"] as const;
+const RESTORE_BUNDLE_SLOTS = ["widget", "node", "demo"] as const;
+const BUNDLE_SLOT_TITLE: Readonly<Record<EditorBundleSlot, string>> = {
+  demo: "Demo Bundle",
+  node: "Node Bundle",
+  widget: "Widget Bundle"
+} as const;
+const BUNDLE_SLOT_DESCRIPTION: Readonly<Record<EditorBundleSlot, string>> = {
+  demo: "只负责提供默认图数据，推荐在 node 和 widget 就绪后再启用。",
+  node: "安装可独立运行的节点模块，并提供默认快速创建节点类型。",
+  widget: "注册外部 widget，并可附带一个消费该 widget 的伴生节点。"
+} as const;
+const BUNDLE_STATUS_LABEL: Readonly<
+  Record<EditorBundleResolvedStatus, string>
+> = {
+  idle: "未加载",
+  ready: "已加载",
+  "dependency-missing": "依赖缺失",
+  failed: "加载失败",
+  loading: "加载中"
+} as const;
+
 function toggleEditorTheme(theme: EditorTheme): EditorTheme {
   return theme === "dark" ? "light" : "dark";
 }
 
-/** editor 顶栏展示用的图级运行状态文案。 */
 function formatGraphExecutionStatusLabel(
   status: GraphViewportRuntimeControlsState["executionState"]["status"]
 ): string {
@@ -64,18 +122,6 @@ function formatGraphExecutionStatusLabel(
   }
 }
 
-type RemoteAuthorityRuntimeStatus =
-  | "disabled"
-  | "idle"
-  | "loading"
-  | "ready"
-  | "error";
-
-type RemoteAuthorityConnectionDisplayStatus =
-  | "idle"
-  | EditorRemoteAuthorityConnectionStatus;
-
-/** editor 顶层 remote authority 状态文案。 */
 function formatRemoteAuthorityStatusLabel(
   status: RemoteAuthorityRuntimeStatus
 ): string {
@@ -93,7 +139,6 @@ function formatRemoteAuthorityStatusLabel(
   }
 }
 
-/** editor 顶层 authority 连接状态文案。 */
 function formatRemoteAuthorityConnectionStatusLabel(
   status: RemoteAuthorityConnectionDisplayStatus
 ): string {
@@ -105,58 +150,33 @@ function formatRemoteAuthorityConnectionStatusLabel(
     case "reconnecting":
       return "自动重连中";
     case "disconnected":
-      return "连接已断开";
+      return "已断开待恢复";
     default:
       return "未建立连接";
   }
 }
 
-/** 固定的 bundle 槽位标题。 */
-const BUNDLE_SLOT_TITLE: Readonly<Record<EditorBundleSlot, string>> = {
-  demo: "Demo Bundle",
-  node: "Node Bundle",
-  widget: "Widget Bundle"
-} as const;
-
-/** 固定的 bundle 槽位说明。 */
-const BUNDLE_SLOT_DESCRIPTION: Readonly<Record<EditorBundleSlot, string>> = {
-  demo: "只负责提供默认图数据，推荐在 node 和 widget 就绪后再启用。",
-  node: "安装可独立运行的节点模块，并提供默认快速创建节点类型。",
-  widget: "注册外部 widget，并可附带一个消费该 widget 的伴生节点。"
-} as const;
-
-/** editor 面板使用的状态文案。 */
-const BUNDLE_STATUS_LABEL: Readonly<
-  Record<EditorBundleResolvedStatus, string>
-> = {
-  idle: "未加载",
-  ready: "已加载",
-  "dependency-missing": "依赖缺失",
-  failed: "加载失败",
-  loading: "加载中"
-} as const;
-
-/** editor 当前阶段的工作分页定义。 */
-const WORKSPACE_PAGES = [
-  {
-    id: "bundle-loader",
-    title: "Bundle 接入",
-    description: "从本地 dist IIFE 文件加载 demo、node、widget"
-  },
-  {
-    id: "main-canvas",
-    title: "主画布",
-    description: "当前本地 bundle 的默认渲染页"
+function formatRemoteAuthorityRecoveryModeLabel(
+  pendingCount: number
+): string {
+  if (pendingCount > 0) {
+    return `resync-only（${pendingCount} 条待确认操作会在重新同步时失效）`;
   }
-] as const;
 
-/** 浏览器恢复 bundle 时使用的固定顺序。 */
-const RESTORE_BUNDLE_SLOTS = ["widget", "node", "demo"] as const;
-const TOOLBAR_ACTION_GROUPS = ["history", "canvas", "selection"] as const;
+  return "resync-only（重新同步后以 authority 文档为准）";
+}
 
-type EditorWorkspacePageId = (typeof WORKSPACE_PAGES)[number]["id"];
+function formatPendingOperationInvalidationMessage(
+  pendingCount: number,
+  prefix: string
+): string {
+  if (pendingCount <= 0) {
+    return prefix;
+  }
 
-/** 生成工具栏按钮 title，统一复用命令说明和快捷键信息。 */
+  return `${prefix}，${pendingCount} 条待确认操作已失效，请手工重试。`;
+}
+
 function formatToolbarActionTitle(
   action: GraphViewportToolbarActionState
 ): string {
@@ -165,7 +185,6 @@ function formatToolbarActionTitle(
     : action.description;
 }
 
-/** 创建 editor 的初始 bundle 槽位映射。 */
 function createInitialBundleSlots(): Record<EditorBundleSlot, EditorBundleSlotState> {
   return {
     demo: createInitialBundleSlotState("demo"),
@@ -174,7 +193,6 @@ function createInitialBundleSlots(): Record<EditorBundleSlot, EditorBundleSlotSt
   };
 }
 
-/** 读取某个槽位当前的激活提示。 */
 function resolveBundleActivationLabel(slot: {
   manifest: unknown;
   enabled: boolean;
@@ -196,7 +214,6 @@ function resolveBundleActivationLabel(slot: {
   return "当前已启用";
 }
 
-/** 将浏览器持久化状态格式化为面板文案。 */
 function formatBundlePersistenceLabel(slot: EditorBundleSlotState): string {
   if (!slot.manifest) {
     return "无";
@@ -232,6 +249,97 @@ function resolvePreloadedBundleFileName(
   return `${bundle.slot}.bundle.js`;
 }
 
+function formatTimestamp(timestamp: number | null | undefined): string {
+  if (!timestamp) {
+    return "无";
+  }
+
+  return new Date(timestamp).toLocaleTimeString();
+}
+
+function formatDuration(startedAt: number, finishedAt: number): string {
+  return `${Math.max(0, finishedAt - startedAt)} ms`;
+}
+
+function formatJson(value: unknown): string {
+  if (value === undefined) {
+    return "undefined";
+  }
+
+  if (value === null) {
+    return "null";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function IconPanel({
+  title,
+  description,
+  path
+}: {
+  title: string;
+  description: string;
+  path: string;
+}) {
+  return (
+    <span class="titlebar-icon-button__content">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d={path}
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.8"
+        />
+      </svg>
+      <span class="sr-only">{title}</span>
+      <span class="titlebar-icon-button__tooltip">{description}</span>
+    </span>
+  );
+}
+
+function WorkspaceField({
+  label,
+  value
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div class="workspace-field">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function readNodeLibraryHoverPreviewCapabilities(): {
+  supportsHover: boolean;
+  hasFinePointer: boolean;
+} {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return {
+      supportsHover: false,
+      hasFinePointer: false
+    };
+  }
+
+  return {
+    supportsHover: window.matchMedia("(hover: hover)").matches,
+    hasFinePointer: window.matchMedia("(pointer: fine)").matches
+  };
+}
+
 export interface AppProps {
   preloadedBundles?: readonly EditorAppBootstrapPreloadedBundle[];
   remoteAuthoritySource?: EditorRemoteAuthorityAppSource;
@@ -246,14 +354,51 @@ export function App({
   const [theme, setTheme] = useState<EditorTheme>(() =>
     resolveInitialEditorTheme()
   );
-  const [activeWorkspacePageId, setActiveWorkspacePageId] =
-    useState<EditorWorkspacePageId>("bundle-loader");
-  const [hasStartedRendering, setHasStartedRendering] = useState(false);
-  const viewportSectionRef = useRef<HTMLElement | null>(null);
+  const [workspaceAdaptiveMode, setWorkspaceAdaptiveMode] =
+    useState<WorkspaceAdaptiveMode>(() =>
+      resolveWorkspaceAdaptiveMode(
+        typeof window === "undefined" ? undefined : window.innerWidth
+      )
+    );
+  const [leftPaneOpen, setLeftPaneOpen] = useState(
+    resolveWorkspacePanePresentation(
+      resolveWorkspaceAdaptiveMode(
+        typeof window === "undefined" ? undefined : window.innerWidth
+      ),
+      "left"
+    ) === "docked"
+  );
+  const [rightPaneOpen, setRightPaneOpen] = useState(
+    resolveWorkspacePanePresentation(
+      resolveWorkspaceAdaptiveMode(
+        typeof window === "undefined" ? undefined : window.innerWidth
+      ),
+      "right"
+    ) === "docked"
+  );
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const [runConsoleOpen, setRunConsoleOpen] = useState(false);
+  const [workspaceSettingsTab, setWorkspaceSettingsTab] =
+    useState<WorkspaceSettingsTab>("extensions");
+  const [runConsoleTab, setRunConsoleTab] = useState<RunConsoleTab>("overview");
   const [graphRuntimeControls, setGraphRuntimeControls] =
     useState<GraphViewportRuntimeControlsState | null>(null);
   const [editorToolbarControls, setEditorToolbarControls] =
     useState<GraphViewportToolbarControlsState | null>(null);
+  const [workspaceState, setWorkspaceState] =
+    useState<GraphViewportWorkspaceState | null>(null);
+  const [nodeLibrarySearchQuery, setNodeLibrarySearchQuery] = useState("");
+  const [activeLibraryNodeType, setActiveLibraryNodeType] = useState<string | null>(
+    null
+  );
+  const [availableNodeDefinitions, setAvailableNodeDefinitions] = useState<
+    readonly NodeDefinition[]
+  >([]);
+  const [nodeLibraryPreviewRequest, setNodeLibraryPreviewRequest] =
+    useState<NodeLibraryPreviewRequest | null>(null);
+  const [nodeLibraryHoverPreviewCapabilities, setNodeLibraryHoverPreviewCapabilities] =
+    useState(() => readNodeLibraryHoverPreviewCapabilities());
   const [bundleSlots, setBundleSlots] = useState<
     Record<EditorBundleSlot, EditorBundleSlotState>
   >(() => createInitialBundleSlots());
@@ -270,36 +415,212 @@ export function App({
     useState<GraphDocument | null>(null);
   const [remoteAuthorityConnectionStatus, setRemoteAuthorityConnectionStatus] =
     useState<RemoteAuthorityConnectionDisplayStatus>("idle");
+  const [remoteAuthorityPendingOperationIds, setRemoteAuthorityPendingOperationIds] =
+    useState<readonly string[]>([]);
+  const [remoteAuthorityLastIssue, setRemoteAuthorityLastIssue] =
+    useState<string | null>(null);
+  const [remoteAuthorityResyncing, setRemoteAuthorityResyncing] =
+    useState(false);
   const [remoteAuthorityReloadKey, setRemoteAuthorityReloadKey] = useState(0);
   const [viewportHostBridge, setViewportHostBridge] =
     useState<GraphViewportHostBridge | null>(null);
-  const remoteAuthorityBundleProjectionCheckpointRef =
-    useRef<RemoteAuthorityBundleProjectionCheckpoint | null>(null);
-  const isCanvasWorkspace =
-    hasStartedRendering && activeWorkspacePageId === "main-canvas";
-  const remoteAuthorityRuntimeRef =
-    useRef<ResolvedEditorRemoteAuthorityAppRuntime | null>(null);
-  const remoteAuthorityConnectionStatusRef =
-    useRef<RemoteAuthorityConnectionDisplayStatus>("idle");
+  const [remoteAuthorityRuntimeCheckpoint, setRemoteAuthorityRuntimeCheckpoint] =
+    useState<RemoteAuthorityBundleProjectionCheckpoint | null>(null);
   const isRemoteAuthorityEnabled = Boolean(remoteAuthoritySource);
 
   useEffect(() => {
-    remoteAuthorityRuntimeRef.current = remoteAuthorityRuntime;
-  }, [remoteAuthorityRuntime]);
+    const handleResize = (): void => {
+      setWorkspaceAdaptiveMode(resolveWorkspaceAdaptiveMode(window.innerWidth));
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   useEffect(() => {
-    remoteAuthorityConnectionStatusRef.current = remoteAuthorityConnectionStatus;
-  }, [remoteAuthorityConnectionStatus]);
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const hoverQuery = window.matchMedia("(hover: hover)");
+    const pointerQuery = window.matchMedia("(pointer: fine)");
+    const handleChange = (): void => {
+      setNodeLibraryHoverPreviewCapabilities(
+        readNodeLibraryHoverPreviewCapabilities()
+      );
+    };
+
+    handleChange();
+    hoverQuery.addEventListener("change", handleChange);
+    pointerQuery.addEventListener("change", handleChange);
+
+    return () => {
+      hoverQuery.removeEventListener("change", handleChange);
+      pointerQuery.removeEventListener("change", handleChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (workspaceAdaptiveMode === "wide-desktop") {
+      setLeftPaneOpen(true);
+      setRightPaneOpen(true);
+      setWorkspaceMenuOpen(false);
+      return;
+    }
+
+    if (workspaceAdaptiveMode === "compact-desktop") {
+      setLeftPaneOpen(false);
+      setRightPaneOpen(true);
+      setWorkspaceMenuOpen(false);
+      return;
+    }
+
+    if (workspaceAdaptiveMode === "tablet") {
+      setLeftPaneOpen(false);
+      setRightPaneOpen(false);
+      setWorkspaceMenuOpen(false);
+      return;
+    }
+
+    setLeftPaneOpen(false);
+    setRightPaneOpen(false);
+    setWorkspaceMenuOpen(false);
+  }, [workspaceAdaptiveMode]);
+
+  useEffect(() => {
+    if (!workspaceMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      if (target.closest(".titlebar__workspace-menu")) {
+        return;
+      }
+
+      setWorkspaceMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setWorkspaceMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [workspaceMenuOpen]);
 
   useEffect(() => {
     if (!remoteAuthorityRuntime) {
       setRemoteAuthorityDocument(null);
       setRemoteAuthorityConnectionStatus("idle");
+      setRemoteAuthorityPendingOperationIds([]);
+      setRemoteAuthorityLastIssue(null);
+      setRemoteAuthorityResyncing(false);
       return;
     }
 
+    setRemoteAuthorityLastIssue(null);
     setRemoteAuthorityDocument(remoteAuthorityRuntime.document);
   }, [remoteAuthorityRuntime]);
+
+  useEffect(() => {
+    if (!remoteAuthorityRuntime || !viewportHostBridge) {
+      setRemoteAuthorityPendingOperationIds([]);
+      return;
+    }
+
+    setRemoteAuthorityPendingOperationIds(
+      viewportHostBridge.getPendingOperationIds()
+    );
+
+    if (!viewportHostBridge.subscribePending) {
+      return;
+    }
+
+    return viewportHostBridge.subscribePending((pendingOperationIds) => {
+      setRemoteAuthorityPendingOperationIds([...pendingOperationIds]);
+    });
+  }, [remoteAuthorityRuntime, viewportHostBridge]);
+
+  useEffect(() => {
+    if (!remoteAuthorityRuntime || !viewportHostBridge?.subscribeOperationConfirmation) {
+      return;
+    }
+
+    return viewportHostBridge.subscribeOperationConfirmation(
+      (confirmation: EditorGraphOperationAuthorityConfirmation) => {
+        if (confirmation.accepted) {
+          return;
+        }
+
+        setRemoteAuthorityLastIssue(
+          confirmation.reason
+            ? `最近未确认操作：${confirmation.reason}`
+            : `最近未确认操作：${confirmation.operationId}`
+        );
+      }
+    );
+  }, [remoteAuthorityRuntime, viewportHostBridge]);
+
+  const resyncAuthorityDocument = useCallback(
+    async (options?: {
+      resyncOptions?: EditorGraphDocumentResyncOptions;
+      successMessagePrefix?: string;
+      errorPrefix?: string;
+    }): Promise<GraphDocument> => {
+      if (!viewportHostBridge) {
+        throw new Error("authority bridge 尚未就绪");
+      }
+
+      const pendingCount = viewportHostBridge.getPendingOperationIds().length;
+      setRemoteAuthorityResyncing(true);
+
+      try {
+        const document = await viewportHostBridge.resyncAuthorityDocument(
+          options?.resyncOptions
+        );
+        setRemoteAuthorityDocument(document);
+        setRemoteAuthorityError(null);
+
+        if (
+          pendingCount > 0 &&
+          options?.resyncOptions?.invalidatePending !== false
+        ) {
+          setRemoteAuthorityLastIssue(
+            formatPendingOperationInvalidationMessage(
+              pendingCount,
+              options?.successMessagePrefix ?? "Authority 已重新同步"
+            )
+          );
+        } else if (pendingCount === 0) {
+          setRemoteAuthorityLastIssue(null);
+        }
+
+        return document;
+      } catch (error: unknown) {
+        setRemoteAuthorityError(
+          `${options?.errorPrefix ?? "Authority 重新同步失败"}：${toErrorMessage(error)}`
+        );
+        throw error;
+      } finally {
+        setRemoteAuthorityResyncing(false);
+      }
+    },
+    [viewportHostBridge]
+  );
 
   useEffect(() => {
     if (!remoteAuthorityRuntime || !viewportHostBridge) {
@@ -314,46 +635,32 @@ export function App({
 
   useEffect(() => {
     if (!remoteAuthorityRuntime) {
-      remoteAuthorityConnectionStatusRef.current = "idle";
       setRemoteAuthorityConnectionStatus("idle");
       return;
     }
 
     const initialStatus = remoteAuthorityRuntime.getConnectionStatus();
-    remoteAuthorityConnectionStatusRef.current = initialStatus;
     setRemoteAuthorityConnectionStatus(initialStatus);
 
     return remoteAuthorityRuntime.subscribeConnectionStatus((status) => {
-      const previousStatus = remoteAuthorityConnectionStatusRef.current;
-      remoteAuthorityConnectionStatusRef.current = status;
       setRemoteAuthorityConnectionStatus(status);
 
-      if (
-        status !== "connected" ||
-        (previousStatus !== "reconnecting" &&
-          previousStatus !== "disconnected" &&
-          previousStatus !== "connecting")
-      ) {
+      if (status !== "connected" || !viewportHostBridge) {
         return;
       }
 
-      if (!viewportHostBridge) {
-        return;
-      }
-
-      void viewportHostBridge
-        .resyncAuthorityDocument()
-        .then((document) => {
-          setRemoteAuthorityDocument(document);
-          setRemoteAuthorityError(null);
-        })
-        .catch((error: unknown) => {
-          setRemoteAuthorityError(
-            `Authority 已重连，但重新同步失败：${toErrorMessage(error)}`
-          );
-        });
+      void resyncAuthorityDocument({
+        resyncOptions: {
+          invalidatePending: true,
+          pendingReason: "authority 已重新连接，待确认操作已失效，请手工重试"
+        },
+        successMessagePrefix: "Authority 已重新连接并重新同步",
+        errorPrefix: "Authority 已重连，但重新同步失败"
+      }).catch(() => {
+        // 错误状态已在 resyncAuthorityDocument 内回填到 UI。
+      });
     });
-  }, [remoteAuthorityRuntime, viewportHostBridge]);
+  }, [remoteAuthorityRuntime, resyncAuthorityDocument, viewportHostBridge]);
 
   useEffect(() => {
     ensureEditorBundleRuntimeGlobals();
@@ -505,34 +812,8 @@ export function App({
   }, [theme]);
 
   useEffect(() => {
-    if (!hasStartedRendering) {
-      return;
-    }
-
-    const ownerWindow =
-      viewportSectionRef.current?.ownerDocument.defaultView ?? window;
-
-    ownerWindow.requestAnimationFrame(() => {
-      viewportSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    });
-  }, [hasStartedRendering]);
-
-  useEffect(() => {
     if (!remoteAuthoritySource) {
       setRemoteAuthorityStatus("disabled");
-      setRemoteAuthorityError(null);
-      setRemoteAuthorityRuntime((current) => {
-        current?.dispose();
-        return null;
-      });
-      return;
-    }
-
-    if (!hasStartedRendering || activeWorkspacePageId !== "main-canvas") {
-      setRemoteAuthorityStatus("idle");
       setRemoteAuthorityError(null);
       setRemoteAuthorityRuntime((current) => {
         current?.dispose();
@@ -574,14 +855,8 @@ export function App({
     return () => {
       cancelled = true;
       createdRuntime?.dispose();
-      remoteAuthorityRuntimeRef.current = null;
     };
-  }, [
-    activeWorkspacePageId,
-    hasStartedRendering,
-    remoteAuthorityReloadKey,
-    remoteAuthoritySource
-  ]);
+  }, [remoteAuthorityReloadKey, remoteAuthoritySource]);
 
   const runtimeSetup = useMemo(
     () => resolveEditorBundleRuntimeSetup(bundleSlots),
@@ -591,10 +866,6 @@ export function App({
     () => resolveRemoteAuthorityBundleProjection(runtimeSetup),
     [runtimeSetup]
   );
-  /**
-   * 远端 authority 的实时文档只用于状态展示和 bundle projection 判断，
-   * 不能反过来作为 GraphViewport 的初始化输入，否则每次 revision 变化都会触发整棵画布卸载重建。
-   */
   const effectiveDocument =
     remoteAuthorityRuntime?.document ?? runtimeSetup.document;
   const effectiveCreateDocumentSessionBinding =
@@ -604,13 +875,13 @@ export function App({
 
   useEffect(() => {
     if (!remoteAuthorityRuntime) {
-      remoteAuthorityBundleProjectionCheckpointRef.current = null;
+      setRemoteAuthorityRuntimeCheckpoint(null);
     }
   }, [remoteAuthorityRuntime]);
 
   useEffect(() => {
     if (!remoteAuthorityBundleProjection) {
-      remoteAuthorityBundleProjectionCheckpointRef.current = null;
+      setRemoteAuthorityRuntimeCheckpoint(null);
       return;
     }
 
@@ -622,16 +893,16 @@ export function App({
       !shouldApplyRemoteAuthorityBundleProjection({
         runtime: remoteAuthorityRuntime,
         projection: remoteAuthorityBundleProjection,
-        checkpoint: remoteAuthorityBundleProjectionCheckpointRef.current
+        checkpoint: remoteAuthorityRuntimeCheckpoint
       })
     ) {
       return;
     }
 
-    remoteAuthorityBundleProjectionCheckpointRef.current = {
+    setRemoteAuthorityRuntimeCheckpoint({
       runtime: remoteAuthorityRuntime,
       document: remoteAuthorityBundleProjection.document
-    };
+    });
 
     viewportHostBridge.replaceDocument(
       structuredClone(remoteAuthorityBundleProjection.document)
@@ -639,11 +910,10 @@ export function App({
   }, [
     remoteAuthorityBundleProjection,
     remoteAuthorityRuntime,
+    remoteAuthorityRuntimeCheckpoint,
     viewportHostBridge
   ]);
-  const activeWorkspacePage = WORKSPACE_PAGES.find(
-    (page) => page.id === activeWorkspacePageId
-  )!;
+
   const graphExecutionState: GraphViewportRuntimeControlsState["executionState"] =
     graphRuntimeControls?.executionState ?? {
       status: "idle",
@@ -655,11 +925,7 @@ export function App({
       (graphExecutionState.status === "idle" ||
         graphExecutionState.status === "stepping")
   );
-  const canStepGraph = Boolean(
-    graphRuntimeControls?.available &&
-      (graphExecutionState.status === "idle" ||
-        graphExecutionState.status === "stepping")
-  );
+  const canStepGraph = canPlayGraph;
   const canStopGraph = Boolean(
     graphRuntimeControls?.available &&
       (graphExecutionState.status === "running" ||
@@ -668,26 +934,133 @@ export function App({
   const toolbarActionGroups = TOOLBAR_ACTION_GROUPS.map((group) => ({
     group,
     actions:
-      editorToolbarControls?.actions.filter((action) => action.group === group) ??
-      []
+      editorToolbarControls?.actions.filter(
+        (action) =>
+          action.group === group &&
+          VISIBLE_TITLEBAR_ACTION_IDS.includes(
+            action.id as (typeof VISIBLE_TITLEBAR_ACTION_IDS)[number]
+          )
+      ) ?? []
   })).filter((entry) => entry.actions.length > 0);
+  const leftPanePresentation = resolveWorkspacePanePresentation(
+    workspaceAdaptiveMode,
+    "left"
+  );
+  const rightPanePresentation = resolveWorkspacePanePresentation(
+    workspaceAdaptiveMode,
+    "right"
+  );
+  const isWorkspaceOverflowMode =
+    workspaceAdaptiveMode === "tablet" || workspaceAdaptiveMode === "mobile";
+  const nodeLibraryHoverPreviewEnabled = shouldEnableNodeLibraryHoverPreview({
+    adaptiveMode: workspaceAdaptiveMode,
+    supportsHover: nodeLibraryHoverPreviewCapabilities.supportsHover,
+    hasFinePointer: nodeLibraryHoverPreviewCapabilities.hasFinePointer
+  });
+  const overlayPaneOpen =
+    (leftPanePresentation !== "docked" && leftPaneOpen) ||
+    (rightPanePresentation !== "docked" && rightPaneOpen);
+  const { stageLayout } = resolveWorkspaceStageLayout({
+    adaptiveMode: workspaceAdaptiveMode,
+    leftPanePresentation,
+    rightPanePresentation,
+    leftPaneOpen,
+    rightPaneOpen
+  });
+  const showToolbarShortcuts = workspaceAdaptiveMode === "wide-desktop";
 
-  /** 统一进入主画布渲染态，避免多个入口各自维护同一组状态。 */
-  const startRendering = (): void => {
-    setActiveWorkspacePageId("main-canvas");
-    setHasStartedRendering(true);
-  };
+  useEffect(() => {
+    if (!viewportHostBridge) {
+      setAvailableNodeDefinitions([]);
+      return;
+    }
 
-  /** 卸载当前画布宿主，让 GraphViewport 走完整销毁链路。 */
-  const stopRendering = (): void => {
-    setHasStartedRendering(false);
-    setGraphRuntimeControls(null);
-    setEditorToolbarControls(null);
-    setRemoteAuthorityRuntime((current) => {
-      current?.dispose();
-      return null;
+    let cancelled = false;
+    const syncDefinitions = (): void => {
+      if (cancelled) {
+        return;
+      }
+
+      setAvailableNodeDefinitions(viewportHostBridge.graph.listNodes());
+    };
+
+    syncDefinitions();
+    void viewportHostBridge.graph.ready.then(() => {
+      syncDefinitions();
     });
-  };
+
+    return () => {
+      cancelled = true;
+    };
+  }, [runtimeSetup.plugins, viewportHostBridge]);
+
+  useEffect(() => {
+    if (!availableNodeDefinitions.length) {
+      setActiveLibraryNodeType(null);
+      return;
+    }
+
+    if (
+      activeLibraryNodeType &&
+      availableNodeDefinitions.some(
+        (definition) => definition.type === activeLibraryNodeType
+      )
+    ) {
+      return;
+    }
+
+    setActiveLibraryNodeType(availableNodeDefinitions[0]?.type ?? null);
+  }, [activeLibraryNodeType, availableNodeDefinitions]);
+
+  useEffect(() => {
+    if (!nodeLibraryPreviewRequest) {
+      return;
+    }
+
+    if (nodeLibraryHoverPreviewEnabled && leftPaneOpen) {
+      return;
+    }
+
+    setNodeLibraryPreviewRequest(null);
+  }, [
+    leftPaneOpen,
+    nodeLibraryHoverPreviewEnabled,
+    nodeLibraryPreviewRequest
+  ]);
+
+  useEffect(() => {
+    if (!nodeLibraryPreviewRequest) {
+      return;
+    }
+
+    if (
+      availableNodeDefinitions.some(
+        (definition) =>
+          definition.type === nodeLibraryPreviewRequest.definition.type
+      )
+    ) {
+      return;
+    }
+
+    setNodeLibraryPreviewRequest(null);
+  }, [availableNodeDefinitions, nodeLibraryPreviewRequest]);
+
+  useEffect(() => {
+    if (!nodeLibraryPreviewRequest) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setNodeLibraryPreviewRequest(null);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [nodeLibraryPreviewRequest]);
 
   const handleBundleFileChange = async (
     slot: EditorBundleSlot,
@@ -741,14 +1114,12 @@ export function App({
         }
       }));
     } catch (error) {
-      const errorMessage = toErrorMessage(error);
-
       setBundleSlots((current) => ({
         ...current,
         [slot]: {
           ...previousSlotState,
           loading: false,
-          error: errorMessage,
+          error: toErrorMessage(error),
           fileName: previousSlotState.fileName ?? file.name
         }
       }));
@@ -786,507 +1157,1135 @@ export function App({
     [onViewportHostBridgeChange]
   );
 
+  const closeOverlayPanes = useCallback((): void => {
+    setWorkspaceMenuOpen(false);
+    setNodeLibraryPreviewRequest(null);
+    if (leftPanePresentation !== "docked") {
+      setLeftPaneOpen(false);
+    }
+    if (rightPanePresentation !== "docked") {
+      setRightPaneOpen(false);
+    }
+  }, [leftPanePresentation, rightPanePresentation]);
+
+  const openLeftPane = useCallback((): void => {
+    setWorkspaceMenuOpen(false);
+    setLeftPaneOpen(true);
+    if (isWorkspaceOverflowMode) {
+      setRightPaneOpen(false);
+    }
+  }, [isWorkspaceOverflowMode]);
+
+  const openRightPane = useCallback((): void => {
+    setWorkspaceMenuOpen(false);
+    setRightPaneOpen(true);
+    if (isWorkspaceOverflowMode) {
+      setLeftPaneOpen(false);
+    }
+  }, [isWorkspaceOverflowMode]);
+
+  const toggleLeftPane = useCallback((): void => {
+    setWorkspaceMenuOpen(false);
+    setLeftPaneOpen((current) => {
+      const nextOpen = !current;
+      if (nextOpen && isWorkspaceOverflowMode) {
+        setRightPaneOpen(false);
+      }
+      return nextOpen;
+    });
+  }, [isWorkspaceOverflowMode]);
+
+  const toggleRightPane = useCallback((): void => {
+    setWorkspaceMenuOpen(false);
+    setRightPaneOpen((current) => {
+      const nextOpen = !current;
+      if (nextOpen && isWorkspaceOverflowMode) {
+        setLeftPaneOpen(false);
+      }
+      return nextOpen;
+    });
+  }, [isWorkspaceOverflowMode]);
+
+  const handleCreateNodeFromWorkspace = useCallback(
+    (nodeType: string): void => {
+      if (!viewportHostBridge) {
+        return;
+      }
+
+      setNodeLibraryPreviewRequest(null);
+      setActiveLibraryNodeType(nodeType);
+      viewportHostBridge.executeCommand({
+        type: "canvas.create-node-from-workspace",
+        nodeType,
+        placement: "last-pointer"
+      });
+
+      if (leftPanePresentation !== "docked") {
+        setLeftPaneOpen(false);
+      }
+    },
+    [leftPanePresentation, viewportHostBridge]
+  );
+
+  const authoritySummary = {
+    modeLabel: isRemoteAuthorityEnabled ? "Remote Authority" : "Local Loopback",
+    connectionLabel: formatRemoteAuthorityConnectionStatusLabel(
+      remoteAuthorityConnectionStatus
+    ),
+    sourceLabel:
+      remoteAuthorityRuntime?.sourceLabel ?? remoteAuthoritySource?.label ?? "未接入",
+    pendingCount: remoteAuthorityPendingOperationIds.length,
+    recoveryLabel: formatRemoteAuthorityRecoveryModeLabel(
+      remoteAuthorityPendingOperationIds.length
+    ),
+    documentLabel: remoteAuthorityDocument
+      ? `${remoteAuthorityDocument.documentId} @ ${remoteAuthorityDocument.revision}`
+      : workspaceState?.status.documentLabel ?? "使用当前本地图文档"
+  };
+  const workspaceDialogSize =
+    workspaceAdaptiveMode === "mobile"
+      ? "fullscreen"
+      : workspaceAdaptiveMode === "tablet"
+        ? "sheet"
+        : "xl";
+
+  const openWorkspaceSettingsDialog = useCallback(
+    (tab?: WorkspaceSettingsTab): void => {
+      setWorkspaceMenuOpen(false);
+      closeOverlayPanes();
+      if (tab) {
+        setWorkspaceSettingsTab(tab);
+      }
+      setWorkspaceSettingsOpen(true);
+    },
+    [closeOverlayPanes]
+  );
+
+  const openRunConsoleDialog = useCallback(
+    (tab: RunConsoleTab = "overview"): void => {
+      setWorkspaceMenuOpen(false);
+      closeOverlayPanes();
+      setRunConsoleTab(tab);
+      setRunConsoleOpen(true);
+    },
+    [closeOverlayPanes]
+  );
+
+  const shortcutItems = [
+    ...(editorToolbarControls?.actions.filter((action) => action.shortcut) ?? []),
+    {
+      id: "context-menu",
+      label: "右键菜单",
+      shortcut: "Mouse",
+      description: "在画布空白处创建节点、粘贴节点或适配视图"
+    }
+  ];
+  const statusbarItems = useMemo(() => {
+    const authorityLabel = `Authority ${formatRemoteAuthorityConnectionStatusLabel(
+      remoteAuthorityConnectionStatus
+    )}`;
+    const documentLabel = workspaceState?.status.documentLabel ?? "等待文档";
+    const selectionLabel = workspaceState?.status.selectionLabel ?? "未选择节点";
+    const runtimeLabel = formatGraphExecutionStatusLabel(graphExecutionState.status);
+    const pendingLabel = `Pending ${remoteAuthorityPendingOperationIds.length}`;
+
+    if (workspaceAdaptiveMode === "mobile") {
+      return [
+        {
+          key: "document",
+          label: documentLabel
+        },
+        {
+          key: "authority",
+          label:
+            remoteAuthorityPendingOperationIds.length > 0
+              ? `${authorityLabel} · ${remoteAuthorityPendingOperationIds.length} pending`
+              : authorityLabel
+        },
+        {
+          key: "selection",
+          label: selectionLabel
+        }
+      ];
+    }
+
+    if (workspaceAdaptiveMode === "tablet") {
+      return [
+        {
+          key: "document",
+          label: documentLabel
+        },
+        {
+          key: "authority",
+          label:
+            remoteAuthorityPendingOperationIds.length > 0
+              ? `${authorityLabel} · ${remoteAuthorityPendingOperationIds.length} pending`
+              : authorityLabel
+        },
+        {
+          key: "runtime",
+          label: runtimeLabel
+        },
+        {
+          key: "selection",
+          label: selectionLabel
+        }
+      ];
+    }
+
+    return [
+      {
+        key: "document",
+        label: documentLabel
+      },
+      {
+        key: "authority",
+        label: authorityLabel
+      },
+      {
+        key: "pending",
+        label: pendingLabel
+      },
+      {
+        key: "runtime",
+        label: runtimeLabel
+      },
+      {
+        key: "selection",
+        label: selectionLabel
+      }
+    ];
+  }, [
+    graphExecutionState.status,
+    remoteAuthorityConnectionStatus,
+    remoteAuthorityPendingOperationIds.length,
+    workspaceAdaptiveMode,
+    workspaceState?.status.documentLabel,
+    workspaceState?.status.selectionLabel
+  ]);
+
+  const renderWorkspaceStage = (): JSX.Element => {
+    if (isRemoteAuthorityEnabled && remoteAuthorityStatus !== "ready") {
+      return (
+        <div class="workspace-stage__empty">
+          <div class="workspace-stage__empty-card">
+            <p class="workspace-pane__eyebrow">Remote Authority</p>
+            <h2>
+              {remoteAuthorityStatus === "error"
+                ? "Authority 连接失败"
+                : "正在装配远端文档"}
+            </h2>
+            <p>
+              {remoteAuthorityStatus === "error"
+                ? remoteAuthorityError ??
+                  "当前 authority 未能返回可用文档，请重试或切回本地模式。"
+                : "Editor 正在等待 authority client、正式 GraphDocument 和 runtime feedback 通道就绪。"}
+            </p>
+            <div class="workspace-stage__empty-actions">
+              <button
+                type="button"
+                class="workspace-primary-button"
+                disabled={remoteAuthorityStatus === "loading"}
+                onClick={() => {
+                  setRemoteAuthorityReloadKey((current) => current + 1);
+                }}
+              >
+                {remoteAuthorityStatus === "loading" ? "连接中" : "重试连接"}
+              </button>
+              <button
+                type="button"
+                class="workspace-secondary-button"
+                onClick={() => {
+                  openWorkspaceSettingsDialog("authority");
+                }}
+              >
+                打开 Authority 设置
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <GraphViewport
+        document={effectiveDocument}
+        plugins={runtimeSetup.plugins}
+        createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
+        runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
+        onHostBridgeChange={handleViewportHostBridgeChange}
+        quickCreateNodeType={runtimeSetup.quickCreateNodeType}
+        theme={theme}
+        onEditorToolbarControlsChange={setEditorToolbarControls}
+        onGraphRuntimeControlsChange={setGraphRuntimeControls}
+        onWorkspaceStateChange={setWorkspaceState}
+      />
+    );
+  };
+
   return (
     <div
-      class="shell"
+      class="app-shell"
       data-theme={theme}
-      data-workspace-mode={isCanvasWorkspace ? "canvas" : "default"}
+      data-adaptive={workspaceAdaptiveMode}
+      data-left-open={leftPaneOpen ? "true" : "false"}
+      data-right-open={rightPaneOpen ? "true" : "false"}
+      data-stage-layout={stageLayout}
     >
-      <aside class="sidebar">
-        <p class="eyebrow">LeaferGraph</p>
-        <h1>Editor Sandbox</h1>
-        <p class="lead">
-          编辑器控制层现在由 <code>Preact</code> 承担，LeaferGraph 继续作为底层
-          画布与图形宿主。
-        </p>
+      <header class="titlebar">
+        <div class="titlebar__identity">
+          <div class="titlebar__brand">
+            <span class="titlebar__brand-mark">LG</span>
+            <div>
+              <p class="titlebar__eyebrow">LeaferGraph Editor</p>
+              <h1>专业工作区</h1>
+            </div>
+          </div>
+          <div class="titlebar__document-meta">
+            <span class="titlebar__document-chip">
+              {workspaceState?.status.documentLabel ?? "等待文档"}
+            </span>
+            <span class="titlebar__document-subtle">
+              {workspaceState
+                ? `${workspaceState.document.nodeCount} Nodes · ${workspaceState.document.linkCount} Links`
+                : "等待 GraphViewport 挂载"}
+            </span>
+          </div>
+        </div>
 
-        <section class="panel">
-          <h2>当前结构</h2>
-          <ul>
-            <li>核心库：LeaferGraph API 与渲染宿主</li>
-            <li>编辑器：Preact 组件树管理布局和状态</li>
-            <li>
-              {isRemoteAuthorityEnabled
-                ? "远端 authority：由 App 装配 client、文档快照和反馈回流"
-                : "本地接入：通过 IIFE bundle 装载 demo、node、widget"}
-            </li>
-          </ul>
-        </section>
-
-        <section class="panel">
-          <h2>Authority</h2>
-          <ul>
-            <li>
-              当前模式：
-              {isRemoteAuthorityEnabled ? "Remote Authority" : "Local Loopback"}
-            </li>
-            <li>装配状态：{formatRemoteAuthorityStatusLabel(remoteAuthorityStatus)}</li>
-            <li>
-              连接状态：
-              {formatRemoteAuthorityConnectionStatusLabel(
-                remoteAuthorityConnectionStatus
-              )}
-            </li>
-            <li>
-              当前来源：
-              {remoteAuthorityRuntime?.sourceLabel ??
-                remoteAuthoritySource?.label ??
-                "未接入"}
-            </li>
-            <li>
-              当前文档：
-              {remoteAuthorityDocument
-                ? `${remoteAuthorityDocument.documentId} @ ${remoteAuthorityDocument.revision}`
-                : "使用当前本地图文档"}
-            </li>
-          </ul>
-          {remoteAuthorityRuntime?.sourceDescription ? (
-            <p class="bundle-panel__note">{remoteAuthorityRuntime.sourceDescription}</p>
-          ) : null}
-          {remoteAuthorityStatus === "ready" &&
-          remoteAuthorityConnectionStatus === "reconnecting" ? (
-            <p class="bundle-panel__note">
-              authority 连接已断开，正在自动重连；恢复后会重新拉取权威文档。
-            </p>
-          ) : null}
-          {remoteAuthorityError ? (
-            <p class="bundle-card__error">{remoteAuthorityError}</p>
-          ) : null}
-          {isRemoteAuthorityEnabled ? (
+        <div class="titlebar__toolbar">
+          {toolbarActionGroups.length ? (
+            <div class="commandbar" aria-label="编辑工具栏">
+              {toolbarActionGroups.map(({ group, actions }) => (
+                <div class="commandbar__group" key={group}>
+                  {actions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      class={`commandbar__button${
+                        action.danger ? " commandbar__button--danger" : ""
+                      }`}
+                      disabled={action.disabled}
+                      title={formatToolbarActionTitle(action)}
+                      onClick={() => {
+                        editorToolbarControls?.execute(action.id);
+                      }}
+                    >
+                      <span>{action.label}</span>
+                      {action.shortcut && showToolbarShortcuts ? (
+                        <span class="commandbar__shortcut">{action.shortcut}</span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="commandbar commandbar--placeholder">
+              <span>等待画布命令总线就绪</span>
+            </div>
+          )}
+          <div class="titlebar__primary-actions">
+            <span class="titlebar-status-pill" data-status={graphExecutionState.status}>
+              {formatGraphExecutionStatusLabel(graphExecutionState.status)}
+            </span>
+          </div>
+          <div class="titlebar__runtime">
             <button
               type="button"
-              class="bundle-card__button"
-              disabled={remoteAuthorityStatus === "loading"}
+              class="workspace-primary-button workspace-primary-button--ghost"
+              disabled={!canPlayGraph}
               onClick={() => {
-                setRemoteAuthorityReloadKey((current) => current + 1);
+                graphRuntimeControls?.play();
               }}
             >
-              {remoteAuthorityStatus === "loading"
-                ? "连接中"
-                : remoteAuthorityConnectionStatus === "reconnecting"
-                  ? "自动重连中"
-                  : "重新连接 Authority"}
+              Play
             </button>
-          ) : null}
-        </section>
-
-        <section class="panel">
-          <h2>当前建议顺序</h2>
-          <ul>
-            <li>先加载 Widget Bundle，确保外部 widget 已注册</li>
-            <li>再加载 Node Bundle，挂上可独立使用的节点模块</li>
-            <li>最后加载 Demo Bundle，让默认图数据一次性落图</li>
-          </ul>
-        </section>
-      </aside>
-
-      <main class="workspace">
-        <header class="toolbar">
-          <div>
-            <p class="toolbar__label">Workspace</p>
-            <h2>Leafer-first Node Graph</h2>
+            <button
+              type="button"
+              class="workspace-primary-button workspace-primary-button--ghost"
+              disabled={!canStepGraph}
+              onClick={() => {
+                graphRuntimeControls?.step();
+              }}
+            >
+              Step
+            </button>
+            <button
+              type="button"
+              class="workspace-secondary-button workspace-secondary-button--danger"
+              disabled={!canStopGraph}
+              onClick={() => {
+                graphRuntimeControls?.stop();
+              }}
+            >
+              Stop
+            </button>
           </div>
-          <div class="toolbar__actions">
-            {toolbarActionGroups.length ? (
-              <div class="toolbar__command-groups" aria-label="编辑工具栏">
-                {toolbarActionGroups.map(({ group, actions }) => (
-                  <div class="toolbar__command-group" data-group={group} key={group}>
-                    {actions.map((action) => (
+        </div>
+
+        <div class="titlebar__workspace">
+          {!isWorkspaceOverflowMode ? (
+            <>
+              <button
+                type="button"
+                class="titlebar-icon-button"
+                onClick={toggleLeftPane}
+                aria-label="切换节点库"
+              >
+                <IconPanel
+                  title="切换节点库"
+                  description="切换节点库"
+                  path="M4 6h16M4 12h16M4 18h16"
+                />
+              </button>
+              <button
+                type="button"
+                class="titlebar-icon-button"
+                onClick={toggleRightPane}
+                aria-label="切换检查器"
+              >
+                <IconPanel
+                  title="切换检查器"
+                  description="切换检查器"
+                  path="M5 5h14v14H5zM9 5v14"
+                />
+              </button>
+              <button
+                type="button"
+                class="workspace-secondary-button"
+                onClick={() => {
+                  openRunConsoleDialog();
+                }}
+              >
+                Run Console
+              </button>
+              <button
+                type="button"
+                class="workspace-secondary-button"
+                onClick={() => {
+                  openWorkspaceSettingsDialog();
+                }}
+              >
+                Workspace Settings
+              </button>
+            </>
+          ) : (
+            <div class="titlebar__workspace-menu">
+              <button
+                type="button"
+                class="workspace-secondary-button titlebar__workspace-trigger"
+                data-active={workspaceMenuOpen ? "true" : "false"}
+                aria-expanded={workspaceMenuOpen ? "true" : "false"}
+                onClick={() => {
+                  setWorkspaceMenuOpen((current) => !current);
+                }}
+              >
+                Workspace
+              </button>
+              {workspaceMenuOpen ? (
+                <div
+                  class="titlebar__workspace-popover"
+                  role="menu"
+                  aria-label="工作区快捷入口"
+                >
+                  <button
+                    type="button"
+                    class="titlebar__workspace-item"
+                    role="menuitem"
+                    onClick={openLeftPane}
+                  >
+                    打开节点库
+                  </button>
+                  <button
+                    type="button"
+                    class="titlebar__workspace-item"
+                    role="menuitem"
+                    onClick={openRightPane}
+                  >
+                    打开检查器
+                  </button>
+                  <button
+                    type="button"
+                    class="titlebar__workspace-item"
+                    role="menuitem"
+                    onClick={() => {
+                      openRunConsoleDialog();
+                    }}
+                  >
+                    Run Console
+                  </button>
+                  <button
+                    type="button"
+                    class="titlebar__workspace-item"
+                    role="menuitem"
+                    onClick={() => {
+                      openWorkspaceSettingsDialog();
+                    }}
+                  >
+                    Workspace Settings
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div class="workspace-grid" data-stage-layout={stageLayout}>
+        {overlayPaneOpen ? (
+          <button
+            type="button"
+            class="workspace-grid__backdrop"
+            aria-label="关闭侧栏覆盖层"
+            onClick={closeOverlayPanes}
+          />
+        ) : null}
+        <aside
+          class="workspace-sidebar workspace-sidebar--left"
+          data-presentation={leftPanePresentation}
+          data-open={leftPaneOpen ? "true" : "false"}
+        >
+          <NodeLibraryPane
+            definitions={availableNodeDefinitions}
+            searchQuery={nodeLibrarySearchQuery}
+            activeNodeType={activeLibraryNodeType}
+            presentation={leftPanePresentation}
+            quickCreateNodeType={runtimeSetup.quickCreateNodeType}
+            disabled={!viewportHostBridge}
+            hoverPreviewEnabled={nodeLibraryHoverPreviewEnabled}
+            focusSearchOnOpen={leftPaneOpen && leftPanePresentation !== "docked"}
+            onSearchQueryChange={setNodeLibrarySearchQuery}
+            onActiveNodeTypeChange={setActiveLibraryNodeType}
+            onCreateNode={handleCreateNodeFromWorkspace}
+            onPreviewRequestChange={setNodeLibraryPreviewRequest}
+          />
+        </aside>
+
+        <main class="workspace-stage">{renderWorkspaceStage()}</main>
+
+        <aside
+          class="workspace-sidebar workspace-sidebar--right"
+          data-presentation={rightPanePresentation}
+          data-open={rightPaneOpen ? "true" : "false"}
+        >
+          <InspectorPane
+            presentation={rightPanePresentation}
+            workspaceState={workspaceState}
+            authoritySummary={authoritySummary}
+            onOpenRunConsole={() => {
+              openRunConsoleDialog("overview");
+            }}
+          />
+        </aside>
+      </div>
+
+      {nodeLibraryHoverPreviewEnabled &&
+      leftPaneOpen &&
+      nodeLibraryPreviewRequest ? (
+        <NodeLibraryHoverPreviewOverlay
+          request={nodeLibraryPreviewRequest}
+          theme={theme}
+          plugins={runtimeSetup.plugins}
+        />
+      ) : null}
+
+      <footer class="statusbar" data-density={workspaceAdaptiveMode}>
+        {statusbarItems.map((item) => (
+          <span key={item.key} class="statusbar__item">
+            {item.label}
+          </span>
+        ))}
+      </footer>
+
+      <AppDialog
+        open={workspaceSettingsOpen}
+        title="Workspace Settings"
+        description="系统级信息统一收敛到这里，主界面只保留创作和检查所需的核心上下文。"
+        size={workspaceDialogSize}
+        onClose={() => {
+          setWorkspaceSettingsOpen(false);
+        }}
+      >
+        <div class="dialog-tabs" role="tablist" aria-label="工作区设置标签">
+          {(
+            [
+              ["extensions", "Extensions"],
+              ["authority", "Authority"],
+              ["preferences", "Preferences"],
+              ["shortcuts", "Shortcuts"]
+            ] as const
+          ).map(([tabId, label]) => (
+            <button
+              key={tabId}
+              type="button"
+              class="dialog-tab"
+              data-active={workspaceSettingsTab === tabId ? "true" : "false"}
+              onClick={() => {
+                setWorkspaceSettingsTab(tabId);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {workspaceSettingsTab === "extensions" ? (
+          <section class="dialog-section">
+            <div class="dialog-section__header">
+              <div>
+                <p class="workspace-pane__eyebrow">Extensions</p>
+                <h3>Bundle 管理</h3>
+              </div>
+              <p class="dialog-section__summary">
+                当前激活 <strong>{runtimeSetup.plugins.length}</strong> 个插件，
+                优先创建节点为{" "}
+                <strong>{runtimeSetup.quickCreateNodeType ?? "未指定"}</strong>
+              </p>
+            </div>
+            <div class="bundle-grid">
+              {EDITOR_BUNDLE_SLOTS.map((slot) => {
+                const state = runtimeSetup.slots[slot];
+                const manifest = state.manifest;
+                const quickCreateNodeType =
+                  manifest?.kind === "node" || manifest?.kind === "widget"
+                    ? manifest.quickCreateNodeType
+                    : undefined;
+
+                return (
+                  <article class="bundle-card" key={slot}>
+                    <div class="bundle-card__header">
+                      <div>
+                        <h4>{BUNDLE_SLOT_TITLE[slot]}</h4>
+                        <p>{BUNDLE_SLOT_DESCRIPTION[slot]}</p>
+                      </div>
+                      <span
+                        class="bundle-card__status"
+                        data-status={state.status}
+                      >
+                        {BUNDLE_STATUS_LABEL[state.status]}
+                      </span>
+                    </div>
+                    <dl class="bundle-card__info">
+                      <WorkspaceField label="文件" value={state.fileName ?? "未选择"} />
+                      <WorkspaceField label="名称" value={manifest?.name ?? "未加载"} />
+                      <WorkspaceField label="ID" value={manifest?.id ?? "未加载"} />
+                      <WorkspaceField
+                        label="版本"
+                        value={manifest?.version ? `v${manifest.version}` : "未声明"}
+                      />
+                      <WorkspaceField
+                        label="依赖"
+                        value={
+                          manifest?.requires?.length
+                            ? manifest.requires.join(" + ")
+                            : "无"
+                        }
+                      />
+                      <WorkspaceField
+                        label="状态"
+                        value={resolveBundleActivationLabel(state)}
+                      />
+                      <WorkspaceField
+                        label="持久化"
+                        value={formatBundlePersistenceLabel(state)}
+                      />
+                      <WorkspaceField
+                        label="快速创建"
+                        value={quickCreateNodeType ?? "无"}
+                      />
+                    </dl>
+                    {state.error ? (
+                      <p class="bundle-card__error">{state.error}</p>
+                    ) : null}
+                    <div class="bundle-card__actions">
+                      <label class="workspace-primary-button workspace-primary-button--ghost bundle-card__upload">
+                        选择文件
+                        <input
+                          type="file"
+                          class="bundle-card__file-input"
+                          accept=".js,text/javascript,application/javascript"
+                          onChange={(event) => {
+                            void handleBundleFileChange(slot, event);
+                          }}
+                        />
+                      </label>
                       <button
-                        key={action.id}
                         type="button"
-                        class={`toolbar__command-button${
-                          action.danger ? " toolbar__command-button--danger" : ""
-                        }`}
-                        disabled={action.disabled}
-                        title={formatToolbarActionTitle(action)}
-                        aria-label={formatToolbarActionTitle(action)}
+                        class="workspace-secondary-button"
+                        disabled={!manifest || state.loading}
                         onClick={() => {
-                          editorToolbarControls?.execute(action.id);
+                          toggleBundleEnabled(slot);
                         }}
                       >
-                        <span>{action.label}</span>
-                        {action.shortcut ? (
-                          <span class="toolbar__command-shortcut">
-                            {action.shortcut}
-                          </span>
-                        ) : null}
+                        {state.enabled ? "停用" : "启用"}
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        class="workspace-secondary-button"
+                        disabled={state.loading && !manifest}
+                        onClick={() => {
+                          unloadBundle(slot);
+                        }}
+                      >
+                        卸载
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {workspaceSettingsTab === "authority" ? (
+          <section class="dialog-section">
+            <div class="dialog-section__header">
+              <div>
+                <p class="workspace-pane__eyebrow">Authority</p>
+                <h3>后端与同步状态</h3>
+              </div>
+              <p class="dialog-section__summary">
+                当前模式：<strong>{authoritySummary.modeLabel}</strong>，装配状态：
+                <strong>{formatRemoteAuthorityStatusLabel(remoteAuthorityStatus)}</strong>
+              </p>
+            </div>
+            <dl class="detail-grid">
+              <WorkspaceField label="连接状态" value={authoritySummary.connectionLabel} />
+              <WorkspaceField label="当前来源" value={authoritySummary.sourceLabel} />
+              <WorkspaceField label="当前文档" value={authoritySummary.documentLabel} />
+              <WorkspaceField
+                label="待确认操作"
+                value={String(authoritySummary.pendingCount)}
+              />
+              <WorkspaceField label="恢复策略" value={authoritySummary.recoveryLabel} />
+              <WorkspaceField
+                label="Graph 状态"
+                value={workspaceState?.status.runtimeLabel ?? "等待画布"}
+              />
+            </dl>
+            {remoteAuthorityRuntime?.sourceDescription ? (
+              <p class="workspace-note">{remoteAuthorityRuntime.sourceDescription}</p>
+            ) : null}
+            {remoteAuthorityLastIssue ? (
+              <p class="workspace-note">{remoteAuthorityLastIssue}</p>
+            ) : null}
+            {remoteAuthorityError ? (
+              <p class="workspace-error">{remoteAuthorityError}</p>
+            ) : null}
+            <div class="dialog-actions">
+              {isRemoteAuthorityEnabled ? (
+                <>
+                  {remoteAuthorityStatus === "ready" && viewportHostBridge ? (
+                    <button
+                      type="button"
+                      class="workspace-primary-button"
+                      disabled={remoteAuthorityResyncing}
+                      onClick={() => {
+                        void resyncAuthorityDocument({
+                          resyncOptions: {
+                            invalidatePending: true,
+                            pendingReason:
+                              "authority 已手工重新同步，待确认操作已失效，请手工重试"
+                          },
+                          successMessagePrefix: "Authority 已手工重新同步"
+                        }).catch(() => {
+                          // 错误状态已在 resyncAuthorityDocument 内回填到 UI。
+                        });
+                      }}
+                    >
+                      {remoteAuthorityResyncing
+                        ? "同步中"
+                        : remoteAuthorityPendingOperationIds.length > 0
+                          ? "放弃待确认并重新同步"
+                          : "重新同步文档"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    class="workspace-secondary-button"
+                    disabled={remoteAuthorityStatus === "loading"}
+                    onClick={() => {
+                      setRemoteAuthorityReloadKey((current) => current + 1);
+                    }}
+                  >
+                    {remoteAuthorityStatus === "loading"
+                      ? "连接中"
+                      : "重新连接 Authority"}
+                  </button>
+                </>
+              ) : (
+                <p class="workspace-note">当前没有接入外部 authority，正在使用本地 loopback 文档会话。</p>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {workspaceSettingsTab === "preferences" ? (
+          <section class="dialog-section">
+            <div class="dialog-section__header">
+              <div>
+                <p class="workspace-pane__eyebrow">Preferences</p>
+                <h3>工作区偏好</h3>
+              </div>
+            </div>
+            <div class="preferences-grid">
+              <article class="preference-card">
+                <h4>主题</h4>
+                <p>默认采用专业工作站式暗色，亮色保持信息密度与对比度对等。</p>
+                <div class="segmented-control">
+                  <button
+                    type="button"
+                    class="segmented-control__button"
+                    data-active={theme === "dark" ? "true" : "false"}
+                    onClick={() => {
+                      setTheme("dark");
+                    }}
+                  >
+                    暗色
+                  </button>
+                  <button
+                    type="button"
+                    class="segmented-control__button"
+                    data-active={theme === "light" ? "true" : "false"}
+                    onClick={() => {
+                      setTheme("light");
+                    }}
+                  >
+                    亮色
+                  </button>
+                  <button
+                    type="button"
+                    class="segmented-control__button"
+                    onClick={() => {
+                      setTheme((currentTheme) => toggleEditorTheme(currentTheme));
+                    }}
+                  >
+                    切换
+                  </button>
+                </div>
+              </article>
+              <article class="preference-card">
+                <h4>工作区可见性</h4>
+                <p>在桌面和窄屏之间切换时，节点库与检查器都支持折叠与唤起。</p>
+                <div class="dialog-actions">
+                  <button
+                    type="button"
+                    class="workspace-secondary-button"
+                    onClick={toggleLeftPane}
+                  >
+                    {leftPaneOpen ? "收起节点库" : "展开节点库"}
+                  </button>
+                  <button
+                    type="button"
+                    class="workspace-secondary-button"
+                    onClick={toggleRightPane}
+                  >
+                    {rightPaneOpen ? "收起检查器" : "展开检查器"}
+                  </button>
+                </div>
+              </article>
+            </div>
+          </section>
+        ) : null}
+
+        {workspaceSettingsTab === "shortcuts" ? (
+          <section class="dialog-section">
+            <div class="dialog-section__header">
+              <div>
+                <p class="workspace-pane__eyebrow">Shortcuts</p>
+                <h3>快捷键与工作流</h3>
+              </div>
+            </div>
+            <div class="shortcut-list">
+              {shortcutItems.map((item) => (
+                <article class="shortcut-item" key={item.id}>
+                  <div>
+                    <h4>{item.label}</h4>
+                    <p>{item.description}</p>
                   </div>
+                  <kbd>{item.shortcut}</kbd>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </AppDialog>
+
+      <AppDialog
+        open={runConsoleOpen}
+        title="Run Console"
+        description="图级运行链、失败聚合和焦点节点运行态统一移入这里，主界面只保留精简摘要。"
+        size={workspaceDialogSize}
+        onClose={() => {
+          setRunConsoleOpen(false);
+        }}
+      >
+        <div class="dialog-tabs" role="tablist" aria-label="运行控制台标签">
+          {(
+            [
+              ["overview", "Overview"],
+              ["chains", "Chains"],
+              ["failures", "Failures"],
+              ["node-runtime", "Node Runtime"]
+            ] as const
+          ).map(([tabId, label]) => (
+            <button
+              key={tabId}
+              type="button"
+              class="dialog-tab"
+              data-active={runConsoleTab === tabId ? "true" : "false"}
+              onClick={() => {
+                setRunConsoleTab(tabId);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {!workspaceState ? (
+          <div class="workspace-empty-state">
+            <h3>等待运行上下文</h3>
+            <p>GraphViewport 完成挂载后，运行控制台会读取执行摘要与节点快照。</p>
+          </div>
+        ) : null}
+
+        {workspaceState && runConsoleTab === "overview" ? (
+          <section class="dialog-section">
+            <div class="run-console-grid">
+              <article class="run-console-card">
+                <p class="run-console-card__label">图级状态</p>
+                <strong>{workspaceState.status.runtimeLabel}</strong>
+                <span>
+                  Run {workspaceState.runtime.graphExecutionState.runId ?? "无"}
+                </span>
+              </article>
+              <article class="run-console-card">
+                <p class="run-console-card__label">焦点节点</p>
+                <strong>{workspaceState.status.focusLabel}</strong>
+                <span>{workspaceState.runtime.focus.focusMode}</span>
+              </article>
+              <article class="run-console-card">
+                <p class="run-console-card__label">最近检查链</p>
+                <strong>
+                  {workspaceState.runtime.latestChain?.rootNodeTitle ?? "暂无"}
+                </strong>
+                <span>
+                  {workspaceState.runtime.latestChain
+                    ? `${workspaceState.runtime.latestChain.stepCount} 步`
+                    : "等待新的执行链"}
+                </span>
+              </article>
+              <article class="run-console-card">
+                <p class="run-console-card__label">失败聚合</p>
+                <strong>{workspaceState.runtime.failures.length}</strong>
+                <span>最近失败节点数</span>
+              </article>
+            </div>
+            <dl class="detail-grid">
+              <WorkspaceField
+                label="队列长度"
+                value={String(workspaceState.runtime.graphExecutionState.queueSize)}
+              />
+              <WorkspaceField
+                label="已推进步数"
+                value={String(workspaceState.runtime.graphExecutionState.stepCount)}
+              />
+              <WorkspaceField
+                label="最近命令"
+                value={workspaceState.status.lastCommandSummary ?? "无"}
+              />
+              <WorkspaceField
+                label="最近成功"
+                value={formatTimestamp(
+                  workspaceState.runtime.focus.executionState?.lastSucceededAt
+                )}
+              />
+              <WorkspaceField
+                label="最近失败"
+                value={formatTimestamp(
+                  workspaceState.runtime.focus.executionState?.lastFailedAt
+                )}
+              />
+              <WorkspaceField
+                label="Document"
+                value={workspaceState.status.documentLabel}
+              />
+            </dl>
+            {workspaceState.runtime.latestErrorMessage ? (
+              <p class="workspace-error">
+                {workspaceState.runtime.latestErrorMessage}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {workspaceState && runConsoleTab === "chains" ? (
+          <section class="dialog-section">
+            {workspaceState.runtime.recentChains.length ? (
+              <div class="run-chain-list">
+                {workspaceState.runtime.recentChains.map((chain) => (
+                  <article class="run-chain-card" key={chain.chainId}>
+                    <header class="run-chain-card__header">
+                      <div>
+                        <h4>{chain.rootNodeTitle}</h4>
+                        <p>
+                          {chain.rootNodeType ?? "未知类型"} · 最近于{" "}
+                          {formatTimestamp(chain.finishedAt)}
+                        </p>
+                      </div>
+                      <span class="titlebar-status-pill" data-status={chain.status}>
+                        {chain.status}
+                      </span>
+                    </header>
+                    <p class="run-chain-card__summary">
+                      {chain.stepCount} 步 · 最深 {chain.maxDepth} 层 · 主动{" "}
+                      {chain.directCount} 次 · 传播 {chain.propagatedCount} 次 ·{" "}
+                      {formatDuration(chain.startedAt, chain.finishedAt)}
+                    </p>
+                    <ul class="run-chain-card__steps">
+                      {chain.entries.map((entry) => (
+                        <li key={`${chain.chainId}:${entry.id}`}>
+                          <strong>{entry.sequence + 1}. {entry.nodeTitle}</strong>
+                          <span>
+                            {entry.status} · {formatTimestamp(entry.timestamp)}
+                          </span>
+                          <p>{entry.summary}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
                 ))}
               </div>
             ) : (
-              <p class="toolbar__command-placeholder">
-                主画布挂载后，这里会显示复用命令总线的编辑工具栏。
-              </p>
+              <div class="workspace-empty-state">
+                <h3>当前还没有执行链</h3>
+                <p>先使用顶栏 Play / Step，或从节点菜单里直接起跑一个节点。</p>
+              </div>
             )}
-            <div class="toolbar__runtime-controls">
-              <span
-                class="badge badge--runtime"
-                data-status={graphExecutionState.status}
-              >
-                {formatGraphExecutionStatusLabel(graphExecutionState.status)}
-              </span>
-              <button
-                type="button"
-                class="render-toggle render-toggle--graph"
-                disabled={!canPlayGraph}
-                onClick={() => {
-                  graphRuntimeControls?.play();
-                }}
-              >
-                Play
-              </button>
-              <button
-                type="button"
-                class="render-toggle render-toggle--graph"
-                disabled={!canStepGraph}
-                onClick={() => {
-                  graphRuntimeControls?.step();
-                }}
-              >
-                Step
-              </button>
-              <button
-                type="button"
-                class="render-toggle render-toggle--graph render-toggle--stop"
-                disabled={!canStopGraph}
-                onClick={() => {
-                  graphRuntimeControls?.stop();
-                }}
-              >
-                Stop
-              </button>
-            </div>
-            <span class="badge">
-              {theme === "dark" ? "暗色工作区" : "亮色工作区"}
-            </span>
-            <button
-              type="button"
-              class="theme-toggle"
-              data-theme={theme}
-              aria-label={`切换到${theme === "dark" ? "亮色" : "暗色"}模式`}
-              title={`切换到${theme === "dark" ? "亮色" : "暗色"}模式`}
-              onClick={() => {
-                setTheme((currentTheme) => toggleEditorTheme(currentTheme));
-              }}
-            >
-              <span class="theme-toggle__thumb" aria-hidden="true" />
-              <span class="theme-toggle__option theme-toggle__option--light">
-                亮色
-              </span>
-              <span class="theme-toggle__option theme-toggle__option--dark">
-                暗色
-              </span>
-            </button>
-          </div>
-        </header>
+          </section>
+        ) : null}
 
-        <section
-          class={`canvas-pages${isCanvasWorkspace ? " canvas-pages--compact" : ""}`}
-          aria-label="工作分页"
-        >
-          <div class="canvas-pages__header">
-            <div>
-              <p class="toolbar__label">Workspace Pages</p>
-              <h3>工作分页</h3>
-            </div>
-            <div class="canvas-pages__actions">
-              <p class="canvas-pages__summary">
-                当前页：
-                <strong>{activeWorkspacePage.title}</strong>
-                ，
-                {hasStartedRendering ? "已挂载渲染宿主" : "尚未开始渲染"}
-              </p>
-              {hasStartedRendering ? (
-                <button
-                  type="button"
-                  class="render-toggle render-toggle--stop"
-                  onClick={stopRendering}
-                >
-                  停止渲染
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  class="render-toggle"
-                  onClick={startRendering}
-                >
-                  开始渲染
-                </button>
-              )}
-            </div>
-          </div>
+        {workspaceState && runConsoleTab === "failures" ? (
+          <section class="dialog-section">
+            {workspaceState.runtime.failures.length ? (
+              <div class="run-chain-list">
+                {workspaceState.runtime.failures.map((failure) => (
+                  <article class="run-chain-card" key={failure.nodeId}>
+                    <header class="run-chain-card__header">
+                      <div>
+                        <h4>{failure.nodeTitle}</h4>
+                        <p>
+                          {failure.nodeType ?? "未知类型"} · 最近于{" "}
+                          {formatTimestamp(failure.latestTimestamp)}
+                        </p>
+                      </div>
+                      <span class="titlebar-status-pill" data-status="error">
+                        失败
+                      </span>
+                    </header>
+                    <p class="run-chain-card__summary">
+                      累计失败 {failure.failureCount} 次
+                    </p>
+                    {failure.latestErrorMessage ? (
+                      <pre class="inspector-code">
+                        {failure.latestErrorMessage}
+                      </pre>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div class="workspace-empty-state">
+                <h3>当前没有失败聚合</h3>
+                <p>运行控制台会在检测到 error 后自动保留最近失败节点摘要。</p>
+              </div>
+            )}
+          </section>
+        ) : null}
 
-          <div class="canvas-pages__tabs" role="tablist" aria-label="工作分页标签">
-            {WORKSPACE_PAGES.map((page) => {
-              const active = page.id === activeWorkspacePageId;
-
-              return (
-                <button
-                  key={page.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  class="canvas-pages__tab"
-                  data-active={active ? "true" : "false"}
-                  onClick={() => {
-                    setActiveWorkspacePageId(page.id);
-                  }}
-                >
-                  <span class="canvas-pages__tab-title">{page.title}</span>
-                  <span class="canvas-pages__tab-description">
-                    {page.description}
+        {workspaceState && runConsoleTab === "node-runtime" ? (
+          <section class="dialog-section">
+            {workspaceState.runtime.focusNode ? (
+              <>
+                <div class="dialog-section__header">
+                  <div>
+                    <p class="workspace-pane__eyebrow">Node Runtime</p>
+                    <h3>{workspaceState.runtime.focusNode.title}</h3>
+                  </div>
+                  <span class="titlebar__document-chip">
+                    {workspaceState.runtime.focusNode.type}
                   </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {activeWorkspacePage.id === "bundle-loader" ? (
-          <section
-            ref={viewportSectionRef}
-            class="workspace-page-shell"
-            aria-live="polite"
-          >
-            <div class="canvas-page">
-              <div class="canvas-page__header">
-                <div>
-                  <p class="toolbar__label">Bundle Center</p>
-                  <h3>{activeWorkspacePage.title}</h3>
                 </div>
-                <p class="canvas-page__description">
-                  {activeWorkspacePage.description}
-                </p>
-              </div>
-
-              <div class="canvas-page__body canvas-page__body--scroll">
-                <section
-                  class="bundle-panel bundle-panel--embedded"
-                  aria-label="本地 bundle 加载面板"
-                >
-                  <div class="bundle-panel__header">
-                    <div>
-                      <p class="toolbar__label">Local Bundles</p>
-                      <h3>从本地 dist IIFE 文件加载</h3>
-                    </div>
-                    <p class="bundle-panel__summary">
-                    当前激活：
-                      <strong>{runtimeSetup.plugins.length}</strong>
-                      个插件，
-                      <strong>{runtimeSetup.quickCreateNodeType ?? "无"}</strong>
-                      作为优先创建节点
-                    </p>
-                  </div>
-                  <p class="bundle-panel__note">
-                    已加载 bundle 会记录到浏览器本地，刷新后自动恢复。
-                  </p>
-
-                  <div class="bundle-grid">
-                    {EDITOR_BUNDLE_SLOTS.map((slot) => {
-                      const state = runtimeSetup.slots[slot];
-                      const manifest = state.manifest;
-                      const quickCreateNodeType =
-                        manifest?.kind === "node" || manifest?.kind === "widget"
-                          ? manifest.quickCreateNodeType
-                          : undefined;
-
-                      return (
-                        <article class="bundle-card" key={slot}>
-                          <div class="bundle-card__header">
-                            <div>
-                              <h4>{BUNDLE_SLOT_TITLE[slot]}</h4>
-                              <p>{BUNDLE_SLOT_DESCRIPTION[slot]}</p>
-                            </div>
-                            <span
-                              class="bundle-card__status"
-                              data-status={state.status}
-                            >
-                              {BUNDLE_STATUS_LABEL[state.status]}
-                            </span>
-                          </div>
-
-                          <div class="bundle-card__meta">
-                            <span>{resolveBundleActivationLabel(state)}</span>
-                            <span>
-                              {manifest?.version
-                                ? `v${manifest.version}`
-                                : "未声明版本"}
-                            </span>
-                          </div>
-
-                          <dl class="bundle-card__info">
-                            <div>
-                              <dt>文件</dt>
-                              <dd>{state.fileName ?? "未选择"}</dd>
-                            </div>
-                            <div>
-                              <dt>名称</dt>
-                              <dd>{manifest?.name ?? "未加载"}</dd>
-                            </div>
-                            <div>
-                              <dt>ID</dt>
-                              <dd>{manifest?.id ?? "未加载"}</dd>
-                            </div>
-                            <div>
-                              <dt>依赖</dt>
-                              <dd>
-                                {manifest?.requires?.length
-                                  ? manifest.requires.join(" + ")
-                                  : "无"}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>记录</dt>
-                              <dd>{formatBundlePersistenceLabel(state)}</dd>
-                            </div>
-                            {quickCreateNodeType !== undefined ? (
-                              <div>
-                                <dt>快速创建</dt>
-                                <dd>{quickCreateNodeType}</dd>
-                              </div>
-                            ) : null}
-                          </dl>
-
-                          {state.error ? (
-                            <p class="bundle-card__error">{state.error}</p>
-                          ) : null}
-
-                          <div class="bundle-card__actions">
-                            <label class="bundle-card__button bundle-card__button--primary">
-                              选择文件
-                              <input
-                                type="file"
-                                class="bundle-card__file-input"
-                                accept=".js,text/javascript,application/javascript"
-                                onChange={(event) => {
-                                  void handleBundleFileChange(slot, event);
-                                }}
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              class="bundle-card__button"
-                              disabled={!manifest || state.loading}
-                              onClick={() => {
-                                toggleBundleEnabled(slot);
-                              }}
-                            >
-                              {state.enabled ? "停用" : "启用"}
-                            </button>
-                            <button
-                              type="button"
-                              class="bundle-card__button"
-                              disabled={state.loading && !manifest}
-                              onClick={() => {
-                                unloadBundle(slot);
-                              }}
-                            >
-                              卸载
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
-              </div>
-            </div>
-          </section>
-        ) : hasStartedRendering ? (
-          <section ref={viewportSectionRef} class="workspace-page-shell" aria-live="polite">
-            <div class="canvas-page canvas-page--canvas">
-              <div class="canvas-page__header">
-                <div>
-                  <p class="toolbar__label">Canvas View</p>
-                  <h3>{activeWorkspacePage.title}</h3>
-                </div>
-                <p class="canvas-page__description">
-                  {activeWorkspacePage.description}
-                </p>
-              </div>
-
-              <div class="canvas-page__body">
-                {isRemoteAuthorityEnabled && remoteAuthorityStatus !== "ready" ? (
-                  <div class="graph-root graph-root--idle">
-                    <div class="graph-empty-state">
-                      <p class="toolbar__label">Remote Authority</p>
-                      <h3>
-                        {remoteAuthorityStatus === "error"
-                          ? "Authority 连接失败"
-                          : "正在加载远端文档"}
-                      </h3>
-                      <p>
-                        {remoteAuthorityStatus === "error"
-                          ? remoteAuthorityError ??
-                            "当前 authority 未能返回可用文档，请重试或切回本地模式。"
-                          : "App 正在装配 authority client、拉取正式 GraphDocument，并等待反馈通道就绪。"}
-                      </p>
-                      <button
-                        type="button"
-                        class="render-toggle render-toggle--hero"
-                        disabled={remoteAuthorityStatus === "loading"}
-                        onClick={() => {
-                          setRemoteAuthorityReloadKey((current) => current + 1);
-                        }}
-                      >
-                        {remoteAuthorityStatus === "loading" ? "连接中" : "重试连接"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <GraphViewport
-                    document={effectiveDocument}
-                    plugins={runtimeSetup.plugins}
-                    createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
-                    runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
-                    onHostBridgeChange={handleViewportHostBridgeChange}
-                    quickCreateNodeType={runtimeSetup.quickCreateNodeType}
-                    theme={theme}
-                    onEditorToolbarControlsChange={setEditorToolbarControls}
-                    onGraphRuntimeControlsChange={setGraphRuntimeControls}
+                <dl class="detail-grid">
+                  <WorkspaceField
+                    label="位置"
+                    value={`${workspaceState.runtime.focusNode.layout.x}, ${workspaceState.runtime.focusNode.layout.y}`}
                   />
-                )}
-              </div>
-            </div>
-          </section>
-        ) : (
-          <section ref={viewportSectionRef} class="workspace-page-shell" aria-live="polite">
-            <div class="canvas-page canvas-page--canvas">
-              <div class="canvas-page__header">
-                <div>
-                  <p class="toolbar__label">Canvas View</p>
-                  <h3>{activeWorkspacePage.title}</h3>
+                  <WorkspaceField
+                    label="尺寸"
+                    value={`${workspaceState.runtime.focusNode.layout.width ?? "auto"} × ${workspaceState.runtime.focusNode.layout.height ?? "auto"}`}
+                  />
+                  <WorkspaceField
+                    label="执行次数"
+                    value={String(
+                      workspaceState.runtime.focusNode.executionState.runCount
+                    )}
+                  />
+                  <WorkspaceField
+                    label="最近成功"
+                    value={formatTimestamp(
+                      workspaceState.runtime.focusNode.executionState.lastSucceededAt
+                    )}
+                  />
+                  <WorkspaceField
+                    label="最近失败"
+                    value={formatTimestamp(
+                      workspaceState.runtime.focusNode.executionState.lastFailedAt
+                    )}
+                  />
+                  <WorkspaceField
+                    label="Inputs"
+                    value={String(workspaceState.runtime.focusNode.inputs.length)}
+                  />
+                </dl>
+                <div class="run-console-node-grid">
+                  <article class="run-console-card run-console-card--code">
+                    <p class="run-console-card__label">Flags</p>
+                    <pre class="inspector-code">
+                      {formatJson(workspaceState.runtime.focusNode.flags)}
+                    </pre>
+                  </article>
+                  <article class="run-console-card run-console-card--code">
+                    <p class="run-console-card__label">Properties</p>
+                    <pre class="inspector-code">
+                      {formatJson(workspaceState.runtime.focusNode.properties)}
+                    </pre>
+                  </article>
+                  <article class="run-console-card run-console-card--code">
+                    <p class="run-console-card__label">Inputs</p>
+                    <pre class="inspector-code">
+                      {formatJson(workspaceState.runtime.focusNode.inputs)}
+                    </pre>
+                  </article>
+                  <article class="run-console-card run-console-card--code">
+                    <p class="run-console-card__label">Outputs</p>
+                    <pre class="inspector-code">
+                      {formatJson(workspaceState.runtime.focusNode.outputs)}
+                    </pre>
+                  </article>
                 </div>
-                <p class="canvas-page__description">
-                  {activeWorkspacePage.description}
-                </p>
+              </>
+            ) : (
+              <div class="workspace-empty-state">
+                <h3>当前没有焦点节点</h3>
+                <p>先选中一个节点，或触发一次节点执行，控制台会显示焦点节点运行态。</p>
               </div>
-
-              <div class="canvas-page__body">
-                <div class="graph-root graph-root--idle">
-                  <div class="graph-empty-state">
-                    <p class="toolbar__label">Viewport</p>
-                    <h3>等待开始渲染</h3>
-                    <p>
-                      你可以先加载本地 bundle，再点击上方画布分页里的“开始渲染”挂载画布。
-                    </p>
-                    <button
-                      type="button"
-                      class="render-toggle render-toggle--hero"
-                      onClick={startRendering}
-                    >
-                      在主画布开始渲染
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </section>
-        )}
-      </main>
+        ) : null}
+      </AppDialog>
     </div>
   );
 }

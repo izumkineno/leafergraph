@@ -251,13 +251,14 @@ export function createTransportRemoteAuthorityClient(options: {
     getConnectionStatus(): EditorRemoteAuthorityConnectionStatus {
       return hasConnectionStatusSource(options.transport)
         ? options.transport.getConnectionStatus()
-        : "connected";
+        : "disconnected";
     },
 
     subscribeConnectionStatus(
       listener: (status: EditorRemoteAuthorityConnectionStatus) => void
     ): () => void {
       if (!hasConnectionStatusSource(options.transport)) {
+        listener("disconnected");
         return () => {};
       }
 

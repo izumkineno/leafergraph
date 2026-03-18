@@ -63,6 +63,14 @@ export type RemoteMockSessionBindingOptions = Omit<
 /** remote-client 模式可配置项。 */
 export interface RemoteClientSessionBindingOptions {
   client: EditorRemoteAuthorityClient;
+  /**
+   * 当前 binding 是否拥有 authority client 的生命周期。
+   *
+   * @remarks
+   * App runtime 持有的共享 authority client 默认不应由 GraphViewport binding 提前释放，
+   * 否则视口重建会错误断开真实后端连接。
+   */
+  disposeClientOnDispose?: boolean;
 }
 
 /** 可配置 session binding 工厂的最小参数。 */
@@ -187,7 +195,9 @@ export function createConfigurableSessionBindingFactory(
       dispose:
         authorityMode === "remote-client"
           ? () => {
-              config.remoteClient?.client.dispose?.();
+              if (config.remoteClient?.disposeClientOnDispose) {
+                config.remoteClient.client.dispose?.();
+              }
             }
           : undefined
     });

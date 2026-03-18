@@ -6,9 +6,9 @@ import type { GraphViewportHostBridge } from "../app/GraphViewport";
 import type { EditorRemoteAuthorityHostAdapter } from "../app/remote_authority_host_adapter";
 import { createWebSocketRemoteAuthorityTransport } from "../session/websocket_remote_authority_transport";
 
-/** Node host demo 默认使用的 WebSocket authority 地址。 */
+/** Node host demo 默认使用的 authority 宿主地址。 */
 export const DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL =
-  "ws://127.0.0.1:5502/authority";
+  "http://localhost:5502";
 /** Node host demo 自定义 authority adapter 标识。 */
 export const NODE_WEBSOCKET_HOST_DEMO_ADAPTER_ID = "node-websocket-host-demo";
 /** Node host demo 可选预装的本地 test bundle 列表。 */
@@ -57,6 +57,57 @@ interface NodeWebSocketHostDemoGlobal {
   console?: Pick<Console, "info">;
   LeaferGraphEditorAppBootstrap?: EditorAppBootstrap;
   LeaferGraphEditorNodeHostDemo?: NodeWebSocketHostDemoState;
+}
+
+function resolveNodeWebSocketTransportUrl(authorityUrl: string): string {
+  const trimmedAuthorityUrl = authorityUrl.trim();
+  const normalizedAuthorityUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(
+    trimmedAuthorityUrl
+  )
+    ? trimmedAuthorityUrl
+    : `http://${trimmedAuthorityUrl}`;
+  let parsedAuthorityUrl: URL;
+
+  try {
+    parsedAuthorityUrl = new URL(normalizedAuthorityUrl);
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? `无效的 authorityUrl：${error.message}`
+        : "无效的 authorityUrl"
+    );
+  }
+
+  switch (parsedAuthorityUrl.protocol) {
+    case "http:":
+      parsedAuthorityUrl.protocol = "ws:";
+      break;
+    case "https:":
+      parsedAuthorityUrl.protocol = "wss:";
+      break;
+    case "ws:":
+    case "wss:":
+      break;
+    default:
+      throw new Error(
+        `authorityUrl 仅支持 http(s) 或 ws(s) 协议：${authorityUrl}`
+      );
+  }
+
+  // Windows 浏览器在 demo 场景下偶发会把 localhost WebSocket 卡在握手超时；
+  // 这里保留宿主输入值不变，但把 transport 实际连接统一收敛到稳定的 IPv4 loopback。
+  if (parsedAuthorityUrl.hostname === "localhost") {
+    parsedAuthorityUrl.hostname = "127.0.0.1";
+  }
+
+  if (
+    parsedAuthorityUrl.pathname.length === 0 ||
+    parsedAuthorityUrl.pathname === "/"
+  ) {
+    parsedAuthorityUrl.pathname = "/authority";
+  }
+
+  return parsedAuthorityUrl.toString();
 }
 
 function normalizeNodeWebSocketHostDemoBootstrapOptions(
@@ -112,7 +163,9 @@ export function createNodeWebSocketHostDemoRemoteAuthorityHostAdapter(): EditorR
         description: `通过 Node WebSocket authority server 接入：${resolvedOptions.authorityUrl}`,
         async createTransport() {
           const transport = createWebSocketRemoteAuthorityTransport({
-            url: resolvedOptions.authorityUrl,
+            url: resolveNodeWebSocketTransportUrl(
+              resolvedOptions.authorityUrl
+            ),
             autoReconnect: true
           });
 

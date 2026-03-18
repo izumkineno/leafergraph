@@ -14,6 +14,10 @@ export interface RemoteAuthorityBundleProjectionCheckpoint {
   readonly document: GraphDocument;
 }
 
+function isEmptyGraphDocument(document: GraphDocument): boolean {
+  return document.nodes.length === 0 && document.links.length === 0;
+}
+
 /** 从当前 bundle 装配结果里挑出“需要投影到远端 authority”的 demo document。 */
 export function resolveRemoteAuthorityBundleProjection(
   runtimeSetup: EditorBundleRuntimeSetup
@@ -39,6 +43,14 @@ export function shouldApplyRemoteAuthorityBundleProjection(options: {
   checkpoint: RemoteAuthorityBundleProjectionCheckpoint | null;
 }): boolean {
   const { runtime, projection, checkpoint } = options;
+  const authorityDocument = runtime.document;
+
+  if (
+    authorityDocument.documentId === projection.document.documentId ||
+    !isEmptyGraphDocument(authorityDocument)
+  ) {
+    return false;
+  }
 
   if (!checkpoint) {
     return true;

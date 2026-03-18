@@ -25,6 +25,8 @@ export interface StartNodeAuthorityServerOptions
   runtime?: NodeAuthorityRuntime;
   /** 可选 authority 协议适配器。 */
   protocolAdapter?: AuthorityProtocolAdapter;
+  /** 可选最小日志器。 */
+  logger?: Pick<Console, "info">;
 }
 
 /** Node authority server 的最小健康快照。 */
@@ -84,6 +86,7 @@ export async function startNodeAuthorityServer(
     });
   const protocolAdapter =
     options.protocolAdapter ?? DEFAULT_AUTHORITY_PROTOCOL_ADAPTER;
+  const logger = options.logger ?? console;
   const sockets = new Set<WebSocket>();
   const server = createServer((request, response) => {
     if (request.method === "GET" && request.url === "/health") {
@@ -123,6 +126,10 @@ export async function startNodeAuthorityServer(
 
   webSocketServer.on("connection", (socket: WebSocket) => {
     sockets.add(socket);
+    logger.info(
+      "[node-authority]",
+      `ws connected (connections=${sockets.size})`
+    );
     const disposeDocumentSubscription = runtime.subscribeDocument((document) => {
       const envelope = protocolAdapter.createEventEnvelope({
           type: "document",
@@ -166,6 +173,10 @@ export async function startNodeAuthorityServer(
       try {
         switch (envelope.request.action) {
           case "getDocument": {
+            logger.info(
+              "[node-authority]",
+              `request getDocument (connections=${sockets.size})`
+            );
             const successEnvelope = protocolAdapter.createSuccessEnvelope(
               envelope.requestId,
               {
@@ -177,6 +188,10 @@ export async function startNodeAuthorityServer(
             return;
           }
           case "submitOperation": {
+            logger.info(
+              "[node-authority]",
+              `request submitOperation:${envelope.request.operation.type} (connections=${sockets.size})`
+            );
             const successEnvelope = protocolAdapter.createSuccessEnvelope(
               envelope.requestId,
               {
@@ -188,6 +203,10 @@ export async function startNodeAuthorityServer(
             return;
           }
           case "replaceDocument": {
+            logger.info(
+              "[node-authority]",
+              `request replaceDocument (connections=${sockets.size})`
+            );
             const nextDocument = runtime.replaceDocument(envelope.request.document);
             const successEnvelope = protocolAdapter.createSuccessEnvelope(
               envelope.requestId,
@@ -215,12 +234,20 @@ export async function startNodeAuthorityServer(
       disposeDocumentSubscription();
       disposeRuntimeSubscription();
       sockets.delete(socket);
+      logger.info(
+        "[node-authority]",
+        `ws closed (connections=${sockets.size})`
+      );
     });
 
     socket.on("error", () => {
       disposeDocumentSubscription();
       disposeRuntimeSubscription();
       sockets.delete(socket);
+      logger.info(
+        "[node-authority]",
+        `ws errored (connections=${sockets.size})`
+      );
     });
   });
 

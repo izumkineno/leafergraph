@@ -341,6 +341,15 @@ describe("createEditorRemoteAuthorityAppRuntime", () => {
     expect(runtime.document.revision).toBe("11");
     expect(typeof runtime.client.getDocument).toBe("function");
     expect(runtime.runtimeFeedbackInlet).toBe(runtime.client);
+    expect(runtime.getConnectionStatus()).toBe("disconnected");
+
+    const connectionStates: EditorRemoteAuthorityConnectionStatus[] = [];
+    const disposeConnectionStatusSubscription =
+      runtime.subscribeConnectionStatus((status) => {
+        connectionStates.push(status);
+      });
+    expect(connectionStates).toEqual(["disconnected"]);
+    disposeConnectionStatusSubscription();
 
     runtime.dispose();
     expect(disposed).toBe(true);

@@ -204,6 +204,69 @@ describe("createRemoteGraphDocumentSession", () => {
     expect(revisions).toEqual(["1", "4"]);
   });
 
+  test("显式 resyncAuthorityDocument 默认应让 pending 失效，并切回权威文档", async () => {
+    const initialDocument = createTestDocument();
+    let resolveSubmitOperation: ((value: {
+      accepted: boolean;
+      changed: boolean;
+      revision: string;
+      document?: GraphDocument;
+    }) => void) | null = null;
+    const authorityClient: EditorRemoteAuthorityClient = {
+      async getDocument() {
+        return {
+          ...initialDocument,
+          revision: "9",
+          nodes: []
+        };
+      },
+      submitOperation() {
+        return new Promise((resolve) => {
+          resolveSubmitOperation = resolve;
+        });
+      }
+    };
+    const session = createRemoteGraphDocumentSession({
+      document: initialDocument,
+      client: authorityClient
+    });
+
+    const submission = session.submitOperationWithAuthority(
+      createNodeRemoveOperation()
+    );
+    expect(session.pendingOperationIds).toEqual(["op-remove-node-1"]);
+
+    const document = await session.resyncAuthorityDocument?.({
+      pendingReason: "authority 已重新连接，待确认操作已失效，请手工重试"
+    });
+    const confirmation = await submission.confirmation;
+
+    expect(document?.revision).toBe("9");
+    expect(session.currentDocument.revision).toBe("9");
+    expect(session.currentDocument.nodes).toHaveLength(0);
+    expect(session.pendingOperationIds).toHaveLength(0);
+    expect(confirmation).toEqual({
+      operationId: "op-remove-node-1",
+      accepted: false,
+      changed: false,
+      reason: "authority 已重新连接，待确认操作已失效，请手工重试",
+      revision: "1"
+    });
+
+    resolveSubmitOperation?.({
+      accepted: true,
+      changed: true,
+      revision: "10",
+      document: {
+        ...initialDocument,
+        revision: "10"
+      }
+    });
+    await Promise.resolve();
+
+    expect(session.currentDocument.revision).toBe("9");
+  });
+
   test("authority 请求失败后应自动 resync 当前权威文档", async () => {
     const initialDocument = createTestDocument();
     let getDocumentCount = 0;
@@ -242,7 +305,7 @@ describe("createRemoteGraphDocumentSession", () => {
 });
 
 describe("remote-client session binding", () => {
-  test("应暴露 authoritative document projection 标记并在 dispose 时释放 client 与订阅", () => {
+  test("应暴露 authoritative document projection 标记，并默认不释放外层 authority client", () => {
     let disposed = false;
     let unsubscribed = false;
     const authorityClient: EditorRemoteAuthorityClient = {
@@ -276,6 +339,39 @@ describe("remote-client session binding", () => {
     expect(binding.projectsSessionDocument).toBe(true);
     binding.dispose();
     expect(unsubscribed).toBe(true);
+    expect(disposed).toBe(false);
+  });
+
+  test("显式声明 ownership 后，binding dispose 应释放 authority client", () => {
+    let disposed = false;
+    const authorityClient: EditorRemoteAuthorityClient = {
+      async submitOperation() {
+        return {
+          accepted: true,
+          changed: false,
+          revision: "1"
+        };
+      },
+      subscribeDocument() {
+        return () => {};
+      },
+      dispose() {
+        disposed = true;
+      }
+    };
+    const factory = createConfigurableSessionBindingFactory({
+      mode: "remote-client",
+      remoteClient: {
+        client: authorityClient,
+        disposeClientOnDispose: true
+      }
+    });
+    const binding = factory({
+      graph: {} as LeaferGraph,
+      document: createTestDocument()
+    });
+
+    binding.dispose();
     expect(disposed).toBe(true);
   });
 });

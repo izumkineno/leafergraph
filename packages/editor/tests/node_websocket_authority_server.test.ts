@@ -129,5 +129,11 @@ describe("node websocket authority server", () => {
     disposeDocumentSubscription();
     disposeRuntimeFeedbackSubscription();
     client.dispose?.();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const disconnectedHealth = await fetch(server.healthUrl).then((response) =>
+      response.json()
+    );
+    expect(disconnectedHealth.connectionCount).toBe(0);
   });
 });

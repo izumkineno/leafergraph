@@ -19,6 +19,7 @@ import type {
 } from "leafergraph";
 import {
   createEditorCanvasCommandController,
+  type EditorCanvasCreatePlacement,
   type CreateEditorCanvasCommandControllerOptions,
   type EditorCanvasCreateNodeState
 } from "./canvas_commands";
@@ -62,6 +63,11 @@ export type EditorCommandRequest =
       type: "canvas.create-node-by-type";
       context: LeaferGraphContextMenuContext;
       nodeType: string;
+    }
+  | {
+      type: "canvas.create-node-from-workspace";
+      nodeType: string;
+      placement: EditorCanvasCreatePlacement;
     }
   | {
       type: "canvas.fit-view";
@@ -339,7 +345,13 @@ export interface EditorCommandBus {
  */
 export interface CreateEditorCommandBusOptions
   extends CreateEditorNodeCommandControllerOptions,
-    Pick<CreateEditorCanvasCommandControllerOptions, "quickCreateNodeType" | "onAfterFitView"> {
+    Pick<
+      CreateEditorCanvasCommandControllerOptions,
+      | "quickCreateNodeType"
+      | "onAfterFitView"
+      | "resolveLastPointerPagePoint"
+      | "resolveViewportCenterPagePoint"
+    > {
   /** 命令真正执行完成后的订阅入口，供未来历史记录与调试面板复用。 */
   onDidExecute?(execution: EditorCommandExecution): void;
   /** 当前图运行时是否已经准备完成。 */
@@ -548,6 +560,8 @@ function resolveCommandSummary(request: EditorCommandRequest): string {
       return "在画布创建节点";
     case "canvas.create-node-by-type":
       return `创建节点 ${request.nodeType}`;
+    case "canvas.create-node-from-workspace":
+      return `从节点库创建 ${request.nodeType}`;
     case "canvas.fit-view":
       return "适配画布视图";
     case "link.create":
@@ -620,7 +634,9 @@ export function createEditorCommandBus(
     graph: options.graph,
     nodeCommands,
     quickCreateNodeType: options.quickCreateNodeType,
-    onAfterFitView: options.onAfterFitView
+    onAfterFitView: options.onAfterFitView,
+    resolveLastPointerPagePoint: options.resolveLastPointerPagePoint,
+    resolveViewportCenterPagePoint: options.resolveViewportCenterPagePoint
   });
 
   const hasSelection = (selection: EditorNodeSelectionController): boolean =>
@@ -730,6 +746,7 @@ export function createEditorCommandBus(
   const requiresRuntimeReady = (request: EditorCommandRequest): boolean => {
     switch (request.type) {
       case "canvas.create-node":
+      case "canvas.create-node-from-workspace":
       case "canvas.fit-view":
       case "clipboard.paste":
       case "link.create":
@@ -752,6 +769,7 @@ export function createEditorCommandBus(
       case "canvas.create-node":
         return canvasCommands.resolveCreateNodeState().disabled;
       case "canvas.create-node-by-type":
+      case "canvas.create-node-from-workspace":
         return canvasCommands.resolveCreateNodeState(request.nodeType).disabled;
       case "canvas.fit-view":
         return false;
@@ -822,6 +840,22 @@ export function createEditorCommandBus(
           disabled,
           description: canvasCommands.resolveCreateNodeState(request.nodeType)
             .description
+        };
+      }
+      case "canvas.create-node-from-workspace": {
+        if (!isRuntimeReady()) {
+          return {
+            disabled,
+            description: "图初始化完成后可用"
+          };
+        }
+
+        return {
+          disabled,
+          description:
+            request.placement === "last-pointer"
+              ? `${canvasCommands.resolveCreateNodeState(request.nodeType).description}，优先落在最近鼠标位置`
+              : `${canvasCommands.resolveCreateNodeState(request.nodeType).description}，落在当前视口中心`
         };
       }
       case "canvas.fit-view":
@@ -1029,6 +1063,28 @@ export function createEditorCommandBus(
         const result = canvasCommands.createNodeAt(
           request.context,
           request.nodeType
+        );
+        const nodeSnapshots = captureCreatedNodeSnapshots(result);
+        return createExecution(request, result, {
+          operations: nodeSnapshots.length
+            ? createNodeCreateOperations(nodeSnapshots)
+            : undefined,
+          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
+          historyPayload: nodeSnapshots.length
+            ? {
+                kind: "create-nodes",
+                nodeSnapshots
+              }
+            : undefined,
+          success: nodeSnapshots.length > 0,
+          changed: nodeSnapshots.length > 0,
+          recordable: true
+        }, pendingOperationIdsBefore);
+      }
+      case "canvas.create-node-from-workspace": {
+        const result = canvasCommands.createNodeForWorkspace(
+          request.nodeType,
+          request.placement
         );
         const nodeSnapshots = captureCreatedNodeSnapshots(result);
         return createExecution(request, result, {

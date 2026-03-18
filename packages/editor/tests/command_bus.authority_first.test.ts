@@ -215,7 +215,15 @@ function createCommandBusForPendingAuthority(options?: {
     bindNode: () => {},
     unbindNode: () => {},
     quickCreateNodeType: "demo.pending",
-    isRuntimeReady: () => true
+    isRuntimeReady: () => true,
+    resolveLastPointerPagePoint: () => ({
+      x: 120,
+      y: 160
+    }),
+    resolveViewportCenterPagePoint: () => ({
+      x: 320,
+      y: 240
+    })
   });
 }
 
@@ -351,5 +359,22 @@ describe("EditorCommandBus authority-first", () => {
         }
       }
     });
+  });
+
+  test("canvas.create-node-from-workspace 在 remote-client 下应进入 pending", () => {
+    const commandBus = createCommandBusForPendingAuthority();
+
+    const execution = commandBus.execute({
+      type: "canvas.create-node-from-workspace",
+      nodeType: "demo.pending",
+      placement: "last-pointer"
+    });
+
+    expect(execution.success).toBe(true);
+    expect(execution.changed).toBe(true);
+    expect(execution.authority.status).toBe("pending");
+    expect(execution.documentRecorded).toBe(false);
+    expect(execution.operations?.[0]?.type).toBe("node.create");
+    expect(execution.historyPayload?.kind).toBe("create-nodes");
   });
 });

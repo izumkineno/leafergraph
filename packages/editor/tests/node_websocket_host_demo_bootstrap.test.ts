@@ -108,11 +108,12 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
       authorityName: "node-host-demo-test"
     });
     authorityServers.add(server);
+    const authorityOrigin = `http://localhost:${server.port}`;
     const infoLogs: unknown[][] = [];
     const host: NodeHostDemoBootstrapHost = {
       location: {
         search:
-          `?authorityUrl=${encodeURIComponent(server.authorityUrl)}` +
+          `?authorityUrl=${encodeURIComponent(authorityOrigin)}` +
           "&authorityLabel=Node%20Host%20Demo&authorityName=node-host-demo"
       },
       console: {
@@ -127,7 +128,7 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
     expect(host.LeaferGraphEditorAppBootstrap?.remoteAuthorityAdapter).toEqual({
       adapterId: NODE_WEBSOCKET_HOST_DEMO_ADAPTER_ID,
       options: {
-        authorityUrl: server.authorityUrl,
+        authorityUrl: authorityOrigin,
         authorityLabel: "Node Host Demo",
         authorityName: "node-host-demo",
         preloadTestBundles: false
@@ -148,10 +149,19 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
     const runtime = await createEditorRemoteAuthorityAppRuntime(source);
     expect(runtime.sourceLabel).toBe("Node Host Demo");
     expect(runtime.document.documentId).toBe("node-authority-doc");
+    expect(runtime.getConnectionStatus()).toBe("connected");
+    expect(
+      await fetch(server.healthUrl).then((response) => response.json())
+    ).toEqual({
+      ok: true,
+      documentId: "node-authority-doc",
+      revision: "1",
+      connectionCount: 1
+    });
     expect(host.LeaferGraphEditorNodeHostDemo).toEqual({
       mode: "node-host-demo",
       bridge: null,
-      authorityUrl: server.authorityUrl,
+      authorityUrl: authorityOrigin,
       authorityLabel: "Node Host Demo",
       authorityName: "node-host-demo",
       preloadTestBundles: false
@@ -164,11 +174,20 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
     expect(infoLogs).toEqual([
       [
         "[authority-node-host-demo]",
-        `viewport bridge ready for ${server.authorityUrl}`
+        `viewport bridge ready for ${authorityOrigin}`
       ]
     ]);
 
     runtime.dispose();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(
+      await fetch(server.healthUrl).then((response) => response.json())
+    ).toEqual({
+      ok: true,
+      documentId: "node-authority-doc",
+      revision: "1",
+      connectionCount: 0
+    });
   });
 
   test("未提供 query 时应使用与 Node server 默认监听一致的 authority 地址", () => {
@@ -177,7 +196,7 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
     installNodeWebSocketHostDemoBootstrap(host);
 
     expect(DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL).toBe(
-      "ws://127.0.0.1:5502/authority"
+      "http://localhost:5502"
     );
     expect(
       host.LeaferGraphEditorAppBootstrap?.remoteAuthorityAdapter?.options

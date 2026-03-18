@@ -493,12 +493,13 @@ export async function createEditorRemoteAuthorityAppRuntime(
       getConnectionStatus(): EditorRemoteAuthorityConnectionStatus {
         return hasConnectionStatusSubscribe(client)
           ? client.getConnectionStatus()
-          : "connected";
+          : "disconnected";
       },
       subscribeConnectionStatus(
         listener: (status: EditorRemoteAuthorityConnectionStatus) => void
       ): () => void {
         if (!hasConnectionStatusSubscribe(client)) {
+          listener("disconnected");
           return () => {};
         }
 

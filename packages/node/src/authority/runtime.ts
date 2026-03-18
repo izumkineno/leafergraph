@@ -1,6 +1,9 @@
+import { isDeepStrictEqual } from "node:util";
+
 import type {
   GraphDocument,
-  GraphLink
+  GraphLink,
+  GraphLinkEndpoint
 } from "../graph.js";
 import type {
   NodeSerializeResult,
@@ -164,6 +167,54 @@ function createLinkFromInput(
   };
 }
 
+function normalizeLinkEndpoint(endpoint: GraphLinkEndpoint): GraphLinkEndpoint {
+  return {
+    nodeId: endpoint.nodeId,
+    slot: endpoint.slot ?? 0
+  };
+}
+
+function resolveValidatedLinkEndpoint(
+  document: GraphDocument,
+  endpoint: GraphLinkEndpoint,
+  label: "source" | "target"
+): {
+  accepted: boolean;
+  endpoint?: GraphLinkEndpoint;
+  reason?: string;
+} {
+  const nodeId = endpoint.nodeId?.trim();
+  if (!nodeId) {
+    return {
+      accepted: false,
+      reason: `${label} 节点不能为空`
+    };
+  }
+
+  const slot = endpoint.slot ?? 0;
+  if (!Number.isInteger(slot) || slot < 0) {
+    return {
+      accepted: false,
+      reason: `${label} slot 必须是非负整数`
+    };
+  }
+
+  if (!document.nodes.some((node) => node.id === nodeId)) {
+    return {
+      accepted: false,
+      reason: `${label} 节点不存在`
+    };
+  }
+
+  return {
+    accepted: true,
+    endpoint: {
+      nodeId,
+      slot
+    }
+  };
+}
+
 /**
  * 创建内存态 Node authority runtime。
  *
@@ -181,7 +232,6 @@ export function createNodeAuthorityRuntime(
   const runtimeFeedbackListeners = new Set<
     (event: AuthorityRuntimeFeedbackEvent) => void
   >();
-  const nodeRunCountMap = new Map<string, number>();
   let generatedNodeSequence = 0;
   let generatedLinkSequence = 0;
   let currentDocument = clone(
@@ -225,54 +275,27 @@ export function createNodeAuthorityRuntime(
 
   const getNode = (nodeId: string) =>
     currentDocument.nodes.find((node) => node.id === nodeId) ?? null;
+  const getLink = (linkId: string) =>
+    currentDocument.links.find((link) => link.id === linkId) ?? null;
 
-  const nextNodeRunCount = (nodeId: string): number => {
-    const nextRunCount = (nodeRunCountMap.get(nodeId) ?? 0) + 1;
-    nodeRunCountMap.set(nodeId, nextRunCount);
-    return nextRunCount;
+  const createCurrentSnapshotResult = (
+    overrides: Partial<AuthorityOperationResult>
+  ): AuthorityOperationResult => ({
+    accepted: true,
+    changed: false,
+    revision: currentDocument.revision,
+    document: clone(currentDocument),
+    ...overrides
+  });
+
+  const commitDocument = (nextDocument: GraphDocument): void => {
+    currentDocument = nextDocument;
+    emitDocument();
   };
 
-  const emitNodeExecution = (nodeId: string, source: string): void => {
-    const node = getNode(nodeId);
-    if (!node) {
-      return;
-    }
-
-    const timestamp = Date.now();
-    const runCount = nextNodeRunCount(nodeId);
-    emitRuntimeFeedback({
-      type: "node.execution",
-      event: {
-        chainId: `${authorityName}:${nodeId}:${timestamp}`,
-        rootNodeId: node.id,
-        rootNodeType: node.type,
-        rootNodeTitle: node.title ?? node.id,
-        nodeId: node.id,
-        nodeType: node.type,
-        nodeTitle: node.title ?? node.id,
-        depth: 0,
-        sequence: 0,
-        source: "node-play",
-        trigger: "direct",
-        timestamp,
-        executionContext: {
-          source: "node-play",
-          entryNodeId: node.id,
-          stepIndex: 0,
-          startedAt: timestamp,
-          payload: {
-            authority: authorityName,
-            operationSource: source
-          }
-        },
-        state: {
-          status: "success",
-          runCount,
-          lastExecutedAt: timestamp,
-          lastSucceededAt: timestamp
-        }
-      }
-    });
+  const resetDocumentCaches = (): void => {
+    generatedNodeSequence = 0;
+    generatedLinkSequence = 0;
   };
 
   const emitNodeState = (
@@ -322,17 +345,22 @@ export function createNodeAuthorityRuntime(
             operation.input,
             resolveGeneratedNodeId
           );
-        currentDocument = {
-          ...currentDocument,
-          revision: nextRevision(currentDocument.revision),
-          nodes: [
-            ...currentDocument.nodes.filter((node) => node.id !== nextNode.id),
-            nextNode
-          ]
-        };
-        emitDocument();
-        emitNodeState(nextNode.id, "created", true);
-        emitNodeExecution(nextNode.id, operation.source);
+          const previousNode = getNode(nextNode.id);
+          if (previousNode && isDeepStrictEqual(previousNode, nextNode)) {
+            return createCurrentSnapshotResult({
+              reason: "文档无变化"
+            });
+          }
+
+          commitDocument({
+            ...currentDocument,
+            revision: nextRevision(currentDocument.revision),
+            nodes: [
+              ...currentDocument.nodes.filter((node) => node.id !== nextNode.id),
+              nextNode
+            ]
+          });
+          emitNodeState(nextNode.id, "created", true);
           return {
             accepted: true,
             changed: true,
@@ -352,59 +380,62 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-        currentDocument = {
-          ...currentDocument,
-          revision: nextRevision(currentDocument.revision),
-            nodes: currentDocument.nodes.map((item) =>
-              item.id === operation.nodeId
+          const nextNode: NodeSerializeResult = {
+            ...node,
+            title: operation.input.title ?? node.title,
+            layout: {
+              ...node.layout,
+              x: operation.input.x ?? node.layout.x,
+              y: operation.input.y ?? node.layout.y,
+              width: operation.input.width ?? node.layout.width,
+              height: operation.input.height ?? node.layout.height
+            },
+            properties:
+              operation.input.properties !== undefined
+                ? clone(operation.input.properties)
+                : node.properties,
+            propertySpecs:
+              operation.input.propertySpecs !== undefined
+                ? clone(operation.input.propertySpecs)
+                : node.propertySpecs,
+            inputs:
+              operation.input.inputs !== undefined
+                ? toNodeSlotSpecs(operation.input.inputs)
+                : node.inputs,
+            outputs:
+              operation.input.outputs !== undefined
+                ? toNodeSlotSpecs(operation.input.outputs)
+                : node.outputs,
+            widgets:
+              operation.input.widgets !== undefined
+                ? clone(operation.input.widgets)
+                : node.widgets,
+            data:
+              operation.input.data !== undefined
+                ? clone(operation.input.data)
+                : node.data,
+            flags:
+              operation.input.flags !== undefined
                 ? {
-                    ...item,
-                    title: operation.input.title ?? item.title,
-                    layout: {
-                      ...item.layout,
-                      x: operation.input.x ?? item.layout.x,
-                      y: operation.input.y ?? item.layout.y,
-                      width: operation.input.width ?? item.layout.width,
-                      height: operation.input.height ?? item.layout.height
-                    },
-                    properties:
-                      operation.input.properties !== undefined
-                        ? clone(operation.input.properties)
-                        : item.properties,
-                    propertySpecs:
-                      operation.input.propertySpecs !== undefined
-                        ? clone(operation.input.propertySpecs)
-                        : item.propertySpecs,
-                    inputs:
-                      operation.input.inputs !== undefined
-                        ? toNodeSlotSpecs(operation.input.inputs)
-                        : item.inputs,
-                    outputs:
-                      operation.input.outputs !== undefined
-                        ? toNodeSlotSpecs(operation.input.outputs)
-                        : item.outputs,
-                    widgets:
-                      operation.input.widgets !== undefined
-                        ? clone(operation.input.widgets)
-                        : item.widgets,
-                    data:
-                      operation.input.data !== undefined
-                        ? clone(operation.input.data)
-                        : item.data,
-                    flags:
-                      operation.input.flags !== undefined
-                        ? {
-                            ...item.flags,
-                            ...clone(operation.input.flags)
-                          }
-                        : item.flags
+                    ...node.flags,
+                    ...clone(operation.input.flags)
                   }
-                : item
-            )
+                : node.flags
           };
-        emitDocument();
-        emitNodeState(operation.nodeId, "updated", true);
-        emitNodeExecution(operation.nodeId, operation.source);
+          if (isDeepStrictEqual(node, nextNode)) {
+            return createCurrentSnapshotResult({
+              reason: "文档无变化"
+            });
+          }
+
+          commitDocument({
+            ...currentDocument,
+            revision: nextRevision(currentDocument.revision),
+            nodes: currentDocument.nodes.map((item) =>
+              item.id === operation.nodeId ? nextNode : item
+            )
+          });
+          emitNodeState(operation.nodeId, "updated", true);
           return {
             accepted: true,
             changed: true,
@@ -424,9 +455,18 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-        currentDocument = {
-          ...currentDocument,
-          revision: nextRevision(currentDocument.revision),
+          if (
+            node.layout.x === operation.input.x &&
+            node.layout.y === operation.input.y
+          ) {
+            return createCurrentSnapshotResult({
+              reason: "文档无变化"
+            });
+          }
+
+          commitDocument({
+            ...currentDocument,
+            revision: nextRevision(currentDocument.revision),
             nodes: currentDocument.nodes.map((item) =>
               item.id === operation.nodeId
                 ? {
@@ -439,9 +479,8 @@ export function createNodeAuthorityRuntime(
                   }
                 : item
             )
-          };
-        emitDocument();
-        emitNodeState(operation.nodeId, "moved", true);
+          });
+          emitNodeState(operation.nodeId, "moved", true);
           return {
             accepted: true,
             changed: true,
@@ -461,9 +500,18 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-        currentDocument = {
-          ...currentDocument,
-          revision: nextRevision(currentDocument.revision),
+          if (
+            node.layout.width === operation.input.width &&
+            node.layout.height === operation.input.height
+          ) {
+            return createCurrentSnapshotResult({
+              reason: "文档无变化"
+            });
+          }
+
+          commitDocument({
+            ...currentDocument,
+            revision: nextRevision(currentDocument.revision),
             nodes: currentDocument.nodes.map((item) =>
               item.id === operation.nodeId
                 ? {
@@ -476,10 +524,8 @@ export function createNodeAuthorityRuntime(
                   }
                 : item
             )
-          };
-        emitDocument();
-        emitNodeState(operation.nodeId, "resized", true);
-        emitNodeExecution(operation.nodeId, operation.source);
+          });
+          emitNodeState(operation.nodeId, "resized", true);
           return {
             accepted: true,
             changed: true,
@@ -491,11 +537,15 @@ export function createNodeAuthorityRuntime(
           const existed = currentDocument.nodes.some(
             (node) => node.id === operation.nodeId
           );
-          currentDocument = {
+          if (!existed) {
+            return createCurrentSnapshotResult({
+              reason: "节点不存在"
+            });
+          }
+
+          commitDocument({
             ...currentDocument,
-            revision: existed
-              ? nextRevision(currentDocument.revision)
-              : currentDocument.revision,
+            revision: nextRevision(currentDocument.revision),
             nodes: currentDocument.nodes.filter(
               (node) => node.id !== operation.nodeId
             ),
@@ -504,33 +554,71 @@ export function createNodeAuthorityRuntime(
                 link.source.nodeId !== operation.nodeId &&
                 link.target.nodeId !== operation.nodeId
             )
-        };
-        if (existed) {
-          emitDocument();
+          });
+
           emitNodeState(operation.nodeId, "removed", false);
-        }
           return {
             accepted: true,
-            changed: existed,
+            changed: true,
             revision: currentDocument.revision,
             document: clone(currentDocument)
           };
         }
         case "link.create": {
+          const sourceResolution = resolveValidatedLinkEndpoint(
+            currentDocument,
+            operation.input.source,
+            "source"
+          );
+          if (!sourceResolution.accepted) {
+            return {
+              accepted: false,
+              changed: false,
+              reason: sourceResolution.reason,
+              revision: currentDocument.revision,
+              document: clone(currentDocument)
+            };
+          }
+
+          const targetResolution = resolveValidatedLinkEndpoint(
+            currentDocument,
+            operation.input.target,
+            "target"
+          );
+          if (!targetResolution.accepted) {
+            return {
+              accepted: false,
+              changed: false,
+              reason: targetResolution.reason,
+              revision: currentDocument.revision,
+              document: clone(currentDocument)
+            };
+          }
+
           const nextLink = createLinkFromInput(
-            operation.input,
+            {
+              ...operation.input,
+              source: sourceResolution.endpoint!,
+              target: targetResolution.endpoint!
+            },
             resolveGeneratedLinkId
           );
-        currentDocument = {
-          ...currentDocument,
-          revision: nextRevision(currentDocument.revision),
+          const previousLink = getLink(nextLink.id);
+          if (previousLink && isDeepStrictEqual(previousLink, nextLink)) {
+            return createCurrentSnapshotResult({
+              reason: "文档无变化"
+            });
+          }
+
+          commitDocument({
+            ...currentDocument,
+            revision: nextRevision(currentDocument.revision),
             links: [
               ...currentDocument.links.filter((link) => link.id !== nextLink.id),
               nextLink
             ]
-          };
-        emitDocument();
-        emitNodeState(nextLink.source.nodeId, "connections", true);
+          });
+          emitNodeState(nextLink.source.nodeId, "connections", true);
           emitNodeState(nextLink.target.nodeId, "connections", true);
           emitLinkPropagation(nextLink, operation.source);
           return {
@@ -541,32 +629,31 @@ export function createNodeAuthorityRuntime(
           };
         }
         case "link.remove": {
-          const existed = currentDocument.links.some(
-            (link) => link.id === operation.linkId
-          );
-        currentDocument = {
-          ...currentDocument,
-          revision: existed
-              ? nextRevision(currentDocument.revision)
-              : currentDocument.revision,
-          links: currentDocument.links.filter(
-            (link) => link.id !== operation.linkId
-          )
-        };
-        if (existed) {
-          emitDocument();
-        }
-        return {
+          const removedLink = getLink(operation.linkId);
+          if (!removedLink) {
+            return createCurrentSnapshotResult({
+              reason: "连线不存在"
+            });
+          }
+
+          commitDocument({
+            ...currentDocument,
+            revision: nextRevision(currentDocument.revision),
+            links: currentDocument.links.filter(
+              (link) => link.id !== operation.linkId
+            )
+          });
+          emitNodeState(removedLink.source.nodeId, "connections", true);
+          emitNodeState(removedLink.target.nodeId, "connections", true);
+          return {
             accepted: true,
-            changed: existed,
+            changed: true,
             revision: currentDocument.revision,
             document: clone(currentDocument)
           };
         }
         case "link.reconnect": {
-          const link = currentDocument.links.find(
-            (item) => item.id === operation.linkId
-          );
+          const link = getLink(operation.linkId);
           if (!link) {
             return {
               accepted: false,
@@ -577,28 +664,75 @@ export function createNodeAuthorityRuntime(
             };
           }
 
-        currentDocument = {
-          ...currentDocument,
-          revision: nextRevision(currentDocument.revision),
-            links: currentDocument.links.map((item) =>
-              item.id === operation.linkId
-                ? {
-                    ...item,
-                    source: operation.input.source ?? item.source,
-                    target: operation.input.target ?? item.target
-                  }
-                : item
-            )
-          };
-        const nextLink = currentDocument.links.find(
-          (item) => item.id === operation.linkId
-        );
-        if (nextLink) {
-          emitDocument();
-          emitNodeState(nextLink.source.nodeId, "connections", true);
-          emitNodeState(nextLink.target.nodeId, "connections", true);
-          emitLinkPropagation(nextLink, operation.source);
+          const sourceResolution = operation.input.source
+            ? resolveValidatedLinkEndpoint(
+                currentDocument,
+                operation.input.source,
+                "source"
+              )
+            : {
+                accepted: true as const,
+                endpoint: normalizeLinkEndpoint(link.source)
+              };
+          if (!sourceResolution.accepted) {
+            return {
+              accepted: false,
+              changed: false,
+              reason: sourceResolution.reason,
+              revision: currentDocument.revision,
+              document: clone(currentDocument)
+            };
           }
+
+          const targetResolution = operation.input.target
+            ? resolveValidatedLinkEndpoint(
+                currentDocument,
+                operation.input.target,
+                "target"
+              )
+            : {
+                accepted: true as const,
+                endpoint: normalizeLinkEndpoint(link.target)
+              };
+          if (!targetResolution.accepted) {
+            return {
+              accepted: false,
+              changed: false,
+              reason: targetResolution.reason,
+              revision: currentDocument.revision,
+              document: clone(currentDocument)
+            };
+          }
+
+          const nextLink: GraphLink = {
+            ...link,
+            source: sourceResolution.endpoint!,
+            target: targetResolution.endpoint!
+          };
+          if (isDeepStrictEqual(link, nextLink)) {
+            return createCurrentSnapshotResult({
+              reason: "文档无变化"
+            });
+          }
+
+          commitDocument({
+            ...currentDocument,
+            revision: nextRevision(currentDocument.revision),
+            links: currentDocument.links.map((item) =>
+              item.id === operation.linkId ? nextLink : item
+            )
+          });
+
+          const affectedNodeIds = new Set([
+            link.source.nodeId,
+            link.target.nodeId,
+            nextLink.source.nodeId,
+            nextLink.target.nodeId
+          ]);
+          for (const nodeId of affectedNodeIds) {
+            emitNodeState(nodeId, "connections", true);
+          }
+          emitLinkPropagation(nextLink, operation.source);
           return {
             accepted: true,
             changed: true,
@@ -611,6 +745,7 @@ export function createNodeAuthorityRuntime(
 
     replaceDocument(document: GraphDocument): GraphDocument {
       currentDocument = clone(document);
+      resetDocumentCaches();
       emitDocument();
       return clone(currentDocument);
     },

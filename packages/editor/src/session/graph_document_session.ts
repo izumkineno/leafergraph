@@ -18,6 +18,20 @@ type GraphOperationConfirmationListener = (
   confirmation: EditorGraphOperationAuthorityConfirmation
 ) => void;
 
+/** 主动重新同步 authority 文档时可选的恢复策略。 */
+export interface EditorGraphDocumentResyncOptions {
+  /**
+   * 是否在重新同步前让现有 pending 操作失效。
+   *
+   * @remarks
+   * 当前阶段默认 `true`，采用 `resync-only` 策略：
+   * 重连 / 手工恢复后以 authority 文档为准，不自动 replay 本地 pending。
+   */
+  invalidatePending?: boolean;
+  /** 让 pending 失效时回填给 UI / history 的最小原因。 */
+  pendingReason?: string;
+}
+
 /**
  * 一次操作在 authority 侧的最小确认结果。
  *
@@ -53,7 +67,9 @@ export interface EditorGraphDocumentSession {
   /** 当前仍在等待 authority 确认的操作 ID 列表。 */
   readonly pendingOperationIds: readonly string[];
   /** 主动重新拉取 authority 文档并同步当前快照。 */
-  resyncAuthorityDocument?(): Promise<GraphDocument>;
+  resyncAuthorityDocument?(
+    options?: EditorGraphDocumentResyncOptions
+  ): Promise<GraphDocument>;
   /** 提交一条正式操作，并返回可等待 authority 确认的回执。 */
   submitOperationWithAuthority(
     operation: GraphOperation
@@ -761,17 +777,17 @@ export function createRemoteGraphDocumentSession(
     emitPending();
   };
 
-  const resyncAuthorityDocument = async (resyncOptions?: {
-    cancelPending?: boolean;
-    pendingReason?: string;
-  }): Promise<GraphDocument> => {
+  const resyncAuthorityDocument = async (
+    resyncOptions?: EditorGraphDocumentResyncOptions
+  ): Promise<GraphDocument> => {
     if (typeof options.client.getDocument !== "function") {
       return cloneGraphDocument(currentDocument);
     }
 
-    if (resyncOptions?.cancelPending !== false) {
+    if (resyncOptions?.invalidatePending !== false) {
       cancelPendingOperations(
-        resyncOptions?.pendingReason ?? "authority 已重新同步，待确认操作已取消"
+        resyncOptions?.pendingReason ??
+          "authority 已重新同步，待确认操作已失效，请手工重试"
       );
     }
 
@@ -889,7 +905,7 @@ export function createRemoteGraphDocumentSession(
         let revision = currentDocument.revision;
         try {
           const authorityDocument = await resyncAuthorityDocument({
-            cancelPending: false
+            invalidatePending: false
           });
           revision = authorityDocument.revision;
         } catch {
@@ -926,8 +942,10 @@ export function createRemoteGraphDocumentSession(
       return [...pendingOperations.keys()];
     },
 
-    resyncAuthorityDocument(): Promise<GraphDocument> {
-      return resyncAuthorityDocument();
+    resyncAuthorityDocument(
+      resyncOptions?: EditorGraphDocumentResyncOptions
+    ): Promise<GraphDocument> {
+      return resyncAuthorityDocument(resyncOptions);
     },
 
     submitOperationWithAuthority(
@@ -966,7 +984,7 @@ export function createRemoteGraphDocumentSession(
         })
         .catch(() => {
           void resyncAuthorityDocument({
-            cancelPending: false
+            invalidatePending: false
           }).catch(() => {
             // 当前阶段若 resync 也失败，先保留最后一次本地替换结果。
           });
