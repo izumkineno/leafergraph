@@ -267,6 +267,7 @@ export function createEditorCommandHistory(
           },
           redo() {
             restoreNodeSnapshots(payload.nodeSnapshots, "editor.history.redo");
+            restoreLinks(payload.links ?? [], "editor.history.redo");
           }
         };
       }
