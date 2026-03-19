@@ -21,8 +21,31 @@ function createResizeOperation(): GraphOperation {
   };
 }
 
+function createDocumentUpdateOperation(): GraphOperation {
+  return {
+    type: "document.update",
+    input: {
+      appKind: "demo-worker-updated",
+      meta: {
+        mode: "patched"
+      },
+      capabilityProfile: {
+        id: "demo-profile",
+        features: ["runtime-control"]
+      },
+      adapterBinding: {
+        adapterId: "demo-adapter",
+        appKind: "demo-worker-updated"
+      }
+    },
+    operationId: "demo-worker-document-update",
+    timestamp: Date.now(),
+    source: "editor.test"
+  };
+}
+
 describe("createDemoRemoteAuthorityService", () => {
-  test("应处理文档、操作确认与运行反馈", async () => {
+  test("应处理文档操作确认，并避免把普通文档更新误报为执行事件", async () => {
     const service = createDemoRemoteAuthorityService();
     const pushedDocumentRevisions: string[] = [];
     const disposeDocumentSubscription = service.subscribeDocument?.((document) => {
@@ -60,12 +83,46 @@ describe("createDemoRemoteAuthorityService", () => {
     expect(
       runtimeFeedbackEvents.some(
         (event) =>
-          event.type === "node.execution" &&
-          event.event.nodeId === "node-1" &&
-          event.event.state.status === "success"
+          event.type === "node.execution"
       )
-    ).toBe(true);
+    ).toBe(false);
     expect(pushedDocumentRevisions).toEqual(["2"]);
+
+    const updateResult = await service.submitOperation(createDocumentUpdateOperation(), {
+      currentDocument: submitResult.document as GraphDocument,
+      pendingOperationIds: []
+    });
+    expect(updateResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      revision: "3"
+    });
+    expect(updateResult.document).toMatchObject({
+      appKind: "demo-worker-updated",
+      meta: {
+        mode: "patched"
+      },
+      capabilityProfile: {
+        id: "demo-profile",
+        features: ["runtime-control"]
+      },
+      adapterBinding: {
+        adapterId: "demo-adapter",
+        appKind: "demo-worker-updated"
+      }
+    });
+
+    const noopUpdateResult = await service.submitOperation(createDocumentUpdateOperation(), {
+      currentDocument: updateResult.document as GraphDocument,
+      pendingOperationIds: []
+    });
+    expect(noopUpdateResult).toMatchObject({
+      accepted: true,
+      changed: false,
+      revision: "3",
+      reason: "文档无变化"
+    });
+    expect(pushedDocumentRevisions).toEqual(["2", "3"]);
 
     const replacedDocument = await service.replaceDocument(
       {
@@ -84,9 +141,58 @@ describe("createDemoRemoteAuthorityService", () => {
     );
     expect(replacedDocument?.documentId).toBe("demo-worker-doc-2");
     expect(replacedDocument?.revision).toBe("10");
-    expect(pushedDocumentRevisions).toEqual(["2", "10"]);
+    expect(pushedDocumentRevisions).toEqual(["2", "3", "10"]);
 
     disposeDocumentSubscription?.();
+    disposeRuntimeFeedbackSubscription?.();
+  });
+
+  test("应支持 graph.step 运行控制并发出图级执行反馈", async () => {
+    const service = createDemoRemoteAuthorityService();
+    const runtimeFeedbackEvents: RuntimeFeedbackEvent[] = [];
+    const disposeRuntimeFeedbackSubscription = service.subscribe?.((event) => {
+      runtimeFeedbackEvents.push(event);
+    });
+
+    if (typeof service.controlRuntime !== "function") {
+      throw new Error("demo authority service 缺少 controlRuntime");
+    }
+
+    const result = await service.controlRuntime({
+      type: "graph.step"
+    });
+
+    expect(result).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle",
+        queueSize: 0,
+        stepCount: 1,
+        lastSource: "graph-step"
+      }
+    });
+    expect(
+      runtimeFeedbackEvents
+        .filter((event) => event.type === "graph.execution")
+        .map((event) => event.event.type)
+    ).toEqual(["started", "advanced", "drained"]);
+    expect(
+      runtimeFeedbackEvents.some(
+        (event) =>
+          event.type === "node.execution" &&
+          event.event.nodeId === "node-1" &&
+          event.event.source === "graph-step"
+      )
+    ).toBe(true);
+    expect(
+      runtimeFeedbackEvents.some(
+        (event) =>
+          event.type === "link.propagation" &&
+          event.event.linkId === "link-1"
+      )
+    ).toBe(true);
+
     disposeRuntimeFeedbackSubscription?.();
   });
 });

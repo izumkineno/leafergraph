@@ -1,9 +1,17 @@
 import type {
   GraphDocument,
   GraphOperation,
+  LeaferGraphGraphExecutionState,
   LeaferGraphNodeStateChangeReason,
   RuntimeFeedbackEvent
 } from "leafergraph";
+import type {
+  EditorRemoteAuthorityOperationContext,
+  EditorRemoteAuthorityOperationResult,
+  EditorRemoteAuthorityReplaceDocumentContext,
+  EditorRemoteAuthorityRuntimeControlRequest,
+  EditorRemoteAuthorityRuntimeControlResult
+} from "../session/graph_document_authority_client";
 import type {
   EditorRemoteAuthorityDocumentService
 } from "../session/graph_document_authority_service";
@@ -22,6 +30,22 @@ function clone<T>(value: T): T {
 
 type GraphNodeSnapshot = GraphDocument["nodes"][number];
 type GraphLinkSnapshot = GraphDocument["links"][number];
+interface DemoGraphPlayRun {
+  runId: string;
+  startedAt: number;
+  queue: string[];
+  stepCount: number;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
+interface ExecuteNodeChainOptions {
+  rootNodeId: string;
+  source: "node-play" | "graph-play" | "graph-step";
+  runId?: string;
+  startedAt: number;
+}
+
+let demoGraphRunSeed = 1;
 
 function createDefaultDemoDocument(): GraphDocument {
   return {
@@ -98,6 +122,34 @@ function nextRevision(
   return `${revision}#1`;
 }
 
+function isStructurallyEqual(left: unknown, right: unknown): boolean {
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return left === right;
+  }
+}
+
+function createIdleGraphExecutionState(): LeaferGraphGraphExecutionState {
+  return {
+    status: "idle",
+    queueSize: 0,
+    stepCount: 0
+  };
+}
+
+function cloneGraphExecutionState(
+  state: LeaferGraphGraphExecutionState
+): LeaferGraphGraphExecutionState {
+  return { ...state };
+}
+
+function createGraphRunId(source: "graph-play" | "graph-step"): string {
+  const runId = `graph:${source}:${Date.now()}:${demoGraphRunSeed}`;
+  demoGraphRunSeed += 1;
+  return runId;
+}
+
 /**
  * 创建浏览器内可直接挂到 worker / iframe host 的 authority demo service。
  *
@@ -114,13 +166,19 @@ export function createDemoRemoteAuthorityService(
   const runtimeFeedbackListeners = new Set<
     (event: RuntimeFeedbackEvent) => void
   >();
-  const nodeRunCountMap = new Map<string, number>();
+  const nodeExecutionStateMap = new Map<
+    string,
+    NonNullable<Extract<RuntimeFeedbackEvent, { type: "node.execution" }>["event"]["state"]>
+  >();
   const authorityName = options.authorityName ?? "demo-worker";
   let generatedNodeSequence = 0;
   let generatedLinkSequence = 0;
   let currentDocument = clone(
     options.initialDocument ?? createDefaultDemoDocument()
   );
+  let graphExecutionState = createIdleGraphExecutionState();
+  let activeGraphPlayRun: DemoGraphPlayRun | null = null;
+  let stepCursor = 0;
 
   const emitRuntimeFeedback = (event: RuntimeFeedbackEvent): void => {
     const snapshot = clone(event);
@@ -136,57 +194,38 @@ export function createDemoRemoteAuthorityService(
     }
   };
 
-  const getNode = (nodeId: string) =>
-    currentDocument.nodes.find((node) => node.id === nodeId) ?? null;
-
-  const nextNodeRunCount = (nodeId: string): number => {
-    const nextRunCount = (nodeRunCountMap.get(nodeId) ?? 0) + 1;
-    nodeRunCountMap.set(nodeId, nextRunCount);
-    return nextRunCount;
+  const commitDocument = (nextDocument: GraphDocument): void => {
+    currentDocument = nextDocument;
+    emitDocument();
   };
 
-  const emitNodeExecution = (nodeId: string, source: string): void => {
-    const node = getNode(nodeId);
-    if (!node) {
+  const hasNodeId = (nodeId: string): boolean =>
+    currentDocument.nodes.some((node) => node.id === nodeId);
+  const hasLinkId = (linkId: string): boolean =>
+    currentDocument.links.some((link) => link.id === linkId);
+
+  const stopActiveGraphPlayWithoutEvent = (): void => {
+    if (!activeGraphPlayRun) {
       return;
     }
 
-    const timestamp = Date.now();
-    const runCount = nextNodeRunCount(nodeId);
-    emitRuntimeFeedback({
-      type: "node.execution",
-      event: {
-        chainId: `${authorityName}:${nodeId}:${timestamp}`,
-        rootNodeId: node.id,
-        rootNodeType: node.type,
-        rootNodeTitle: node.title ?? node.id,
-        nodeId: node.id,
-        nodeType: node.type,
-        nodeTitle: node.title ?? node.id,
-        depth: 0,
-        sequence: 0,
-        source: "node-play",
-        trigger: "direct",
-        timestamp,
-        executionContext: {
-          source: "node-play",
-          entryNodeId: node.id,
-          stepIndex: 0,
-          startedAt: timestamp,
-          payload: {
-            authority: authorityName,
-            operationSource: source
-          }
-        },
-        state: {
-          status: "success",
-          runCount,
-          lastExecutedAt: timestamp,
-          lastSucceededAt: timestamp
-        }
-      }
-    });
+    if (activeGraphPlayRun.timer !== null) {
+      clearTimeout(activeGraphPlayRun.timer);
+    }
+    activeGraphPlayRun = null;
   };
+
+  const resetDocumentCaches = (): void => {
+    generatedNodeSequence = 0;
+    generatedLinkSequence = 0;
+    stopActiveGraphPlayWithoutEvent();
+    nodeExecutionStateMap.clear();
+    graphExecutionState = createIdleGraphExecutionState();
+    stepCursor = 0;
+  };
+
+  const getNode = (nodeId: string) =>
+    currentDocument.nodes.find((node) => node.id === nodeId) ?? null;
 
   const emitNodeState = (
     nodeId: string,
@@ -204,32 +243,323 @@ export function createDemoRemoteAuthorityService(
     });
   };
 
-  const emitLinkPropagation = (link: GraphLinkSnapshot, source: string): void => {
+  const emitLinkPropagation = (
+    link: GraphLinkSnapshot,
+    source: string,
+    chainId?: string
+  ): void => {
     emitRuntimeFeedback({
       type: "link.propagation",
       event: {
         linkId: link.id,
-        chainId: `${authorityName}:${link.id}:${Date.now()}`,
+        chainId: chainId ?? `${authorityName}:${link.id}:${Date.now()}`,
         sourceNodeId: link.source.nodeId,
         sourceSlot: link.source.slot ?? 0,
         targetNodeId: link.target.nodeId,
         targetSlot: link.target.slot ?? 0,
         payload: {
           authority: authorityName,
-          operationSource: source
+          source
         },
         timestamp: Date.now()
       }
     });
   };
 
+  const emitGraphExecution = (
+    type: "started" | "advanced" | "drained" | "stopped",
+    input: {
+      runId?: string;
+      source?: "graph-play" | "graph-step";
+      nodeId?: string;
+      timestamp: number;
+    }
+  ): void => {
+    emitRuntimeFeedback({
+      type: "graph.execution",
+      event: {
+        type,
+        state: cloneGraphExecutionState(graphExecutionState),
+        runId: input.runId,
+        source: input.source,
+        nodeId: input.nodeId,
+        timestamp: input.timestamp
+      }
+    });
+  };
+
+  const advanceNodeExecutionState = (
+    nodeId: string,
+    timestamp: number
+  ): NonNullable<Extract<RuntimeFeedbackEvent, { type: "node.execution" }>["event"]["state"]> => {
+    const previousState = nodeExecutionStateMap.get(nodeId) ?? {
+      status: "idle",
+      runCount: 0
+    };
+    const nextState = {
+      status: "success",
+      runCount: previousState.runCount + 1,
+      lastExecutedAt: timestamp,
+      lastSucceededAt: timestamp,
+      lastFailedAt: previousState.lastFailedAt,
+      lastErrorMessage: previousState.lastErrorMessage
+    } as const;
+    nodeExecutionStateMap.set(nodeId, nextState);
+    return clone(nextState);
+  };
+
+  const emitNodeExecution = (
+    rootNode: GraphNodeSnapshot,
+    node: GraphNodeSnapshot,
+    input: {
+      source: "node-play" | "graph-play" | "graph-step";
+      runId?: string;
+      chainId: string;
+      depth: number;
+      sequence: number;
+      trigger: "direct" | "propagated";
+      startedAt: number;
+      timestamp: number;
+    }
+  ): void => {
+    emitRuntimeFeedback({
+      type: "node.execution",
+      event: {
+        chainId: input.chainId,
+        rootNodeId: rootNode.id,
+        rootNodeType: rootNode.type,
+        rootNodeTitle: rootNode.title ?? rootNode.id,
+        nodeId: node.id,
+        nodeType: node.type,
+        nodeTitle: node.title ?? node.id,
+        depth: input.depth,
+        sequence: input.sequence,
+        source: input.source,
+        trigger: input.trigger,
+        timestamp: input.timestamp,
+        executionContext: {
+          source: input.source,
+          runId: input.runId,
+          entryNodeId: rootNode.id,
+          stepIndex: input.sequence,
+          startedAt: input.startedAt,
+          payload: {
+            authority: authorityName
+          }
+        },
+        state: advanceNodeExecutionState(node.id, input.timestamp)
+      }
+    });
+    emitNodeState(node.id, "execution", true);
+  };
+
+  const patchDocumentRoot = (
+    document: GraphDocument,
+    input: Extract<GraphOperation, { type: "document.update" }>["input"]
+  ): GraphDocument => ({
+    ...document,
+    appKind: input.appKind ?? document.appKind,
+    meta: input.meta !== undefined ? clone(input.meta) : clone(document.meta),
+    capabilityProfile:
+      input.capabilityProfile !== undefined
+        ? input.capabilityProfile === null
+          ? undefined
+          : clone(input.capabilityProfile)
+        : clone(document.capabilityProfile),
+    adapterBinding:
+      input.adapterBinding !== undefined
+        ? input.adapterBinding === null
+          ? undefined
+          : clone(input.adapterBinding)
+        : clone(document.adapterBinding)
+  });
+
+  const resolveValidatedLinkEndpoint = (
+    endpoint: GraphLinkSnapshot["source"],
+    label: "source" | "target"
+  ): { accepted: boolean; endpoint?: GraphLinkSnapshot["source"]; reason?: string } => {
+    const nodeId = endpoint.nodeId?.trim();
+    if (!nodeId) {
+      return { accepted: false, reason: `${label} 节点不能为空` };
+    }
+
+    const slot = endpoint.slot ?? 0;
+    if (!Number.isInteger(slot) || slot < 0) {
+      return { accepted: false, reason: `${label} slot 必须是非负整数` };
+    }
+
+    const node = getNode(nodeId);
+    if (!node) {
+      return { accepted: false, reason: `${label} 节点不存在` };
+    }
+
+    const slots = (label === "source" ? node.outputs : node.inputs) ?? [];
+    if (!slots[slot]) {
+      return { accepted: false, reason: `${label} 端点不存在` };
+    }
+
+    return { accepted: true, endpoint: { nodeId, slot } };
+  };
+
+  const executeNodeChain = (input: ExecuteNodeChainOptions): boolean => {
+    const rootNode = getNode(input.rootNodeId);
+    if (!rootNode) {
+      return false;
+    }
+
+    const chainId = `${authorityName}:${input.source}:${rootNode.id}:${input.startedAt}`;
+    const visited = new Set<string>();
+    let sequence = 0;
+    const walk = (
+      nodeId: string,
+      depth: number,
+      trigger: "direct" | "propagated"
+    ): void => {
+      if (visited.has(nodeId)) {
+        return;
+      }
+
+      const node = getNode(nodeId);
+      if (!node) {
+        return;
+      }
+
+      visited.add(nodeId);
+      const currentSequence = sequence;
+      sequence += 1;
+      emitNodeExecution(rootNode, node, {
+        source: input.source,
+        runId: input.runId,
+        chainId,
+        depth,
+        sequence: currentSequence,
+        trigger,
+        startedAt: input.startedAt,
+        timestamp: Date.now()
+      });
+
+      for (const link of currentDocument.links) {
+        if (link.source.nodeId !== nodeId || !getNode(link.target.nodeId)) {
+          continue;
+        }
+
+        emitLinkPropagation(link, input.source, chainId);
+        walk(link.target.nodeId, depth + 1, "propagated");
+      }
+    };
+
+    walk(rootNode.id, 0, "direct");
+    return true;
+  };
+
+  const finalizeGraphPlayRun = (
+    run: DemoGraphPlayRun,
+    type: "drained" | "stopped"
+  ): void => {
+    if (activeGraphPlayRun?.runId !== run.runId) {
+      return;
+    }
+
+    if (run.timer !== null) {
+      clearTimeout(run.timer);
+    }
+    activeGraphPlayRun = null;
+    const timestamp = Date.now();
+    graphExecutionState = {
+      status: "idle",
+      queueSize: 0,
+      stepCount: run.stepCount,
+      startedAt: run.startedAt,
+      stoppedAt: timestamp,
+      lastSource: "graph-play"
+    };
+    emitGraphExecution(type, {
+      runId: run.runId,
+      source: "graph-play",
+      timestamp
+    });
+  };
+
+  const scheduleNextGraphPlayRunTick = (): void => {
+    const run = activeGraphPlayRun;
+    if (!run) {
+      return;
+    }
+
+    run.timer = setTimeout(() => {
+      const activeRun = activeGraphPlayRun;
+      if (!activeRun || activeRun.runId !== run.runId) {
+        return;
+      }
+
+      const rootNodeId = activeRun.queue.shift();
+      if (!rootNodeId) {
+        finalizeGraphPlayRun(activeRun, "drained");
+        return;
+      }
+
+      executeNodeChain({
+        rootNodeId,
+        source: "graph-play",
+        runId: activeRun.runId,
+        startedAt: activeRun.startedAt
+      });
+      activeRun.stepCount += 1;
+
+      const timestamp = Date.now();
+      const hasMore = activeRun.queue.length > 0;
+      graphExecutionState = {
+        status: hasMore ? "running" : "idle",
+        runId: hasMore ? activeRun.runId : undefined,
+        queueSize: activeRun.queue.length,
+        stepCount: activeRun.stepCount,
+        startedAt: activeRun.startedAt,
+        stoppedAt: hasMore ? undefined : timestamp,
+        lastSource: "graph-play"
+      };
+      emitGraphExecution("advanced", {
+        runId: activeRun.runId,
+        source: "graph-play",
+        nodeId: rootNodeId,
+        timestamp
+      });
+
+      if (hasMore) {
+        scheduleNextGraphPlayRunTick();
+        return;
+      }
+
+      finalizeGraphPlayRun(activeRun, "drained");
+    }, 0);
+  };
+
+  const collectRootNodeIds = (): string[] =>
+    currentDocument.nodes
+      .map((node) => node.id)
+      .filter((nodeId) => Boolean(getNode(nodeId)));
+
+  const createRuntimeControlResult = (
+    overrides: Partial<EditorRemoteAuthorityRuntimeControlResult>
+  ): EditorRemoteAuthorityRuntimeControlResult => ({
+    accepted: true,
+    changed: false,
+    state: cloneGraphExecutionState(graphExecutionState),
+    ...overrides
+  });
+
   const nextNodeId = (): string => {
-    generatedNodeSequence += 1;
+    do {
+      generatedNodeSequence += 1;
+    } while (hasNodeId(`${authorityName}-node-${generatedNodeSequence}`));
+
     return `${authorityName}-node-${generatedNodeSequence}`;
   };
 
   const nextLinkId = (): string => {
-    generatedLinkSequence += 1;
+    do {
+      generatedLinkSequence += 1;
+    } while (hasLinkId(`${authorityName}-link-${generatedLinkSequence}`));
+
     return `${authorityName}-link-${generatedLinkSequence}`;
   };
 
@@ -290,113 +620,113 @@ export function createDemoRemoteAuthorityService(
     };
   };
 
+  const createCurrentSnapshotResult = (
+    overrides: Partial<{
+      accepted: boolean;
+      changed: boolean;
+      reason?: string;
+    }>
+  ): EditorRemoteAuthorityOperationResult => ({
+    accepted: true,
+    changed: false,
+    revision: currentDocument.revision,
+    document: clone(currentDocument),
+    ...overrides
+  });
+
   const applyOperation = (operation: GraphOperation) => {
     switch (operation.type) {
+      case "document.update": {
+        const nextDocument = patchDocumentRoot(currentDocument, operation.input);
+        if (isStructurallyEqual(currentDocument, nextDocument)) {
+          return createCurrentSnapshotResult({ reason: "文档无变化" });
+        }
+
+        commitDocument({
+          ...nextDocument,
+          revision: nextRevision(currentDocument.revision)
+        });
+        return createCurrentSnapshotResult({ changed: true });
+      }
       case "node.create": {
         const nextNode = createNodeFromInput(operation.input);
-        currentDocument = {
+        const previousNode = getNode(nextNode.id);
+        if (previousNode && isStructurallyEqual(previousNode, nextNode)) {
+          return createCurrentSnapshotResult({ reason: "文档无变化" });
+        }
+
+        commitDocument({
           ...currentDocument,
           revision: nextRevision(currentDocument.revision),
-          nodes: [
-            ...currentDocument.nodes.filter((node) => node.id !== nextNode.id),
-            nextNode
-          ]
-        };
-        emitDocument();
+          nodes: [...currentDocument.nodes.filter((node) => node.id !== nextNode.id), nextNode]
+        });
         emitNodeState(nextNode.id, "created", true);
-        emitNodeExecution(nextNode.id, operation.source);
-        return {
-          accepted: true,
-          changed: true,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+        return createCurrentSnapshotResult({ changed: true });
       }
       case "node.update": {
         const node = getNode(operation.nodeId);
         if (!node) {
-          return {
-            accepted: false,
-            changed: false,
-            reason: "节点不存在",
-            revision: currentDocument.revision,
-            document: clone(currentDocument)
-          };
+          return createCurrentSnapshotResult({ accepted: false, reason: "节点不存在" });
         }
 
-        currentDocument = {
+        const nextNode: GraphNodeSnapshot = {
+          ...node,
+          title: operation.input.title ?? node.title,
+          layout: {
+            ...node.layout,
+            x: operation.input.x ?? node.layout.x,
+            y: operation.input.y ?? node.layout.y,
+            width: operation.input.width ?? node.layout.width,
+            height: operation.input.height ?? node.layout.height
+          },
+          properties:
+            operation.input.properties !== undefined
+              ? clone(operation.input.properties)
+              : node.properties,
+          propertySpecs:
+            operation.input.propertySpecs !== undefined
+              ? clone(operation.input.propertySpecs)
+              : node.propertySpecs,
+          inputs:
+            operation.input.inputs !== undefined
+              ? toNodeSlotSpecs(operation.input.inputs)
+              : node.inputs,
+          outputs:
+            operation.input.outputs !== undefined
+              ? toNodeSlotSpecs(operation.input.outputs)
+              : node.outputs,
+          widgets:
+            operation.input.widgets !== undefined ? clone(operation.input.widgets) : node.widgets,
+          data: operation.input.data !== undefined ? clone(operation.input.data) : node.data,
+          flags:
+            operation.input.flags !== undefined
+              ? { ...node.flags, ...clone(operation.input.flags) }
+              : node.flags
+        };
+        if (isStructurallyEqual(node, nextNode)) {
+          return createCurrentSnapshotResult({ reason: "文档无变化" });
+        }
+
+        commitDocument({
           ...currentDocument,
           revision: nextRevision(currentDocument.revision),
           nodes: currentDocument.nodes.map((item) =>
-            item.id === operation.nodeId
-              ? {
-                  ...item,
-                  title: operation.input.title ?? item.title,
-                  layout: {
-                    ...item.layout,
-                    x: operation.input.x ?? item.layout.x,
-                    y: operation.input.y ?? item.layout.y,
-                    width: operation.input.width ?? item.layout.width,
-                    height: operation.input.height ?? item.layout.height
-                  },
-                  properties:
-                    operation.input.properties !== undefined
-                      ? clone(operation.input.properties)
-                      : item.properties,
-                  propertySpecs:
-                    operation.input.propertySpecs !== undefined
-                      ? clone(operation.input.propertySpecs)
-                      : item.propertySpecs,
-                  inputs:
-                    operation.input.inputs !== undefined
-                      ? toNodeSlotSpecs(operation.input.inputs)
-                      : item.inputs,
-                  outputs:
-                    operation.input.outputs !== undefined
-                      ? toNodeSlotSpecs(operation.input.outputs)
-                      : item.outputs,
-                  widgets:
-                    operation.input.widgets !== undefined
-                      ? clone(operation.input.widgets)
-                      : item.widgets,
-                  data:
-                    operation.input.data !== undefined
-                      ? clone(operation.input.data)
-                      : item.data,
-                  flags:
-                    operation.input.flags !== undefined
-                      ? {
-                          ...item.flags,
-                          ...clone(operation.input.flags)
-                        }
-                      : item.flags
-                }
-              : item
+            item.id === operation.nodeId ? nextNode : item
           )
-        };
-        emitDocument();
+        });
         emitNodeState(operation.nodeId, "updated", true);
-        emitNodeExecution(operation.nodeId, operation.source);
-        return {
-          accepted: true,
-          changed: true,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+        return createCurrentSnapshotResult({ changed: true });
       }
       case "node.move": {
         const node = getNode(operation.nodeId);
         if (!node) {
-          return {
-            accepted: false,
-            changed: false,
-            reason: "节点不存在",
-            revision: currentDocument.revision,
-            document: clone(currentDocument)
-          };
+          return createCurrentSnapshotResult({ accepted: false, reason: "节点不存在" });
+        }
+        if (node.layout.x === operation.input.x && node.layout.y === operation.input.y) {
+          return createCurrentSnapshotResult({ reason: "文档无变化" });
         }
 
-        currentDocument = {
+        commitDocument({
           ...currentDocument,
           revision: nextRevision(currentDocument.revision),
           nodes: currentDocument.nodes.map((item) =>
@@ -411,29 +741,23 @@ export function createDemoRemoteAuthorityService(
                 }
               : item
           )
-        };
-        emitDocument();
+        });
         emitNodeState(operation.nodeId, "moved", true);
-        return {
-          accepted: true,
-          changed: true,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+        return createCurrentSnapshotResult({ changed: true });
       }
       case "node.resize": {
         const node = getNode(operation.nodeId);
         if (!node) {
-          return {
-            accepted: false,
-            changed: false,
-            reason: "节点不存在",
-            revision: currentDocument.revision,
-            document: clone(currentDocument)
-          };
+          return createCurrentSnapshotResult({ accepted: false, reason: "节点不存在" });
+        }
+        if (
+          node.layout.width === operation.input.width &&
+          node.layout.height === operation.input.height
+        ) {
+          return createCurrentSnapshotResult({ reason: "文档无变化" });
         }
 
-        currentDocument = {
+        commitDocument({
           ...currentDocument,
           revision: nextRevision(currentDocument.revision),
           nodes: currentDocument.nodes.map((item) =>
@@ -448,130 +772,135 @@ export function createDemoRemoteAuthorityService(
                 }
               : item
           )
-        };
-        emitDocument();
+        });
         emitNodeState(operation.nodeId, "resized", true);
-        emitNodeExecution(operation.nodeId, operation.source);
-        return {
-          accepted: true,
-          changed: true,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+        return createCurrentSnapshotResult({ changed: true });
       }
       case "node.remove": {
-        const existed = currentDocument.nodes.some(
-          (node) => node.id === operation.nodeId
-        );
-        currentDocument = {
+        const node = getNode(operation.nodeId);
+        if (!node) {
+          return createCurrentSnapshotResult({ reason: "节点不存在" });
+        }
+
+        const affectedNodeIds = new Set<string>();
+        for (const link of currentDocument.links) {
+          if (link.source.nodeId === operation.nodeId && link.target.nodeId !== operation.nodeId) {
+            affectedNodeIds.add(link.target.nodeId);
+          }
+          if (link.target.nodeId === operation.nodeId && link.source.nodeId !== operation.nodeId) {
+            affectedNodeIds.add(link.source.nodeId);
+          }
+        }
+
+        commitDocument({
           ...currentDocument,
-          revision: existed
-            ? nextRevision(currentDocument.revision)
-            : currentDocument.revision,
-          nodes: currentDocument.nodes.filter(
-            (node) => node.id !== operation.nodeId
-          ),
+          revision: nextRevision(currentDocument.revision),
+          nodes: currentDocument.nodes.filter((nodeItem) => nodeItem.id !== operation.nodeId),
           links: currentDocument.links.filter(
             (link) =>
               link.source.nodeId !== operation.nodeId &&
               link.target.nodeId !== operation.nodeId
           )
-        };
-        if (existed) {
-          emitDocument();
-          emitNodeState(operation.nodeId, "removed", false);
+        });
+        nodeExecutionStateMap.delete(operation.nodeId);
+        emitNodeState(operation.nodeId, "removed", false);
+        for (const nodeId of affectedNodeIds) {
+          if (getNode(nodeId)) {
+            emitNodeState(nodeId, "connections", true);
+          }
         }
-        return {
-          accepted: true,
-          changed: existed,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+        return createCurrentSnapshotResult({ changed: true });
       }
       case "link.create": {
-        const nextLink = createLinkFromInput(operation.input);
-        currentDocument = {
+        const sourceResolution = resolveValidatedLinkEndpoint(operation.input.source, "source");
+        if (!sourceResolution.accepted) {
+          return createCurrentSnapshotResult({ accepted: false, reason: sourceResolution.reason });
+        }
+        const targetResolution = resolveValidatedLinkEndpoint(operation.input.target, "target");
+        if (!targetResolution.accepted) {
+          return createCurrentSnapshotResult({ accepted: false, reason: targetResolution.reason });
+        }
+
+        const nextLink = createLinkFromInput({
+          ...operation.input,
+          source: sourceResolution.endpoint!,
+          target: targetResolution.endpoint!
+        });
+        const previousLink = currentDocument.links.find((link) => link.id === nextLink.id);
+        if (previousLink && isStructurallyEqual(previousLink, nextLink)) {
+          return createCurrentSnapshotResult({ reason: "文档无变化" });
+        }
+
+        commitDocument({
           ...currentDocument,
           revision: nextRevision(currentDocument.revision),
-          links: [
-            ...currentDocument.links.filter((link) => link.id !== nextLink.id),
-            nextLink
-          ]
-        };
-        emitDocument();
+          links: [...currentDocument.links.filter((link) => link.id !== nextLink.id), nextLink]
+        });
         emitNodeState(nextLink.source.nodeId, "connections", true);
         emitNodeState(nextLink.target.nodeId, "connections", true);
-        emitLinkPropagation(nextLink, operation.source);
-        return {
-          accepted: true,
-          changed: true,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+        return createCurrentSnapshotResult({ changed: true });
       }
       case "link.remove": {
-        const existed = currentDocument.links.some(
-          (link) => link.id === operation.linkId
-        );
-        currentDocument = {
-          ...currentDocument,
-          revision: existed
-            ? nextRevision(currentDocument.revision)
-            : currentDocument.revision,
-          links: currentDocument.links.filter(
-            (link) => link.id !== operation.linkId
-          )
-        };
-        if (existed) {
-          emitDocument();
+        const link = currentDocument.links.find((item) => item.id === operation.linkId);
+        if (!link) {
+          return createCurrentSnapshotResult({ reason: "连线不存在" });
         }
-        return {
-          accepted: true,
-          changed: existed,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+
+        commitDocument({
+          ...currentDocument,
+          revision: nextRevision(currentDocument.revision),
+          links: currentDocument.links.filter((item) => item.id !== operation.linkId)
+        });
+        emitNodeState(link.source.nodeId, "connections", true);
+        emitNodeState(link.target.nodeId, "connections", true);
+        return createCurrentSnapshotResult({ changed: true });
       }
       case "link.reconnect": {
         const link = currentDocument.links.find((item) => item.id === operation.linkId);
         if (!link) {
-          return {
-            accepted: false,
-            changed: false,
-            reason: "连线不存在",
-            revision: currentDocument.revision,
-            document: clone(currentDocument)
-          };
+          return createCurrentSnapshotResult({ accepted: false, reason: "连线不存在" });
         }
 
-        currentDocument = {
+        const sourceResolution = operation.input.source
+          ? resolveValidatedLinkEndpoint(operation.input.source, "source")
+          : { accepted: true as const, endpoint: link.source };
+        if (!sourceResolution.accepted) {
+          return createCurrentSnapshotResult({ accepted: false, reason: sourceResolution.reason });
+        }
+        const targetResolution = operation.input.target
+          ? resolveValidatedLinkEndpoint(operation.input.target, "target")
+          : { accepted: true as const, endpoint: link.target };
+        if (!targetResolution.accepted) {
+          return createCurrentSnapshotResult({ accepted: false, reason: targetResolution.reason });
+        }
+
+        const nextLink: GraphLinkSnapshot = {
+          ...link,
+          source: sourceResolution.endpoint!,
+          target: targetResolution.endpoint!
+        };
+        if (isStructurallyEqual(link, nextLink)) {
+          return createCurrentSnapshotResult({ reason: "文档无变化" });
+        }
+
+        commitDocument({
           ...currentDocument,
           revision: nextRevision(currentDocument.revision),
           links: currentDocument.links.map((item) =>
-            item.id === operation.linkId
-              ? {
-                  ...item,
-                  source: operation.input.source ?? item.source,
-                  target: operation.input.target ?? item.target
-                }
-              : item
+            item.id === operation.linkId ? nextLink : item
           )
-        };
-        const nextLink = currentDocument.links.find(
-          (item) => item.id === operation.linkId
-        );
-        if (nextLink) {
-          emitDocument();
-          emitNodeState(nextLink.source.nodeId, "connections", true);
-          emitNodeState(nextLink.target.nodeId, "connections", true);
-          emitLinkPropagation(nextLink, operation.source);
+        });
+        for (const nodeId of new Set([
+          link.source.nodeId,
+          link.target.nodeId,
+          nextLink.source.nodeId,
+          nextLink.target.nodeId
+        ])) {
+          if (getNode(nodeId)) {
+            emitNodeState(nodeId, "connections", true);
+          }
         }
-        return {
-          accepted: true,
-          changed: true,
-          revision: currentDocument.revision,
-          document: clone(currentDocument)
-        };
+        return createCurrentSnapshotResult({ changed: true });
       }
     }
   };
@@ -581,12 +910,154 @@ export function createDemoRemoteAuthorityService(
       return clone(currentDocument);
     },
 
-    async submitOperation(operation: GraphOperation) {
+    async submitOperation(
+      operation: GraphOperation,
+      _context: EditorRemoteAuthorityOperationContext
+    ) {
       return applyOperation(operation);
     },
 
-    async replaceDocument(document: GraphDocument): Promise<GraphDocument> {
+    async controlRuntime(
+      request: EditorRemoteAuthorityRuntimeControlRequest
+    ): Promise<EditorRemoteAuthorityRuntimeControlResult> {
+      switch (request.type) {
+        case "node.play": {
+          if (activeGraphPlayRun) {
+            return createRuntimeControlResult({
+              accepted: false,
+              reason: "图级运行中，无法从单节点开始运行"
+            });
+          }
+
+          const changed = executeNodeChain({
+            rootNodeId: request.nodeId,
+            source: "node-play",
+            startedAt: Date.now()
+          });
+          return createRuntimeControlResult({
+            accepted: changed,
+            changed,
+            reason: changed ? undefined : "节点不存在"
+          });
+        }
+        case "graph.play": {
+          if (activeGraphPlayRun) {
+            return createRuntimeControlResult({ reason: "图已在运行中" });
+          }
+
+          const queue = collectRootNodeIds();
+          if (!queue.length) {
+            return createRuntimeControlResult({ reason: "图中没有可执行节点" });
+          }
+
+          const startedAt = Date.now();
+          const runId = createGraphRunId("graph-play");
+          activeGraphPlayRun = {
+            runId,
+            startedAt,
+            queue,
+            stepCount: 0,
+            timer: null
+          };
+          graphExecutionState = {
+            status: "running",
+            runId,
+            queueSize: queue.length,
+            stepCount: 0,
+            startedAt,
+            lastSource: "graph-play"
+          };
+          stepCursor = 0;
+          emitGraphExecution("started", {
+            runId,
+            source: "graph-play",
+            timestamp: startedAt
+          });
+          scheduleNextGraphPlayRunTick();
+          return createRuntimeControlResult({ changed: true });
+        }
+        case "graph.step": {
+          if (activeGraphPlayRun) {
+            return createRuntimeControlResult({
+              accepted: false,
+              reason: "图级运行中，无法单步推进"
+            });
+          }
+
+          const rootNodeIds = collectRootNodeIds();
+          if (!rootNodeIds.length) {
+            return createRuntimeControlResult({ reason: "图中没有可执行节点" });
+          }
+
+          if (stepCursor >= rootNodeIds.length) {
+            stepCursor = 0;
+          }
+          const rootNodeId = rootNodeIds[stepCursor];
+          stepCursor = (stepCursor + 1) % rootNodeIds.length;
+          const startedAt = Date.now();
+          const runId = createGraphRunId("graph-step");
+          graphExecutionState = {
+            status: "stepping",
+            runId,
+            queueSize: 1,
+            stepCount: 0,
+            startedAt,
+            lastSource: "graph-step"
+          };
+          emitGraphExecution("started", {
+            runId,
+            source: "graph-step",
+            timestamp: startedAt
+          });
+
+          const changed = executeNodeChain({
+            rootNodeId,
+            source: "graph-step",
+            runId,
+            startedAt
+          });
+          const timestamp = Date.now();
+          graphExecutionState = {
+            status: "idle",
+            queueSize: 0,
+            stepCount: changed ? 1 : 0,
+            startedAt,
+            stoppedAt: timestamp,
+            lastSource: "graph-step"
+          };
+          emitGraphExecution("advanced", {
+            runId,
+            source: "graph-step",
+            nodeId: rootNodeId,
+            timestamp
+          });
+          emitGraphExecution("drained", {
+            runId,
+            source: "graph-step",
+            timestamp: Date.now()
+          });
+          return createRuntimeControlResult({
+            changed,
+            reason: changed ? undefined : "节点不存在"
+          });
+        }
+        case "graph.stop": {
+          if (!activeGraphPlayRun) {
+            return createRuntimeControlResult({ reason: "当前没有活动中的图运行" });
+          }
+
+          finalizeGraphPlayRun(activeGraphPlayRun, "stopped");
+          return createRuntimeControlResult({ changed: true });
+        }
+      }
+    },
+
+    async replaceDocument(
+      document: GraphDocument,
+      _context: EditorRemoteAuthorityReplaceDocumentContext
+    ): Promise<GraphDocument> {
       currentDocument = clone(document);
+      resetDocumentCaches();
       emitDocument();
       return clone(currentDocument);
     },

@@ -1,6 +1,7 @@
 import type {
   GraphDocument,
-  GraphOperation
+  GraphOperation,
+  LeaferGraphGraphExecutionState
 } from "leafergraph";
 import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
 
@@ -62,6 +63,42 @@ export interface EditorRemoteAuthorityOperationResult {
   document?: GraphDocument;
 }
 
+/** authority 运行控制请求。 */
+export type EditorRemoteAuthorityRuntimeControlRequest =
+  | {
+      type: "node.play";
+      nodeId: string;
+    }
+  | {
+      type: "graph.play";
+    }
+  | {
+      type: "graph.step";
+    }
+  | {
+      type: "graph.stop";
+    };
+
+/** authority 运行控制结果。 */
+export interface EditorRemoteAuthorityRuntimeControlResult {
+  /** 本次请求是否被 authority 接受。 */
+  accepted: boolean;
+  /** authority 是否确认这次请求改变了运行状态。 */
+  changed: boolean;
+  /** 未接受或无变化时的最小原因。 */
+  reason?: string;
+  /** authority 当前图级运行状态快照。 */
+  state?: LeaferGraphGraphExecutionState;
+}
+
+/** authority 运行控制器。 */
+export interface EditorRemoteAuthorityRuntimeController {
+  /** 向 authority 发起一次运行控制请求。 */
+  controlRuntime(
+    request: EditorRemoteAuthorityRuntimeControlRequest
+  ): Promise<EditorRemoteAuthorityRuntimeControlResult>;
+}
+
 /** authority 客户端替换整图时可见的最小上下文。 */
 export interface EditorRemoteAuthorityReplaceDocumentContext {
   /** 替换前的正式文档快照。 */
@@ -78,7 +115,8 @@ export interface EditorRemoteAuthorityReplaceDocumentContext {
 export interface EditorRemoteAuthorityClient
   extends Partial<EditorRuntimeFeedbackInlet>,
     Partial<EditorRemoteAuthorityDocumentInlet>,
-    Partial<EditorRemoteAuthorityConnectionStatusSource> {
+    Partial<EditorRemoteAuthorityConnectionStatusSource>,
+    Partial<EditorRemoteAuthorityRuntimeController> {
   /**
    * 主动拉取 authority 当前正式文档快照。
    *

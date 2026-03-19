@@ -5,6 +5,7 @@ import type {
 import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
 import type {
   EditorRemoteAuthorityGetDocumentResponse,
+  EditorRemoteAuthorityControlRuntimeResponse,
   EditorRemoteAuthorityReplaceDocumentResponse,
   EditorRemoteAuthoritySubmitOperationResponse
 } from "./graph_document_authority_transport";
@@ -63,6 +64,7 @@ export function createMessagePortRemoteAuthorityHost(
     requestId: string,
     response:
       | EditorRemoteAuthorityGetDocumentResponse
+      | EditorRemoteAuthorityControlRuntimeResponse
       | EditorRemoteAuthoritySubmitOperationResponse
       | EditorRemoteAuthorityReplaceDocumentResponse
   ): void => {
@@ -138,6 +140,29 @@ export function createMessagePortRemoteAuthorityHost(
             action: "replaceDocument",
             document: document ? structuredClone(document) : undefined
           });
+          return;
+        }
+        case "controlRuntime": {
+          if (typeof options.service.controlRuntime !== "function") {
+            respondSuccess(requestId, {
+              action: "controlRuntime",
+              result: {
+                accepted: false,
+                changed: false,
+                reason: "authority 不支持运行控制"
+              }
+            });
+            return;
+          }
+
+          const result = await options.service.controlRuntime(
+            structuredClone(request.request)
+          );
+          respondSuccess(requestId, {
+            action: "controlRuntime",
+            result: structuredClone(result)
+          });
+          return;
         }
       }
     } catch (error) {

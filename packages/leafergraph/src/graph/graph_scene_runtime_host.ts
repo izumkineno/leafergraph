@@ -12,6 +12,7 @@ import type {
   GraphOperationApplyResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
+  LeaferGraphUpdateDocumentInput,
   LeaferGraphMoveNodeInput,
   LeaferGraphNodeStateChangeReason,
   LeaferGraphResizeNodeInput,
@@ -418,6 +419,17 @@ export class LeaferGraphSceneRuntimeHost<
   ): InternalGraphOperationApplyResult<TNodeState> {
     try {
       switch (operation.type) {
+        case "document.update": {
+          const changed = hasDocumentRootPatch(operation.input);
+          return {
+            accepted: true,
+            changed,
+            operation,
+            affectedNodeIds: [],
+            affectedLinkIds: [],
+            reason: changed ? undefined : "文档根字段补丁为空"
+          };
+        }
         case "node.create": {
           const node = this.options.mutationHost.createNode(operation.input);
           this.options.notifyNodeStateChanged?.(node.id, "created");
@@ -725,6 +737,15 @@ function isStructurallyEqual(left: unknown, right: unknown): boolean {
 
 function uniqueNodeIds(nodeIds: readonly string[]): string[] {
   return [...new Set(nodeIds.filter(Boolean))];
+}
+
+function hasDocumentRootPatch(input: LeaferGraphUpdateDocumentInput): boolean {
+  return (
+    input.appKind !== undefined ||
+    input.meta !== undefined ||
+    input.capabilityProfile !== undefined ||
+    input.adapterBinding !== undefined
+  );
 }
 
 function isSameLinkEndpoint(

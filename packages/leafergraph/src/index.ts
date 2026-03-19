@@ -81,6 +81,7 @@ export type {
   LeaferGraphWidgetOptionsMenuRequest
 } from "./api/plugin";
 export type {
+  GraphDocumentUpdateOperation,
   GraphOperation,
   GraphOperationApplyResult,
   LeaferGraphInteractionCommitEvent,
@@ -114,6 +115,7 @@ export type {
   LeaferGraphNodeResizeConstraint,
   LeaferGraphNodeSlotInput,
   LeaferGraphResizeNodeInput,
+  LeaferGraphUpdateDocumentInput,
   LeaferGraphUpdateNodeInput
 } from "./api/graph_api_types";
 export {

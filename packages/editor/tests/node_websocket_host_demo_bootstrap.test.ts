@@ -9,7 +9,8 @@ import {
   DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL,
   NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES,
   NODE_WEBSOCKET_HOST_DEMO_ADAPTER_ID,
-  installNodeWebSocketHostDemoBootstrap
+  installNodeWebSocketHostDemoBootstrap,
+  resolveNodeWebSocketHealthUrl
 } from "../src/demo/node_websocket_host_demo_bootstrap";
 
 interface NodeHostDemoBootstrapHost {
@@ -226,5 +227,65 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
     expect(bootstrap.preloadedBundles).toEqual(
       NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES
     );
+  });
+
+  test("应把 authority health 地址收敛到稳定的 loopback /health", () => {
+    expect(resolveNodeWebSocketHealthUrl("http://localhost:5502")).toBe(
+      "http://127.0.0.1:5502/health"
+    );
+    expect(resolveNodeWebSocketHealthUrl("ws://localhost:5502/authority")).toBe(
+      "http://127.0.0.1:5502/health"
+    );
+  });
+
+  test("首连失败时应把 health 检查结果翻译成更明确的错误", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalWebSocket = globalThis.WebSocket;
+    const host: NodeHostDemoBootstrapHost = {
+      location: {
+        search: "?authorityUrl=http%3A%2F%2Flocalhost%3A5502"
+      }
+    };
+
+    class FailingWebSocket extends EventTarget {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+      readonly readyState = FailingWebSocket.CONNECTING;
+
+      constructor() {
+        super();
+        queueMicrotask(() => {
+          this.dispatchEvent(new Event("error"));
+        });
+      }
+
+      send(): void {}
+      close(): void {}
+    }
+
+    globalThis.fetch = (async () =>
+      new Response(null, {
+        status: 502,
+        statusText: "Bad Gateway"
+      })) as typeof fetch;
+    globalThis.WebSocket = FailingWebSocket as unknown as typeof WebSocket;
+
+    try {
+      installNodeWebSocketHostDemoBootstrap(host);
+      const bootstrap = resolveEditorAppBootstrap(host);
+      const source = bootstrap.remoteAuthoritySource;
+      if (!source) {
+        throw new Error("未解析到 Node host demo authority source");
+      }
+
+      await expect(createEditorRemoteAuthorityAppRuntime(source)).rejects.toThrow(
+        "authority 健康检查失败：502 Bad Gateway"
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      globalThis.WebSocket = originalWebSocket;
+    }
   });
 });

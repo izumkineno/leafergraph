@@ -1,4 +1,6 @@
 import type {
+  AdapterBinding,
+  CapabilityProfile,
   GraphDocument,
   GraphLink,
   GraphLinkEndpoint
@@ -49,6 +51,14 @@ export interface AuthorityUpdateNodeInput {
   widgets?: AuthorityNodeWidgetList;
   data?: Record<string, unknown>;
   flags?: Partial<NodeFlags>;
+}
+
+/** Node authority 侧复用的文档根字段补丁。 */
+export interface AuthorityUpdateDocumentInput {
+  appKind?: string;
+  meta?: Record<string, unknown>;
+  capabilityProfile?: CapabilityProfile | null;
+  adapterBinding?: AdapterBinding | null;
 }
 
 /** Node authority 侧复用的移动节点输入。 */
@@ -113,6 +123,13 @@ export interface AuthorityGraphNodeRemoveOperation
   nodeId: string;
 }
 
+/** 更新文档根字段操作。 */
+export interface AuthorityGraphDocumentUpdateOperation
+  extends AuthorityGraphOperationBase {
+  type: "document.update";
+  input: AuthorityUpdateDocumentInput;
+}
+
 /** 创建连线操作。 */
 export interface AuthorityGraphLinkCreateOperation
   extends AuthorityGraphOperationBase {
@@ -140,6 +157,7 @@ export interface AuthorityGraphLinkReconnectOperation
 
 /** Node authority 当前支持的最小正式图操作集合。 */
 export type AuthorityGraphOperation =
+  | AuthorityGraphDocumentUpdateOperation
   | AuthorityGraphNodeCreateOperation
   | AuthorityGraphNodeUpdateOperation
   | AuthorityGraphNodeMoveOperation
@@ -167,6 +185,34 @@ export interface AuthorityOperationResult {
   revision: GraphDocument["revision"];
   reason?: string;
   document?: GraphDocument;
+}
+
+/** authority 图级执行状态快照。 */
+export interface AuthorityGraphExecutionState {
+  status: "idle" | "running" | "stepping";
+  runId?: string;
+  queueSize: number;
+  stepCount: number;
+  startedAt?: number;
+  stoppedAt?: number;
+  lastSource?: "graph-play" | "graph-step";
+}
+
+/** authority 图级执行事件类型。 */
+export type AuthorityGraphExecutionEventType =
+  | "started"
+  | "advanced"
+  | "drained"
+  | "stopped";
+
+/** authority 图级执行反馈事件。 */
+export interface AuthorityGraphExecutionEvent {
+  type: AuthorityGraphExecutionEventType;
+  state: AuthorityGraphExecutionState;
+  runId?: string;
+  source?: "graph-play" | "graph-step";
+  nodeId?: string;
+  timestamp: number;
 }
 
 /** authority 侧节点执行状态快照。 */
@@ -240,6 +286,12 @@ export interface AuthorityNodeExecutionRuntimeFeedbackEvent {
   event: AuthorityNodeExecutionEvent;
 }
 
+/** authority 侧图级执行反馈事件包装。 */
+export interface AuthorityGraphExecutionRuntimeFeedbackEvent {
+  type: "graph.execution";
+  event: AuthorityGraphExecutionEvent;
+}
+
 /** authority 侧节点状态反馈事件包装。 */
 export interface AuthorityNodeStateRuntimeFeedbackEvent {
   type: "node.state";
@@ -255,8 +307,33 @@ export interface AuthorityLinkPropagationRuntimeFeedbackEvent {
 /** authority 侧统一运行反馈事件。 */
 export type AuthorityRuntimeFeedbackEvent =
   | AuthorityNodeExecutionRuntimeFeedbackEvent
+  | AuthorityGraphExecutionRuntimeFeedbackEvent
   | AuthorityNodeStateRuntimeFeedbackEvent
   | AuthorityLinkPropagationRuntimeFeedbackEvent;
+
+/** authority 运行控制请求。 */
+export type AuthorityRuntimeControlRequest =
+  | {
+      type: "node.play";
+      nodeId: string;
+    }
+  | {
+      type: "graph.play";
+    }
+  | {
+      type: "graph.step";
+    }
+  | {
+      type: "graph.stop";
+    };
+
+/** authority 运行控制结果。 */
+export interface AuthorityRuntimeControlResult {
+  accepted: boolean;
+  changed: boolean;
+  reason?: string;
+  state?: AuthorityGraphExecutionState;
+}
 
 /** authority transport 获取整图快照请求。 */
 export interface AuthorityGetDocumentRequest {
@@ -277,11 +354,18 @@ export interface AuthorityReplaceDocumentRequest {
   context: AuthorityReplaceDocumentContext;
 }
 
+/** authority transport 运行控制请求。 */
+export interface AuthorityControlRuntimeRequest {
+  action: "controlRuntime";
+  request: AuthorityRuntimeControlRequest;
+}
+
 /** authority transport 最小请求联合。 */
 export type AuthorityTransportRequest =
   | AuthorityGetDocumentRequest
   | AuthoritySubmitOperationRequest
-  | AuthorityReplaceDocumentRequest;
+  | AuthorityReplaceDocumentRequest
+  | AuthorityControlRuntimeRequest;
 
 /** authority transport 获取整图快照响应。 */
 export interface AuthorityGetDocumentResponse {
@@ -301,11 +385,18 @@ export interface AuthorityReplaceDocumentResponse {
   document?: GraphDocument;
 }
 
+/** authority transport 运行控制响应。 */
+export interface AuthorityControlRuntimeResponse {
+  action: "controlRuntime";
+  result: AuthorityRuntimeControlResult;
+}
+
 /** authority transport 最小响应联合。 */
 export type AuthorityTransportResponse =
   | AuthorityGetDocumentResponse
   | AuthoritySubmitOperationResponse
-  | AuthorityReplaceDocumentResponse;
+  | AuthorityReplaceDocumentResponse
+  | AuthorityControlRuntimeResponse;
 
 /** authority transport 运行反馈事件。 */
 export interface AuthorityRuntimeFeedbackTransportEvent {

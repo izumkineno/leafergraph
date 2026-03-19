@@ -5,6 +5,8 @@ import type {
 import type {
   EditorRemoteAuthorityOperationContext,
   EditorRemoteAuthorityOperationResult,
+  EditorRemoteAuthorityRuntimeControlRequest,
+  EditorRemoteAuthorityRuntimeControlResult,
   EditorRemoteAuthorityReplaceDocumentContext
 } from "./graph_document_authority_client";
 import {
@@ -56,6 +58,18 @@ function cloneOperationResult(
   return structuredClone(result);
 }
 
+function cloneRuntimeControlRequest(
+  request: EditorRemoteAuthorityRuntimeControlRequest
+): EditorRemoteAuthorityRuntimeControlRequest {
+  return structuredClone(request);
+}
+
+function cloneRuntimeControlResult(
+  result: EditorRemoteAuthorityRuntimeControlResult
+): EditorRemoteAuthorityRuntimeControlResult {
+  return structuredClone(result);
+}
+
 /**
  * 把 authority client 适配为 authority service。
  *
@@ -98,6 +112,24 @@ export function createClientBackedRemoteAuthorityService(
       );
 
       return replacedDocument ? cloneDocument(replacedDocument) : undefined;
+    },
+
+    async controlRuntime(
+      request: EditorRemoteAuthorityRuntimeControlRequest
+    ): Promise<EditorRemoteAuthorityRuntimeControlResult> {
+      if (typeof options.client.controlRuntime !== "function") {
+        return {
+          accepted: false,
+          changed: false,
+          reason: "authority 不支持运行控制"
+        };
+      }
+
+      return cloneRuntimeControlResult(
+        await options.client.controlRuntime(
+          cloneRuntimeControlRequest(request)
+        )
+      );
     },
 
     subscribe(listener) {

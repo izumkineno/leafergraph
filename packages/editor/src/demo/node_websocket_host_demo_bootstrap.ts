@@ -9,6 +9,8 @@ import { createWebSocketRemoteAuthorityTransport } from "../session/websocket_re
 /** Node host demo 默认使用的 authority 宿主地址。 */
 export const DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL =
   "http://localhost:5502";
+const DEFAULT_NODE_WEBSOCKET_AUTHORITY_HEALTH_PATH = "/health";
+const DEFAULT_NODE_WEBSOCKET_AUTHORITY_WS_PATH = "/authority";
 /** Node host demo 自定义 authority adapter 标识。 */
 export const NODE_WEBSOCKET_HOST_DEMO_ADAPTER_ID = "node-websocket-host-demo";
 /** Node host demo 可选预装的本地 test bundle 列表。 */
@@ -104,10 +106,102 @@ function resolveNodeWebSocketTransportUrl(authorityUrl: string): string {
     parsedAuthorityUrl.pathname.length === 0 ||
     parsedAuthorityUrl.pathname === "/"
   ) {
-    parsedAuthorityUrl.pathname = "/authority";
+    parsedAuthorityUrl.pathname = DEFAULT_NODE_WEBSOCKET_AUTHORITY_WS_PATH;
   }
 
   return parsedAuthorityUrl.toString();
+}
+
+export function resolveNodeWebSocketHealthUrl(authorityUrl: string): string {
+  const trimmedAuthorityUrl = authorityUrl.trim();
+  const normalizedAuthorityUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(
+    trimmedAuthorityUrl
+  )
+    ? trimmedAuthorityUrl
+    : `http://${trimmedAuthorityUrl}`;
+  let parsedAuthorityUrl: URL;
+
+  try {
+    parsedAuthorityUrl = new URL(normalizedAuthorityUrl);
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? `无效的 authorityUrl：${error.message}`
+        : "无效的 authorityUrl"
+    );
+  }
+
+  switch (parsedAuthorityUrl.protocol) {
+    case "http:":
+    case "https:":
+      break;
+    case "ws:":
+      parsedAuthorityUrl.protocol = "http:";
+      break;
+    case "wss:":
+      parsedAuthorityUrl.protocol = "https:";
+      break;
+    default:
+      throw new Error(
+        `authorityUrl 仅支持 http(s) 或 ws(s) 协议：${authorityUrl}`
+      );
+  }
+
+  if (parsedAuthorityUrl.hostname === "localhost") {
+    parsedAuthorityUrl.hostname = "127.0.0.1";
+  }
+
+  if (
+    parsedAuthorityUrl.pathname.length === 0 ||
+    parsedAuthorityUrl.pathname === "/"
+  ) {
+    parsedAuthorityUrl.pathname = DEFAULT_NODE_WEBSOCKET_AUTHORITY_HEALTH_PATH;
+  } else if (
+    parsedAuthorityUrl.pathname === DEFAULT_NODE_WEBSOCKET_AUTHORITY_WS_PATH
+  ) {
+    parsedAuthorityUrl.pathname = DEFAULT_NODE_WEBSOCKET_AUTHORITY_HEALTH_PATH;
+  }
+
+  return parsedAuthorityUrl.toString();
+}
+
+async function buildNodeWebSocketAuthorityConnectionError(
+  authorityUrl: string,
+  error: unknown,
+  fetchImpl: typeof fetch = fetch
+): Promise<Error> {
+  const fallbackMessage =
+    error instanceof Error ? error.message : "authority 连接失败";
+  let healthUrl: string;
+
+  try {
+    healthUrl = resolveNodeWebSocketHealthUrl(authorityUrl);
+  } catch {
+    return error instanceof Error ? error : new Error(fallbackMessage);
+  }
+
+  try {
+    const response = await fetchImpl(healthUrl, {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      return new Error(
+        `authority 健康检查失败：${response.status} ${response.statusText || "Unknown"}（${healthUrl}）。请确认 Node authority server 已在可见的 PowerShell 中启动，并且 /health 可访问。`
+      );
+    }
+
+    return new Error(
+      `authority 健康检查已通过，但 WebSocket 连接仍失败（${fallbackMessage}）。请确认 ${resolveNodeWebSocketTransportUrl(authorityUrl)} 可被浏览器直接访问。`
+    );
+  } catch (healthError) {
+    const healthMessage =
+      healthError instanceof Error ? healthError.message : "无法访问 health";
+    return new Error(
+      `authority 健康检查失败：${healthMessage}（${healthUrl}）。请确认 Node authority server 已在可见的 PowerShell 中启动。`
+    );
+  }
 }
 
 function normalizeNodeWebSocketHostDemoBootstrapOptions(
@@ -174,7 +268,10 @@ export function createNodeWebSocketHostDemoRemoteAuthorityHostAdapter(): EditorR
             return transport;
           } catch (error) {
             transport.dispose?.();
-            throw error;
+            throw await buildNodeWebSocketAuthorityConnectionError(
+              resolvedOptions.authorityUrl,
+              error
+            );
           }
         }
       };

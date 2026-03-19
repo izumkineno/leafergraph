@@ -7,6 +7,8 @@ import type {
   EditorRemoteAuthorityDocumentInlet,
   EditorRemoteAuthorityOperationContext,
   EditorRemoteAuthorityOperationResult,
+  EditorRemoteAuthorityRuntimeControlRequest,
+  EditorRemoteAuthorityRuntimeControlResult,
   EditorRemoteAuthorityReplaceDocumentContext
 } from "./graph_document_authority_client";
 
@@ -32,6 +34,10 @@ export interface EditorRemoteAuthorityDocumentService
     document: GraphDocument,
     context: EditorRemoteAuthorityReplaceDocumentContext
   ): GraphDocument | void | Promise<GraphDocument | void>;
+  /** 执行一次 authority 运行控制请求。 */
+  controlRuntime?(
+    request: EditorRemoteAuthorityRuntimeControlRequest
+  ): EditorRemoteAuthorityRuntimeControlResult | Promise<EditorRemoteAuthorityRuntimeControlResult>;
   /** 释放 authority 服务资源。 */
   dispose?(): void;
 }

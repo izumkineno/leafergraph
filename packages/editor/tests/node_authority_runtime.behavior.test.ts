@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import type { GraphOperation, RuntimeFeedbackEvent } from "leafergraph";
+import type {
+  GraphDocument,
+  GraphOperation,
+  RuntimeFeedbackEvent
+} from "leafergraph";
 import { createNodeAuthorityRuntime } from "@leafergraph/node/authority";
 
 function createNoopUpdateOperation(): GraphOperation {
@@ -97,6 +101,29 @@ function createGeneratedNodeOperation(): GraphOperation {
       y: 72
     },
     operationId: `authority-generated-node-${Date.now()}`,
+    timestamp: Date.now(),
+    source: "editor.test"
+  };
+}
+
+function createDocumentUpdateOperation(): GraphOperation {
+  return {
+    type: "document.update",
+    input: {
+      appKind: "behavior-updated",
+      meta: {
+        mode: "patched"
+      },
+      capabilityProfile: {
+        id: "behavior-profile",
+        features: ["document-update"]
+      },
+      adapterBinding: {
+        adapterId: "behavior-adapter",
+        appKind: "behavior-updated"
+      }
+    },
+    operationId: "authority-document-update",
     timestamp: Date.now(),
     source: "editor.test"
   };
@@ -205,5 +232,151 @@ describe("node authority runtime behavior", () => {
 
     expect(firstGeneratedNodeId).toBe("behavior-test-node-1");
     expect(secondGeneratedNodeId).toBe("behavior-test-node-1");
+  });
+
+  test("document.update 应 patch 文档根字段并支持 no-op", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: {
+        documentId: "behavior-doc",
+        revision: "5",
+        appKind: "behavior-app",
+        nodes: [],
+        links: [],
+        meta: {
+          before: true
+        },
+        capabilityProfile: {
+          id: "before-profile",
+          features: ["before"]
+        },
+        adapterBinding: {
+          adapterId: "before-adapter",
+          appKind: "behavior-app"
+        }
+      } satisfies GraphDocument
+    });
+
+    const updateResult = runtime.submitOperation(createDocumentUpdateOperation());
+
+    expect(updateResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      revision: "6",
+      document: {
+        appKind: "behavior-updated",
+        meta: {
+          mode: "patched"
+        },
+        capabilityProfile: {
+          id: "behavior-profile",
+          features: ["document-update"]
+        },
+        adapterBinding: {
+          adapterId: "behavior-adapter",
+          appKind: "behavior-updated"
+        }
+      }
+    });
+
+    const noopResult = runtime.submitOperation(createDocumentUpdateOperation());
+
+    expect(noopResult).toMatchObject({
+      accepted: true,
+      changed: false,
+      revision: "6",
+      reason: "文档无变化"
+    });
+  });
+
+  test("graph.step 应发出图级执行反馈、节点执行和链路传播", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test"
+    });
+    const events: RuntimeFeedbackEvent[] = [];
+    const dispose = runtime.subscribe((event) => {
+      events.push(event);
+    });
+
+    const result = runtime.controlRuntime({
+      type: "graph.step"
+    });
+
+    dispose();
+
+    expect(result).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle",
+        queueSize: 0,
+        stepCount: 1,
+        lastSource: "graph-step"
+      }
+    });
+    expect(
+      events
+        .filter((event) => event.type === "graph.execution")
+        .map((event) => event.event.type)
+    ).toEqual(["started", "advanced", "drained"]);
+    expect(
+      events.some(
+        (event) =>
+          event.type === "node.execution" &&
+          event.event.nodeId === "node-1" &&
+          event.event.source === "graph-step"
+      )
+    ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === "link.propagation" &&
+          event.event.linkId === "link-1"
+      )
+    ).toBe(true);
+  });
+
+  test("graph.play 后应允许 stop，并回发 stopped 事件", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test"
+    });
+    const events: RuntimeFeedbackEvent[] = [];
+    const dispose = runtime.subscribe((event) => {
+      events.push(event);
+    });
+
+    const playResult = runtime.controlRuntime({
+      type: "graph.play"
+    });
+    const stopResult = runtime.controlRuntime({
+      type: "graph.stop"
+    });
+
+    dispose();
+
+    expect(playResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "running",
+        queueSize: 2,
+        stepCount: 0,
+        lastSource: "graph-play"
+      }
+    });
+    expect(stopResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle",
+        queueSize: 0,
+        lastSource: "graph-play"
+      }
+    });
+    expect(
+      events
+        .filter((event) => event.type === "graph.execution")
+        .map((event) => event.event.type)
+    ).toEqual(["started", "stopped"]);
   });
 });

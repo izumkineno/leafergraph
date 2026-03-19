@@ -1,9 +1,12 @@
 import type {
+  AdapterBinding,
+  CapabilityProfile,
   GraphDocument,
   GraphLink,
   GraphOperation,
   GraphOperationApplyResult,
-  LeaferGraph
+  LeaferGraph,
+  LeaferGraphUpdateDocumentInput
 } from "leafergraph";
 import type {
   EditorRemoteAuthorityClient,
@@ -1086,6 +1089,8 @@ function syncDocumentWithOperation(
   operation: GraphOperation
 ): GraphDocument {
   switch (operation.type) {
+    case "document.update":
+      return patchGraphDocumentRoot(document, operation.input);
     case "node.create":
       return upsertNodeSnapshot(document, graph, operation.input.id);
     case "node.update":
@@ -1109,6 +1114,8 @@ function syncDocumentWithApplyResult(
   result: GraphOperationApplyResult
 ): GraphDocument {
   switch (result.operation.type) {
+    case "document.update":
+      return patchGraphDocumentRoot(document, result.operation.input);
     case "node.create":
       return upsertNodeSnapshot(
         document,
@@ -1223,6 +1230,60 @@ function removeLinkSnapshot(
   };
 }
 
+function patchGraphDocumentRoot(
+  document: GraphDocument,
+  input: LeaferGraphUpdateDocumentInput
+): GraphDocument {
+  const nextDocument: GraphDocument = {
+    ...document,
+    appKind: input.appKind ?? document.appKind,
+    meta:
+      input.meta !== undefined
+        ? structuredClone(input.meta)
+        : cloneOptionalRecord(document.meta),
+    capabilityProfile:
+      input.capabilityProfile !== undefined
+        ? cloneOptionalCapabilityProfile(input.capabilityProfile)
+        : cloneOptionalCapabilityProfile(document.capabilityProfile),
+    adapterBinding:
+      input.adapterBinding !== undefined
+        ? cloneOptionalAdapterBinding(input.adapterBinding)
+        : cloneOptionalAdapterBinding(document.adapterBinding)
+  };
+
+  return isStructurallyEqual(document, nextDocument) ? document : nextDocument;
+}
+
 function cloneGraphLink(link: GraphLink): GraphLink {
   return structuredClone(link);
+}
+
+function cloneOptionalRecord(
+  value: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  return value ? structuredClone(value) : undefined;
+}
+
+function cloneOptionalCapabilityProfile(
+  value: CapabilityProfile | null | undefined
+): CapabilityProfile | undefined {
+  return value === null || value === undefined
+    ? undefined
+    : structuredClone(value);
+}
+
+function cloneOptionalAdapterBinding(
+  value: AdapterBinding | null | undefined
+): AdapterBinding | undefined {
+  return value === null || value === undefined
+    ? undefined
+    : structuredClone(value);
+}
+
+function isStructurallyEqual(left: unknown, right: unknown): boolean {
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return left === right;
+  }
 }

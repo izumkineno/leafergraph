@@ -218,6 +218,21 @@ export async function startNodeAuthorityServer(
             sendEnvelope(socket, successEnvelope);
             return;
           }
+          case "controlRuntime": {
+            logger.info(
+              "[node-authority]",
+              `request controlRuntime:${envelope.request.request.type} (connections=${sockets.size})`
+            );
+            const successEnvelope = protocolAdapter.createSuccessEnvelope(
+              envelope.requestId,
+              {
+                action: "controlRuntime",
+                result: runtime.controlRuntime(envelope.request.request)
+              }
+            );
+            sendEnvelope(socket, successEnvelope);
+            return;
+          }
         }
       } catch (error) {
         sendEnvelope(

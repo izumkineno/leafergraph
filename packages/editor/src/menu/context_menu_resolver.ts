@@ -146,6 +146,11 @@ export interface CreateEditorContextMenuResolverOptions {
   graph: LeaferGraph;
   selection: EditorNodeSelectionController;
   resolveCommandBus(): EditorCommandBus;
+  resolveNodePlayState(nodeId: string): {
+    disabled: boolean;
+    description?: string;
+  };
+  onPlayNode(nodeId: string): void;
   onRemoveLink(linkId: string): void;
   onStartReconnect(linkId: string): void;
 }
@@ -183,7 +188,6 @@ function resolveNodeContextMenuItems(
           y: (snapshot?.layout.y ?? 0) + 48
         };
       })();
-  const playRequest: EditorCommandRequest = { type: "node.play", nodeId };
   const resetSizeRequest: EditorCommandRequest = {
     type: "node.reset-size",
     nodeId
@@ -194,7 +198,7 @@ function resolveNodeContextMenuItems(
   const copyState = commandBus.resolveCommandState(copyRequest);
   const cutState = commandBus.resolveCommandState(cutRequest);
   const duplicateState = commandBus.resolveCommandState(duplicateRequest);
-  const playState = commandBus.resolveCommandState(playRequest);
+  const playState = options.resolveNodePlayState(nodeId);
   const resetSizeState = commandBus.resolveCommandState(resetSizeRequest);
   const removeState = commandBus.resolveCommandState(removeRequest);
 
@@ -239,12 +243,10 @@ function resolveNodeContextMenuItems(
     {
       key: "execute-node",
       label: "从此节点开始运行",
-      shortcut: playState.shortcut,
       description: playState.description,
       disabled: playState.disabled,
-      danger: playState.danger,
       onSelect() {
-        commandBus.execute(playRequest);
+        options.onPlayNode(nodeId);
       }
     },
     {

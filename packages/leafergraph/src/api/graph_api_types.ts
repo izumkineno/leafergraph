@@ -6,6 +6,8 @@
  */
 
 import type {
+  AdapterBinding,
+  CapabilityProfile,
   GraphLink,
   GraphLinkEndpoint,
   NodeFlags,
@@ -104,6 +106,24 @@ export interface LeaferGraphUpdateNodeInput
   data?: Record<string, unknown>;
   /** 待合并到节点上的运行时标记补丁。 */
   flags?: Partial<NodeFlags>;
+}
+
+/**
+ * 主包更新文档根字段时使用的输入结构。
+ *
+ * @remarks
+ * 这条补丁只服务正式文档根元信息同步，
+ * 不允许修改 `documentId` 和 `revision` 这类 authority 持有字段。
+ */
+export interface LeaferGraphUpdateDocumentInput {
+  /** 待更新的应用类型。 */
+  appKind?: string;
+  /** 待替换的文档级扩展元数据。 */
+  meta?: Record<string, unknown>;
+  /** 待替换的能力画像；传 `null` 表示清空。 */
+  capabilityProfile?: CapabilityProfile | null;
+  /** 待替换的 adapter 绑定信息；传 `null` 表示清空。 */
+  adapterBinding?: AdapterBinding | null;
 }
 
 /**
@@ -570,6 +590,12 @@ export interface GraphNodeRemoveOperation extends GraphOperationBase {
   nodeId: string;
 }
 
+/** 更新文档根字段操作。 */
+export interface GraphDocumentUpdateOperation extends GraphOperationBase {
+  type: "document.update";
+  input: LeaferGraphUpdateDocumentInput;
+}
+
 /** 创建连线操作。 */
 export interface GraphLinkCreateOperation extends GraphOperationBase {
   type: "link.create";
@@ -596,6 +622,7 @@ export interface GraphLinkReconnectOperation extends GraphOperationBase {
  * 主包当前阶段支持的正式图操作集合。
  */
 export type GraphOperation =
+  | GraphDocumentUpdateOperation
   | GraphNodeCreateOperation
   | GraphNodeUpdateOperation
   | GraphNodeMoveOperation

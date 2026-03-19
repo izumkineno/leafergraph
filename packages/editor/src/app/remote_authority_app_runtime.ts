@@ -10,7 +10,10 @@ import {
   type EditorRemoteAuthorityTransport
 } from "../session/graph_document_authority_transport";
 import type { EditorRemoteAuthorityDocumentService } from "../session/graph_document_authority_service";
-import type { EditorRemoteAuthorityConnectionStatus } from "../session/graph_document_authority_client";
+import type {
+  EditorRemoteAuthorityConnectionStatus,
+  EditorRemoteAuthorityRuntimeController
+} from "../session/graph_document_authority_client";
 import { createMessagePortRemoteAuthorityTransport } from "../session/message_port_remote_authority_transport";
 import { createMessagePortRemoteAuthorityHost } from "../session/message_port_remote_authority_host";
 import { DEFAULT_REMOTE_AUTHORITY_BRIDGE_HANDSHAKE_TYPE } from "../session/message_port_remote_authority_bridge_host";
@@ -183,6 +186,8 @@ export interface ResolvedEditorRemoteAuthorityAppRuntime {
   createDocumentSessionBinding: EditorGraphDocumentSessionBindingFactory;
   /** 若 client 支持运行反馈订阅，则直接作为外部 feedback inlet 使用。 */
   runtimeFeedbackInlet?: EditorRuntimeFeedbackInlet;
+  /** 若 authority 支持运行控制，则暴露统一运行控制器。 */
+  runtimeController?: EditorRemoteAuthorityRuntimeController;
   /** 读取当前 authority 连接状态。 */
   getConnectionStatus(): EditorRemoteAuthorityConnectionStatus;
   /** 订阅 authority 连接状态变化。 */
@@ -227,6 +232,13 @@ function hasRuntimeFeedbackSubscribe(
   client: EditorRemoteAuthorityDocumentClient
 ): client is EditorRemoteAuthorityDocumentClient & EditorRuntimeFeedbackInlet {
   return typeof client.subscribe === "function";
+}
+
+function hasRuntimeController(
+  client: EditorRemoteAuthorityDocumentClient
+): client is EditorRemoteAuthorityDocumentClient &
+  EditorRemoteAuthorityRuntimeController {
+  return typeof client.controlRuntime === "function";
 }
 
 function hasConnectionStatusSubscribe(
@@ -490,6 +502,7 @@ export async function createEditorRemoteAuthorityAppRuntime(
       runtimeFeedbackInlet: hasRuntimeFeedbackSubscribe(client)
         ? client
         : undefined,
+      runtimeController: hasRuntimeController(client) ? client : undefined,
       getConnectionStatus(): EditorRemoteAuthorityConnectionStatus {
         return hasConnectionStatusSubscribe(client)
           ? client.getConnectionStatus()

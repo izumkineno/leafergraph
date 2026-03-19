@@ -8,6 +8,8 @@ import type {
   EditorRemoteAuthorityConnectionStatus,
   EditorRemoteAuthorityOperationContext,
   EditorRemoteAuthorityOperationResult,
+  EditorRemoteAuthorityRuntimeControlRequest,
+  EditorRemoteAuthorityRuntimeControlResult,
   EditorRemoteAuthorityReplaceDocumentContext
 } from "./graph_document_authority_client";
 
@@ -15,7 +17,8 @@ import type {
 export type EditorRemoteAuthorityTransportAction =
   | "getDocument"
   | "submitOperation"
-  | "replaceDocument";
+  | "replaceDocument"
+  | "controlRuntime";
 
 /** transport 层获取整图快照请求。 */
 export interface EditorRemoteAuthorityGetDocumentRequest {
@@ -36,11 +39,18 @@ export interface EditorRemoteAuthorityReplaceDocumentRequest {
   context: EditorRemoteAuthorityReplaceDocumentContext;
 }
 
+/** transport 层运行控制请求。 */
+export interface EditorRemoteAuthorityControlRuntimeRequest {
+  action: "controlRuntime";
+  request: EditorRemoteAuthorityRuntimeControlRequest;
+}
+
 /** transport 层最小请求联合。 */
 export type EditorRemoteAuthorityTransportRequest =
   | EditorRemoteAuthorityGetDocumentRequest
   | EditorRemoteAuthoritySubmitOperationRequest
-  | EditorRemoteAuthorityReplaceDocumentRequest;
+  | EditorRemoteAuthorityReplaceDocumentRequest
+  | EditorRemoteAuthorityControlRuntimeRequest;
 
 /** transport 层获取整图快照响应。 */
 export interface EditorRemoteAuthorityGetDocumentResponse {
@@ -60,11 +70,18 @@ export interface EditorRemoteAuthorityReplaceDocumentResponse {
   document?: GraphDocument;
 }
 
+/** transport 层运行控制响应。 */
+export interface EditorRemoteAuthorityControlRuntimeResponse {
+  action: "controlRuntime";
+  result: EditorRemoteAuthorityRuntimeControlResult;
+}
+
 /** transport 层最小响应联合。 */
 export type EditorRemoteAuthorityTransportResponse =
   | EditorRemoteAuthorityGetDocumentResponse
   | EditorRemoteAuthoritySubmitOperationResponse
-  | EditorRemoteAuthorityReplaceDocumentResponse;
+  | EditorRemoteAuthorityReplaceDocumentResponse
+  | EditorRemoteAuthorityControlRuntimeResponse;
 
 /** transport 层运行反馈事件。 */
 export interface EditorRemoteAuthorityRuntimeFeedbackTransportEvent {
@@ -137,6 +154,18 @@ function cloneReplaceDocumentContext(
 function cloneOperationResult(
   result: EditorRemoteAuthorityOperationResult
 ): EditorRemoteAuthorityOperationResult {
+  return structuredClone(result);
+}
+
+function cloneRuntimeControlRequest(
+  request: EditorRemoteAuthorityRuntimeControlRequest
+): EditorRemoteAuthorityRuntimeControlRequest {
+  return structuredClone(request);
+}
+
+function cloneRuntimeControlResult(
+  result: EditorRemoteAuthorityRuntimeControlResult
+): EditorRemoteAuthorityRuntimeControlResult {
   return structuredClone(result);
 }
 
@@ -228,6 +257,19 @@ export function createTransportRemoteAuthorityClient(options: {
       return response.document
         ? cloneGraphDocument(response.document)
         : undefined;
+    },
+
+    async controlRuntime(
+      request: EditorRemoteAuthorityRuntimeControlRequest
+    ): Promise<EditorRemoteAuthorityRuntimeControlResult> {
+      const response =
+        await options.transport.request<EditorRemoteAuthorityControlRuntimeResponse>(
+          {
+            action: "controlRuntime",
+            request: cloneRuntimeControlRequest(request)
+          }
+        );
+      return cloneRuntimeControlResult(response.result);
     },
 
     subscribe(listener: (event: RuntimeFeedbackEvent) => void): () => void {

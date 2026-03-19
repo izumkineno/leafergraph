@@ -24,6 +24,8 @@ import {
   type EditorCanvasCreateNodeState
 } from "./canvas_commands";
 import {
+  copyNodesToClipboard,
+  createClipboardLinkSnapshots,
   createEditorNodeCommandController,
   type CreateEditorNodeCommandControllerOptions,
   type EditorNodeClipboard,
@@ -110,10 +112,6 @@ export type EditorCommandRequest =
       nodeId: string;
     }
   | {
-      type: "node.play";
-      nodeId: string;
-    }
-  | {
       type: "node.reset-size";
       nodeId: string;
     }
@@ -181,6 +179,7 @@ export type EditorCommandHistoryPayload =
   | {
       kind: "create-nodes";
       nodeSnapshots: EditorCommandNodeSnapshot[];
+      links?: GraphLink[];
     }
   | {
       kind: "remove-nodes";
@@ -493,6 +492,40 @@ function captureCreatedNodeSnapshots(
     .map(cloneNodeSnapshot);
 }
 
+/** 把剪贴板源节点顺序映射到本次新建节点 ID。 */
+function createClipboardNodeIdMap(
+  clipboard: EditorNodeClipboard,
+  nodeSnapshots: readonly EditorCommandNodeSnapshot[]
+): Map<string, string> {
+  const nodeIdMap = new Map<string, string>();
+  const count = Math.min(clipboard.entries.length, nodeSnapshots.length);
+
+  for (let index = 0; index < count; index += 1) {
+    const sourceNodeId = clipboard.entries[index]?.sourceNodeId;
+    const nextNodeId = nodeSnapshots[index]?.id;
+    if (!sourceNodeId || !nextNodeId) {
+      continue;
+    }
+
+    nodeIdMap.set(sourceNodeId, nextNodeId);
+  }
+
+  return nodeIdMap;
+}
+
+/** 根据剪贴板内容和新建节点结果推导本次新建的内部连线。 */
+function captureCreatedLinksFromClipboard(
+  clipboard: EditorNodeClipboard | null,
+  nodeSnapshots: readonly EditorCommandNodeSnapshot[]
+): GraphLink[] {
+  if (!clipboard || !clipboard.links.length || !nodeSnapshots.length) {
+    return [];
+  }
+
+  const nodeIdMap = createClipboardNodeIdMap(clipboard, nodeSnapshots);
+  return createClipboardLinkSnapshots(clipboard, nodeIdMap).map(cloneLinkSnapshot);
+}
+
 /** 判断这组节点快照是否已经真实投影到当前 graph。 */
 function areNodeSnapshotsProjected(
   graph: LeaferGraph,
@@ -583,8 +616,6 @@ function resolveCommandSummary(request: EditorCommandRequest): string {
       return `复制节点 ${request.nodeId}`;
     case "node.remove":
       return `删除节点 ${request.nodeId}`;
-    case "node.play":
-      return `从节点 ${request.nodeId} 开始运行`;
     case "node.reset-size":
       return `重置节点 ${request.nodeId} 尺寸`;
     case "interaction.move":
@@ -752,7 +783,6 @@ export function createEditorCommandBus(
       case "link.create":
       case "link.remove":
       case "link.reconnect":
-      case "node.play":
       case "node.reset-size":
         return true;
       default:
@@ -792,8 +822,6 @@ export function createEditorCommandBus(
       case "node.duplicate":
         return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.remove":
-        return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
-      case "node.play":
         return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.reset-size":
         return nodeCommands.resolveResizeState(request.nodeId).disabled;
@@ -944,44 +972,6 @@ export function createEditorCommandBus(
                 : "已接入主包 removeNode(...)",
           shortcut: "Delete",
           danger: true
-        };
-      }
-      case "node.play": {
-        if (!isRuntimeReady()) {
-          return {
-            disabled,
-            description: "图初始化完成后可用"
-          };
-        }
-
-        const executionState = options.graph.getNodeExecutionState(request.nodeId);
-        if (!executionState || executionState.status === "idle") {
-          return {
-            disabled,
-            description:
-              "从当前节点开始运行正式执行链；若节点未实现 onExecute(...) 则不会产生运行结果"
-          };
-        }
-
-        if (executionState.status === "running") {
-          return {
-            disabled,
-            description: `节点正在执行中，当前累计执行 ${executionState.runCount} 次`
-          };
-        }
-
-        if (executionState.status === "success") {
-          return {
-            disabled,
-            description: `最近一次执行成功，当前累计执行 ${executionState.runCount} 次`
-          };
-        }
-
-        return {
-          disabled,
-          description: executionState.lastErrorMessage
-            ? `最近一次执行失败：${executionState.lastErrorMessage}`
-            : "最近一次执行失败，请查看节点信号灯或控制台日志"
         };
       }
       case "node.reset-size":
@@ -1226,17 +1216,30 @@ export function createEditorCommandBus(
         }, pendingOperationIdsBefore);
       }
       case "clipboard.paste": {
+        const clipboard = nodeCommands.clipboard
+          ? structuredClone(nodeCommands.clipboard)
+          : null;
         const result = canvasCommands.pasteClipboardAt(request.point);
         const nodeSnapshots = captureCreatedNodeSnapshots(result);
+        const linkSnapshots = captureCreatedLinksFromClipboard(
+          clipboard,
+          nodeSnapshots
+        );
         return createExecution(request, result, {
           operations: nodeSnapshots.length
-            ? createNodeCreateOperations(nodeSnapshots)
+            ? [
+                ...createNodeCreateOperations(nodeSnapshots),
+                ...linkSnapshots.map((link) => createLinkCreateOperation(link))
+              ]
             : undefined,
-          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
+          documentRecorded:
+            areNodeSnapshotsProjected(options.graph, nodeSnapshots) &&
+            linkSnapshots.every((link) => isLinkProjected(options.graph, link)),
           historyPayload: nodeSnapshots.length
             ? {
                 kind: "create-nodes",
-                nodeSnapshots
+                nodeSnapshots,
+                links: linkSnapshots
               }
             : undefined,
           success: nodeSnapshots.length > 0,
@@ -1289,17 +1292,6 @@ export function createEditorCommandBus(
           success: result,
           changed: result,
           recordable: true
-        }, pendingOperationIdsBefore);
-      }
-      case "node.play": {
-        const result = options.graph.playFromNode(request.nodeId);
-        return createExecution(request, result, {
-          operations: undefined,
-          documentRecorded: undefined,
-          historyPayload: undefined,
-          success: result,
-          changed: result,
-          recordable: false
         }, pendingOperationIdsBefore);
       }
       case "node.reset-size": {
@@ -1360,17 +1352,31 @@ export function createEditorCommandBus(
         }, pendingOperationIdsBefore);
       }
       case "selection.duplicate": {
+        const selectionClipboard = copyNodesToClipboard(
+          options.graph,
+          options.selection.selectedNodeIds
+        );
         const result = nodeCommands.duplicateSelectedNodes();
         const nodeSnapshots = captureCreatedNodeSnapshots(result);
+        const linkSnapshots = captureCreatedLinksFromClipboard(
+          selectionClipboard,
+          nodeSnapshots
+        );
         return createExecution(request, result, {
           operations: nodeSnapshots.length
-            ? createNodeCreateOperations(nodeSnapshots)
+            ? [
+                ...createNodeCreateOperations(nodeSnapshots),
+                ...linkSnapshots.map((link) => createLinkCreateOperation(link))
+              ]
             : undefined,
-          documentRecorded: areNodeSnapshotsProjected(options.graph, nodeSnapshots),
+          documentRecorded:
+            areNodeSnapshotsProjected(options.graph, nodeSnapshots) &&
+            linkSnapshots.every((link) => isLinkProjected(options.graph, link)),
           historyPayload: nodeSnapshots.length
             ? {
                 kind: "create-nodes",
-                nodeSnapshots
+                nodeSnapshots,
+                links: linkSnapshots
               }
             : undefined,
           success: nodeSnapshots.length > 0,

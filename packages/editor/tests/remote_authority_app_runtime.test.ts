@@ -355,6 +355,51 @@ describe("createEditorRemoteAuthorityAppRuntime", () => {
     expect(disposed).toBe(true);
   });
 
+  test("authority 支持运行控制时应暴露 runtimeController", async () => {
+    const source: EditorRemoteAuthorityAppSource = {
+      label: "Runtime Control Authority",
+      createClient() {
+        return {
+          ...createClientStub({
+            document: createDocument("31")
+          }),
+          async controlRuntime(request) {
+            return {
+              accepted: true,
+              changed: true,
+              state: {
+                status: "idle",
+                queueSize: 0,
+                stepCount: request.type === "graph.step" ? 1 : 0,
+                lastSource:
+                  request.type === "graph.step" ? "graph-step" : "graph-play"
+              }
+            };
+          }
+        };
+      }
+    };
+
+    const runtime = await createEditorRemoteAuthorityAppRuntime(source);
+    const result = await runtime.runtimeController?.controlRuntime({
+      type: "graph.step"
+    });
+
+    expect(runtime.runtimeController).toBeDefined();
+    expect(result).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle",
+        queueSize: 0,
+        stepCount: 1,
+        lastSource: "graph-step"
+      }
+    });
+
+    runtime.dispose();
+  });
+
   test("应透传 authority 连接状态给 App runtime", async () => {
     const authority = createConnectionStatusClientStub({
       document: createDocument("21")

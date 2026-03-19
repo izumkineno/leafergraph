@@ -6,6 +6,7 @@ import type {
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
   LeaferGraphResizeNodeInput,
+  LeaferGraphUpdateDocumentInput,
   LeaferGraphUpdateNodeInput
 } from "leafergraph";
 
@@ -105,6 +106,20 @@ export function createNodeCreateOperation(
 ): Extract<GraphOperation, { type: "node.create" }> {
   return createEditorGraphOperation(
     "node.create",
+    {
+      input: structuredClone(input)
+    },
+    source
+  );
+}
+
+/** 生成一条 `document.update` 操作。 */
+export function createDocumentUpdateOperation(
+  input: LeaferGraphUpdateDocumentInput,
+  source = "editor"
+): Extract<GraphOperation, { type: "document.update" }> {
+  return createEditorGraphOperation(
+    "document.update",
     {
       input: structuredClone(input)
     },
@@ -254,6 +269,14 @@ export function recreateGraphOperation(
   source = operation.source
 ): GraphOperation {
   switch (operation.type) {
+    case "document.update":
+      return createEditorGraphOperation(
+        "document.update",
+        {
+          input: structuredClone(operation.input)
+        },
+        source
+      );
     case "node.create":
       return createEditorGraphOperation(
         "node.create",

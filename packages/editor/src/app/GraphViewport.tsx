@@ -53,6 +53,7 @@ import {
   createEditorContextMenuResolver
 } from "../menu/context_menu_resolver";
 import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
+import type { EditorRemoteAuthorityRuntimeController } from "../session/graph_document_authority_client";
 import { createGraphInteractionCommitBridge } from "../interaction/graph_interaction_commit_bridge";
 import {
   appendRuntimeHistoryEntry,
@@ -69,6 +70,8 @@ export interface GraphViewportProps {
   plugins?: LeaferGraphOptions["plugins"];
   createDocumentSessionBinding?: EditorGraphDocumentSessionBindingFactory;
   runtimeFeedbackInlet?: EditorRuntimeFeedbackInlet;
+  runtimeController?: EditorRemoteAuthorityRuntimeController;
+  runtimeControlMode?: "local" | "remote";
   onHostBridgeChange?(bridge: GraphViewportHostBridge | null): void;
   quickCreateNodeType?: string;
   theme: EditorTheme;
@@ -223,8 +226,7 @@ function createIdleGraphExecutionState(): GraphViewportGraphExecutionSnapshot {
 function resolveInspectorFocusState(
   graph: LeaferGraph,
   selection: ReturnType<typeof createEditorNodeSelection>,
-  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null,
-  lastExecution: EditorCommandExecution | null
+  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null
 ): Pick<
   GraphViewportRuntimeInspectorState,
   "focusMode" | "focusNodeId" | "selectionCount"
@@ -236,18 +238,12 @@ function resolveInspectorFocusState(
   const recentRuntimeExecutedNodeId = resolveExistingNodeId(
     lastRuntimeExecution?.nodeId ?? null
   );
-  const recentExecutedNodeId = resolveExistingNodeId(
-    lastExecution?.request.type === "node.play"
-      ? lastExecution.request.nodeId
-      : null
-  );
-  const focusNodeId =
-    selectedNodeId ?? recentRuntimeExecutedNodeId ?? recentExecutedNodeId ?? null;
+  const focusNodeId = selectedNodeId ?? recentRuntimeExecutedNodeId ?? null;
 
   return {
     focusMode: selectedNodeId
       ? "selection"
-      : recentRuntimeExecutedNodeId || recentExecutedNodeId
+      : recentRuntimeExecutedNodeId
         ? "recent-execution"
         : "idle",
     focusNodeId,
@@ -277,8 +273,7 @@ function resolveRuntimeInspectorState(
   const { focusNodeId, focusMode, selectionCount } = resolveInspectorFocusState(
     graph,
     selection,
-    lastRuntimeExecution,
-    lastExecution
+    lastRuntimeExecution
   );
 
   if (!focusNodeId) {
@@ -307,14 +302,12 @@ function resolveRuntimeInspectorState(
 function resolveNodeInspectorState(
   graph: LeaferGraph,
   selection: ReturnType<typeof createEditorNodeSelection>,
-  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null,
-  lastExecution: EditorCommandExecution | null
+  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null
 ): LeaferGraphNodeInspectorState | null {
   const { focusNodeId } = resolveInspectorFocusState(
     graph,
     selection,
-    lastRuntimeExecution,
-    lastExecution
+    lastRuntimeExecution
   );
 
   return focusNodeId ? graph.getNodeInspectorState(focusNodeId) ?? null : null;
@@ -324,8 +317,7 @@ function shouldSyncInspectorForNodeState(
   graph: LeaferGraph,
   event: LeaferGraphNodeStateChangeEvent,
   selection: ReturnType<typeof createEditorNodeSelection>,
-  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null,
-  lastExecution: EditorCommandExecution | null
+  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null
 ): boolean {
   if (!event.exists) {
     return true;
@@ -335,8 +327,7 @@ function shouldSyncInspectorForNodeState(
     resolveInspectorFocusState(
       graph,
       selection,
-      lastRuntimeExecution,
-      lastExecution
+      lastRuntimeExecution
     ).focusNodeId === event.nodeId
   );
 }
@@ -498,6 +489,8 @@ export function GraphViewport({
   plugins,
   createDocumentSessionBinding,
   runtimeFeedbackInlet,
+  runtimeController,
+  runtimeControlMode = "local",
   onHostBridgeChange,
   quickCreateNodeType,
   theme,
@@ -586,20 +579,8 @@ export function GraphViewport({
     const documentSession = documentSessionBinding.session;
     const activeDocument = documentSession.currentDocument;
     let projectedDocument = activeDocument;
+    let latestGraphExecutionState = graph.getGraphExecutionState();
     setWorkspaceDocument(activeDocument);
-    onGraphRuntimeControlsChange?.({
-      available: false,
-      executionState: graph.getGraphExecutionState(),
-      play: () => {
-        graph.play();
-      },
-      step: () => {
-        graph.step();
-      },
-      stop: () => {
-        graph.stop();
-      }
-    });
     const selection = createEditorNodeSelection(graph);
     const ownerWindow = host.ownerDocument.defaultView ?? window;
     let latestExecution: EditorCommandExecution | null = null;
@@ -625,28 +606,174 @@ export function GraphViewport({
     let commandHistory!: EditorCommandHistory;
     let disposed = false;
     let syncEditorToolbarControls = (): void => {};
+    const isRuntimeControlAvailable = (): boolean =>
+      graphReady && (runtimeControlMode === "local" || Boolean(runtimeController));
+    const resolveLocalNodePlayState = (
+      nodeId: string
+    ): {
+      disabled: boolean;
+      description: string;
+    } => {
+      if (!graphReady) {
+        return {
+          disabled: true,
+          description: "图初始化完成后可用"
+        };
+      }
+
+      if (!graph.getNodeSnapshot(nodeId)) {
+        return {
+          disabled: true,
+          description: "节点不存在"
+        };
+      }
+
+      const executionState = graph.getNodeExecutionState(nodeId);
+      if (!executionState || executionState.status === "idle") {
+        return {
+          disabled: false,
+          description:
+            "从当前节点开始运行正式执行链；若节点未实现 onExecute(...) 则不会产生运行结果"
+        };
+      }
+
+      if (executionState.status === "running") {
+        return {
+          disabled: false,
+          description: `节点正在执行中，当前累计执行 ${executionState.runCount} 次`
+        };
+      }
+
+      if (executionState.status === "success") {
+        return {
+          disabled: false,
+          description: `最近一次执行成功，当前累计执行 ${executionState.runCount} 次`
+        };
+      }
+
+      return {
+        disabled: false,
+        description: executionState.lastErrorMessage
+          ? `最近一次执行失败：${executionState.lastErrorMessage}`
+          : "最近一次执行失败，请查看节点信号灯或控制台日志"
+      };
+    };
+    const resolveNodePlayState = (
+      nodeId: string
+    ): {
+      disabled: boolean;
+      description: string;
+    } => {
+      if (runtimeControlMode === "remote") {
+        if (!graphReady) {
+          return {
+            disabled: true,
+            description: "图初始化完成后可用"
+          };
+        }
+
+        if (!graph.getNodeSnapshot(nodeId)) {
+          return {
+            disabled: true,
+            description: "节点不存在"
+          };
+        }
+
+        if (!runtimeController) {
+          return {
+            disabled: true,
+            description: "当前 authority 不支持远端运行控制"
+          };
+        }
+
+        return {
+          disabled: false,
+          description: "通过 authority 从当前节点开始运行一条执行链"
+        };
+      }
+
+      return resolveLocalNodePlayState(nodeId);
+    };
     const syncGraphRuntimeControls = (
-      nextGraphExecutionState: GraphViewportGraphExecutionSnapshot = graph.getGraphExecutionState()
+      nextGraphExecutionState: GraphViewportGraphExecutionSnapshot = latestGraphExecutionState
     ): void => {
       if (disposed) {
         return;
       }
 
+      latestGraphExecutionState = nextGraphExecutionState;
       setGraphExecutionState(nextGraphExecutionState);
       onGraphRuntimeControlsChange?.({
-        available: graphReady,
+        available: isRuntimeControlAvailable(),
         executionState: nextGraphExecutionState,
-        play: () => {
-          graph.play();
-        },
-        step: () => {
-          graph.step();
-        },
-        stop: () => {
-          graph.stop();
-        }
+        play: playGraph,
+        step: stepGraph,
+        stop: stopGraph
       });
     };
+    const requestRemoteRuntimeControl = (
+      request:
+        | { type: "node.play"; nodeId: string }
+        | { type: "graph.play" }
+        | { type: "graph.step" }
+        | { type: "graph.stop" }
+    ): void => {
+      if (!runtimeController) {
+        return;
+      }
+
+      void runtimeController
+        .controlRuntime(request)
+        .then((result) => {
+          if (disposed || !result.state) {
+            return;
+          }
+
+          syncGraphRuntimeControls(result.state);
+        })
+        .catch(() => {
+          // 当前阶段保持最小失败处理，真实状态以后续 authority feedback 为准。
+        });
+    };
+    const playGraph = (): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "graph.play" });
+        return;
+      }
+
+      graph.play();
+    };
+    const stepGraph = (): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "graph.step" });
+        return;
+      }
+
+      graph.step();
+    };
+    const stopGraph = (): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "graph.stop" });
+        return;
+      }
+
+      graph.stop();
+    };
+    const playNode = (nodeId: string): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "node.play", nodeId });
+        return;
+      }
+
+      graph.playFromNode(nodeId);
+    };
+    onGraphRuntimeControlsChange?.({
+      available: false,
+      executionState: latestGraphExecutionState,
+      play: playGraph,
+      step: stepGraph,
+      stop: stopGraph
+    });
     const syncInfoPanelState = (): void => {
       if (disposed) {
         return;
@@ -668,8 +795,7 @@ export function GraphViewport({
         resolveNodeInspectorState(
           graph,
           selection,
-          latestRuntimeExecution,
-          latestExecution
+          latestRuntimeExecution
         )
       );
     };
@@ -706,8 +832,7 @@ export function GraphViewport({
               graph,
               event,
               selection,
-              latestRuntimeExecution,
-              latestExecution
+              latestRuntimeExecution
             )
           ) {
             syncInfoPanelState();
@@ -1164,6 +1289,10 @@ export function GraphViewport({
         graph,
         selection,
         resolveCommandBus: () => commandBus,
+        resolveNodePlayState,
+        onPlayNode(nodeId) {
+          playNode(nodeId);
+        },
         onRemoveLink(linkId) {
           commandBus.execute({ type: "link.remove", linkId });
           scheduleLinkContextMenuSync();
@@ -2032,6 +2161,8 @@ export function GraphViewport({
     onWorkspaceStateChange,
     plugins,
     quickCreateNodeType,
+    runtimeControlMode,
+    runtimeController,
     runtimeFeedbackInlet
   ]);
 
