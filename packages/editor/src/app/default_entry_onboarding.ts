@@ -12,11 +12,38 @@ export interface ResolveDefaultEntryOnboardingStateOptions {
   documentNodeCount: number;
 }
 
+export interface ResolveDefaultEntryOnboardingDocumentNodeCountOptions {
+  initialDocumentNodeCount: number;
+  workspaceDocumentNodeCount?: number | null;
+}
+
 export interface DefaultEntryOnboardingState {
   isCleanEntryMode: boolean;
   showStageOnboarding: boolean;
   showNodeLibraryHint: boolean;
   showExtensionsQuickActions: boolean;
+}
+
+/**
+ * 解析默认入口引导应参考的“当前文档节点数”。
+ *
+ * @remarks
+ * App 首次挂载时只能拿到 bootstrap / runtime 提供的初始 document；
+ * 一旦 GraphViewport 已经把本地编辑后的实时文档摘要回传回来，应优先使用
+ * workspace state 中的节点数，避免舞台 onboarding 在用户开始创建节点后仍滞留。
+ */
+export function resolveDefaultEntryOnboardingDocumentNodeCount(
+  options: ResolveDefaultEntryOnboardingDocumentNodeCountOptions
+): number {
+  if (
+    typeof options.workspaceDocumentNodeCount === "number" &&
+    Number.isFinite(options.workspaceDocumentNodeCount) &&
+    options.workspaceDocumentNodeCount >= 0
+  ) {
+    return options.workspaceDocumentNodeCount;
+  }
+
+  return options.initialDocumentNodeCount;
 }
 
 /**

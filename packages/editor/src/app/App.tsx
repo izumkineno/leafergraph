@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { JSX } from "preact";
+import { createContext, type ComponentChildren, type JSX } from "preact";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { GraphDocument } from "leafergraph";
 import type { NodeDefinition } from "@leafergraph/node";
 
@@ -22,6 +22,7 @@ import {
 import {
   DEFAULT_NODE_AUTHORITY_DEMO_URL,
   DEFAULT_PYTHON_AUTHORITY_DEMO_URL,
+  resolveDefaultEntryOnboardingDocumentNodeCount,
   resolveDefaultEntryOnboardingState
 } from "./default_entry_onboarding";
 import {
@@ -50,10 +51,8 @@ import type {
 } from "../loader/types";
 import {
   createEditorRemoteAuthorityAppRuntime,
-  type EditorRemoteAuthorityAppSource,
   type ResolvedEditorRemoteAuthorityAppRuntime
 } from "./remote_authority_app_runtime";
-import type { EditorRemoteAuthorityConnectionStatus } from "../session/graph_document_authority_client";
 import type {
   EditorGraphDocumentResyncOptions,
   EditorGraphOperationAuthorityConfirmation
@@ -70,23 +69,18 @@ import {
   resolveWorkspacePanePresentation,
   type WorkspaceAdaptiveMode
 } from "./workspace_adaptive";
-
-type RemoteAuthorityRuntimeStatus =
-  | "disabled"
-  | "idle"
-  | "loading"
-  | "ready"
-  | "error";
-
-type RemoteAuthorityConnectionDisplayStatus =
-  | "idle"
-  | EditorRemoteAuthorityConnectionStatus;
-type WorkspaceSettingsTab =
-  | "extensions"
-  | "authority"
-  | "preferences"
-  | "shortcuts";
-type RunConsoleTab = "overview" | "chains" | "failures" | "node-runtime";
+import {
+  createEditorController,
+  syncEditorController,
+  type CreateEditorControllerOptions,
+  type EditorController,
+  type EditorControllerActions,
+  type EditorControllerState,
+  type RemoteAuthorityConnectionDisplayStatus,
+  type RemoteAuthorityRuntimeStatus,
+  type RunConsoleTab,
+  type WorkspaceSettingsTab
+} from "./editor_controller";
 type RemoteRuntimeControlNotice = GraphViewportRemoteRuntimeControlNotice;
 
 const TOOLBAR_ACTION_GROUPS = ["history", "selection"] as const;
@@ -347,17 +341,105 @@ function readNodeLibraryHoverPreviewCapabilities(): {
   };
 }
 
-export interface AppProps {
-  preloadedBundles?: readonly EditorAppBootstrapPreloadedBundle[];
-  remoteAuthoritySource?: EditorRemoteAuthorityAppSource;
-  onViewportHostBridgeChange?(bridge: GraphViewportHostBridge | null): void;
+interface EditorStatusbarItem {
+  key: string;
+  label: string;
 }
 
-export function App({
-  preloadedBundles,
-  remoteAuthoritySource,
-  onViewportHostBridgeChange
-}: AppProps) {
+interface EditorAuthoritySummary {
+  modeLabel: string;
+  connectionLabel: string;
+  sourceLabel: string;
+  pendingCount: number;
+  recoveryLabel: string;
+  documentLabel: string;
+}
+
+interface EditorContextValue {
+  controller: EditorController;
+  state: EditorControllerState;
+  actions: EditorControllerActions;
+  runtimeSetup: ReturnType<typeof resolveEditorBundleRuntimeSetup>;
+  effectiveDocument: GraphDocument;
+  effectiveCreateDocumentSessionBinding?:
+    ResolvedEditorRemoteAuthorityAppRuntime["createDocumentSessionBinding"];
+  effectiveRuntimeFeedbackInlet?:
+    ResolvedEditorRemoteAuthorityAppRuntime["runtimeFeedbackInlet"];
+  remoteAuthorityRuntime: ResolvedEditorRemoteAuthorityAppRuntime | null;
+  viewportHostBridge: GraphViewportHostBridge | null;
+  graphExecutionState: GraphViewportRuntimeControlsState["executionState"];
+  toolbarActionGroups: readonly {
+    group: (typeof TOOLBAR_ACTION_GROUPS)[number];
+    actions: readonly GraphViewportToolbarActionState[];
+  }[];
+  showToolbarShortcuts: boolean;
+  statusbarItems: readonly EditorStatusbarItem[];
+  workspaceDialogSize: "fullscreen" | "sheet" | "xl";
+  overlayPaneOpen: boolean;
+  nodeLibraryHoverPreviewEnabled: boolean;
+  authoritySummary: EditorAuthoritySummary;
+  shortcutItems: readonly {
+    id: string;
+    label: string;
+    shortcut?: string;
+    description: string;
+  }[];
+  handleBundleFileChange(slot: EditorBundleSlot, event: Event): Promise<void>;
+  toggleBundleEnabled(slot: EditorBundleSlot): void;
+  unloadBundle(slot: EditorBundleSlot): void;
+  handleViewportHostBridgeChange(bridge: GraphViewportHostBridge | null): void;
+  setEditorToolbarControls(
+    controls: GraphViewportToolbarControlsState | null
+  ): void;
+  setGraphRuntimeControls(
+    controls: GraphViewportRuntimeControlsState | null
+  ): void;
+  setRemoteRuntimeControlNotice(
+    notice: RemoteRuntimeControlNotice | null
+  ): void;
+  setWorkspaceState(state: GraphViewportWorkspaceState | null): void;
+  resyncAuthorityDocument(options?: {
+    resyncOptions?: EditorGraphDocumentResyncOptions;
+    successMessagePrefix?: string;
+    errorPrefix?: string;
+  }): Promise<GraphDocument>;
+  openNodeAuthorityDemo(): void;
+  openPythonAuthorityDemo(): void;
+  scrollToBundleGrid(): void;
+  extensionsBundleGridRef: {
+    current: HTMLDivElement | null;
+  };
+}
+
+const EditorContext = createContext<EditorContextValue | null>(null);
+
+export interface EditorProviderProps {
+  controller: EditorController;
+  children?: ComponentChildren;
+}
+
+export interface EditorShellProps {}
+
+export type AppProps = CreateEditorControllerOptions;
+
+export function useEditorContext(): EditorContextValue {
+  const value = useContext(EditorContext);
+  if (!value) {
+    throw new Error("EditorProvider 尚未挂载，无法读取 editor 上下文。");
+  }
+
+  return value;
+}
+
+export function EditorProvider({
+  controller,
+  children
+}: EditorProviderProps) {
+  const {
+    preloadedBundles,
+    remoteAuthoritySource,
+    onViewportHostBridgeChange
+  } = controller.getOptions();
   const [theme, setTheme] = useState<EditorTheme>(() =>
     resolveInitialEditorTheme()
   );
@@ -980,16 +1062,24 @@ export function App({
     rightPaneOpen
   });
   const showToolbarShortcuts = workspaceAdaptiveMode === "wide-desktop";
+  const defaultEntryDocumentNodeCount = useMemo(
+    () =>
+      resolveDefaultEntryOnboardingDocumentNodeCount({
+        initialDocumentNodeCount: effectiveDocument.nodes.length,
+        workspaceDocumentNodeCount: workspaceState?.document.nodeCount
+      }),
+    [effectiveDocument.nodes.length, workspaceState?.document.nodeCount]
+  );
   const defaultEntryOnboardingState = useMemo(
     () =>
       resolveDefaultEntryOnboardingState({
         isRemoteAuthorityEnabled,
         hasLoadedNodeBundle: Boolean(runtimeSetup.slots.node.manifest),
         hasLoadedWidgetBundle: Boolean(runtimeSetup.slots.widget.manifest),
-        documentNodeCount: effectiveDocument.nodes.length
+        documentNodeCount: defaultEntryDocumentNodeCount
       }),
     [
-      effectiveDocument.nodes.length,
+      defaultEntryDocumentNodeCount,
       isRemoteAuthorityEnabled,
       runtimeSetup.slots.node.manifest,
       runtimeSetup.slots.widget.manifest
@@ -1415,6 +1505,212 @@ export function App({
     workspaceState?.status.selectionLabel
   ]);
 
+  const controllerState = useMemo<EditorControllerState>(
+    () => ({
+      theme,
+      workspaceAdaptiveMode,
+      leftPaneOpen,
+      rightPaneOpen,
+      workspaceMenuOpen,
+      workspaceSettingsOpen,
+      runConsoleOpen,
+      workspaceSettingsTab,
+      runConsoleTab,
+      nodeLibrarySearchQuery,
+      activeLibraryNodeType,
+      availableNodeDefinitions,
+      nodeLibraryPreviewRequest,
+      bundleSlots,
+      remoteAuthorityStatus,
+      remoteAuthorityError,
+      remoteAuthorityConnectionStatus,
+      remoteAuthorityDocument,
+      remoteAuthorityPendingOperationIds,
+      remoteAuthorityLastIssue,
+      remoteRuntimeControlNotice,
+      remoteAuthorityResyncing,
+      graphRuntimeControls,
+      editorToolbarControls,
+      workspaceState,
+      leftPanePresentation,
+      rightPanePresentation,
+      stageLayout,
+      canPlayGraph,
+      canStepGraph,
+      canStopGraph,
+      isRemoteAuthorityEnabled,
+      defaultEntryOnboardingState
+    }),
+    [
+      activeLibraryNodeType,
+      availableNodeDefinitions,
+      bundleSlots,
+      canPlayGraph,
+      canStepGraph,
+      canStopGraph,
+      defaultEntryOnboardingState,
+      editorToolbarControls,
+      graphRuntimeControls,
+      isRemoteAuthorityEnabled,
+      leftPaneOpen,
+      leftPanePresentation,
+      nodeLibraryPreviewRequest,
+      nodeLibrarySearchQuery,
+      remoteAuthorityConnectionStatus,
+      remoteAuthorityDocument,
+      remoteAuthorityError,
+      remoteAuthorityLastIssue,
+      remoteAuthorityPendingOperationIds,
+      remoteAuthorityResyncing,
+      remoteAuthorityStatus,
+      remoteRuntimeControlNotice,
+      rightPaneOpen,
+      rightPanePresentation,
+      runConsoleOpen,
+      runConsoleTab,
+      stageLayout,
+      theme,
+      workspaceAdaptiveMode,
+      workspaceMenuOpen,
+      workspaceSettingsOpen,
+      workspaceSettingsTab,
+      workspaceState
+    ]
+  );
+
+  const controllerActions = useMemo<EditorControllerActions>(
+    () => ({
+      setTheme,
+      toggleTheme() {
+        setTheme((currentTheme) => toggleEditorTheme(currentTheme));
+      },
+      setWorkspaceMenuOpen,
+      openLeftPane,
+      openRightPane,
+      toggleLeftPane,
+      toggleRightPane,
+      closeOverlayPanes,
+      openWorkspaceSettings: openWorkspaceSettingsDialog,
+      closeWorkspaceSettings() {
+        setWorkspaceSettingsOpen(false);
+      },
+      setWorkspaceSettingsTab,
+      openRunConsole: openRunConsoleDialog,
+      closeRunConsole() {
+        setRunConsoleOpen(false);
+      },
+      setRunConsoleTab,
+      setNodeLibrarySearchQuery,
+      setActiveLibraryNodeType,
+      setNodeLibraryPreviewRequest,
+      createNodeFromWorkspace: handleCreateNodeFromWorkspace,
+      openNodeAuthorityDemo,
+      openPythonAuthorityDemo,
+      reloadRemoteAuthority() {
+        setRemoteAuthorityReloadKey((current) => current + 1);
+      },
+      async resyncRemoteAuthority(options) {
+        if (!viewportHostBridge) {
+          return null;
+        }
+
+        return await resyncAuthorityDocument({
+          resyncOptions: options
+        });
+      },
+      playGraph() {
+        graphRuntimeControls?.play();
+      },
+      stepGraph() {
+        graphRuntimeControls?.step();
+      },
+      stopGraph() {
+        graphRuntimeControls?.stop();
+      }
+    }),
+    [
+      closeOverlayPanes,
+      graphRuntimeControls,
+      handleCreateNodeFromWorkspace,
+      openLeftPane,
+      openNodeAuthorityDemo,
+      openPythonAuthorityDemo,
+      openRightPane,
+      openRunConsoleDialog,
+      openWorkspaceSettingsDialog,
+      resyncAuthorityDocument,
+      viewportHostBridge
+    ]
+  );
+
+  useEffect(() => {
+    syncEditorController(controller, controllerState, controllerActions);
+  }, [controller, controllerActions, controllerState]);
+
+  const contextValue = useMemo<EditorContextValue>(
+    () => ({
+      controller,
+      state: controllerState,
+      actions: controllerActions,
+      runtimeSetup,
+      effectiveDocument,
+      effectiveCreateDocumentSessionBinding,
+      effectiveRuntimeFeedbackInlet,
+      remoteAuthorityRuntime,
+      viewportHostBridge,
+      graphExecutionState,
+      toolbarActionGroups,
+      showToolbarShortcuts,
+      statusbarItems,
+      workspaceDialogSize,
+      overlayPaneOpen,
+      nodeLibraryHoverPreviewEnabled,
+      authoritySummary,
+      shortcutItems,
+      handleBundleFileChange,
+      toggleBundleEnabled,
+      unloadBundle,
+      handleViewportHostBridgeChange,
+      setEditorToolbarControls,
+      setGraphRuntimeControls,
+      setRemoteRuntimeControlNotice,
+      setWorkspaceState,
+      resyncAuthorityDocument,
+      openNodeAuthorityDemo,
+      openPythonAuthorityDemo,
+      scrollToBundleGrid,
+      extensionsBundleGridRef
+    }),
+    [
+      authoritySummary,
+      controller,
+      controllerActions,
+      controllerState,
+      effectiveCreateDocumentSessionBinding,
+      effectiveDocument,
+      effectiveRuntimeFeedbackInlet,
+      graphExecutionState,
+      handleBundleFileChange,
+      handleViewportHostBridgeChange,
+      nodeLibraryHoverPreviewEnabled,
+      openNodeAuthorityDemo,
+      openPythonAuthorityDemo,
+      overlayPaneOpen,
+      remoteAuthorityRuntime,
+      resyncAuthorityDocument,
+      runtimeSetup,
+      scrollToBundleGrid,
+      shortcutItems,
+      showToolbarShortcuts,
+      statusbarItems,
+      viewportHostBridge,
+      toggleBundleEnabled,
+      toolbarActionGroups,
+      unloadBundle,
+      workspaceDialogSize
+    ]
+  );
+
   const renderWorkspaceStage = (): JSX.Element => {
     if (isRemoteAuthorityEnabled && remoteAuthorityStatus !== "ready") {
       return (
@@ -1522,14 +1818,16 @@ export function App({
   };
 
   return (
-    <div
-      class="app-shell"
-      data-theme={theme}
-      data-adaptive={workspaceAdaptiveMode}
-      data-left-open={leftPaneOpen ? "true" : "false"}
-      data-right-open={rightPaneOpen ? "true" : "false"}
-      data-stage-layout={stageLayout}
-    >
+    <EditorContext.Provider value={contextValue}>
+      {children ?? (
+        <div
+          class="app-shell"
+          data-theme={theme}
+          data-adaptive={workspaceAdaptiveMode}
+          data-left-open={leftPaneOpen ? "true" : "false"}
+          data-right-open={rightPaneOpen ? "true" : "false"}
+          data-stage-layout={stageLayout}
+        >
       <header class="titlebar">
         <div class="titlebar__identity">
           <div class="titlebar__brand">
@@ -2442,6 +2740,1176 @@ export function App({
           </section>
         ) : null}
       </AppDialog>
+        </div>
+      )}
+    </EditorContext.Provider>
+  );
+}
+
+export function EditorTitlebar() {
+  const { state, actions, graphExecutionState, toolbarActionGroups, showToolbarShortcuts } =
+    useEditorContext();
+  const isWorkspaceOverflowMode =
+    state.workspaceAdaptiveMode === "tablet" ||
+    state.workspaceAdaptiveMode === "mobile";
+
+  return (
+    <header class="titlebar">
+      <div class="titlebar__identity">
+        <div class="titlebar__brand">
+          <span class="titlebar__brand-mark">LG</span>
+          <div>
+            <p class="titlebar__eyebrow">LeaferGraph Editor</p>
+            <h1>专业工作区</h1>
+          </div>
+        </div>
+        <div class="titlebar__document-meta">
+          <span class="titlebar__document-chip">
+            {state.workspaceState?.status.documentLabel ?? "等待文档"}
+          </span>
+          <span class="titlebar__document-subtle">
+            {state.workspaceState
+              ? `${state.workspaceState.document.nodeCount} Nodes · ${state.workspaceState.document.linkCount} Links`
+              : "等待 GraphViewport 挂载"}
+          </span>
+        </div>
+      </div>
+
+      <div class="titlebar__toolbar">
+        {toolbarActionGroups.length ? (
+          <div class="commandbar" aria-label="编辑工具栏">
+            {toolbarActionGroups.map(({ group, actions: groupActions }) => (
+              <div class="commandbar__group" key={group}>
+                {groupActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    class={`commandbar__button${
+                      action.danger ? " commandbar__button--danger" : ""
+                    }`}
+                    disabled={action.disabled}
+                    title={formatToolbarActionTitle(action)}
+                    onClick={() => {
+                      state.editorToolbarControls?.execute(action.id);
+                    }}
+                  >
+                    <span>{action.label}</span>
+                    {action.shortcut && showToolbarShortcuts ? (
+                      <span class="commandbar__shortcut">{action.shortcut}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="commandbar commandbar--placeholder">
+            <span>等待画布命令总线就绪</span>
+          </div>
+        )}
+        <div class="titlebar__primary-actions">
+          <span class="titlebar-status-pill" data-status={graphExecutionState.status}>
+            {formatGraphExecutionStatusLabel(graphExecutionState.status)}
+          </span>
+        </div>
+        <div class="titlebar__runtime">
+          <button
+            type="button"
+            class="workspace-primary-button workspace-primary-button--ghost"
+            disabled={!state.canPlayGraph}
+            onClick={() => {
+              actions.playGraph();
+            }}
+          >
+            Play
+          </button>
+          <button
+            type="button"
+            class="workspace-primary-button workspace-primary-button--ghost"
+            disabled={!state.canStepGraph}
+            onClick={() => {
+              actions.stepGraph();
+            }}
+          >
+            Step
+          </button>
+          <button
+            type="button"
+            class="workspace-secondary-button workspace-secondary-button--danger"
+            disabled={!state.canStopGraph}
+            onClick={() => {
+              actions.stopGraph();
+            }}
+          >
+            Stop
+          </button>
+        </div>
+      </div>
+
+      <div class="titlebar__workspace">
+        {!isWorkspaceOverflowMode ? (
+          <>
+            <button
+              type="button"
+              class="titlebar-icon-button"
+              onClick={actions.toggleLeftPane}
+              aria-label="切换节点库"
+            >
+              <IconPanel
+                title="切换节点库"
+                description="切换节点库"
+                path="M4 6h16M4 12h16M4 18h16"
+              />
+            </button>
+            <button
+              type="button"
+              class="titlebar-icon-button"
+              onClick={actions.toggleRightPane}
+              aria-label="切换检查器"
+            >
+              <IconPanel
+                title="切换检查器"
+                description="切换检查器"
+                path="M5 5h14v14H5zM9 5v14"
+              />
+            </button>
+            <button
+              type="button"
+              class="workspace-secondary-button"
+              onClick={() => {
+                actions.openRunConsole();
+              }}
+            >
+              Run Console
+            </button>
+            <button
+              type="button"
+              class="workspace-secondary-button"
+              onClick={() => {
+                actions.openWorkspaceSettings();
+              }}
+            >
+              Workspace Settings
+            </button>
+          </>
+        ) : (
+          <div class="titlebar__workspace-menu">
+            <button
+              type="button"
+              class="workspace-secondary-button titlebar__workspace-trigger"
+              data-active={state.workspaceMenuOpen ? "true" : "false"}
+              aria-expanded={state.workspaceMenuOpen ? "true" : "false"}
+              onClick={() => {
+                actions.setWorkspaceMenuOpen(!state.workspaceMenuOpen);
+              }}
+            >
+              Workspace
+            </button>
+            {state.workspaceMenuOpen ? (
+              <div
+                class="titlebar__workspace-popover"
+                role="menu"
+                aria-label="工作区快捷入口"
+              >
+                <button
+                  type="button"
+                  class="titlebar__workspace-item"
+                  role="menuitem"
+                  onClick={actions.openLeftPane}
+                >
+                  打开节点库
+                </button>
+                <button
+                  type="button"
+                  class="titlebar__workspace-item"
+                  role="menuitem"
+                  onClick={actions.openRightPane}
+                >
+                  打开检查器
+                </button>
+                <button
+                  type="button"
+                  class="titlebar__workspace-item"
+                  role="menuitem"
+                  onClick={() => {
+                    actions.openRunConsole();
+                  }}
+                >
+                  Run Console
+                </button>
+                <button
+                  type="button"
+                  class="titlebar__workspace-item"
+                  role="menuitem"
+                  onClick={() => {
+                    actions.openWorkspaceSettings();
+                  }}
+                >
+                  Workspace Settings
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+export function EditorNodeLibrary() {
+  const { state, actions, runtimeSetup, nodeLibraryHoverPreviewEnabled, viewportHostBridge } =
+    useEditorContext();
+
+  return (
+    <NodeLibraryPane
+      definitions={state.availableNodeDefinitions}
+      searchQuery={state.nodeLibrarySearchQuery}
+      activeNodeType={state.activeLibraryNodeType}
+      presentation={state.leftPanePresentation}
+      quickCreateNodeType={runtimeSetup.quickCreateNodeType}
+      disabled={!viewportHostBridge}
+      hoverPreviewEnabled={nodeLibraryHoverPreviewEnabled}
+      focusSearchOnOpen={
+        state.leftPaneOpen && state.leftPanePresentation !== "docked"
+      }
+      cleanEntryHint={
+        state.defaultEntryOnboardingState.showNodeLibraryHint
+          ? {
+              onOpenExtensions: () => {
+                actions.openWorkspaceSettings("extensions");
+              },
+              onOpenNodeAuthorityDemo: actions.openNodeAuthorityDemo,
+              onOpenPythonAuthorityDemo: actions.openPythonAuthorityDemo
+            }
+          : undefined
+      }
+      onSearchQueryChange={actions.setNodeLibrarySearchQuery}
+      onActiveNodeTypeChange={(nodeType) => {
+        actions.setActiveLibraryNodeType(nodeType);
+      }}
+      onCreateNode={actions.createNodeFromWorkspace}
+      onPreviewRequestChange={actions.setNodeLibraryPreviewRequest}
+    />
+  );
+}
+
+export function EditorInspector() {
+  const { state, authoritySummary, actions } = useEditorContext();
+
+  return (
+    <InspectorPane
+      presentation={state.rightPanePresentation}
+      workspaceState={state.workspaceState}
+      authoritySummary={authoritySummary}
+      onOpenRunConsole={() => {
+        actions.openRunConsole("overview");
+      }}
+    />
+  );
+}
+
+export function EditorViewportPane() {
+  const {
+    state,
+    actions,
+    runtimeSetup,
+    effectiveDocument,
+    effectiveCreateDocumentSessionBinding,
+    effectiveRuntimeFeedbackInlet,
+    remoteAuthorityRuntime,
+    handleViewportHostBridgeChange,
+    setEditorToolbarControls,
+    setGraphRuntimeControls,
+    setRemoteRuntimeControlNotice,
+    setWorkspaceState
+  } = useEditorContext();
+
+  if (state.isRemoteAuthorityEnabled && state.remoteAuthorityStatus !== "ready") {
+    return (
+      <div class="workspace-stage__empty">
+        <div class="workspace-stage__empty-card">
+          <p class="workspace-pane__eyebrow">Remote Authority</p>
+          <h2>
+            {state.remoteAuthorityStatus === "error"
+              ? "Authority 连接失败"
+              : "正在装配远端文档"}
+          </h2>
+          <p>
+            {state.remoteAuthorityStatus === "error"
+              ? state.remoteAuthorityError ??
+                "当前 authority 未能返回可用文档，请重试或切回本地模式。"
+              : "Editor 正在等待 authority client、正式 GraphDocument 和 runtime feedback 通道就绪。"}
+          </p>
+          <div class="workspace-stage__empty-actions">
+            <button
+              type="button"
+              class="workspace-primary-button"
+              disabled={state.remoteAuthorityStatus === "loading"}
+              onClick={() => {
+                actions.reloadRemoteAuthority();
+              }}
+            >
+              {state.remoteAuthorityStatus === "loading" ? "连接中" : "重试连接"}
+            </button>
+            <button
+              type="button"
+              class="workspace-secondary-button"
+              onClick={() => {
+                actions.openWorkspaceSettings("authority");
+              }}
+            >
+              打开 Authority 设置
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div class="workspace-stage__stack">
+      <GraphViewport
+        document={effectiveDocument}
+        plugins={runtimeSetup.plugins}
+        createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
+        runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
+        runtimeController={remoteAuthorityRuntime?.runtimeController}
+        runtimeControlMode={remoteAuthorityRuntime ? "remote" : "local"}
+        onHostBridgeChange={handleViewportHostBridgeChange}
+        quickCreateNodeType={runtimeSetup.quickCreateNodeType}
+        theme={state.theme}
+        onEditorToolbarControlsChange={setEditorToolbarControls}
+        onGraphRuntimeControlsChange={setGraphRuntimeControls}
+        onRemoteRuntimeControlNoticeChange={setRemoteRuntimeControlNotice}
+        onWorkspaceStateChange={setWorkspaceState}
+      />
+      {state.defaultEntryOnboardingState.showStageOnboarding ? (
+        <div class="workspace-stage__overlay">
+          <div class="workspace-stage__onboarding-card">
+            <p class="workspace-pane__eyebrow">Clean Entry</p>
+            <h2>当前打开的是干净编辑器入口</h2>
+            <p>
+              这里不会自动预加载 node/widget bundle，也不会直接切到 demo
+              authority，所以你现在看到的是本地 loopback + 空工作区。
+            </p>
+            <p>
+              如果想马上看到完整节点库和示例链路，可以直接进入预载好的
+              Node / Python Authority Demo；如果想保持当前入口干净，也可以先去
+              Extensions 手动加载本地 bundle。
+            </p>
+            <div class="workspace-stage__empty-actions">
+              <button
+                type="button"
+                class="workspace-primary-button"
+                onClick={actions.openNodeAuthorityDemo}
+              >
+                打开 Node Authority Demo
+              </button>
+              <button
+                type="button"
+                class="workspace-secondary-button"
+                onClick={actions.openPythonAuthorityDemo}
+              >
+                打开 Python Authority Demo
+              </button>
+              <button
+                type="button"
+                class="workspace-secondary-button"
+                onClick={() => {
+                  actions.openWorkspaceSettings("extensions");
+                }}
+              >
+                打开 Extensions
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+export function EditorWorkspace() {
+  const {
+    state,
+    actions,
+    overlayPaneOpen,
+    nodeLibraryHoverPreviewEnabled,
+    runtimeSetup
+  } = useEditorContext();
+
+  return (
+    <>
+      <div class="workspace-grid" data-stage-layout={state.stageLayout}>
+        {overlayPaneOpen ? (
+          <button
+            type="button"
+            class="workspace-grid__backdrop"
+            aria-label="关闭侧栏覆盖层"
+            onClick={actions.closeOverlayPanes}
+          />
+        ) : null}
+        <aside
+          class="workspace-sidebar workspace-sidebar--left"
+          data-presentation={state.leftPanePresentation}
+          data-open={state.leftPaneOpen ? "true" : "false"}
+        >
+          <EditorNodeLibrary />
+        </aside>
+
+        <main class="workspace-stage">
+          <EditorViewportPane />
+        </main>
+
+        <aside
+          class="workspace-sidebar workspace-sidebar--right"
+          data-presentation={state.rightPanePresentation}
+          data-open={state.rightPaneOpen ? "true" : "false"}
+        >
+          <EditorInspector />
+        </aside>
+      </div>
+
+      {nodeLibraryHoverPreviewEnabled &&
+      state.leftPaneOpen &&
+      state.nodeLibraryPreviewRequest ? (
+        <NodeLibraryHoverPreviewOverlay
+          request={state.nodeLibraryPreviewRequest}
+          theme={state.theme}
+          plugins={runtimeSetup.plugins}
+        />
+      ) : null}
+    </>
+  );
+}
+
+export function EditorStatusbar() {
+  const { state, statusbarItems } = useEditorContext();
+
+  return (
+    <footer class="statusbar" data-density={state.workspaceAdaptiveMode}>
+      {statusbarItems.map((item) => (
+        <span key={item.key} class="statusbar__item">
+          {item.label}
+        </span>
+      ))}
+    </footer>
+  );
+}
+
+export function EditorWorkspaceSettingsDialog() {
+  const {
+    state,
+    actions,
+    runtimeSetup,
+    workspaceDialogSize,
+    authoritySummary,
+    remoteAuthorityRuntime,
+    viewportHostBridge,
+    handleBundleFileChange,
+    toggleBundleEnabled,
+    unloadBundle,
+    resyncAuthorityDocument,
+    extensionsBundleGridRef,
+    scrollToBundleGrid,
+    shortcutItems
+  } = useEditorContext();
+
+  return (
+    <AppDialog
+      open={state.workspaceSettingsOpen}
+      title="Workspace Settings"
+      description="系统级信息统一收敛到这里，主界面只保留创作和检查所需的核心上下文。"
+      size={workspaceDialogSize}
+      onClose={() => {
+        actions.closeWorkspaceSettings();
+      }}
+    >
+      <div class="dialog-tabs" role="tablist" aria-label="工作区设置标签">
+        {(
+          [
+            ["extensions", "Extensions"],
+            ["authority", "Authority"],
+            ["preferences", "Preferences"],
+            ["shortcuts", "Shortcuts"]
+          ] as const
+        ).map(([tabId, label]) => (
+          <button
+            key={tabId}
+            type="button"
+            class="dialog-tab"
+            data-active={state.workspaceSettingsTab === tabId ? "true" : "false"}
+            onClick={() => {
+              actions.setWorkspaceSettingsTab(tabId);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {state.workspaceSettingsTab === "extensions" ? (
+        <section class="dialog-section">
+          <div class="dialog-section__header">
+            <div>
+              <p class="workspace-pane__eyebrow">Extensions</p>
+              <h3>Bundle 管理</h3>
+            </div>
+            <p class="dialog-section__summary">
+              当前激活 <strong>{runtimeSetup.plugins.length}</strong> 个插件，
+              优先创建节点为{" "}
+              <strong>{runtimeSetup.quickCreateNodeType ?? "未指定"}</strong>
+            </p>
+          </div>
+          {state.defaultEntryOnboardingState.showExtensionsQuickActions ? (
+            <div class="workspace-quickstart">
+              <div class="workspace-quickstart__body">
+                <p class="workspace-pane__eyebrow">Quick Start</p>
+                <h4>当前是干净入口</h4>
+                <p>
+                  默认页不会自动预装 node/widget bundle。你可以直接打开预载好的
+                  Node / Python Authority Demo，或继续在下方手动加载本地 bundle。
+                </p>
+              </div>
+              <div class="dialog-actions">
+                <button
+                  type="button"
+                  class="workspace-primary-button"
+                  onClick={actions.openNodeAuthorityDemo}
+                >
+                  打开 Node Authority Demo
+                </button>
+                <button
+                  type="button"
+                  class="workspace-secondary-button"
+                  onClick={actions.openPythonAuthorityDemo}
+                >
+                  打开 Python Authority Demo
+                </button>
+                <button
+                  type="button"
+                  class="workspace-secondary-button"
+                  onClick={scrollToBundleGrid}
+                >
+                  继续手动加载本地 bundle
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div class="bundle-grid" ref={extensionsBundleGridRef}>
+            {EDITOR_BUNDLE_SLOTS.map((slot) => {
+              const bundleState = runtimeSetup.slots[slot];
+              const manifest = bundleState.manifest;
+              const quickCreateNodeType =
+                manifest?.kind === "node" || manifest?.kind === "widget"
+                  ? manifest.quickCreateNodeType
+                  : undefined;
+
+              return (
+                <article class="bundle-card" key={slot}>
+                  <div class="bundle-card__header">
+                    <div>
+                      <h4>{BUNDLE_SLOT_TITLE[slot]}</h4>
+                      <p>{BUNDLE_SLOT_DESCRIPTION[slot]}</p>
+                    </div>
+                    <span
+                      class="bundle-card__status"
+                      data-status={bundleState.status}
+                    >
+                      {BUNDLE_STATUS_LABEL[bundleState.status]}
+                    </span>
+                  </div>
+                  <dl class="bundle-card__info">
+                    <WorkspaceField
+                      label="文件"
+                      value={bundleState.fileName ?? "未选择"}
+                    />
+                    <WorkspaceField label="名称" value={manifest?.name ?? "未加载"} />
+                    <WorkspaceField label="ID" value={manifest?.id ?? "未加载"} />
+                    <WorkspaceField
+                      label="版本"
+                      value={manifest?.version ? `v${manifest.version}` : "未声明"}
+                    />
+                    <WorkspaceField
+                      label="依赖"
+                      value={
+                        manifest?.requires?.length
+                          ? manifest.requires.join(" + ")
+                          : "无"
+                      }
+                    />
+                    <WorkspaceField
+                      label="状态"
+                      value={resolveBundleActivationLabel(bundleState)}
+                    />
+                    <WorkspaceField
+                      label="持久化"
+                      value={formatBundlePersistenceLabel(bundleState)}
+                    />
+                    <WorkspaceField
+                      label="快速创建"
+                      value={quickCreateNodeType ?? "无"}
+                    />
+                  </dl>
+                  {bundleState.error ? (
+                    <p class="bundle-card__error">{bundleState.error}</p>
+                  ) : null}
+                  <div class="bundle-card__actions">
+                    <label class="workspace-primary-button workspace-primary-button--ghost bundle-card__upload">
+                      选择文件
+                      <input
+                        type="file"
+                        class="bundle-card__file-input"
+                        accept=".js,text/javascript,application/javascript"
+                        onChange={(event) => {
+                          void handleBundleFileChange(slot, event);
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      class="workspace-secondary-button"
+                      disabled={!manifest || bundleState.loading}
+                      onClick={() => {
+                        toggleBundleEnabled(slot);
+                      }}
+                    >
+                      {bundleState.enabled ? "停用" : "启用"}
+                    </button>
+                    <button
+                      type="button"
+                      class="workspace-secondary-button"
+                      disabled={bundleState.loading && !manifest}
+                      onClick={() => {
+                        unloadBundle(slot);
+                      }}
+                    >
+                      卸载
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {state.workspaceSettingsTab === "authority" ? (
+        <section class="dialog-section">
+          <div class="dialog-section__header">
+            <div>
+              <p class="workspace-pane__eyebrow">Authority</p>
+              <h3>后端与同步状态</h3>
+            </div>
+            <p class="dialog-section__summary">
+              当前模式：<strong>{authoritySummary.modeLabel}</strong>，装配状态：
+              <strong>{formatRemoteAuthorityStatusLabel(state.remoteAuthorityStatus)}</strong>
+            </p>
+          </div>
+          <dl class="detail-grid">
+            <WorkspaceField label="连接状态" value={authoritySummary.connectionLabel} />
+            <WorkspaceField label="当前来源" value={authoritySummary.sourceLabel} />
+            <WorkspaceField label="当前文档" value={authoritySummary.documentLabel} />
+            <WorkspaceField
+              label="待确认操作"
+              value={String(authoritySummary.pendingCount)}
+            />
+            <WorkspaceField label="恢复策略" value={authoritySummary.recoveryLabel} />
+            <WorkspaceField
+              label="Graph 状态"
+              value={state.workspaceState?.status.runtimeLabel ?? "等待画布"}
+            />
+          </dl>
+          {remoteAuthorityRuntime?.sourceDescription ? (
+            <p class="workspace-note">{remoteAuthorityRuntime.sourceDescription}</p>
+          ) : null}
+          {state.remoteAuthorityLastIssue ? (
+            <p class="workspace-note">{state.remoteAuthorityLastIssue}</p>
+          ) : null}
+          {state.remoteAuthorityError ? (
+            <p class="workspace-error">{state.remoteAuthorityError}</p>
+          ) : null}
+          <div class="dialog-actions">
+            {state.isRemoteAuthorityEnabled ? (
+              <>
+                {state.remoteAuthorityStatus === "ready" && viewportHostBridge ? (
+                  <button
+                    type="button"
+                    class="workspace-primary-button"
+                    disabled={state.remoteAuthorityResyncing}
+                    onClick={() => {
+                      void resyncAuthorityDocument({
+                        resyncOptions: {
+                          invalidatePending: true,
+                          pendingReason:
+                            "authority 已手工重新同步，待确认操作已失效，请手工重试"
+                        },
+                        successMessagePrefix: "Authority 已手工重新同步"
+                      }).catch(() => {
+                        // 错误状态已在 resyncAuthorityDocument 内回填到 UI。
+                      });
+                    }}
+                  >
+                    {state.remoteAuthorityResyncing
+                      ? "同步中"
+                      : state.remoteAuthorityPendingOperationIds.length > 0
+                        ? "放弃待确认并重新同步"
+                        : "重新同步文档"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  class="workspace-secondary-button"
+                  disabled={state.remoteAuthorityStatus === "loading"}
+                  onClick={() => {
+                    actions.reloadRemoteAuthority();
+                  }}
+                >
+                  {state.remoteAuthorityStatus === "loading"
+                    ? "连接中"
+                    : "重新连接 Authority"}
+                </button>
+              </>
+            ) : (
+              <p class="workspace-note">
+                当前没有接入外部 authority，正在使用本地 loopback 文档会话。
+              </p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {state.workspaceSettingsTab === "preferences" ? (
+        <section class="dialog-section">
+          <div class="dialog-section__header">
+            <div>
+              <p class="workspace-pane__eyebrow">Preferences</p>
+              <h3>工作区偏好</h3>
+            </div>
+          </div>
+          <div class="preferences-grid">
+            <article class="preference-card">
+              <h4>主题</h4>
+              <p>默认采用专业工作站式暗色，亮色保持信息密度与对比度对等。</p>
+              <div class="segmented-control">
+                <button
+                  type="button"
+                  class="segmented-control__button"
+                  data-active={state.theme === "dark" ? "true" : "false"}
+                  onClick={() => {
+                    actions.setTheme("dark");
+                  }}
+                >
+                  暗色
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control__button"
+                  data-active={state.theme === "light" ? "true" : "false"}
+                  onClick={() => {
+                    actions.setTheme("light");
+                  }}
+                >
+                  亮色
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control__button"
+                  onClick={actions.toggleTheme}
+                >
+                  切换
+                </button>
+              </div>
+            </article>
+            <article class="preference-card">
+              <h4>工作区可见性</h4>
+              <p>在桌面和窄屏之间切换时，节点库与检查器都支持折叠与唤起。</p>
+              <div class="dialog-actions">
+                <button
+                  type="button"
+                  class="workspace-secondary-button"
+                  onClick={actions.toggleLeftPane}
+                >
+                  {state.leftPaneOpen ? "收起节点库" : "展开节点库"}
+                </button>
+                <button
+                  type="button"
+                  class="workspace-secondary-button"
+                  onClick={actions.toggleRightPane}
+                >
+                  {state.rightPaneOpen ? "收起检查器" : "展开检查器"}
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+      ) : null}
+
+      {state.workspaceSettingsTab === "shortcuts" ? (
+        <section class="dialog-section">
+          <div class="dialog-section__header">
+            <div>
+              <p class="workspace-pane__eyebrow">Shortcuts</p>
+              <h3>快捷键与工作流</h3>
+            </div>
+          </div>
+          <div class="shortcut-list">
+            {shortcutItems.map((item) => (
+              <article class="shortcut-item" key={item.id}>
+                <div>
+                  <h4>{item.label}</h4>
+                  <p>{item.description}</p>
+                </div>
+                <kbd>{item.shortcut}</kbd>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </AppDialog>
+  );
+}
+
+export function EditorRunConsoleDialog() {
+  const { state, actions, workspaceDialogSize } = useEditorContext();
+
+  return (
+    <AppDialog
+      open={state.runConsoleOpen}
+      title="Run Console"
+      description="图级运行链、失败聚合和焦点节点运行态统一移入这里，主界面只保留精简摘要。"
+      size={workspaceDialogSize}
+      onClose={() => {
+        actions.closeRunConsole();
+      }}
+    >
+      <div class="dialog-tabs" role="tablist" aria-label="运行控制台标签">
+        {(
+          [
+            ["overview", "Overview"],
+            ["chains", "Chains"],
+            ["failures", "Failures"],
+            ["node-runtime", "Node Runtime"]
+          ] as const
+        ).map(([tabId, label]) => (
+          <button
+            key={tabId}
+            type="button"
+            class="dialog-tab"
+            data-active={state.runConsoleTab === tabId ? "true" : "false"}
+            onClick={() => {
+              actions.setRunConsoleTab(tabId);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <EditorRunConsoleBody />
+    </AppDialog>
+  );
+}
+
+function EditorRunConsoleBody() {
+  const { state } = useEditorContext();
+
+  if (state.remoteRuntimeControlNotice) {
+    return (
+      <>
+        <p
+          class={
+            state.remoteRuntimeControlNotice.tone === "error"
+              ? "workspace-error"
+              : "workspace-note"
+          }
+        >
+          {state.remoteRuntimeControlNotice.message}
+        </p>
+        <EditorRunConsolePanels />
+      </>
+    );
+  }
+
+  return <EditorRunConsolePanels />;
+}
+
+function EditorRunConsolePanels() {
+  const { state } = useEditorContext();
+
+  if (!state.workspaceState) {
+    return (
+      <div class="workspace-empty-state">
+        <h3>等待运行上下文</h3>
+        <p>GraphViewport 完成挂载后，运行控制台会读取执行摘要与节点快照。</p>
+      </div>
+    );
+  }
+
+  const workspaceState = state.workspaceState;
+
+  if (state.runConsoleTab === "overview") {
+    return (
+      <section class="dialog-section">
+        <div class="run-console-grid">
+          <article class="run-console-card">
+            <p class="run-console-card__label">图级状态</p>
+            <strong>{workspaceState.status.runtimeLabel}</strong>
+            <span>Run {workspaceState.runtime.graphExecutionState.runId ?? "无"}</span>
+          </article>
+          <article class="run-console-card">
+            <p class="run-console-card__label">焦点节点</p>
+            <strong>{workspaceState.status.focusLabel}</strong>
+            <span>{workspaceState.runtime.focus.focusMode}</span>
+          </article>
+          <article class="run-console-card">
+            <p class="run-console-card__label">最近检查链</p>
+            <strong>{workspaceState.runtime.latestChain?.rootNodeTitle ?? "暂无"}</strong>
+            <span>
+              {workspaceState.runtime.latestChain
+                ? `${workspaceState.runtime.latestChain.stepCount} 步`
+                : "等待新的执行链"}
+            </span>
+          </article>
+          <article class="run-console-card">
+            <p class="run-console-card__label">失败聚合</p>
+            <strong>{workspaceState.runtime.failures.length}</strong>
+            <span>最近失败节点数</span>
+          </article>
+        </div>
+        <dl class="detail-grid">
+          <WorkspaceField
+            label="队列长度"
+            value={String(workspaceState.runtime.graphExecutionState.queueSize)}
+          />
+          <WorkspaceField
+            label="已推进步数"
+            value={String(workspaceState.runtime.graphExecutionState.stepCount)}
+          />
+          <WorkspaceField
+            label="最近命令"
+            value={workspaceState.status.lastCommandSummary ?? "无"}
+          />
+          <WorkspaceField
+            label="最近成功"
+            value={formatTimestamp(
+              workspaceState.runtime.focus.executionState?.lastSucceededAt
+            )}
+          />
+          <WorkspaceField
+            label="最近失败"
+            value={formatTimestamp(
+              workspaceState.runtime.focus.executionState?.lastFailedAt
+            )}
+          />
+          <WorkspaceField label="Document" value={workspaceState.status.documentLabel} />
+        </dl>
+        {workspaceState.runtime.latestErrorMessage ? (
+          <p class="workspace-error">{workspaceState.runtime.latestErrorMessage}</p>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (state.runConsoleTab === "chains") {
+    return (
+      <section class="dialog-section">
+        {workspaceState.runtime.recentChains.length ? (
+          <div class="run-chain-list">
+            {workspaceState.runtime.recentChains.map((chain) => (
+              <article class="run-chain-card" key={chain.chainId}>
+                <header class="run-chain-card__header">
+                  <div>
+                    <h4>{chain.rootNodeTitle}</h4>
+                    <p>
+                      {chain.rootNodeType ?? "未知类型"} · 最近于{" "}
+                      {formatTimestamp(chain.finishedAt)}
+                    </p>
+                  </div>
+                  <span class="titlebar-status-pill" data-status={chain.status}>
+                    {chain.status}
+                  </span>
+                </header>
+                <p class="run-chain-card__summary">
+                  {chain.stepCount} 步 · 最深 {chain.maxDepth} 层 · 主动{" "}
+                  {chain.directCount} 次 · 传播 {chain.propagatedCount} 次 ·{" "}
+                  {formatDuration(chain.startedAt, chain.finishedAt)}
+                </p>
+                <ul class="run-chain-card__steps">
+                  {chain.entries.map((entry) => (
+                    <li key={`${chain.chainId}:${entry.id}`}>
+                      <strong>
+                        {entry.sequence + 1}. {entry.nodeTitle}
+                      </strong>
+                      <span>
+                        {entry.status} · {formatTimestamp(entry.timestamp)}
+                      </span>
+                      <p>{entry.summary}</p>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div class="workspace-empty-state">
+            <h3>当前还没有执行链</h3>
+            <p>先使用顶栏 Play / Step，或从节点菜单里直接起跑一个节点。</p>
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  if (state.runConsoleTab === "failures") {
+    return (
+      <section class="dialog-section">
+        {workspaceState.runtime.failures.length ? (
+          <div class="run-chain-list">
+            {workspaceState.runtime.failures.map((failure) => (
+              <article class="run-chain-card" key={failure.nodeId}>
+                <header class="run-chain-card__header">
+                  <div>
+                    <h4>{failure.nodeTitle}</h4>
+                    <p>
+                      {failure.nodeType ?? "未知类型"} · 最近于{" "}
+                      {formatTimestamp(failure.latestTimestamp)}
+                    </p>
+                  </div>
+                  <span class="titlebar-status-pill" data-status="error">
+                    失败
+                  </span>
+                </header>
+                <p class="run-chain-card__summary">累计失败 {failure.failureCount} 次</p>
+                {failure.latestErrorMessage ? (
+                  <pre class="inspector-code">{failure.latestErrorMessage}</pre>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div class="workspace-empty-state">
+            <h3>当前没有失败聚合</h3>
+            <p>运行控制台会在检测到 error 后自动保留最近失败节点摘要。</p>
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section class="dialog-section">
+      {workspaceState.runtime.focusNode ? (
+        <>
+          <div class="dialog-section__header">
+            <div>
+              <p class="workspace-pane__eyebrow">Node Runtime</p>
+              <h3>{workspaceState.runtime.focusNode.title}</h3>
+            </div>
+            <span class="titlebar__document-chip">
+              {workspaceState.runtime.focusNode.type}
+            </span>
+          </div>
+          <dl class="detail-grid">
+            <WorkspaceField
+              label="位置"
+              value={`${workspaceState.runtime.focusNode.layout.x}, ${workspaceState.runtime.focusNode.layout.y}`}
+            />
+            <WorkspaceField
+              label="尺寸"
+              value={`${workspaceState.runtime.focusNode.layout.width ?? "auto"} × ${workspaceState.runtime.focusNode.layout.height ?? "auto"}`}
+            />
+            <WorkspaceField
+              label="执行次数"
+              value={String(workspaceState.runtime.focusNode.executionState.runCount)}
+            />
+            <WorkspaceField
+              label="最近成功"
+              value={formatTimestamp(
+                workspaceState.runtime.focusNode.executionState.lastSucceededAt
+              )}
+            />
+            <WorkspaceField
+              label="最近失败"
+              value={formatTimestamp(
+                workspaceState.runtime.focusNode.executionState.lastFailedAt
+              )}
+            />
+            <WorkspaceField
+              label="Inputs"
+              value={String(workspaceState.runtime.focusNode.inputs.length)}
+            />
+          </dl>
+          <div class="run-console-node-grid">
+            <article class="run-console-card run-console-card--code">
+              <p class="run-console-card__label">Flags</p>
+              <pre class="inspector-code">
+                {formatJson(workspaceState.runtime.focusNode.flags)}
+              </pre>
+            </article>
+            <article class="run-console-card run-console-card--code">
+              <p class="run-console-card__label">Properties</p>
+              <pre class="inspector-code">
+                {formatJson(workspaceState.runtime.focusNode.properties)}
+              </pre>
+            </article>
+            <article class="run-console-card run-console-card--code">
+              <p class="run-console-card__label">Inputs</p>
+              <pre class="inspector-code">
+                {formatJson(workspaceState.runtime.focusNode.inputs)}
+              </pre>
+            </article>
+            <article class="run-console-card run-console-card--code">
+              <p class="run-console-card__label">Outputs</p>
+              <pre class="inspector-code">
+                {formatJson(workspaceState.runtime.focusNode.outputs)}
+              </pre>
+            </article>
+          </div>
+        </>
+      ) : (
+        <div class="workspace-empty-state">
+          <h3>当前没有焦点节点</h3>
+          <p>先选中一个节点，或触发一次节点执行，控制台会显示焦点节点运行态。</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function EditorShell(_: EditorShellProps) {
+  const { state } = useEditorContext();
+
+  return (
+    <div
+      class="app-shell"
+      data-theme={state.theme}
+      data-adaptive={state.workspaceAdaptiveMode}
+      data-left-open={state.leftPaneOpen ? "true" : "false"}
+      data-right-open={state.rightPaneOpen ? "true" : "false"}
+      data-stage-layout={state.stageLayout}
+    >
+      <EditorTitlebar />
+      <EditorWorkspace />
+      <EditorStatusbar />
+      <EditorWorkspaceSettingsDialog />
+      <EditorRunConsoleDialog />
+    </div>
+  );
+}
+
+export function App(props: AppProps) {
+  const controller = useMemo(
+    () => createEditorController(props),
+    [
+      props.onViewportHostBridgeChange,
+      props.preloadedBundles,
+      props.remoteAuthoritySource
+    ]
+  );
+
+  return (
+    <EditorProvider controller={controller}>
+      <EditorShell />
+    </EditorProvider>
   );
 }

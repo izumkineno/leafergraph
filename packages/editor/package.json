@@ -3,6 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ui": "./src/ui.ts",
+    "./backend": "./src/backend.ts",
+    "./styles.css": "./src/styles.css"
+  },
   "scripts": {
     "dev": "vite",
     "dev:lan": "vite --mode lan --host 0.0.0.0",
