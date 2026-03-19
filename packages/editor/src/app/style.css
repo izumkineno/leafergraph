@@ -458,6 +458,15 @@ pre {
   align-items: stretch;
   padding: 16px 12px;
   min-width: 0;
+  position: relative;
+}
+
+.workspace-stage__stack {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .workspace-pane {
@@ -969,6 +978,39 @@ pre {
   line-height: 1.55;
 }
 
+.workspace-note--panel {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 14px;
+  border: 1px solid var(--panel-border-strong);
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.04)),
+    var(--accent-soft);
+}
+
+.workspace-note__body,
+.workspace-quickstart__body {
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-note__body p,
+.workspace-quickstart__body p {
+  margin: 0;
+}
+
+.workspace-note__title {
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.workspace-note__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .workspace-stage__empty {
   display: grid;
   place-items: center;
@@ -986,17 +1028,44 @@ pre {
   box-shadow: var(--panel-shadow);
 }
 
+.workspace-stage__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.workspace-stage__onboarding-card {
+  width: min(560px, 100%);
+  padding: 28px;
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.03)),
+    var(--panel-bg);
+  box-shadow: 0 22px 64px rgba(0, 0, 0, 0.28);
+  pointer-events: auto;
+  backdrop-filter: blur(16px);
+}
+
 .workspace-stage__empty-card h2,
-.workspace-stage__empty-card p {
+.workspace-stage__empty-card p,
+.workspace-stage__onboarding-card h2,
+.workspace-stage__onboarding-card p {
   margin: 0;
 }
 
-.workspace-stage__empty-card h2 {
+.workspace-stage__empty-card h2,
+.workspace-stage__onboarding-card h2 {
   margin-top: 8px;
   color: var(--text-strong);
 }
 
-.workspace-stage__empty-card p {
+.workspace-stage__empty-card p,
+.workspace-stage__onboarding-card p {
   margin-top: 12px;
   color: var(--text-secondary);
   line-height: 1.65;
@@ -1204,6 +1273,23 @@ pre {
 .bundle-card__status[data-status="failed"] {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.workspace-quickstart {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03)),
+    var(--panel-bg-soft);
+}
+
+.workspace-quickstart h4 {
+  margin: 0;
+  color: var(--text-strong);
 }
 
 .bundle-card__info,

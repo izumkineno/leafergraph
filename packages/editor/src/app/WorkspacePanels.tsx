@@ -30,6 +30,10 @@ export interface NodeLibraryPaneProps {
   onActiveNodeTypeChange(nodeType: string): void;
   onCreateNode(nodeType: string): void;
   onPreviewRequestChange?(request: NodeLibraryPreviewRequest | null): void;
+  cleanEntryHint?: {
+    onOpenExtensions(): void;
+    onOpenNodeAuthorityDemo(): void;
+  };
 }
 
 export interface InspectorPaneProps {
@@ -336,6 +340,35 @@ export function NodeLibraryPane(props: NodeLibraryPaneProps) {
           props.onPreviewRequestChange?.(null);
         }}
       >
+        {props.cleanEntryHint ? (
+          <div class="workspace-note workspace-note--panel">
+            <div class="workspace-note__body">
+              <strong class="workspace-note__title">
+                当前只显示内建基础节点
+              </strong>
+              <p>
+                这个入口默认不会预加载 node/widget bundle。你可以去 Extensions
+                手动加载，或直接进入预载好的 Node Authority Demo。
+              </p>
+            </div>
+            <div class="workspace-note__actions">
+              <button
+                type="button"
+                class="workspace-secondary-button"
+                onClick={props.cleanEntryHint.onOpenExtensions}
+              >
+                打开 Extensions
+              </button>
+              <button
+                type="button"
+                class="workspace-primary-button workspace-primary-button--ghost"
+                onClick={props.cleanEntryHint.onOpenNodeAuthorityDemo}
+              >
+                打开预载 Demo
+              </button>
+            </div>
+          </div>
+        ) : null}
         {groups.length ? (
           groups.map((group) => renderNodeLibraryGroup(group, props))
         ) : (

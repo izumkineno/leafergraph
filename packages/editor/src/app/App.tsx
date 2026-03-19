@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { JSX } from "preact";
 import type { GraphDocument } from "leafergraph";
 import type { NodeDefinition } from "@leafergraph/node";
@@ -18,6 +18,10 @@ import {
   shouldEnableNodeLibraryHoverPreview,
   type NodeLibraryPreviewRequest
 } from "./node_library_hover_preview";
+import {
+  DEFAULT_NODE_AUTHORITY_DEMO_URL,
+  resolveDefaultEntryOnboardingState
+} from "./default_entry_onboarding";
 import {
   EDITOR_THEME_STORAGE_KEY,
   resolveInitialEditorTheme,
@@ -399,6 +403,7 @@ export function App({
     useState<NodeLibraryPreviewRequest | null>(null);
   const [nodeLibraryHoverPreviewCapabilities, setNodeLibraryHoverPreviewCapabilities] =
     useState(() => readNodeLibraryHoverPreviewCapabilities());
+  const extensionsBundleGridRef = useRef<HTMLDivElement | null>(null);
   const [bundleSlots, setBundleSlots] = useState<
     Record<EditorBundleSlot, EditorBundleSlotState>
   >(() => createInitialBundleSlots());
@@ -968,6 +973,21 @@ export function App({
     rightPaneOpen
   });
   const showToolbarShortcuts = workspaceAdaptiveMode === "wide-desktop";
+  const defaultEntryOnboardingState = useMemo(
+    () =>
+      resolveDefaultEntryOnboardingState({
+        isRemoteAuthorityEnabled,
+        hasLoadedNodeBundle: Boolean(runtimeSetup.slots.node.manifest),
+        hasLoadedWidgetBundle: Boolean(runtimeSetup.slots.widget.manifest),
+        documentNodeCount: effectiveDocument.nodes.length
+      }),
+    [
+      effectiveDocument.nodes.length,
+      isRemoteAuthorityEnabled,
+      runtimeSetup.slots.node.manifest,
+      runtimeSetup.slots.widget.manifest
+    ]
+  );
 
   useEffect(() => {
     if (!viewportHostBridge) {
@@ -1270,6 +1290,19 @@ export function App({
     },
     [closeOverlayPanes]
   );
+  const openNodeAuthorityDemo = useCallback((): void => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.location.assign(DEFAULT_NODE_AUTHORITY_DEMO_URL);
+  }, []);
+  const scrollToBundleGrid = useCallback((): void => {
+    extensionsBundleGridRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }, []);
 
   const shortcutItems = [
     ...(editorToolbarControls?.actions.filter((action) => action.shortcut) ?? []),
@@ -1408,18 +1441,57 @@ export function App({
     }
 
     return (
-      <GraphViewport
-        document={effectiveDocument}
-        plugins={runtimeSetup.plugins}
-        createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
-        runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
-        onHostBridgeChange={handleViewportHostBridgeChange}
-        quickCreateNodeType={runtimeSetup.quickCreateNodeType}
-        theme={theme}
-        onEditorToolbarControlsChange={setEditorToolbarControls}
-        onGraphRuntimeControlsChange={setGraphRuntimeControls}
-        onWorkspaceStateChange={setWorkspaceState}
-      />
+      <div class="workspace-stage__stack">
+        <GraphViewport
+          document={effectiveDocument}
+          plugins={runtimeSetup.plugins}
+          createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
+          runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
+          runtimeController={remoteAuthorityRuntime?.runtimeController}
+          runtimeControlMode={remoteAuthorityRuntime ? "remote" : "local"}
+          onHostBridgeChange={handleViewportHostBridgeChange}
+          quickCreateNodeType={runtimeSetup.quickCreateNodeType}
+          theme={theme}
+          onEditorToolbarControlsChange={setEditorToolbarControls}
+          onGraphRuntimeControlsChange={setGraphRuntimeControls}
+          onWorkspaceStateChange={setWorkspaceState}
+        />
+        {defaultEntryOnboardingState.showStageOnboarding ? (
+          <div class="workspace-stage__overlay">
+            <div class="workspace-stage__onboarding-card">
+              <p class="workspace-pane__eyebrow">Clean Entry</p>
+              <h2>当前打开的是干净编辑器入口</h2>
+              <p>
+                这里不会自动预加载 node/widget bundle，也不会直接切到 demo
+                authority，所以你现在看到的是本地 loopback + 空工作区。
+              </p>
+              <p>
+                如果想马上看到完整节点库和示例链路，可以直接进入预载好的
+                Node Authority Demo；如果想保持当前入口干净，也可以先去
+                Extensions 手动加载本地 bundle。
+              </p>
+              <div class="workspace-stage__empty-actions">
+                <button
+                  type="button"
+                  class="workspace-primary-button"
+                  onClick={openNodeAuthorityDemo}
+                >
+                  打开 Node Authority Demo
+                </button>
+                <button
+                  type="button"
+                  class="workspace-secondary-button"
+                  onClick={() => {
+                    openWorkspaceSettingsDialog("extensions");
+                  }}
+                >
+                  打开 Extensions
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     );
   };
 
@@ -1655,6 +1727,16 @@ export function App({
             disabled={!viewportHostBridge}
             hoverPreviewEnabled={nodeLibraryHoverPreviewEnabled}
             focusSearchOnOpen={leftPaneOpen && leftPanePresentation !== "docked"}
+            cleanEntryHint={
+              defaultEntryOnboardingState.showNodeLibraryHint
+                ? {
+                    onOpenExtensions: () => {
+                      openWorkspaceSettingsDialog("extensions");
+                    },
+                    onOpenNodeAuthorityDemo: openNodeAuthorityDemo
+                  }
+                : undefined
+            }
             onSearchQueryChange={setNodeLibrarySearchQuery}
             onActiveNodeTypeChange={setActiveLibraryNodeType}
             onCreateNode={handleCreateNodeFromWorkspace}
@@ -1743,7 +1825,35 @@ export function App({
                 <strong>{runtimeSetup.quickCreateNodeType ?? "未指定"}</strong>
               </p>
             </div>
-            <div class="bundle-grid">
+            {defaultEntryOnboardingState.showExtensionsQuickActions ? (
+              <div class="workspace-quickstart">
+                <div class="workspace-quickstart__body">
+                  <p class="workspace-pane__eyebrow">Quick Start</p>
+                  <h4>当前是干净入口</h4>
+                  <p>
+                    默认页不会自动预装 node/widget bundle。你可以直接打开预载好的
+                    Node Authority Demo，或继续在下方手动加载本地 bundle。
+                  </p>
+                </div>
+                <div class="dialog-actions">
+                  <button
+                    type="button"
+                    class="workspace-primary-button"
+                    onClick={openNodeAuthorityDemo}
+                  >
+                    打开 Node Authority Demo
+                  </button>
+                  <button
+                    type="button"
+                    class="workspace-secondary-button"
+                    onClick={scrollToBundleGrid}
+                  >
+                    继续手动加载本地 bundle
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <div class="bundle-grid" ref={extensionsBundleGridRef}>
               {EDITOR_BUNDLE_SLOTS.map((slot) => {
                 const state = runtimeSetup.slots[slot];
                 const manifest = state.manifest;
