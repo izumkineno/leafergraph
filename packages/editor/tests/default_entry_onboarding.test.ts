@@ -3,10 +3,34 @@ import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_NODE_AUTHORITY_DEMO_URL,
   DEFAULT_PYTHON_AUTHORITY_DEMO_URL,
+  resolveDefaultEntryOnboardingDocumentNodeCount,
   resolveDefaultEntryOnboardingState
 } from "../src/app/default_entry_onboarding";
 
 describe("default entry onboarding helper", () => {
+  test("已收到 workspace 文档摘要时，应优先使用实时节点数", () => {
+    expect(
+      resolveDefaultEntryOnboardingDocumentNodeCount({
+        initialDocumentNodeCount: 0,
+        workspaceDocumentNodeCount: 1
+      })
+    ).toBe(1);
+  });
+
+  test("workspace 文档摘要未就绪时，应回退到初始 document 节点数", () => {
+    expect(
+      resolveDefaultEntryOnboardingDocumentNodeCount({
+        initialDocumentNodeCount: 2,
+        workspaceDocumentNodeCount: null
+      })
+    ).toBe(2);
+    expect(
+      resolveDefaultEntryOnboardingDocumentNodeCount({
+        initialDocumentNodeCount: 3
+      })
+    ).toBe(3);
+  });
+
   test("本地 loopback + 无 node/widget bundle + 空文档时应显示完整引导", () => {
     expect(
       resolveDefaultEntryOnboardingState({
