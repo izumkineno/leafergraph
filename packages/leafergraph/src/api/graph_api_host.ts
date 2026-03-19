@@ -24,6 +24,7 @@ import type {
   LeaferGraphWidgetRenderInstance
 } from "./plugin";
 import type { LeaferGraphContextMenuBindingTarget } from "../interaction/context_menu";
+import { projectExternalRuntimeFeedback } from "../graph/graph_runtime_feedback_projection";
 import type {
   GraphOperation,
   GraphOperationApplyResult,
@@ -33,6 +34,7 @@ import type {
   RuntimeAdapter,
   RuntimeFeedbackEvent,
   LeaferGraphConnectionPortState,
+  LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
   LeaferGraphNodeInspectorState,
@@ -146,6 +148,15 @@ export interface LeaferGraphApiRuntime<
     subscribeNodeExecution(
       listener: (event: LeaferGraphNodeExecutionEvent) => void
     ): () => void;
+    projectExternalNodeExecution(
+      event: LeaferGraphNodeExecutionEvent
+    ): void;
+    projectExternalNodeState(
+      event: LeaferGraphNodeStateChangeEvent
+    ): void;
+    projectExternalLinkPropagation(
+      event: LeaferGraphLinkPropagationEvent
+    ): void;
   };
   graphExecutionHost: {
     play(): boolean;
@@ -155,6 +166,9 @@ export interface LeaferGraphApiRuntime<
     subscribeGraphExecution(
       listener: (event: LeaferGraphGraphExecutionEvent) => void
     ): () => void;
+    projectExternalGraphExecution(
+      event: LeaferGraphGraphExecutionEvent
+    ): void;
   };
   themeHost: {
     setThemeMode(mode: LeaferGraphThemeMode): void;
@@ -391,6 +405,29 @@ export class LeaferGraphApiHost<
     listener: (event: RuntimeFeedbackEvent) => void
   ): () => void {
     return this.options.runtime.runtimeAdapter.subscribe(listener);
+  }
+
+  /** 把外部 runtime feedback 投影回当前图运行时。 */
+  projectRuntimeFeedback(feedback: RuntimeFeedbackEvent): void {
+    projectExternalRuntimeFeedback(
+      {
+        projectExternalGraphExecution: (event) =>
+          this.options.runtime.graphExecutionHost.projectExternalGraphExecution(
+            event
+          ),
+        projectExternalNodeExecution: (event) =>
+          this.options.runtime.nodeRuntimeHost.projectExternalNodeExecution(
+            event
+          ),
+        projectExternalNodeState: (event) =>
+          this.options.runtime.nodeRuntimeHost.projectExternalNodeState(event),
+        projectExternalLinkPropagation: (event) =>
+          this.options.runtime.nodeRuntimeHost.projectExternalLinkPropagation(
+            event
+          )
+      },
+      feedback
+    );
   }
 
   /** 订阅交互结束后的正式提交事件。 */

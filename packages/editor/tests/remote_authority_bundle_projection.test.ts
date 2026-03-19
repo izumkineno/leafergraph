@@ -34,10 +34,14 @@ function createDocument(options: {
 }
 
 function createRuntime(
-  document: GraphDocument
+  document: GraphDocument,
+  options: {
+    bundleProjectionMode?: "allow" | "skip";
+  } = {}
 ): ResolvedEditorRemoteAuthorityAppRuntime {
   return {
     sourceLabel: "test-runtime",
+    bundleProjectionMode: options.bundleProjectionMode ?? "allow",
     client: {
       async getDocument() {
         return document;
@@ -125,6 +129,31 @@ describe("shouldApplyRemoteAuthorityBundleProjection", () => {
       createDocument({
         documentId: "template-demo-document",
         revision: "1",
+        nodeCount: 2
+      })
+    );
+
+    expect(
+      shouldApplyRemoteAuthorityBundleProjection({
+        runtime,
+        projection,
+        checkpoint: null
+      })
+    ).toBe(false);
+  });
+
+  test("标记为 authority-owned 的 runtime 不应应用 demo bundle projection", () => {
+    const runtime = createRuntime(
+      createDocument({
+        documentId: "node-authority-doc"
+      }),
+      {
+        bundleProjectionMode: "skip"
+      }
+    );
+    const projection = createProjection(
+      createDocument({
+        documentId: "template-demo-document",
         nodeCount: 2
       })
     );

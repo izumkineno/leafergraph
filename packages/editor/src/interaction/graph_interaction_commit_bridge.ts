@@ -3,9 +3,11 @@ import type {
   LeaferGraphUpdateNodeInput
 } from "leafergraph";
 import {
+  createLinkCreateOperation,
   createNodeMoveOperation,
   createNodeResizeOperation,
-  createNodeUpdateOperation
+  createNodeUpdateOperation,
+  ensureLinkCreateInputId
 } from "../commands/graph_operation_utils";
 import type {
   EditorCommandExecution,
@@ -46,6 +48,8 @@ function resolveRequestSummary(request: EditorCommandRequest): string {
       return `${request.collapsed ? "折叠" : "展开"}节点 ${request.nodeId}`;
     case "interaction.widget-commit":
       return `提交节点 ${request.nodeId} 的 Widget ${request.widgetIndex}`;
+    case "link.create":
+      return "创建连线";
     default:
       return "提交交互操作";
   }
@@ -295,6 +299,34 @@ export function createGraphInteractionCommitBridge(
               nodeId: event.nodeId,
               beforeInput,
               afterInput
+            },
+            pendingBefore,
+            options
+          );
+        }
+        case "link.create.commit": {
+          const nextInput = ensureLinkCreateInputId(event.input);
+          const submission = options.session.submitOperationWithAuthority(
+            createLinkCreateOperation(nextInput, "editor.interaction")
+          );
+
+          return createExecution(
+            {
+              type: "link.create",
+              input: structuredClone(nextInput)
+            },
+            [submission],
+            {
+              kind: "create-links",
+              links: [
+                {
+                  id: nextInput.id ?? "",
+                  source: structuredClone(nextInput.source),
+                  target: structuredClone(nextInput.target),
+                  label: nextInput.label,
+                  data: structuredClone(nextInput.data)
+                }
+              ]
             },
             pendingBefore,
             options

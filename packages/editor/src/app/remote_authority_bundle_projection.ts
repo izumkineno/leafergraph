@@ -43,6 +43,10 @@ export function shouldApplyRemoteAuthorityBundleProjection(options: {
   checkpoint: RemoteAuthorityBundleProjectionCheckpoint | null;
 }): boolean {
   const { runtime, projection, checkpoint } = options;
+  if (runtime.bundleProjectionMode === "skip") {
+    return false;
+  }
+
   const authorityDocument = runtime.document;
 
   if (

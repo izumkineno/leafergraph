@@ -33,6 +33,7 @@ export interface NodeLibraryPaneProps {
   cleanEntryHint?: {
     onOpenExtensions(): void;
     onOpenNodeAuthorityDemo(): void;
+    onOpenPythonAuthorityDemo(): void;
   };
 }
 
@@ -348,7 +349,7 @@ export function NodeLibraryPane(props: NodeLibraryPaneProps) {
               </strong>
               <p>
                 这个入口默认不会预加载 node/widget bundle。你可以去 Extensions
-                手动加载，或直接进入预载好的 Node Authority Demo。
+                手动加载，或直接进入预载好的 Node / Python Authority Demo。
               </p>
             </div>
             <div class="workspace-note__actions">
@@ -364,7 +365,14 @@ export function NodeLibraryPane(props: NodeLibraryPaneProps) {
                 class="workspace-primary-button workspace-primary-button--ghost"
                 onClick={props.cleanEntryHint.onOpenNodeAuthorityDemo}
               >
-                打开预载 Demo
+                打开 Node Demo
+              </button>
+              <button
+                type="button"
+                class="workspace-primary-button workspace-primary-button--ghost"
+                onClick={props.cleanEntryHint.onOpenPythonAuthorityDemo}
+              >
+                打开 Python Demo
               </button>
             </div>
           </div>

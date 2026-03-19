@@ -53,7 +53,10 @@ import {
   createEditorContextMenuResolver
 } from "../menu/context_menu_resolver";
 import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
-import type { EditorRemoteAuthorityRuntimeController } from "../session/graph_document_authority_client";
+import type {
+  EditorRemoteAuthorityRuntimeControlRequest,
+  EditorRemoteAuthorityRuntimeController
+} from "../session/graph_document_authority_client";
 import { createGraphInteractionCommitBridge } from "../interaction/graph_interaction_commit_bridge";
 import {
   appendRuntimeHistoryEntry,
@@ -63,6 +66,10 @@ import {
   type GraphViewportRuntimeFailureGroup,
   type GraphViewportRuntimeHistoryEntry
 } from "./graph_viewport_runtime_collections";
+import {
+  resolveRemoteRuntimeControlNotice,
+  type GraphViewportRemoteRuntimeControlNotice
+} from "./graph_viewport_runtime_control_notice";
 
 export interface GraphViewportProps {
   document: GraphDocument;
@@ -80,6 +87,9 @@ export interface GraphViewportProps {
   ): void;
   onGraphRuntimeControlsChange?(
     controls: GraphViewportRuntimeControlsState | null
+  ): void;
+  onRemoteRuntimeControlNoticeChange?(
+    notice: GraphViewportRemoteRuntimeControlNotice | null
   ): void;
   onWorkspaceStateChange?(state: GraphViewportWorkspaceState | null): void;
 }
@@ -222,6 +232,7 @@ function createIdleGraphExecutionState(): GraphViewportGraphExecutionSnapshot {
     stepCount: 0
   };
 }
+
 
 function resolveInspectorFocusState(
   graph: LeaferGraph,
@@ -496,6 +507,7 @@ export function GraphViewport({
   theme,
   onEditorToolbarControlsChange,
   onGraphRuntimeControlsChange,
+  onRemoteRuntimeControlNoticeChange,
   onWorkspaceStateChange
 }: GraphViewportProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -712,11 +724,7 @@ export function GraphViewport({
       });
     };
     const requestRemoteRuntimeControl = (
-      request:
-        | { type: "node.play"; nodeId: string }
-        | { type: "graph.play" }
-        | { type: "graph.step" }
-        | { type: "graph.stop" }
+      request: EditorRemoteAuthorityRuntimeControlRequest
     ): void => {
       if (!runtimeController) {
         return;
@@ -725,14 +733,32 @@ export function GraphViewport({
       void runtimeController
         .controlRuntime(request)
         .then((result) => {
-          if (disposed || !result.state) {
+          if (disposed) {
             return;
           }
 
-          syncGraphRuntimeControls(result.state);
+          if (result.state) {
+            syncGraphRuntimeControls(result.state);
+          }
+
+          onRemoteRuntimeControlNoticeChange?.(
+            resolveRemoteRuntimeControlNotice({
+              request,
+              result
+            })
+          );
         })
-        .catch(() => {
-          // 当前阶段保持最小失败处理，真实状态以后续 authority feedback 为准。
+        .catch((error: unknown) => {
+          if (disposed) {
+            return;
+          }
+
+          onRemoteRuntimeControlNoticeChange?.(
+            resolveRemoteRuntimeControlNotice({
+              request,
+              error
+            })
+          );
         });
     };
     const playGraph = (): void => {
@@ -808,6 +834,7 @@ export function GraphViewport({
 
       switch (feedback.type) {
         case "node.execution": {
+          onRemoteRuntimeControlNoticeChange?.(null);
           const event = feedback.event;
           latestRuntimeExecution = event;
           setRuntimeHistoryEntries((entries) =>
@@ -818,6 +845,7 @@ export function GraphViewport({
           return;
         }
         case "graph.execution": {
+          onRemoteRuntimeControlNoticeChange?.(null);
           syncGraphRuntimeControls(feedback.event.state);
           return;
         }
@@ -849,7 +877,13 @@ export function GraphViewport({
       handleRuntimeFeedback
     );
     const disposeExternalRuntimeFeedbackSubscription =
-      runtimeFeedbackInlet?.subscribe(handleRuntimeFeedback) ?? (() => {});
+      runtimeFeedbackInlet?.subscribe((feedback) => {
+        if (disposed) {
+          return;
+        }
+
+        graph.projectRuntimeFeedback(feedback);
+      }) ?? (() => {});
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
       if (!selectionBox) {
@@ -1705,6 +1739,9 @@ export function GraphViewport({
       }
 
       graphReady = true;
+      if (runtimeControlMode !== "remote") {
+        onRemoteRuntimeControlNoticeChange?.(null);
+      }
       syncGraphRuntimeControls();
       syncNodeBindingsFromDocument(projectedDocument);
       syncLinkBindingsFromDocument(projectedDocument);
@@ -2147,6 +2184,7 @@ export function GraphViewport({
       onHostBridgeChange?.(null);
       onEditorToolbarControlsChange?.(null);
       onGraphRuntimeControlsChange?.(null);
+      onRemoteRuntimeControlNoticeChange?.(null);
       onWorkspaceStateChange?.(null);
       graphRef.current = null;
       graph.destroy();
@@ -2158,6 +2196,7 @@ export function GraphViewport({
     onEditorToolbarControlsChange,
     onGraphRuntimeControlsChange,
     onHostBridgeChange,
+    onRemoteRuntimeControlNoticeChange,
     onWorkspaceStateChange,
     plugins,
     quickCreateNodeType,

@@ -84,6 +84,7 @@ function createRuntime(label: string): ResolvedEditorRemoteAuthorityAppRuntime {
   return {
     sourceLabel: label,
     sourceDescription: label,
+    bundleProjectionMode: "allow",
     client: {
       async getDocument() {
         return createDocument(`${label}-remote`);
@@ -105,6 +106,12 @@ function createRuntime(label: string): ResolvedEditorRemoteAuthorityAppRuntime {
       throw new Error("not implemented in unit test");
     },
     runtimeFeedbackInlet: undefined,
+    getConnectionStatus() {
+      return "connected";
+    },
+    subscribeConnectionStatus() {
+      return () => {};
+    },
     dispose() {}
   };
 }

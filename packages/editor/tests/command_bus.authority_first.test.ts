@@ -142,7 +142,35 @@ function createGraphStub(options?: {
     listNodes() {
       return [
         {
-          type: "demo.pending"
+          type: "demo.pending",
+          title: "Pending Demo Node",
+          size: [320, 180],
+          properties: [
+            {
+              name: "status",
+              type: "string",
+              default: "READY"
+            }
+          ],
+          inputs: [
+            {
+              name: "In",
+              type: "event"
+            }
+          ],
+          outputs: [
+            {
+              name: "Out",
+              type: "event"
+            }
+          ],
+          widgets: [
+            {
+              type: "slider",
+              name: "gain",
+              value: 0.5
+            }
+          ]
         }
       ];
     },
@@ -245,7 +273,47 @@ describe("EditorCommandBus authority-first", () => {
     expect(execution.changed).toBe(true);
     expect(execution.authority.status).toBe("pending");
     expect(execution.documentRecorded).toBe(false);
-    expect(execution.operations?.[0]?.type).toBe("node.create");
+    expect(execution.operations?.[0]).toMatchObject({
+      type: "node.create",
+      input: {
+        type: "demo.pending",
+        title: "Pending Demo Node",
+        x: 120,
+        y: 160,
+        width: 320,
+        height: 180,
+        properties: {
+          status: "READY"
+        },
+        propertySpecs: [
+          {
+            name: "status",
+            type: "string",
+            default: "READY"
+          }
+        ],
+        inputs: [
+          {
+            name: "In",
+            type: "event"
+          }
+        ],
+        outputs: [
+          {
+            name: "Out",
+            type: "event"
+          }
+        ],
+        widgets: [
+          {
+            type: "slider",
+            name: "gain",
+            value: 0.5
+          }
+        ],
+        flags: {}
+      }
+    });
     expect(execution.historyPayload?.kind).toBe("create-nodes");
   });
 

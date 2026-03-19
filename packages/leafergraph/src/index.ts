@@ -85,6 +85,7 @@ export type {
   GraphOperation,
   GraphOperationApplyResult,
   LeaferGraphInteractionCommitEvent,
+  LinkCreateInteractionCommitEvent,
   LeaferGraphNodeMoveCommitEntry,
   LeaferGraphLinkPropagationEvent,
   NodeCollapseInteractionCommitEvent,
@@ -383,6 +384,11 @@ export class LeaferGraph {
     listener: (event: RuntimeFeedbackEvent) => void
   ): () => void {
     return this.apiHost.subscribeRuntimeFeedback(listener);
+  }
+
+  /** 把外部 runtime feedback 投影回当前图运行时。 */
+  projectRuntimeFeedback(feedback: RuntimeFeedbackEvent): void {
+    this.apiHost.projectRuntimeFeedback(feedback);
   }
 
   /** 订阅交互结束后的正式提交事件。 */

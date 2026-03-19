@@ -4,6 +4,7 @@ import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput
 } from "leafergraph";
+import type { NodeDefinition, NodePropertySpec } from "@leafergraph/node";
 import {
   createLinkCreateOperation,
   createNodeCreateOperation,
@@ -161,6 +162,83 @@ export function createNodeInputFromSnapshot(
     x,
     y
   );
+}
+
+/** 根据属性规格收敛一份默认属性对象。 */
+function createDefaultNodeProperties(
+  propertySpecs: readonly NodePropertySpec[] | undefined
+): Record<string, unknown> | undefined {
+  if (!propertySpecs?.length) {
+    return undefined;
+  }
+
+  const properties: Record<string, unknown> = {};
+  for (const spec of propertySpecs) {
+    if (spec.default !== undefined) {
+      properties[spec.name] = structuredClone(spec.default);
+    }
+  }
+
+  return Object.keys(properties).length ? properties : undefined;
+}
+
+/** 从当前图注册表读取某个节点定义。 */
+function resolveNodeDefinition(
+  graph: LeaferGraph,
+  nodeType: string
+): NodeDefinition | undefined {
+  return graph.listNodes().find((definition) => definition.type === nodeType);
+}
+
+/**
+ * 把最小创建输入补齐成 remote authority 也能完整恢复的正式结构。
+ *
+ * @remarks
+ * 本地 loopback 模式可以依赖主包注册表补默认值，
+ * 但 remote authority 不持有 bundle 节点定义，因此 `node.create`
+ * 必须在 editor 侧把默认 title / slots / widgets / propertySpecs
+ * 和属性默认值一起带过去。
+ */
+function hydrateNodeCreateInput(
+  graph: LeaferGraph,
+  input: LeaferGraphCreateNodeInput
+): LeaferGraphCreateNodeInput {
+  const nextInput = cloneNodeCreateInput(input);
+  const definition = resolveNodeDefinition(graph, nextInput.type);
+  if (!definition) {
+    return nextInput;
+  }
+
+  const propertySpecs =
+    nextInput.propertySpecs !== undefined
+      ? structuredClone(nextInput.propertySpecs)
+      : structuredClone(definition.properties ?? []);
+
+  return {
+    ...nextInput,
+    title: nextInput.title ?? definition.title,
+    width: nextInput.width ?? definition.size?.[0],
+    height: nextInput.height ?? definition.size?.[1],
+    properties:
+      nextInput.properties !== undefined
+        ? structuredClone(nextInput.properties)
+        : createDefaultNodeProperties(propertySpecs),
+    propertySpecs,
+    inputs:
+      nextInput.inputs !== undefined
+        ? structuredClone(nextInput.inputs)
+        : structuredClone(definition.inputs ?? []),
+    outputs:
+      nextInput.outputs !== undefined
+        ? structuredClone(nextInput.outputs)
+        : structuredClone(definition.outputs ?? []),
+    widgets:
+      nextInput.widgets !== undefined
+        ? structuredClone(nextInput.widgets)
+        : structuredClone(definition.widgets ?? []),
+    flags:
+      nextInput.flags !== undefined ? structuredClone(nextInput.flags) : {}
+  };
 }
 
 /** 把任意节点 ID 列表整理成稳定且无重复的顺序集合。 */
@@ -600,7 +678,9 @@ export function createEditorNodeCommandController(
   const createNode = (
     input: LeaferGraphCreateNodeInput
   ): EditorNodeSnapshot | undefined => {
-    const normalizedInput = ensureNodeCreateInputId(input);
+    const normalizedInput = ensureNodeCreateInputId(
+      hydrateNodeCreateInput(options.graph, input)
+    );
     const result = options.session.submitOperation(
       createNodeCreateOperation(normalizedInput)
     );

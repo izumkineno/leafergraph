@@ -1,6 +1,9 @@
 /** 默认完整 demo 入口，固定指向 Node Authority + 预载测试 bundles。 */
 export const DEFAULT_NODE_AUTHORITY_DEMO_URL =
   "/authority-node-host-demo.html?preloadTestBundles=1";
+/** 默认完整 demo 入口，固定指向 Python Authority + 预载测试 bundles。 */
+export const DEFAULT_PYTHON_AUTHORITY_DEMO_URL =
+  "/authority-python-host-demo.html?preloadTestBundles=1";
 
 export interface ResolveDefaultEntryOnboardingStateOptions {
   isRemoteAuthorityEnabled: boolean;

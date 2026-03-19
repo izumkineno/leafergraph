@@ -518,6 +518,43 @@ export class LeaferGraphNodeRuntimeHost<
   }
 
   /**
+   * 投影一条来自外部 runtime 的节点执行反馈。
+   *
+   * @remarks
+   * 这一步只同步最小可视运行态：
+   * - 执行状态灯
+   * - 节点壳刷新
+   * - 统一 runtime feedback 订阅链
+   */
+  projectExternalNodeExecution(event: LeaferGraphNodeExecutionEvent): void {
+    const node = this.options.graphNodes.get(event.nodeId);
+    if (node) {
+      this.executionStateByNodeId.set(
+        event.nodeId,
+        cloneExecutionState(event.state)
+      );
+
+      if (
+        typeof event.nodeTitle === "string" &&
+        event.nodeTitle.trim().length > 0
+      ) {
+        node.title = event.nodeTitle;
+      }
+
+      this.refreshExecutedNode(event.nodeId);
+    }
+
+    if (!this.executionListeners.size) {
+      return;
+    }
+
+    const snapshot = cloneNodeExecutionEvent(event);
+    for (const listener of this.executionListeners) {
+      listener(snapshot);
+    }
+  }
+
+  /**
    * 订阅正式连线传播事件。
    *
    * @remarks
@@ -538,6 +575,49 @@ export class LeaferGraphNodeRuntimeHost<
   }
 
   /**
+   * 投影一条来自外部 runtime 的正式连线传播反馈。
+   *
+   * @remarks
+   * 这里会把最小输入/输出运行值写回当前图状态，
+   * 这样检查面板与数据流动画都能复用主包已有逻辑。
+   */
+  projectExternalLinkPropagation(event: LeaferGraphLinkPropagationEvent): void {
+    const safeSourceSlot = normalizeConnectionSlot(event.sourceSlot);
+    const safeTargetSlot = normalizeConnectionSlot(event.targetSlot);
+    const sourceNode = this.options.graphNodes.get(event.sourceNodeId);
+    const targetNode = this.options.graphNodes.get(event.targetNodeId);
+
+    if (sourceNode) {
+      writeRuntimeValue(
+        sourceNode.outputValues,
+        safeSourceSlot,
+        cloneReadableValue(event.payload)
+      );
+    }
+
+    if (targetNode) {
+      writeRuntimeValue(
+        targetNode.inputValues,
+        safeTargetSlot,
+        cloneReadableValue(event.payload)
+      );
+    }
+
+    if (sourceNode || targetNode) {
+      this.options.sceneRuntime.requestRender();
+    }
+
+    if (!this.linkPropagationListeners.size) {
+      return;
+    }
+
+    const snapshot = cloneLinkPropagationEvent(event);
+    for (const listener of this.linkPropagationListeners) {
+      listener(snapshot);
+    }
+  }
+
+  /**
    * 订阅节点状态变化事件。
    *
    * @param listener - 节点状态变化监听器。
@@ -551,6 +631,35 @@ export class LeaferGraphNodeRuntimeHost<
     return () => {
       this.stateListeners.delete(listener);
     };
+  }
+
+  /**
+   * 投影一条来自外部 runtime 的节点状态反馈。
+   *
+   * @remarks
+   * remote authority 模式下，这条路径主要服务：
+   * - 节点删除后的执行态清理
+   * - 执行状态刷新
+   * - 与现有检查面板订阅语义保持一致
+   */
+  projectExternalNodeState(event: LeaferGraphNodeStateChangeEvent): void {
+    if (!event.exists) {
+      this.executionStateByNodeId.delete(event.nodeId);
+    } else if (event.reason === "execution") {
+      this.refreshExecutedNode(event.nodeId);
+    } else if (event.reason === "connections") {
+      this.options.sceneRuntime.updateConnectedLinks(event.nodeId);
+      this.options.sceneRuntime.requestRender();
+    }
+
+    if (!this.stateListeners.size) {
+      return;
+    }
+
+    const snapshot = cloneNodeStateEvent(event);
+    for (const listener of this.stateListeners) {
+      listener(snapshot);
+    }
   }
 
   /**
@@ -967,6 +1076,33 @@ function cloneExecutionState(
         status: "idle",
         runCount: 0
       };
+}
+
+function cloneNodeExecutionEvent(
+  event: LeaferGraphNodeExecutionEvent
+): LeaferGraphNodeExecutionEvent {
+  return {
+    ...event,
+    executionContext: cloneReadableValue(event.executionContext),
+    state: cloneExecutionState(event.state)
+  };
+}
+
+function cloneNodeStateEvent(
+  event: LeaferGraphNodeStateChangeEvent
+): LeaferGraphNodeStateChangeEvent {
+  return {
+    ...event
+  };
+}
+
+function cloneLinkPropagationEvent(
+  event: LeaferGraphLinkPropagationEvent
+): LeaferGraphLinkPropagationEvent {
+  return {
+    ...event,
+    payload: cloneReadableValue(event.payload)
+  };
 }
 
 /** 为只读检查面板拷贝一份可安全读取的值。 */

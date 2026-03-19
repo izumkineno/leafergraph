@@ -212,6 +212,79 @@ describe("graph interaction commit bridge", () => {
     expect(rollbackCount).toBe(1);
   });
 
+  test("link create commit 应生成 link.create 历史负载", async () => {
+    const bridge = createGraphInteractionCommitBridge({
+      session: createConfirmedSessionStub(),
+      rollbackToAuthorityDocument() {
+        throw new Error("不应触发回滚");
+      }
+    });
+
+    const execution = bridge.submit({
+      type: "link.create.commit",
+      input: {
+        source: {
+          nodeId: "node-a",
+          slot: 0
+        },
+        target: {
+          nodeId: "node-b",
+          slot: 1
+        }
+      }
+    } satisfies LeaferGraphInteractionCommitEvent);
+
+    expect(execution?.request.type).toBe("link.create");
+    expect(execution?.request.input.id).toMatch(/^editor:link:/);
+    expect(execution?.request.input).toEqual({
+      id: execution?.request.input.id,
+      source: {
+        nodeId: "node-a",
+        slot: 0
+      },
+      target: {
+        nodeId: "node-b",
+        slot: 1
+      }
+    });
+    expect(execution?.operations?.[0]).toEqual({
+      type: "link.create",
+      operationId: execution?.operations?.[0]?.operationId,
+      timestamp: execution?.operations?.[0]?.timestamp,
+      source: "editor.interaction",
+      input: {
+        id: execution?.request.input.id,
+        source: {
+          nodeId: "node-a",
+          slot: 0
+        },
+        target: {
+          nodeId: "node-b",
+          slot: 1
+        }
+      }
+    });
+    expect(execution?.historyPayload).toEqual({
+      kind: "create-links",
+      links: [
+        {
+          id: execution?.request.input.id,
+          source: {
+            nodeId: "node-a",
+            slot: 0
+          },
+          target: {
+            nodeId: "node-b",
+            slot: 1
+          },
+          label: undefined,
+          data: undefined
+        }
+      ]
+    });
+    expect(execution?.authority.status).toBe("confirmed");
+  });
+
   test("widget commit 应生成 node.update 历史负载", async () => {
     const bridge = createGraphInteractionCommitBridge({
       session: createConfirmedSessionStub(),

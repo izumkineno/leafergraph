@@ -25,6 +25,13 @@ export interface EditorRemoteAuthorityAppSource {
   /** 可选补充说明。 */
   description?: string;
   /**
+   * 当前 authority source 是否允许 editor 把 demo bundle document 回写到远端。
+   *
+   * @remarks
+   * WebSocket host demo 路径固定以后端文档为准，因此这里应显式关闭。
+   */
+  bundleProjectionMode?: "allow" | "skip";
+  /**
    * 为一次画布挂载创建新的 authority client。
    *
    * @remarks
@@ -178,6 +185,8 @@ export interface ResolvedEditorRemoteAuthorityAppRuntime {
   sourceLabel: string;
   /** 当前 authority 来源说明。 */
   sourceDescription?: string;
+  /** 当前 authority source 是否允许 demo bundle 覆盖远端文档。 */
+  bundleProjectionMode: "allow" | "skip";
   /** 当前已连接的 authority client。 */
   client: EditorRemoteAuthorityDocumentClient;
   /** authority 返回的正式图文档。 */
@@ -496,6 +505,7 @@ export async function createEditorRemoteAuthorityAppRuntime(
     return {
       sourceLabel: source.label,
       sourceDescription: source.description,
+      bundleProjectionMode: source.bundleProjectionMode ?? "allow",
       client,
       document,
       createDocumentSessionBinding,

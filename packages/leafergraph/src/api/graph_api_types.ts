@@ -706,6 +706,12 @@ export interface NodeWidgetInteractionCommitEvent {
   afterWidgets: NodeRuntimeState["widgets"];
 }
 
+/** 一次拖线创建完成后的正式连线提交事件。 */
+export interface LinkCreateInteractionCommitEvent {
+  type: "link.create.commit";
+  input: LeaferGraphCreateLinkInput;
+}
+
 /**
  * 主包对外暴露的交互提交事件。
  *
@@ -717,7 +723,8 @@ export type LeaferGraphInteractionCommitEvent =
   | NodeMoveInteractionCommitEvent
   | NodeResizeInteractionCommitEvent
   | NodeCollapseInteractionCommitEvent
-  | NodeWidgetInteractionCommitEvent;
+  | NodeWidgetInteractionCommitEvent
+  | LinkCreateInteractionCommitEvent;
 
 /** 节点执行反馈事件。 */
 export interface NodeExecutionRuntimeFeedbackEvent {

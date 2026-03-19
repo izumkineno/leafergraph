@@ -87,6 +87,31 @@ export class LeaferGraphExecutionRuntimeHost<
   }
 
   /**
+   * 投影一条来自外部 runtime 的图级执行事件。
+   *
+   * @remarks
+   * remote authority 模式下，图级执行状态以后端为准；
+   * 这里仅把后端状态写回当前宿主，并复用现有订阅链通知 UI。
+   */
+  projectExternalGraphExecution(event: LeaferGraphGraphExecutionEvent): void {
+    this.activeRun = null;
+    this.state = cloneGraphExecutionState(event.state);
+
+    if (!this.listeners.size) {
+      return;
+    }
+
+    const snapshot: LeaferGraphGraphExecutionEvent = {
+      ...event,
+      state: cloneGraphExecutionState(this.state)
+    };
+
+    for (const listener of this.listeners) {
+      listener(snapshot);
+    }
+  }
+
+  /**
    * 从全部 `OnPlay` 节点开始正式运行。
    *
    * @returns 图级运行命令是否被接受。

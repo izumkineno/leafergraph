@@ -13,6 +13,7 @@ import {
   type GraphViewportToolbarControlsState,
   type GraphViewportWorkspaceState
 } from "./GraphViewport";
+import type { GraphViewportRemoteRuntimeControlNotice } from "./graph_viewport_runtime_control_notice";
 import { InspectorPane, NodeLibraryPane } from "./WorkspacePanels";
 import {
   shouldEnableNodeLibraryHoverPreview,
@@ -20,6 +21,7 @@ import {
 } from "./node_library_hover_preview";
 import {
   DEFAULT_NODE_AUTHORITY_DEMO_URL,
+  DEFAULT_PYTHON_AUTHORITY_DEMO_URL,
   resolveDefaultEntryOnboardingState
 } from "./default_entry_onboarding";
 import {
@@ -85,6 +87,7 @@ type WorkspaceSettingsTab =
   | "preferences"
   | "shortcuts";
 type RunConsoleTab = "overview" | "chains" | "failures" | "node-runtime";
+type RemoteRuntimeControlNotice = GraphViewportRemoteRuntimeControlNotice;
 
 const TOOLBAR_ACTION_GROUPS = ["history", "selection"] as const;
 const VISIBLE_TITLEBAR_ACTION_IDS = ["undo", "redo", "delete"] as const;
@@ -424,6 +427,8 @@ export function App({
     useState<readonly string[]>([]);
   const [remoteAuthorityLastIssue, setRemoteAuthorityLastIssue] =
     useState<string | null>(null);
+  const [remoteRuntimeControlNotice, setRemoteRuntimeControlNotice] =
+    useState<RemoteRuntimeControlNotice | null>(null);
   const [remoteAuthorityResyncing, setRemoteAuthorityResyncing] =
     useState(false);
   const [remoteAuthorityReloadKey, setRemoteAuthorityReloadKey] = useState(0);
@@ -533,11 +538,13 @@ export function App({
       setRemoteAuthorityConnectionStatus("idle");
       setRemoteAuthorityPendingOperationIds([]);
       setRemoteAuthorityLastIssue(null);
+      setRemoteRuntimeControlNotice(null);
       setRemoteAuthorityResyncing(false);
       return;
     }
 
     setRemoteAuthorityLastIssue(null);
+    setRemoteRuntimeControlNotice(null);
     setRemoteAuthorityDocument(remoteAuthorityRuntime.document);
   }, [remoteAuthorityRuntime]);
 
@@ -1297,6 +1304,13 @@ export function App({
 
     window.location.assign(DEFAULT_NODE_AUTHORITY_DEMO_URL);
   }, []);
+  const openPythonAuthorityDemo = useCallback((): void => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.location.assign(DEFAULT_PYTHON_AUTHORITY_DEMO_URL);
+  }, []);
   const scrollToBundleGrid = useCallback((): void => {
     extensionsBundleGridRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -1320,6 +1334,9 @@ export function App({
     const documentLabel = workspaceState?.status.documentLabel ?? "等待文档";
     const selectionLabel = workspaceState?.status.selectionLabel ?? "未选择节点";
     const runtimeLabel = formatGraphExecutionStatusLabel(graphExecutionState.status);
+    const runtimeStatusLabel = remoteRuntimeControlNotice
+      ? `${runtimeLabel} · ${remoteRuntimeControlNotice.message}`
+      : runtimeLabel;
     const pendingLabel = `Pending ${remoteAuthorityPendingOperationIds.length}`;
 
     if (workspaceAdaptiveMode === "mobile") {
@@ -1357,7 +1374,7 @@ export function App({
         },
         {
           key: "runtime",
-          label: runtimeLabel
+          label: runtimeStatusLabel
         },
         {
           key: "selection",
@@ -1381,7 +1398,7 @@ export function App({
       },
       {
         key: "runtime",
-        label: runtimeLabel
+        label: runtimeStatusLabel
       },
       {
         key: "selection",
@@ -1390,6 +1407,7 @@ export function App({
     ];
   }, [
     graphExecutionState.status,
+    remoteRuntimeControlNotice,
     remoteAuthorityConnectionStatus,
     remoteAuthorityPendingOperationIds.length,
     workspaceAdaptiveMode,
@@ -1454,6 +1472,7 @@ export function App({
           theme={theme}
           onEditorToolbarControlsChange={setEditorToolbarControls}
           onGraphRuntimeControlsChange={setGraphRuntimeControls}
+          onRemoteRuntimeControlNoticeChange={setRemoteRuntimeControlNotice}
           onWorkspaceStateChange={setWorkspaceState}
         />
         {defaultEntryOnboardingState.showStageOnboarding ? (
@@ -1467,7 +1486,7 @@ export function App({
               </p>
               <p>
                 如果想马上看到完整节点库和示例链路，可以直接进入预载好的
-                Node Authority Demo；如果想保持当前入口干净，也可以先去
+                Node / Python Authority Demo；如果想保持当前入口干净，也可以先去
                 Extensions 手动加载本地 bundle。
               </p>
               <div class="workspace-stage__empty-actions">
@@ -1477,6 +1496,13 @@ export function App({
                   onClick={openNodeAuthorityDemo}
                 >
                   打开 Node Authority Demo
+                </button>
+                <button
+                  type="button"
+                  class="workspace-secondary-button"
+                  onClick={openPythonAuthorityDemo}
+                >
+                  打开 Python Authority Demo
                 </button>
                 <button
                   type="button"
@@ -1733,7 +1759,8 @@ export function App({
                     onOpenExtensions: () => {
                       openWorkspaceSettingsDialog("extensions");
                     },
-                    onOpenNodeAuthorityDemo: openNodeAuthorityDemo
+                    onOpenNodeAuthorityDemo: openNodeAuthorityDemo,
+                    onOpenPythonAuthorityDemo: openPythonAuthorityDemo
                   }
                 : undefined
             }
@@ -1832,7 +1859,7 @@ export function App({
                   <h4>当前是干净入口</h4>
                   <p>
                     默认页不会自动预装 node/widget bundle。你可以直接打开预载好的
-                    Node Authority Demo，或继续在下方手动加载本地 bundle。
+                    Node / Python Authority Demo，或继续在下方手动加载本地 bundle。
                   </p>
                 </div>
                 <div class="dialog-actions">
@@ -1842,6 +1869,13 @@ export function App({
                     onClick={openNodeAuthorityDemo}
                   >
                     打开 Node Authority Demo
+                  </button>
+                  <button
+                    type="button"
+                    class="workspace-secondary-button"
+                    onClick={openPythonAuthorityDemo}
+                  >
+                    打开 Python Authority Demo
                   </button>
                   <button
                     type="button"
@@ -2153,6 +2187,18 @@ export function App({
             </button>
           ))}
         </div>
+
+        {remoteRuntimeControlNotice ? (
+          <p
+            class={
+              remoteRuntimeControlNotice.tone === "error"
+                ? "workspace-error"
+                : "workspace-note"
+            }
+          >
+            {remoteRuntimeControlNotice.message}
+          </p>
+        ) : null}
 
         {!workspaceState ? (
           <div class="workspace-empty-state">

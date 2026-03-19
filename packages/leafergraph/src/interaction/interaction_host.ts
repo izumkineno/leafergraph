@@ -584,7 +584,23 @@ export class LeaferGraphInteractionHost<
     if (originPort && targetPort) {
       const endpoints = this.resolveConnectionEndpoints(originPort, targetPort);
       if (endpoints) {
-        this.options.runtime.createLink(endpoints.source, endpoints.target);
+        if (this.options.emitInteractionCommit) {
+          this.options.emitInteractionCommit({
+            type: "link.create.commit",
+            input: {
+              source: {
+                nodeId: endpoints.source.nodeId,
+                slot: endpoints.source.slot
+              },
+              target: {
+                nodeId: endpoints.target.nodeId,
+                slot: endpoints.target.slot
+              }
+            }
+          });
+        } else {
+          this.options.runtime.createLink(endpoints.source, endpoints.target);
+        }
       }
     }
 
