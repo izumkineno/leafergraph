@@ -10,8 +10,12 @@
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
   - 当前通过本地 `dist/*.iife.js` bundle 动态加载 demo、node、widget
 - `templates/`
-  - 可直接复制出去的外部节点 / Widget 模板工程
-  - 当前已提供 `templates/node-widget-plugin-template`
+  - 可直接复制出去的外部模板工程
+  - 当前已提供：
+    - `templates/node-widget-plugin-template`
+    - `templates/node-backend-control-template`
+      - 当前仓库内 Node authority 后端的唯一实现来源
+    - `templates/python-backend-control-template`
 
 ## 当前边界
 
@@ -30,7 +34,19 @@ bun install
 bun run dev:editor
 bun run dev:editor:lan
 bun run build:testbundles
+bun run dev:node-backend
+bun run start:node-backend
 bun run build
+```
+
+Node authority demo 现在统一走模板目录实现；你可以在根目录直接运行：
+
+```bash
+bun run check:node-backend
+bun run build:node-backend
+bun run dev:node-backend
+bun run start:node-backend
+bun run test:node-backend
 ```
 
 ## 当前定位

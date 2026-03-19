@@ -41,4 +41,8 @@ export type {
 } from "./server.js";
 
 export { createNodeAuthorityRuntime } from "./runtime.js";
+export {
+  DEFAULT_AUTHORITY_PROTOCOL_ADAPTER,
+  createDefaultAuthorityProtocolAdapter
+} from "./protocol.js";
 export { startNodeAuthorityServer } from "./server.js";

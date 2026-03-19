@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import type { GraphOperation } from "leafergraph";
-import { createNodeAuthorityRuntime } from "@leafergraph/node/authority";
+import type { AuthorityGraphOperation } from "../src/index.js";
+import { createNodeAuthorityRuntime } from "../src/index.js";
 
-function createUpdateFlagsOperation(): GraphOperation {
+function createUpdateFlagsOperation(): AuthorityGraphOperation {
   return {
     type: "node.update",
     nodeId: "node-1",
@@ -18,7 +18,7 @@ function createUpdateFlagsOperation(): GraphOperation {
   };
 }
 
-function createCreateCollapsedNodeOperation(): GraphOperation {
+function createCreateCollapsedNodeOperation(): AuthorityGraphOperation {
   return {
     type: "node.create",
     input: {

@@ -5,9 +5,10 @@ import type {
   CapabilityProfile,
   GraphDocument,
   GraphLink,
-  GraphLinkEndpoint
-} from "../graph.js";
-import type { NodeSerializeResult, NodeSlotSpec } from "../types.js";
+  GraphLinkEndpoint,
+  NodeSerializeResult,
+  NodeSlotSpec
+} from "@leafergraph/node";
 import type {
   AuthorityCreateLinkInput,
   AuthorityCreateNodeInput,
@@ -48,6 +49,23 @@ interface AuthorityGraphPlayRun {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
+interface AuthorityGraphStepTask {
+  nodeId: string;
+  depth: number;
+  trigger: "direct" | "propagated";
+  inputValues: unknown[];
+}
+
+interface AuthorityGraphStepRun {
+  runId: string;
+  startedAt: number;
+  rootNodeId: string;
+  queue: AuthorityGraphStepTask[];
+  visitedNodeIds: Set<string>;
+  sequence: number;
+  stepCount: number;
+}
+
 interface ExecuteNodeChainOptions {
   rootNodeId: string;
   source: "node-play" | "graph-play" | "graph-step";
@@ -55,7 +73,30 @@ interface ExecuteNodeChainOptions {
   startedAt: number;
 }
 
+interface AuthorityExecutionMutationContext {
+  authorityName: string;
+  rootNodeId: string;
+  source: "node-play" | "graph-play" | "graph-step";
+  runId?: string;
+  startedAt: number;
+  sequence: number;
+  inputValues: readonly unknown[];
+}
+
+interface AuthorityExecutionMutationResult {
+  documentChanged: boolean;
+  outputPayloads: Array<{
+    slot: number;
+    payload: unknown;
+  }>;
+}
+
 let graphRunSeed = 1;
+
+const SYSTEM_ON_PLAY_NODE_TYPE = "system/on-play";
+const TEMPLATE_EXECUTE_COUNTER_NODE_TYPE = "template/execute-counter";
+const TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE = "template/execute-display";
+const DEMO_PENDING_NODE_TYPE = "demo.pending";
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -76,7 +117,7 @@ function createDefaultAuthorityDocument(): GraphDocument {
         properties: {},
         propertySpecs: [],
         inputs: [],
-        outputs: [],
+        outputs: [{ name: "Output", type: "event" }],
         widgets: [],
         data: {}
       },
@@ -88,7 +129,7 @@ function createDefaultAuthorityDocument(): GraphDocument {
         flags: {},
         properties: {},
         propertySpecs: [],
-        inputs: [],
+        inputs: [{ name: "Input", type: "event" }],
         outputs: [],
         widgets: [],
         data: {}
@@ -220,6 +261,187 @@ function cloneGraphExecutionState(
   return { ...state };
 }
 
+function ensureNodeProperties(
+  node: NodeSerializeResult
+): Record<string, unknown> {
+  node.properties ??= {};
+  return node.properties;
+}
+
+function createAuthorityExecutionContextPayload(
+  context: AuthorityExecutionMutationContext
+): AuthorityNodeExecutionEvent["executionContext"] {
+  return {
+    source: context.source,
+    runId: context.runId,
+    entryNodeId: context.rootNodeId,
+    stepIndex: context.sequence,
+    startedAt: context.startedAt,
+    payload: {
+      authority: context.authorityName
+    }
+  };
+}
+
+function resolveFirstDefinedInputValue(
+  inputValues: readonly unknown[]
+): unknown {
+  for (const value of inputValues) {
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function formatAuthorityRuntimeValue(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    return trimmedValue.length > 0 ? trimmedValue : "EMPTY";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "TRUE" : "FALSE";
+  }
+
+  if (value === undefined) {
+    return "EMPTY";
+  }
+
+  if (value === null) {
+    return "NULL";
+  }
+
+  return "OBJECT";
+}
+
+function resolveNodeTitleBase(
+  title: string | undefined,
+  fallback: string
+): string {
+  const safeTitle = typeof title === "string" ? title.trim() : "";
+  if (!safeTitle) {
+    return fallback;
+  }
+
+  return safeTitle.replace(/\s+(?:#?\d+|EMPTY|NULL|TRUE|FALSE|OBJECT)$/u, "");
+}
+
+function applyAuthorityExecutionMutation(
+  node: NodeSerializeResult,
+  context: AuthorityExecutionMutationContext
+): AuthorityExecutionMutationResult {
+  switch (node.type) {
+    case SYSTEM_ON_PLAY_NODE_TYPE:
+      return {
+        documentChanged: false,
+        outputPayloads: [
+          {
+            slot: 0,
+            payload: createAuthorityExecutionContextPayload(context)
+          }
+        ]
+      };
+    case TEMPLATE_EXECUTE_COUNTER_NODE_TYPE: {
+      const properties = ensureNodeProperties(node);
+      const previousCount = Number(properties.count ?? 0);
+      const nextCount = Number.isFinite(previousCount) ? previousCount + 1 : 1;
+      properties.count = nextCount;
+      properties.subtitle = "可从节点菜单起跑，也可接到 On Play 作为图级入口";
+      properties.status = `RUN ${nextCount}`;
+      node.title = `Counter ${nextCount}`;
+      return {
+        documentChanged: true,
+        outputPayloads: [
+          {
+            slot: 0,
+            payload: nextCount
+          }
+        ]
+      };
+    }
+    case TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE: {
+      const properties = ensureNodeProperties(node);
+      const inputValue = resolveFirstDefinedInputValue(context.inputValues);
+      const displayValue = formatAuthorityRuntimeValue(inputValue);
+      properties.lastValue =
+        inputValue === undefined ? undefined : clone(inputValue);
+      properties.subtitle = "显示上游通过正式连线传播过来的值";
+      properties.status = `VALUE ${displayValue}`;
+      node.title = `Display ${displayValue}`;
+      return {
+        documentChanged: true,
+        outputPayloads: []
+      };
+    }
+    case DEMO_PENDING_NODE_TYPE: {
+      const properties = ensureNodeProperties(node);
+      const nextRunCount =
+        Number.isFinite(Number(properties.runCount))
+          ? Number(properties.runCount) + 1
+          : 1;
+      const inputValue = resolveFirstDefinedInputValue(context.inputValues);
+      const displayValue = formatAuthorityRuntimeValue(inputValue);
+      properties.runCount = nextRunCount;
+      properties.status =
+        inputValue === undefined ? `RUN ${nextRunCount}` : `VALUE ${displayValue}`;
+      if (inputValue !== undefined) {
+        properties.lastValue = clone(inputValue);
+      }
+      node.title =
+        inputValue === undefined
+          ? `${resolveNodeTitleBase(node.title, node.id)} ${nextRunCount}`
+          : `${resolveNodeTitleBase(node.title, node.id)} ${displayValue}`;
+      return {
+        documentChanged: true,
+        outputPayloads:
+          (node.outputs?.length ?? 0) > 0
+            ? [
+                {
+                  slot: 0,
+                  payload:
+                    inputValue === undefined
+                      ? {
+                          authority: context.authorityName,
+                          source: context.source,
+                          runCount: nextRunCount
+                        }
+                      : clone(inputValue)
+                }
+              ]
+            : []
+      };
+    }
+    default: {
+      const inputValue = resolveFirstDefinedInputValue(context.inputValues);
+      if ((node.outputs?.length ?? 0) <= 0) {
+        return {
+          documentChanged: false,
+          outputPayloads: []
+        };
+      }
+
+      return {
+        documentChanged: false,
+        outputPayloads: [
+          {
+            slot: 0,
+            payload:
+              inputValue === undefined
+                ? createAuthorityExecutionContextPayload(context)
+                : clone(inputValue)
+          }
+        ]
+      };
+    }
+  }
+}
+
 function createGraphRunId(source: "graph-play" | "graph-step"): string {
   const runId = `graph:${source}:${Date.now()}:${graphRunSeed}`;
   graphRunSeed += 1;
@@ -268,6 +490,7 @@ export function createNodeAuthorityRuntime(
   let currentDocument = clone(options.initialDocument ?? createDefaultAuthorityDocument());
   let graphExecutionState = createIdleGraphExecutionState();
   let activeGraphPlayRun: AuthorityGraphPlayRun | null = null;
+  let activeGraphStepRun: AuthorityGraphStepRun | null = null;
   let stepCursor = 0;
 
   const emitRuntimeFeedback = (event: AuthorityRuntimeFeedbackEvent): void => {
@@ -336,10 +559,15 @@ export function createNodeAuthorityRuntime(
     activeGraphPlayRun = null;
   };
 
+  const stopActiveGraphStepWithoutEvent = (): void => {
+    activeGraphStepRun = null;
+  };
+
   const resetDocumentCaches = (): void => {
     generatedNodeSequence = 0;
     generatedLinkSequence = 0;
     stopActiveGraphPlayWithoutEvent();
+    stopActiveGraphStepWithoutEvent();
     nodeExecutionStateMap.clear();
     graphExecutionState = createIdleGraphExecutionState();
     stepCursor = 0;
@@ -363,8 +591,8 @@ export function createNodeAuthorityRuntime(
 
   const emitLinkPropagation = (
     link: GraphLink,
-    source: "node-play" | "graph-play" | "graph-step",
-    chainId: string
+    chainId: string,
+    payload: unknown
   ): void => {
     emitRuntimeFeedback({
       type: "link.propagation",
@@ -375,10 +603,7 @@ export function createNodeAuthorityRuntime(
         sourceSlot: link.source.slot ?? 0,
         targetNodeId: link.target.nodeId,
         targetSlot: link.target.slot ?? 0,
-        payload: {
-          authority: authorityName,
-          source
-        },
+        payload: payload === undefined ? undefined : clone(payload),
         timestamp: Date.now()
       }
     });
@@ -475,13 +700,18 @@ export function createNodeAuthorityRuntime(
   };
 
   const executeNodeChain = (input: ExecuteNodeChainOptions): boolean => {
-    const rootNode = getNode(input.rootNodeId);
+    const nextDocument = clone(currentDocument);
+    const rootNode =
+      nextDocument.nodes.find((node) => node.id === input.rootNodeId) ?? null;
     if (!rootNode) {
       return false;
     }
 
     const chainId = `${authorityName}:${input.source}:${rootNode.id}:${input.startedAt}`;
     const visited = new Set<string>();
+    const inputValuesByNodeId = new Map<string, unknown[]>();
+    const pendingRuntimeFeedbackEmits: Array<() => void> = [];
+    let documentChanged = false;
     let sequence = 0;
 
     const walk = (
@@ -493,7 +723,7 @@ export function createNodeAuthorityRuntime(
         return;
       }
 
-      const node = getNode(nodeId);
+      const node = nextDocument.nodes.find((item) => item.id === nodeId) ?? null;
       if (!node) {
         return;
       }
@@ -501,29 +731,226 @@ export function createNodeAuthorityRuntime(
       visited.add(nodeId);
       const currentSequence = sequence;
       sequence += 1;
-      emitNodeExecution(rootNode, node, {
+      const mutationResult = applyAuthorityExecutionMutation(node, {
+        authorityName,
+        rootNodeId: rootNode.id,
         source: input.source,
         runId: input.runId,
-        chainId,
-        depth,
-        sequence: currentSequence,
-        trigger,
         startedAt: input.startedAt,
-        timestamp: Date.now()
+        sequence: currentSequence,
+        inputValues: inputValuesByNodeId.get(nodeId) ?? []
+      });
+      documentChanged = documentChanged || mutationResult.documentChanged;
+      pendingRuntimeFeedbackEmits.push(() => {
+        emitNodeExecution(rootNode, node, {
+          source: input.source,
+          runId: input.runId,
+          chainId,
+          depth,
+          sequence: currentSequence,
+          trigger,
+          startedAt: input.startedAt,
+          timestamp: Date.now()
+        });
       });
 
-      for (const link of currentDocument.links) {
-        if (link.source.nodeId !== nodeId || !getNode(link.target.nodeId)) {
-          continue;
-        }
+      for (const output of mutationResult.outputPayloads) {
+        for (const link of nextDocument.links) {
+          if (
+            link.source.nodeId !== nodeId ||
+            (link.source.slot ?? 0) !== output.slot
+          ) {
+            continue;
+          }
 
-        emitLinkPropagation(link, input.source, chainId);
-        walk(link.target.nodeId, depth + 1, "propagated");
+          const targetNode =
+            nextDocument.nodes.find((item) => item.id === link.target.nodeId) ?? null;
+          if (!targetNode) {
+            continue;
+          }
+
+          const targetInputValues =
+            inputValuesByNodeId.get(targetNode.id) ??
+            new Array(Math.max(targetNode.inputs?.length ?? 0, 1)).fill(undefined);
+          targetInputValues[link.target.slot ?? 0] =
+            output.payload === undefined ? undefined : clone(output.payload);
+          inputValuesByNodeId.set(targetNode.id, targetInputValues);
+          pendingRuntimeFeedbackEmits.push(() => {
+            emitLinkPropagation(link, chainId, output.payload);
+          });
+          walk(targetNode.id, depth + 1, "propagated");
+        }
       }
     };
 
     walk(rootNode.id, 0, "direct");
+
+    if (documentChanged) {
+      currentDocument = {
+        ...nextDocument,
+        revision: nextRevision(currentDocument.revision)
+      };
+      emitDocument();
+    }
+
+    for (const emit of pendingRuntimeFeedbackEmits) {
+      emit();
+    }
     return true;
+  };
+
+  const mergeStepInputValues = (
+    currentInputValues: readonly unknown[],
+    nextInputValues: readonly unknown[]
+  ): unknown[] => {
+    const mergedInputValues = new Array(
+      Math.max(currentInputValues.length, nextInputValues.length)
+    ).fill(undefined);
+
+    for (let index = 0; index < mergedInputValues.length; index += 1) {
+      if (index < currentInputValues.length) {
+        mergedInputValues[index] = clone(currentInputValues[index]);
+      }
+      if (index < nextInputValues.length && nextInputValues[index] !== undefined) {
+        mergedInputValues[index] = clone(nextInputValues[index]);
+      }
+    }
+
+    return mergedInputValues;
+  };
+
+  const queueGraphStepTaskFront = (
+    run: AuthorityGraphStepRun,
+    task: AuthorityGraphStepTask
+  ): void => {
+    if (run.visitedNodeIds.has(task.nodeId)) {
+      return;
+    }
+
+    const existingTaskIndex = run.queue.findIndex(
+      (entry) => entry.nodeId === task.nodeId
+    );
+    if (existingTaskIndex >= 0) {
+      const [existingTask] = run.queue.splice(existingTaskIndex, 1);
+      const mergedTask: AuthorityGraphStepTask = {
+        ...existingTask,
+        depth: Math.min(existingTask.depth, task.depth),
+        trigger: existingTask.trigger,
+        inputValues: mergeStepInputValues(existingTask.inputValues, task.inputValues)
+      };
+      run.queue.unshift(mergedTask);
+      return;
+    }
+
+    run.queue.unshift(task);
+  };
+
+  const executeGraphStepRunTick = (
+    run: AuthorityGraphStepRun
+  ): { changed: boolean; executedNodeId?: string } => {
+    while (run.queue.length > 0) {
+      const task = run.queue.shift();
+      if (!task || run.visitedNodeIds.has(task.nodeId)) {
+        continue;
+      }
+
+      const nextDocument = clone(currentDocument);
+      const rootNode =
+        nextDocument.nodes.find((node) => node.id === run.rootNodeId) ?? null;
+      if (!rootNode) {
+        return { changed: false };
+      }
+
+      const node = nextDocument.nodes.find((item) => item.id === task.nodeId) ?? null;
+      if (!node) {
+        continue;
+      }
+
+      run.visitedNodeIds.add(task.nodeId);
+      const currentSequence = run.sequence;
+      run.sequence += 1;
+      const chainId = `${authorityName}:graph-step:${run.rootNodeId}:${run.startedAt}`;
+      const mutationResult = applyAuthorityExecutionMutation(node, {
+        authorityName,
+        rootNodeId: run.rootNodeId,
+        source: "graph-step",
+        runId: run.runId,
+        startedAt: run.startedAt,
+        sequence: currentSequence,
+        inputValues: task.inputValues
+      });
+      const pendingRuntimeFeedbackEmits: Array<() => void> = [
+        () => {
+          emitNodeExecution(rootNode, node, {
+            source: "graph-step",
+            runId: run.runId,
+            chainId,
+            depth: task.depth,
+            sequence: currentSequence,
+            trigger: task.trigger,
+            startedAt: run.startedAt,
+            timestamp: Date.now()
+          });
+        }
+      ];
+      const nextTasks: AuthorityGraphStepTask[] = [];
+
+      for (const output of mutationResult.outputPayloads) {
+        for (const link of nextDocument.links) {
+          if (
+            link.source.nodeId !== task.nodeId ||
+            (link.source.slot ?? 0) !== output.slot
+          ) {
+            continue;
+          }
+
+          const targetNode =
+            nextDocument.nodes.find((item) => item.id === link.target.nodeId) ?? null;
+          if (!targetNode || run.visitedNodeIds.has(targetNode.id)) {
+            continue;
+          }
+
+          const targetInputValues = new Array(
+            Math.max(targetNode.inputs?.length ?? 0, 1)
+          ).fill(undefined);
+          targetInputValues[link.target.slot ?? 0] =
+            output.payload === undefined ? undefined : clone(output.payload);
+          nextTasks.push({
+            nodeId: targetNode.id,
+            depth: task.depth + 1,
+            trigger: "propagated",
+            inputValues: targetInputValues
+          });
+          pendingRuntimeFeedbackEmits.push(() => {
+            emitLinkPropagation(link, chainId, output.payload);
+          });
+        }
+      }
+
+      for (let index = nextTasks.length - 1; index >= 0; index -= 1) {
+        queueGraphStepTaskFront(run, nextTasks[index]!);
+      }
+
+      if (mutationResult.documentChanged) {
+        currentDocument = {
+          ...nextDocument,
+          revision: nextRevision(currentDocument.revision)
+        };
+        emitDocument();
+      }
+
+      for (const emit of pendingRuntimeFeedbackEmits) {
+        emit();
+      }
+
+      run.stepCount += 1;
+      return {
+        changed: true,
+        executedNodeId: node.id
+      };
+    }
+
+    return { changed: false };
   };
 
   const finalizeGraphPlayRun = (
@@ -550,6 +977,31 @@ export function createNodeAuthorityRuntime(
     emitGraphExecution(type, {
       runId: run.runId,
       source: "graph-play",
+      timestamp
+    });
+  };
+
+  const finalizeGraphStepRun = (
+    run: AuthorityGraphStepRun,
+    type: "drained" | "stopped"
+  ): void => {
+    if (activeGraphStepRun?.runId !== run.runId) {
+      return;
+    }
+
+    activeGraphStepRun = null;
+    const timestamp = Date.now();
+    graphExecutionState = {
+      status: "idle",
+      queueSize: 0,
+      stepCount: run.stepCount,
+      startedAt: run.startedAt,
+      stoppedAt: timestamp,
+      lastSource: "graph-step"
+    };
+    emitGraphExecution(type, {
+      runId: run.runId,
+      source: "graph-step",
       timestamp
     });
   };
@@ -607,10 +1059,32 @@ export function createNodeAuthorityRuntime(
     }, 0);
   };
 
-  const collectRootNodeIds = (): string[] =>
-    currentDocument.nodes
+  const collectRootNodeIds = (): string[] => {
+    const executableNodeIds = currentDocument.nodes
       .map((node) => node.id)
       .filter((nodeId) => Boolean(getNode(nodeId)));
+    if (!executableNodeIds.length) {
+      return [];
+    }
+
+    const executableNodeIdSet = new Set(executableNodeIds);
+    const incomingTargetNodeIds = new Set(
+      currentDocument.links
+        .filter(
+          (link) =>
+            executableNodeIdSet.has(link.source.nodeId) &&
+            executableNodeIdSet.has(link.target.nodeId)
+        )
+        .map((link) => link.target.nodeId)
+    );
+    const rootNodeIds = executableNodeIds.filter(
+      (nodeId) => !incomingTargetNodeIds.has(nodeId)
+    );
+
+    // 对 DAG 优先只从真正根节点起跑，避免下游节点在 graph.step/play 中重复作为 root。
+    // 若整张图没有入边为 0 的节点（例如纯环），再保底回退到全部节点顺序。
+    return rootNodeIds.length ? rootNodeIds : executableNodeIds;
+  };
 
   const createRuntimeControlResult = (
     overrides: Partial<AuthorityRuntimeControlResult>
@@ -627,6 +1101,8 @@ export function createNodeAuthorityRuntime(
     },
 
     submitOperation(operation: AuthorityGraphOperation): AuthorityOperationResult {
+      stopActiveGraphStepWithoutEvent();
+
       switch (operation.type) {
         case "document.update": {
           const nextDocument = patchDocumentRoot(currentDocument, operation.input);
@@ -1025,6 +1501,7 @@ export function createNodeAuthorityRuntime(
             });
           }
 
+          stopActiveGraphStepWithoutEvent();
           const changed = executeNodeChain({
             rootNodeId: request.nodeId,
             source: "node-play",
@@ -1041,6 +1518,7 @@ export function createNodeAuthorityRuntime(
             return createRuntimeControlResult({ reason: "图已在运行中" });
           }
 
+          stopActiveGraphStepWithoutEvent();
           const queue = collectRootNodeIds();
           if (!queue.length) {
             return createRuntimeControlResult({ reason: "图中没有可执行节点" });
@@ -1080,72 +1558,97 @@ export function createNodeAuthorityRuntime(
             });
           }
 
-          const rootNodeIds = collectRootNodeIds();
-          if (!rootNodeIds.length) {
-            return createRuntimeControlResult({ reason: "图中没有可执行节点" });
+          let run = activeGraphStepRun;
+          if (!run) {
+            const rootNodeIds = collectRootNodeIds();
+            if (!rootNodeIds.length) {
+              return createRuntimeControlResult({ reason: "图中没有可执行节点" });
+            }
+
+            if (stepCursor >= rootNodeIds.length) {
+              stepCursor = 0;
+            }
+            const rootNodeId = rootNodeIds[stepCursor];
+            stepCursor = (stepCursor + 1) % rootNodeIds.length;
+            const startedAt = Date.now();
+            const runId = createGraphRunId("graph-step");
+            run = {
+              runId,
+              startedAt,
+              rootNodeId,
+              queue: [
+                {
+                  nodeId: rootNodeId,
+                  depth: 0,
+                  trigger: "direct",
+                  inputValues: []
+                }
+              ],
+              visitedNodeIds: new Set<string>(),
+              sequence: 0,
+              stepCount: 0
+            };
+            activeGraphStepRun = run;
+            graphExecutionState = {
+              status: "stepping",
+              runId,
+              queueSize: 1,
+              stepCount: 0,
+              startedAt,
+              lastSource: "graph-step"
+            };
+            emitGraphExecution("started", {
+              runId,
+              source: "graph-step",
+              timestamp: startedAt
+            });
           }
 
-          if (stepCursor >= rootNodeIds.length) {
-            stepCursor = 0;
-          }
-          const rootNodeId = rootNodeIds[stepCursor];
-          stepCursor = (stepCursor + 1) % rootNodeIds.length;
-          const startedAt = Date.now();
-          const runId = createGraphRunId("graph-step");
-          graphExecutionState = {
-            status: "stepping",
-            runId,
-            queueSize: 1,
-            stepCount: 0,
-            startedAt,
-            lastSource: "graph-step"
-          };
-          emitGraphExecution("started", {
-            runId,
-            source: "graph-step",
-            timestamp: startedAt
-          });
-
-          const changed = executeNodeChain({
-            rootNodeId,
-            source: "graph-step",
-            runId,
-            startedAt
-          });
+          const executionResult = executeGraphStepRunTick(run);
           const timestamp = Date.now();
+          const hasMore = run.queue.length > 0;
           graphExecutionState = {
-            status: "idle",
-            queueSize: 0,
-            stepCount: changed ? 1 : 0,
-            startedAt,
-            stoppedAt: timestamp,
+            status: hasMore ? "stepping" : "idle",
+            runId: hasMore ? run.runId : undefined,
+            queueSize: run.queue.length,
+            stepCount: run.stepCount,
+            startedAt: run.startedAt,
+            stoppedAt: hasMore ? undefined : timestamp,
             lastSource: "graph-step"
           };
           emitGraphExecution("advanced", {
-            runId,
+            runId: run.runId,
             source: "graph-step",
-            nodeId: rootNodeId,
+            nodeId: executionResult.executedNodeId,
             timestamp
           });
-          emitGraphExecution("drained", {
-            runId,
-            source: "graph-step",
-            timestamp: Date.now()
-          });
+          if (!hasMore) {
+            finalizeGraphStepRun(run, "drained");
+          }
           return createRuntimeControlResult({
-            changed,
-            reason: changed ? undefined : "节点不存在"
+            changed: executionResult.changed,
+            reason: executionResult.changed ? undefined : "节点不存在"
           });
         }
         case "graph.stop": {
-          if (!activeGraphPlayRun) {
-            return createRuntimeControlResult({ reason: "当前没有活动中的图运行" });
+          if (activeGraphPlayRun) {
+            finalizeGraphPlayRun(activeGraphPlayRun, "stopped");
+            return createRuntimeControlResult({ changed: true });
           }
 
-          finalizeGraphPlayRun(activeGraphPlayRun, "stopped");
-          return createRuntimeControlResult({ changed: true });
+          if (activeGraphStepRun) {
+            finalizeGraphStepRun(activeGraphStepRun, "stopped");
+            return createRuntimeControlResult({ changed: true });
+          }
+
+          return createRuntimeControlResult({ reason: "当前没有活动中的图运行" });
         }
       }
+
+      return createRuntimeControlResult({
+        accepted: false,
+        reason: "不支持的 runtime control"
+      });
     },
 
     replaceDocument(document: GraphDocument): GraphDocument {

@@ -11,15 +11,21 @@
     "dev:editor:lan": "bun run --filter leafergraph-editor dev:lan",
     "build:testbundles": "node ./scripts/build_editor_testbundles.mjs",
     "build:node": "bun run --filter @leafergraph/node build",
+    "check:node-backend": "bun run --cwd ./templates/node-backend-control-template check",
+    "build:node-backend": "bun run --cwd ./templates/node-backend-control-template build",
+    "dev:node-backend": "bun run --cwd ./templates/node-backend-control-template dev",
+    "start:node-backend": "bun run --cwd ./templates/node-backend-control-template start",
+    "test:node-backend": "bun run --cwd ./templates/node-backend-control-template test",
     "build:leafergraph": "bun run --filter leafergraph build",
     "build:editor": "bun run --filter leafergraph-editor build",
     "build": "bun run build:node && bun run build:leafergraph && bun run build:editor",
     "preview:editor": "bun run --filter leafergraph-editor preview",
-    "start:node-authority-demo": "bun run build:node && node ./packages/node/dist/authority/demo_server.js"
+    "start:python-authority-demo": "uv run --project templates/python-backend-control-template python -m leafergraph_python_backend_control_template.server",
+    "test:python-authority-demo": "uv run --project templates/python-backend-control-template pytest templates/python-backend-control-template/tests"
   },
   "devDependencies": {
     "@types/node": "^25.4.0",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^8.0.1"
   }
 }

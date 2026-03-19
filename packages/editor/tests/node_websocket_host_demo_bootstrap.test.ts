@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import type { GraphDocument } from "leafergraph";
-import { startNodeAuthorityServer } from "../../node/src/authority";
+import { startNodeAuthorityServer } from "../../../templates/node-backend-control-template/src/index.js";
 import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
 import type { GraphViewportHostBridge } from "../src/app/GraphViewport";
 import { createEditorRemoteAuthorityAppRuntime } from "../src/app/remote_authority_app_runtime";
@@ -149,6 +149,7 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
 
     const runtime = await createEditorRemoteAuthorityAppRuntime(source);
     expect(runtime.sourceLabel).toBe("Node Host Demo");
+    expect(runtime.bundleProjectionMode).toBe("skip");
     expect(runtime.document.documentId).toBe("node-authority-doc");
     expect(runtime.getConnectionStatus()).toBe("connected");
     expect(

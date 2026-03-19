@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
+import type { GraphDocument } from "@leafergraph/node";
 import type {
-  GraphDocument,
-  GraphOperation,
-  RuntimeFeedbackEvent
-} from "leafergraph";
-import { createNodeAuthorityRuntime } from "@leafergraph/node/authority";
+  AuthorityGraphOperation,
+  AuthorityRuntimeFeedbackEvent
+} from "../src/index.js";
+import { createNodeAuthorityRuntime } from "../src/index.js";
 
-function createNoopUpdateOperation(): GraphOperation {
+function createNoopUpdateOperation(): AuthorityGraphOperation {
   return {
     type: "node.update",
     nodeId: "node-1",
@@ -18,7 +18,7 @@ function createNoopUpdateOperation(): GraphOperation {
   };
 }
 
-function createNoopMoveOperation(): GraphOperation {
+function createNoopMoveOperation(): AuthorityGraphOperation {
   return {
     type: "node.move",
     nodeId: "node-1",
@@ -32,7 +32,7 @@ function createNoopMoveOperation(): GraphOperation {
   };
 }
 
-function createNoopResizeOperation(): GraphOperation {
+function createNoopResizeOperation(): AuthorityGraphOperation {
   return {
     type: "node.resize",
     nodeId: "node-1",
@@ -46,7 +46,7 @@ function createNoopResizeOperation(): GraphOperation {
   };
 }
 
-function createInvalidLinkCreateOperation(): GraphOperation {
+function createInvalidLinkCreateOperation(): AuthorityGraphOperation {
   return {
     type: "link.create",
     input: {
@@ -66,7 +66,7 @@ function createInvalidLinkCreateOperation(): GraphOperation {
   };
 }
 
-function createInvalidLinkReconnectOperation(): GraphOperation {
+function createInvalidLinkReconnectOperation(): AuthorityGraphOperation {
   return {
     type: "link.reconnect",
     linkId: "link-1",
@@ -82,7 +82,7 @@ function createInvalidLinkReconnectOperation(): GraphOperation {
   };
 }
 
-function createLinkRemoveOperation(): GraphOperation {
+function createLinkRemoveOperation(): AuthorityGraphOperation {
   return {
     type: "link.remove",
     linkId: "link-1",
@@ -92,7 +92,7 @@ function createLinkRemoveOperation(): GraphOperation {
   };
 }
 
-function createGeneratedNodeOperation(): GraphOperation {
+function createGeneratedNodeOperation(): AuthorityGraphOperation {
   return {
     type: "node.create",
     input: {
@@ -106,7 +106,7 @@ function createGeneratedNodeOperation(): GraphOperation {
   };
 }
 
-function createDocumentUpdateOperation(): GraphOperation {
+function createDocumentUpdateOperation(): AuthorityGraphOperation {
   return {
     type: "document.update",
     input: {
@@ -129,7 +129,117 @@ function createDocumentUpdateOperation(): GraphOperation {
   };
 }
 
+function createTemplateExecutionAuthorityDocument(): GraphDocument {
+  return {
+    documentId: "template-execution-doc",
+    revision: "1",
+    appKind: "node-authority-demo",
+    nodes: [
+      {
+        id: "template-on-play",
+        type: "system/on-play",
+        title: "On Play",
+        layout: {
+          x: 0,
+          y: 0,
+          width: 220,
+          height: 120
+        }
+      },
+      {
+        id: "template-execute-source",
+        type: "template/execute-counter",
+        title: "Counter Source",
+        layout: {
+          x: 280,
+          y: 0,
+          width: 288,
+          height: 184
+        },
+        properties: {
+          subtitle: "可由 On Play 驱动，也可从节点菜单单独起跑",
+          accent: "#F97316",
+          status: "READY",
+          count: 0
+        },
+        inputs: [{ name: "Start", type: "event" }],
+        outputs: [{ name: "Count", type: "number" }]
+      },
+      {
+        id: "template-execute-display",
+        type: "template/execute-display",
+        title: "Display",
+        layout: {
+          x: 620,
+          y: 0,
+          width: 288,
+          height: 184
+        },
+        properties: {
+          subtitle: "等待上游执行传播",
+          accent: "#0EA5E9",
+          status: "WAITING"
+        },
+        inputs: [{ name: "Value", type: "number" }]
+      }
+    ],
+    links: [
+      {
+        id: "template-link:on-play->execute-source",
+        source: {
+          nodeId: "template-on-play",
+          slot: 0
+        },
+        target: {
+          nodeId: "template-execute-source",
+          slot: 0
+        }
+      },
+      {
+        id: "template-link:execute-source->display",
+        source: {
+          nodeId: "template-execute-source",
+          slot: 0
+        },
+        target: {
+          nodeId: "template-execute-display",
+          slot: 0
+        }
+      }
+    ],
+    meta: {}
+  };
+}
+
 describe("node authority runtime behavior", () => {
+  test("默认文档应提供可直接执行的 demo 双节点链", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test"
+    });
+
+    expect(runtime.getDocument()).toMatchObject({
+      documentId: "node-authority-doc",
+      revision: "1",
+      nodes: [
+        {
+          id: "node-1",
+          outputs: [{ name: "Output", type: "event" }]
+        },
+        {
+          id: "node-2",
+          inputs: [{ name: "Input", type: "event" }]
+        }
+      ],
+      links: [
+        {
+          id: "link-1",
+          source: { nodeId: "node-1", slot: 0 },
+          target: { nodeId: "node-2", slot: 0 }
+        }
+      ]
+    });
+  });
+
   test("no-op 的 update / move / resize 不应推进 revision", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
@@ -188,7 +298,7 @@ describe("node authority runtime behavior", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
     });
-    const events: RuntimeFeedbackEvent[] = [];
+    const events: AuthorityRuntimeFeedbackEvent[] = [];
     const dispose = runtime.subscribe((event) => {
       events.push(event);
     });
@@ -293,7 +403,7 @@ describe("node authority runtime behavior", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
     });
-    const events: RuntimeFeedbackEvent[] = [];
+    const events: AuthorityRuntimeFeedbackEvent[] = [];
     const dispose = runtime.subscribe((event) => {
       events.push(event);
     });
@@ -308,8 +418,8 @@ describe("node authority runtime behavior", () => {
       accepted: true,
       changed: true,
       state: {
-        status: "idle",
-        queueSize: 0,
+        status: "stepping",
+        queueSize: 1,
         stepCount: 1,
         lastSource: "graph-step"
       }
@@ -318,7 +428,7 @@ describe("node authority runtime behavior", () => {
       events
         .filter((event) => event.type === "graph.execution")
         .map((event) => event.event.type)
-    ).toEqual(["started", "advanced", "drained"]);
+    ).toEqual(["started", "advanced"]);
     expect(
       events.some(
         (event) =>
@@ -336,11 +446,155 @@ describe("node authority runtime behavior", () => {
     ).toBe(true);
   });
 
+  test("graph.step 应按节点逐步推进，并在后续步写回 authority 文档", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTemplateExecutionAuthorityDocument()
+    });
+    const pushedDocuments: GraphDocument[] = [];
+    const dispose = runtime.subscribeDocument((document) => {
+      pushedDocuments.push(document);
+    });
+
+    const firstStepResult = runtime.controlRuntime({
+      type: "graph.step"
+    });
+    const secondStepResult = runtime.controlRuntime({
+      type: "graph.step"
+    });
+    const thirdStepResult = runtime.controlRuntime({
+      type: "graph.step"
+    });
+
+    dispose();
+
+    expect(firstStepResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "stepping",
+        queueSize: 1,
+        stepCount: 1,
+        lastSource: "graph-step"
+      }
+    });
+    expect(secondStepResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "stepping",
+        queueSize: 1,
+        stepCount: 2,
+        lastSource: "graph-step"
+      }
+    });
+    expect(thirdStepResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle",
+        queueSize: 0,
+        stepCount: 3,
+        lastSource: "graph-step"
+      }
+    });
+    expect(pushedDocuments).toHaveLength(2);
+    expect(runtime.getDocument()).toMatchObject({
+      revision: "3"
+    });
+    expect(runtime.getDocument().nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "template-execute-source",
+          title: "Counter 1",
+          properties: expect.objectContaining({
+            count: 1,
+            status: "RUN 1"
+          })
+        }),
+        expect.objectContaining({
+          id: "template-execute-display",
+          title: "Display 1",
+          properties: expect.objectContaining({
+            lastValue: 1,
+            status: "VALUE 1"
+          })
+        })
+      ])
+    );
+    expect(pushedDocuments[0]?.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "template-execute-source",
+          title: "Counter 1"
+        }),
+        expect.objectContaining({
+          id: "template-execute-display",
+          title: "Display"
+        })
+      ])
+    );
+    expect(pushedDocuments[1]?.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "template-execute-source",
+          title: "Counter 1"
+        }),
+        expect.objectContaining({
+          id: "template-execute-display",
+          title: "Display 1"
+        })
+      ])
+    );
+  });
+
+  test("graph.step 应单节点推进完整链后，再回到根节点重新开始", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTemplateExecutionAuthorityDocument()
+    });
+
+    for (let index = 0; index < 6; index += 1) {
+      expect(
+        runtime.controlRuntime({
+          type: "graph.step"
+        })
+      ).toMatchObject({
+        accepted: true,
+        changed: true
+      });
+    }
+
+    expect(runtime.getDocument()).toMatchObject({
+      revision: "5"
+    });
+    expect(runtime.getDocument().nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "template-execute-source",
+          title: "Counter 2",
+          properties: expect.objectContaining({
+            count: 2,
+            status: "RUN 2"
+          })
+        }),
+        expect.objectContaining({
+          id: "template-execute-display",
+          title: "Display 2",
+          properties: expect.objectContaining({
+            lastValue: 2,
+            status: "VALUE 2"
+          })
+        })
+      ])
+    );
+  });
+
   test("graph.play 后应允许 stop，并回发 stopped 事件", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
     });
-    const events: RuntimeFeedbackEvent[] = [];
+    const events: AuthorityRuntimeFeedbackEvent[] = [];
     const dispose = runtime.subscribe((event) => {
       events.push(event);
     });
@@ -359,7 +613,7 @@ describe("node authority runtime behavior", () => {
       changed: true,
       state: {
         status: "running",
-        queueSize: 2,
+        queueSize: 1,
         stepCount: 0,
         lastSource: "graph-play"
       }

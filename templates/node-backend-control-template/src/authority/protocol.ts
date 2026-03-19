@@ -3,14 +3,12 @@ import type {
   CapabilityProfile,
   GraphDocument,
   GraphLink,
-  GraphLinkEndpoint
-} from "../graph.js";
-import type {
+  GraphLinkEndpoint,
   NodeFlags,
   NodePropertySpec,
   NodeSerializeResult,
   NodeSlotSpec
-} from "../types.js";
+} from "@leafergraph/node";
 
 /** Node authority 侧复用的最小槽位输入结构。 */
 export type AuthorityNodeSlotInput = string | NodeSlotSpec;
