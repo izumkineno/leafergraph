@@ -22,10 +22,10 @@ function isEmptyGraphDocument(document: GraphDocument): boolean {
 export function resolveRemoteAuthorityBundleProjection(
   runtimeSetup: EditorBundleRuntimeSetup
 ): RemoteAuthorityBundleProjection | null {
-  const demoSlot = runtimeSetup.slots.demo;
-  const manifest = demoSlot.manifest;
+  const currentDemo = runtimeSetup.currentDemo;
+  const manifest = currentDemo?.manifest;
 
-  if (!demoSlot.active || manifest?.kind !== "demo") {
+  if (!currentDemo?.active || manifest?.kind !== "demo") {
     return null;
   }
 

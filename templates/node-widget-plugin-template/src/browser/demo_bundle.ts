@@ -14,6 +14,9 @@ registerTemplateBundle({
   name: "Template Demo Document",
   kind: "demo",
   version: TEMPLATE_PLUGIN_VERSION,
-  requires: ["node", "widget"],
+  requires: [
+    `${TEMPLATE_PLUGIN_NAME}/node`,
+    `${TEMPLATE_PLUGIN_NAME}/widget`
+  ],
   document: templateDemoDocument
 });

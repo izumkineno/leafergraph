@@ -193,7 +193,7 @@ def create_template_execution_authority_document() -> dict:
     }
 
 
-def test_default_authority_document_should_provide_executable_demo_chain() -> None:
+def test_default_authority_document_should_provide_basic_demo_chain() -> None:
     runtime = create_python_authority_runtime(authority_name="behavior-test")
 
     document = runtime.get_document()
@@ -237,7 +237,7 @@ def test_default_authority_document_should_provide_executable_demo_chain() -> No
     ]
 
 
-def test_default_authority_document_should_allow_graph_step() -> None:
+def test_graph_step_should_require_on_play_entry() -> None:
     runtime = create_python_authority_runtime(authority_name="behavior-test")
     events: list[dict] = []
     dispose = runtime.subscribe(events.append)
@@ -247,8 +247,41 @@ def test_default_authority_document_should_allow_graph_step() -> None:
     dispose()
 
     assert result["accepted"] is True
+    assert result["changed"] is False
+    assert result["reason"] == "图中没有 On Play 入口节点"
+    assert result["state"]["status"] == "idle"
+    assert result["state"]["queueSize"] == 0
+    assert result["state"]["stepCount"] == 0
+    assert events == []
+
+
+def test_graph_play_should_require_on_play_entry() -> None:
+    runtime = create_python_authority_runtime(authority_name="behavior-test")
+
+    result = runtime.control_runtime({"type": "graph.play"})
+
+    assert result["accepted"] is True
+    assert result["changed"] is False
+    assert result["reason"] == "图中没有 On Play 入口节点"
+    assert result["state"]["status"] == "idle"
+    assert result["state"]["queueSize"] == 0
+    assert result["state"]["stepCount"] == 0
+
+
+def test_node_play_should_still_allow_direct_debug_start_without_on_play() -> None:
+    runtime = create_python_authority_runtime(authority_name="behavior-test")
+
+    result = runtime.control_runtime({"type": "node.play", "nodeId": "node-1"})
+
+    assert result["accepted"] is True
     assert result["changed"] is True
-    assert any(event["type"] == "graph.execution" for event in events)
+    current_document = runtime.get_document()
+    assert current_document["revision"] == "2"
+    source_node = next(node for node in current_document["nodes"] if node["id"] == "node-1")
+    target_node = next(node for node in current_document["nodes"] if node["id"] == "node-2")
+    assert source_node["properties"]["runCount"] == 1
+    assert source_node["properties"]["status"] == "RUN 1"
+    assert target_node["properties"]["status"] == "VALUE OBJECT"
 
 
 def test_noop_update_move_resize_should_not_advance_revision() -> None:
@@ -336,7 +369,7 @@ def test_document_update_should_patch_root_fields_and_support_noop() -> None:
 def test_graph_step_should_emit_execution_feedback() -> None:
     runtime = create_python_authority_runtime(
         authority_name="behavior-test",
-        initial_document=create_sample_authority_document(),
+        initial_document=create_template_execution_authority_document(),
     )
     events: list[dict] = []
     dispose = runtime.subscribe(events.append)
@@ -355,12 +388,13 @@ def test_graph_step_should_emit_execution_feedback() -> None:
     ]
     assert any(
         event["type"] == "node.execution"
-        and event["event"]["nodeId"] == "node-1"
+        and event["event"]["nodeId"] == "template-on-play"
         and event["event"]["source"] == "graph-step"
         for event in events
     )
     assert any(
-        event["type"] == "link.propagation" and event["event"]["linkId"] == "link-1"
+        event["type"] == "link.propagation"
+        and event["event"]["linkId"] == "template-link:on-play->execute-source"
         for event in events
     )
 
@@ -453,7 +487,7 @@ def test_graph_step_should_restart_from_root_after_finishing_a_chain() -> None:
 def test_graph_play_should_allow_stop_and_emit_stopped() -> None:
     runtime = create_python_authority_runtime(
         authority_name="behavior-test",
-        initial_document=create_sample_authority_document(),
+        initial_document=create_template_execution_authority_document(),
     )
     events: list[dict] = []
     dispose = runtime.subscribe(events.append)

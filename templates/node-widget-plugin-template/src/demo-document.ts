@@ -163,3 +163,33 @@ export const templateDemoDocument: GraphDocument = {
     }
   ]
 };
+
+export const templateAlternateDemoDocument: GraphDocument = {
+  ...templateDemoDocument,
+  documentId: "template-demo-document-alt",
+  revision: 1,
+  nodes: templateDemoDocument.nodes.map((node, index) => ({
+    ...node,
+    id: `${node.id}-alt`,
+    title: node.title ? `${node.title} Alt` : node.title,
+    layout: node.layout
+      ? {
+          ...node.layout,
+          x: (node.layout.x ?? 0) + 96 + index * 12,
+          y: (node.layout.y ?? 0) + (index % 2 === 0 ? 24 : 96)
+        }
+      : node.layout
+  })),
+  links: templateDemoDocument.links.map((link) => ({
+    ...link,
+    id: `${link.id}-alt`,
+    source: {
+      ...link.source,
+      nodeId: `${link.source.nodeId}-alt`
+    },
+    target: {
+      ...link.target,
+      nodeId: `${link.target.nodeId}-alt`
+    }
+  }))
+};

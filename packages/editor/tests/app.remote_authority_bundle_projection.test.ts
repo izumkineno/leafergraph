@@ -26,57 +26,37 @@ function createRuntimeSetup(
   } = {}
 ): EditorBundleRuntimeSetup {
   const demoDocument = options.demoDocument ?? createDocument("demo-doc");
+  const demoRecord = {
+    slot: "demo" as const,
+    bundleKey: "demo:@test/demo",
+    manifest: {
+      id: "@test/demo",
+      name: "Test Demo Bundle",
+      kind: "demo" as const,
+      document: demoDocument
+    },
+    fileName: "demo.iife.js",
+    enabled: true,
+    loading: false,
+    error: null,
+    persisted: false,
+    restoredFromPersistence: false,
+    savedAt: null,
+    status: "ready" as const,
+    active: options.demoActive ?? true,
+    missingRequirements: []
+  };
 
   return {
     document: demoDocument,
     plugins: [],
     quickCreateNodeType: undefined,
-    slots: {
-      demo: {
-        slot: "demo",
-        manifest: {
-          id: "@test/demo",
-          name: "Test Demo Bundle",
-          kind: "demo",
-          document: demoDocument
-        },
-        fileName: "demo.iife.js",
-        enabled: true,
-        loading: false,
-        error: null,
-        persisted: false,
-        restoredFromPersistence: false,
-        status: "ready",
-        active: options.demoActive ?? true,
-        missingRequirements: []
-      },
-      node: {
-        slot: "node",
-        manifest: null,
-        fileName: null,
-        enabled: false,
-        loading: false,
-        error: null,
-        persisted: false,
-        restoredFromPersistence: false,
-        status: "idle",
-        active: false,
-        missingRequirements: []
-      },
-      widget: {
-        slot: "widget",
-        manifest: null,
-        fileName: null,
-        enabled: false,
-        loading: false,
-        error: null,
-        persisted: false,
-        restoredFromPersistence: false,
-        status: "idle",
-        active: false,
-        missingRequirements: []
-      }
-    }
+    bundles: {
+      demo: [demoRecord],
+      node: [],
+      widget: []
+    },
+    currentDemo: demoRecord.active ? demoRecord : null
   };
 }
 

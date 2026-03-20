@@ -31,11 +31,22 @@ import {
   type EditorTheme
 } from "../theme";
 import {
-  createInitialBundleSlotState,
+  areEditorBundleDocumentsEquivalent,
+  createInitialBundleCatalogState,
+  createLoadedBundleRecordState,
+  createLoadingBundleRecordState,
+  createEditorBundleRecordKey,
+  EMPTY_EDITOR_DOCUMENT,
   EDITOR_BUNDLE_SLOTS,
   ensureEditorBundleRuntimeGlobals,
+  findEditorBundleRecord,
   loadEditorBundleSource,
+  removeEditorBundleRecord,
   resolveEditorBundleRuntimeSetup,
+  resolveEditorBundleRecordId,
+  setCurrentDemoBundle,
+  setEditorBundleRecordEnabled,
+  upsertEditorBundleRecord,
   toErrorMessage
 } from "../loader/runtime";
 import {
@@ -45,9 +56,11 @@ import {
   updatePersistedEditorBundleEnabled
 } from "../loader/persistence";
 import type {
+  EditorBundleCatalogState,
+  EditorBundleRecordState,
   EditorBundleResolvedStatus,
   EditorBundleSlot,
-  EditorBundleSlotState
+  EditorResolvedBundleRecordState
 } from "../loader/types";
 import {
   createEditorRemoteAuthorityAppRuntime,
@@ -87,14 +100,14 @@ const TOOLBAR_ACTION_GROUPS = ["history", "selection"] as const;
 const VISIBLE_TITLEBAR_ACTION_IDS = ["undo", "redo", "delete"] as const;
 const RESTORE_BUNDLE_SLOTS = ["widget", "node", "demo"] as const;
 const BUNDLE_SLOT_TITLE: Readonly<Record<EditorBundleSlot, string>> = {
-  demo: "Demo Bundle",
-  node: "Node Bundle",
-  widget: "Widget Bundle"
+  demo: "Demo Bundles",
+  node: "Node Bundles",
+  widget: "Widget Bundles"
 } as const;
 const BUNDLE_SLOT_DESCRIPTION: Readonly<Record<EditorBundleSlot, string>> = {
-  demo: "只负责提供默认图数据，推荐在 node 和 widget 就绪后再启用。",
-  node: "安装可独立运行的节点模块，并提供默认快速创建节点类型。",
-  widget: "注册外部 widget，并可附带一个消费该 widget 的伴生节点。"
+  demo: "可同时加载多个 demo，但同一时刻只选择一个当前 demo。",
+  node: "可同时启用多个节点模块，并累加到节点库与渲染能力中。",
+  widget: "可同时启用多个 widget 模块，并累加到节点渲染能力中。"
 } as const;
 const BUNDLE_STATUS_LABEL: Readonly<
   Record<EditorBundleResolvedStatus, string>
@@ -186,22 +199,27 @@ function formatToolbarActionTitle(
     : action.description;
 }
 
-function createInitialBundleSlots(): Record<EditorBundleSlot, EditorBundleSlotState> {
-  return {
-    demo: createInitialBundleSlotState("demo"),
-    node: createInitialBundleSlotState("node"),
-    widget: createInitialBundleSlotState("widget")
-  };
-}
-
 function resolveBundleActivationLabel(slot: {
+  slot: EditorBundleSlot;
   manifest: unknown;
   enabled: boolean;
   active: boolean;
-  missingRequirements: EditorBundleSlot[];
+  missingRequirements: string[];
 }): string {
   if (!slot.manifest) {
-    return "当前未加载";
+    return slot.enabled ? "当前记录异常" : "当前未加载";
+  }
+
+  if (slot.slot === "demo") {
+    if (!slot.enabled) {
+      return "未设为当前 demo";
+    }
+
+    if (!slot.active && slot.missingRequirements.length > 0) {
+      return `当前 demo 等待依赖：${slot.missingRequirements.join(" + ")}`;
+    }
+
+    return "当前 demo";
   }
 
   if (!slot.enabled) {
@@ -215,7 +233,7 @@ function resolveBundleActivationLabel(slot: {
   return "当前已启用";
 }
 
-function formatBundlePersistenceLabel(slot: EditorBundleSlotState): string {
+function formatBundlePersistenceLabel(slot: EditorBundleRecordState): string {
   if (!slot.manifest) {
     return "无";
   }
@@ -256,6 +274,23 @@ function formatTimestamp(timestamp: number | null | undefined): string {
   }
 
   return new Date(timestamp).toLocaleTimeString();
+}
+
+function createBundleLoadErrorRecord(
+  record: EditorBundleRecordState,
+  errorMessage: string
+): EditorBundleRecordState {
+  return {
+    ...record,
+    loading: false,
+    error: errorMessage
+  };
+}
+
+function isDemoBundleRecord(
+  record: EditorResolvedBundleRecordState | EditorBundleRecordState
+): boolean {
+  return record.slot === "demo";
 }
 
 function formatDuration(startedAt: number, finishedAt: number): string {
@@ -385,8 +420,9 @@ interface EditorContextValue {
     description: string;
   }[];
   handleBundleFileChange(slot: EditorBundleSlot, event: Event): Promise<void>;
-  toggleBundleEnabled(slot: EditorBundleSlot): void;
-  unloadBundle(slot: EditorBundleSlot): void;
+  toggleBundleEnabled(slot: EditorBundleSlot, bundleKey: string): void;
+  unloadBundle(slot: EditorBundleSlot, bundleKey: string): void;
+  activateDemoBundle(bundleKey: string): Promise<void>;
   handleViewportHostBridgeChange(bridge: GraphViewportHostBridge | null): void;
   setEditorToolbarControls(
     controls: GraphViewportToolbarControlsState | null
@@ -489,9 +525,12 @@ export function EditorProvider({
   const [nodeLibraryHoverPreviewCapabilities, setNodeLibraryHoverPreviewCapabilities] =
     useState(() => readNodeLibraryHoverPreviewCapabilities());
   const extensionsBundleGridRef = useRef<HTMLDivElement | null>(null);
-  const [bundleSlots, setBundleSlots] = useState<
-    Record<EditorBundleSlot, EditorBundleSlotState>
-  >(() => createInitialBundleSlots());
+  const [bundleCatalog, setBundleCatalog] = useState<EditorBundleCatalogState>(() =>
+    createInitialBundleCatalogState()
+  );
+  const [loopbackDocument, setLoopbackDocument] = useState<GraphDocument>(
+    structuredClone(EMPTY_EDITOR_DOCUMENT)
+  );
   const [remoteAuthorityStatus, setRemoteAuthorityStatus] =
     useState<RemoteAuthorityRuntimeStatus>(
       remoteAuthoritySource ? "idle" : "disabled"
@@ -767,128 +806,184 @@ export function EditorProvider({
         return;
       }
 
-      const preloadedBundleMap = new Map(
-        (preloadedBundles ?? []).map((bundle) => [bundle.slot, bundle])
-      );
-      const recordMap = new Map(records.map((record) => [record.slot, record]));
-      const restoreSlots = RESTORE_BUNDLE_SLOTS.filter(
-        (slot) => preloadedBundleMap.has(slot) || recordMap.has(slot)
-      );
-      if (restoreSlots.length === 0) {
-        return;
-      }
+      const loadedKeys = new Set<string>();
+      const persistedRecords = [...records].sort((left, right) => {
+        const leftOrder = RESTORE_BUNDLE_SLOTS.indexOf(left.slot);
+        const rightOrder = RESTORE_BUNDLE_SLOTS.indexOf(right.slot);
 
-      setBundleSlots((current) => {
-        const next = { ...current };
-
-        for (const slot of restoreSlots) {
-          next[slot] = {
-            ...current[slot],
-            loading: true,
-            error: null
-          };
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
         }
 
-        return next;
+        return left.savedAt - right.savedAt;
       });
 
-      for (const slot of RESTORE_BUNDLE_SLOTS) {
-        const preloadedBundle = preloadedBundleMap.get(slot);
-        if (preloadedBundle) {
-          const fileName = resolvePreloadedBundleFileName(preloadedBundle);
+      for (const preloadedBundle of preloadedBundles ?? []) {
+        const fileName = resolvePreloadedBundleFileName(preloadedBundle);
+        const loadingRecord = createLoadingBundleRecordState(
+          preloadedBundle.slot,
+          fileName
+        );
 
-          try {
-            const response = await fetch(preloadedBundle.url);
-            if (!response.ok) {
-              throw new Error(
-                `无法加载预装 bundle：${response.status} ${response.statusText}`.trim()
-              );
-            }
+        setBundleCatalog((current) =>
+          upsertEditorBundleRecord(current, loadingRecord)
+        );
 
-            const sourceCode = await response.text();
-            const manifest = await loadEditorBundleSource(slot, sourceCode, fileName);
-
-            if (cancelled) {
-              return;
-            }
-
-            setBundleSlots((current) => ({
-              ...current,
-              [slot]: {
-                slot,
-                manifest,
-                fileName,
-                enabled: preloadedBundle.enabled ?? true,
-                loading: false,
-                error: null,
-                persisted: false,
-                restoredFromPersistence: false
-              }
-            }));
-          } catch (error) {
-            if (cancelled) {
-              return;
-            }
-
-            setBundleSlots((current) => ({
-              ...current,
-              [slot]: {
-                ...createInitialBundleSlotState(slot),
-                fileName,
-                loading: false,
-                error: `预装 bundle 加载失败：${toErrorMessage(error)}`
-              }
-            }));
+        try {
+          const response = await fetch(preloadedBundle.url);
+          if (!response.ok) {
+            throw new Error(
+              `无法加载预装 bundle：${response.status} ${response.statusText}`.trim()
+            );
           }
 
-          continue;
-        }
+          const sourceCode = await response.text();
+          const manifest = await loadEditorBundleSource(
+            preloadedBundle.slot,
+            sourceCode,
+            fileName
+          );
+          const bundleKey = createEditorBundleRecordKey(
+            preloadedBundle.slot,
+            manifest.id
+          );
+          const enabled =
+            preloadedBundle.slot === "demo"
+              ? preloadedBundle.enabled === true
+              : preloadedBundle.enabled ?? true;
 
-        const record = recordMap.get(slot);
-        if (!record) {
-          continue;
+          loadedKeys.add(bundleKey);
+
+          if (cancelled) {
+            return;
+          }
+
+          setBundleCatalog((current) => {
+            let next = removeEditorBundleRecord(
+              current,
+              preloadedBundle.slot,
+              loadingRecord.bundleKey
+            );
+            const existingRecord = findEditorBundleRecord(
+              next,
+              preloadedBundle.slot,
+              bundleKey
+            );
+
+            next = upsertEditorBundleRecord(
+              next,
+              createLoadedBundleRecordState({
+                slot: preloadedBundle.slot,
+                manifest,
+                fileName,
+                enabled: existingRecord?.enabled ?? enabled,
+                persisted: false,
+                restoredFromPersistence: false,
+                savedAt: null
+              })
+            );
+
+            return next;
+          });
+        } catch (error) {
+          if (cancelled) {
+            return;
+          }
+
+          setBundleCatalog((current) =>
+            upsertEditorBundleRecord(
+              current,
+              createBundleLoadErrorRecord(
+                {
+                  ...loadingRecord,
+                  loading: false
+                },
+                `预装 bundle 加载失败：${toErrorMessage(error)}`
+              )
+            )
+          );
         }
+      }
+
+      for (const record of persistedRecords) {
+        const loadingRecord = createLoadingBundleRecordState(
+          record.slot,
+          record.fileName
+        );
+
+        setBundleCatalog((current) =>
+          upsertEditorBundleRecord(current, loadingRecord)
+        );
 
         try {
           const manifest = await loadEditorBundleSource(
-            slot,
+            record.slot,
             record.sourceCode,
             record.fileName
           );
+          const bundleKey = createEditorBundleRecordKey(record.slot, manifest.id);
+
+          if (loadedKeys.has(bundleKey)) {
+            if (cancelled) {
+              return;
+            }
+
+            setBundleCatalog((current) =>
+              removeEditorBundleRecord(current, record.slot, loadingRecord.bundleKey)
+            );
+            continue;
+          }
 
           if (cancelled) {
             return;
           }
 
-          setBundleSlots((current) => ({
-            ...current,
-            [slot]: {
-              slot,
-              manifest,
-              fileName: record.fileName,
-              enabled: record.enabled,
-              loading: false,
-              error: null,
-              persisted: true,
-              restoredFromPersistence: true
-            }
-          }));
+          setBundleCatalog((current) => {
+            let next = removeEditorBundleRecord(
+              current,
+              record.slot,
+              loadingRecord.bundleKey
+            );
+            const existingRecord = findEditorBundleRecord(
+              next,
+              record.slot,
+              bundleKey
+            );
+
+            next = upsertEditorBundleRecord(
+              next,
+              createLoadedBundleRecordState({
+                slot: record.slot,
+                manifest,
+                fileName: record.fileName,
+                enabled: existingRecord?.enabled ?? record.enabled,
+                persisted: true,
+                restoredFromPersistence: true,
+                savedAt: record.savedAt
+              })
+            );
+
+            return next;
+          });
         } catch (error) {
-          await removePersistedEditorBundleRecord(slot);
+          await removePersistedEditorBundleRecord(record.key);
 
           if (cancelled) {
             return;
           }
 
-          setBundleSlots((current) => ({
-            ...current,
-            [slot]: {
-              ...createInitialBundleSlotState(slot),
-              fileName: record.fileName,
-              loading: false,
-              error: `浏览器恢复失败，已清除本地记录：${toErrorMessage(error)}`
-            }
-          }));
+          setBundleCatalog((current) =>
+            upsertEditorBundleRecord(
+              current,
+              createBundleLoadErrorRecord(
+                {
+                  ...loadingRecord,
+                  loading: false
+                },
+                `浏览器恢复失败，已清除本地记录：${toErrorMessage(error)}`
+              )
+            )
+          );
         }
       }
     };
@@ -953,19 +1048,39 @@ export function EditorProvider({
   }, [remoteAuthorityReloadKey, remoteAuthoritySource]);
 
   const runtimeSetup = useMemo(
-    () => resolveEditorBundleRuntimeSetup(bundleSlots),
-    [bundleSlots]
+    () => resolveEditorBundleRuntimeSetup(bundleCatalog),
+    [bundleCatalog]
   );
   const remoteAuthorityBundleProjection = useMemo(
     () => resolveRemoteAuthorityBundleProjection(runtimeSetup),
     [runtimeSetup]
   );
-  const effectiveDocument =
-    remoteAuthorityRuntime?.document ?? runtimeSetup.document;
+  const effectiveDocument = remoteAuthorityRuntime?.document ?? loopbackDocument;
   const effectiveCreateDocumentSessionBinding =
     remoteAuthorityRuntime?.createDocumentSessionBinding;
   const effectiveRuntimeFeedbackInlet =
     remoteAuthorityRuntime?.runtimeFeedbackInlet;
+
+  useEffect(() => {
+    if (remoteAuthorityRuntime || viewportHostBridge) {
+      return;
+    }
+
+    const currentDemoDocument =
+      runtimeSetup.currentDemo?.manifest?.kind === "demo"
+        ? runtimeSetup.currentDemo.manifest.document
+        : null;
+
+    if (!currentDemoDocument) {
+      return;
+    }
+
+    setLoopbackDocument((current) =>
+      areEditorBundleDocumentsEquivalent(current, currentDemoDocument)
+        ? current
+        : structuredClone(currentDemoDocument)
+    );
+  }, [remoteAuthorityRuntime, runtimeSetup.currentDemo, viewportHostBridge]);
 
   useEffect(() => {
     if (!remoteAuthorityRuntime) {
@@ -1074,15 +1189,19 @@ export function EditorProvider({
     () =>
       resolveDefaultEntryOnboardingState({
         isRemoteAuthorityEnabled,
-        hasLoadedNodeBundle: Boolean(runtimeSetup.slots.node.manifest),
-        hasLoadedWidgetBundle: Boolean(runtimeSetup.slots.widget.manifest),
+        hasLoadedNodeBundle: runtimeSetup.bundles.node.some(
+          (bundle) => bundle.active
+        ),
+        hasLoadedWidgetBundle: runtimeSetup.bundles.widget.some(
+          (bundle) => bundle.active
+        ),
         documentNodeCount: defaultEntryDocumentNodeCount
       }),
     [
       defaultEntryDocumentNodeCount,
       isRemoteAuthorityEnabled,
-      runtimeSetup.slots.node.manifest,
-      runtimeSetup.slots.widget.manifest
+      runtimeSetup.bundles.node,
+      runtimeSetup.bundles.widget
     ]
   );
 
@@ -1179,92 +1298,209 @@ export function EditorProvider({
     };
   }, [nodeLibraryPreviewRequest]);
 
+  const syncPersistedCurrentDemoSelection = useCallback(
+    (nextCurrentBundleKey: string | null): void => {
+      for (const record of bundleCatalog.demo) {
+        if (!record.manifest || !record.persisted) {
+          continue;
+        }
+
+        void updatePersistedEditorBundleEnabled(
+          record.bundleKey,
+          nextCurrentBundleKey !== null &&
+            record.bundleKey === nextCurrentBundleKey
+        );
+      }
+    },
+    [bundleCatalog.demo]
+  );
+
+  const loadBundleFiles = useCallback(
+    async (slot: EditorBundleSlot, files: readonly File[]): Promise<void> => {
+      for (const file of files) {
+        const loadingRecord = createLoadingBundleRecordState(slot, file.name);
+
+        setBundleCatalog((current) =>
+          upsertEditorBundleRecord(current, loadingRecord)
+        );
+
+        try {
+          const sourceCode = await file.text();
+          const manifest = await loadEditorBundleSource(slot, sourceCode, file.name);
+          const bundleKey = createEditorBundleRecordKey(slot, manifest.id);
+          const existingRecord = findEditorBundleRecord(
+            bundleCatalog,
+            slot,
+            bundleKey
+          );
+          const enabled =
+            existingRecord?.enabled ??
+            (slot === "demo" ? false : true);
+          const savedAt = Date.now();
+          const persisted = await persistEditorBundleRecord({
+            key: bundleKey,
+            slot,
+            bundleId: manifest.id,
+            fileName: file.name,
+            sourceCode,
+            enabled,
+            savedAt
+          });
+
+          setBundleCatalog((current) => {
+            let next = removeEditorBundleRecord(
+              current,
+              slot,
+              loadingRecord.bundleKey
+            );
+
+            next = upsertEditorBundleRecord(
+              next,
+              createLoadedBundleRecordState({
+                slot,
+                manifest,
+                fileName: file.name,
+                enabled,
+                persisted,
+                restoredFromPersistence: false,
+                savedAt
+              })
+            );
+
+            return next;
+          });
+        } catch (error) {
+          setBundleCatalog((current) =>
+            upsertEditorBundleRecord(
+              current,
+              createBundleLoadErrorRecord(
+                {
+                  ...loadingRecord,
+                  loading: false
+                },
+                toErrorMessage(error)
+              )
+            )
+          );
+        }
+      }
+    },
+    [bundleCatalog]
+  );
+
   const handleBundleFileChange = async (
     slot: EditorBundleSlot,
     event: Event
   ): Promise<void> => {
     const input = event.currentTarget as HTMLInputElement | null;
-    const file = input?.files?.[0];
+    const files = Array.from(input?.files ?? []);
 
     if (input) {
       input.value = "";
     }
 
-    if (!file) {
+    if (!files.length) {
       return;
     }
 
-    const previousSlotState = bundleSlots[slot];
+    await loadBundleFiles(slot, files);
+  };
 
-    setBundleSlots((current) => ({
-      ...current,
-      [slot]: {
-        ...current[slot],
-        loading: true,
-        error: null,
-        restoredFromPersistence: false
+  const toggleBundleEnabled = useCallback(
+    (slot: EditorBundleSlot, bundleKey: string): void => {
+      if (slot === "demo") {
+        return;
       }
-    }));
 
-    try {
-      const sourceCode = await file.text();
-      const manifest = await loadEditorBundleSource(slot, sourceCode, file.name);
-      const persisted = await persistEditorBundleRecord({
-        slot,
-        fileName: file.name,
-        sourceCode,
-        enabled: true,
-        savedAt: Date.now()
-      });
-
-      setBundleSlots((current) => ({
-        ...current,
-        [slot]: {
-          slot,
-          manifest,
-          fileName: file.name,
-          enabled: true,
-          loading: false,
-          error: null,
-          persisted,
-          restoredFromPersistence: false
-        }
-      }));
-    } catch (error) {
-      setBundleSlots((current) => ({
-        ...current,
-        [slot]: {
-          ...previousSlotState,
-          loading: false,
-          error: toErrorMessage(error),
-          fileName: previousSlotState.fileName ?? file.name
-        }
-      }));
-    }
-  };
-
-  const toggleBundleEnabled = (slot: EditorBundleSlot): void => {
-    const nextEnabled = !bundleSlots[slot].enabled;
-
-    setBundleSlots((current) => ({
-      ...current,
-      [slot]: {
-        ...current[slot],
-        enabled: nextEnabled
+      const record = findEditorBundleRecord(bundleCatalog, slot, bundleKey);
+      if (!record?.manifest) {
+        return;
       }
-    }));
 
-    void updatePersistedEditorBundleEnabled(slot, nextEnabled);
-  };
+      const nextEnabled = !record.enabled;
+      setBundleCatalog((current) =>
+        setEditorBundleRecordEnabled(current, slot, bundleKey, nextEnabled)
+      );
 
-  const unloadBundle = (slot: EditorBundleSlot): void => {
-    setBundleSlots((current) => ({
-      ...current,
-      [slot]: createInitialBundleSlotState(slot)
-    }));
+      if (record.persisted) {
+        void updatePersistedEditorBundleEnabled(bundleKey, nextEnabled);
+      }
+    },
+    [bundleCatalog]
+  );
 
-    void removePersistedEditorBundleRecord(slot);
-  };
+  const unloadBundle = useCallback(
+    (slot: EditorBundleSlot, bundleKey: string): void => {
+      const record = findEditorBundleRecord(bundleCatalog, slot, bundleKey);
+      setBundleCatalog((current) =>
+        removeEditorBundleRecord(current, slot, bundleKey)
+      );
+
+      if (record?.persisted) {
+        void removePersistedEditorBundleRecord(bundleKey);
+      }
+    },
+    [bundleCatalog]
+  );
+
+  const activateDemoBundle = useCallback(
+    async (bundleKey: string): Promise<void> => {
+      const targetRecord = findEditorBundleRecord(bundleCatalog, "demo", bundleKey);
+      const resolvedTargetRecord =
+        runtimeSetup.bundles.demo.find((record) => record.bundleKey === bundleKey) ??
+        null;
+      const targetManifest = targetRecord?.manifest;
+      if (!targetRecord || targetManifest?.kind !== "demo") {
+        return;
+      }
+
+      if (
+        targetRecord.enabled ||
+        (resolvedTargetRecord?.missingRequirements.length ?? 0) > 0
+      ) {
+        return;
+      }
+
+      const currentDocument =
+        viewportHostBridge?.getCurrentDocument() ?? effectiveDocument;
+      const targetDocument = targetManifest.document;
+      const shouldReplaceDocument = !areEditorBundleDocumentsEquivalent(
+        currentDocument,
+        targetDocument
+      );
+
+      if (
+        shouldReplaceDocument &&
+        typeof window !== "undefined" &&
+        !window.confirm(
+          `切换到 demo “${targetManifest.name}” 会替换当前画布内容，是否继续？`
+        )
+      ) {
+        return;
+      }
+
+      setBundleCatalog((current) => setCurrentDemoBundle(current, bundleKey));
+      syncPersistedCurrentDemoSelection(bundleKey);
+      if (remoteAuthorityRuntime) {
+        setRemoteAuthorityRuntimeCheckpoint({
+          runtime: remoteAuthorityRuntime,
+          document: targetDocument
+        });
+      }
+      if (shouldReplaceDocument) {
+        setLoopbackDocument(structuredClone(targetDocument));
+        viewportHostBridge?.replaceDocument(structuredClone(targetDocument));
+      }
+    },
+    [
+      bundleCatalog,
+      effectiveDocument,
+      remoteAuthorityRuntime,
+      runtimeSetup.bundles.demo,
+      syncPersistedCurrentDemoSelection,
+      viewportHostBridge
+    ]
+  );
 
   const handleViewportHostBridgeChange = useCallback(
     (bridge: GraphViewportHostBridge | null): void => {
@@ -1426,7 +1662,9 @@ export function EditorProvider({
     const runtimeLabel = formatGraphExecutionStatusLabel(graphExecutionState.status);
     const runtimeStatusLabel = remoteRuntimeControlNotice
       ? `${runtimeLabel} · ${remoteRuntimeControlNotice.message}`
-      : runtimeLabel;
+      : workspaceState?.status.runtimeDetailLabel
+        ? `${runtimeLabel} · ${workspaceState.status.runtimeDetailLabel}`
+        : runtimeLabel;
     const pendingLabel = `Pending ${remoteAuthorityPendingOperationIds.length}`;
 
     if (workspaceAdaptiveMode === "mobile") {
@@ -1502,6 +1740,7 @@ export function EditorProvider({
     remoteAuthorityPendingOperationIds.length,
     workspaceAdaptiveMode,
     workspaceState?.status.documentLabel,
+    workspaceState?.status.runtimeDetailLabel,
     workspaceState?.status.selectionLabel
   ]);
 
@@ -1520,7 +1759,7 @@ export function EditorProvider({
       activeLibraryNodeType,
       availableNodeDefinitions,
       nodeLibraryPreviewRequest,
-      bundleSlots,
+      bundleCatalog,
       remoteAuthorityStatus,
       remoteAuthorityError,
       remoteAuthorityConnectionStatus,
@@ -1544,7 +1783,7 @@ export function EditorProvider({
     [
       activeLibraryNodeType,
       availableNodeDefinitions,
-      bundleSlots,
+      bundleCatalog,
       canPlayGraph,
       canStepGraph,
       canStopGraph,
@@ -1603,6 +1842,10 @@ export function EditorProvider({
       setNodeLibrarySearchQuery,
       setActiveLibraryNodeType,
       setNodeLibraryPreviewRequest,
+      loadBundleFiles,
+      toggleBundleRecord: toggleBundleEnabled,
+      unloadBundleRecord: unloadBundle,
+      activateDemoBundle,
       createNodeFromWorkspace: handleCreateNodeFromWorkspace,
       openNodeAuthorityDemo,
       openPythonAuthorityDemo,
@@ -1630,6 +1873,8 @@ export function EditorProvider({
     }),
     [
       closeOverlayPanes,
+      loadBundleFiles,
+      activateDemoBundle,
       graphRuntimeControls,
       handleCreateNodeFromWorkspace,
       openLeftPane,
@@ -1639,6 +1884,8 @@ export function EditorProvider({
       openRunConsoleDialog,
       openWorkspaceSettingsDialog,
       resyncAuthorityDocument,
+      toggleBundleEnabled,
+      unloadBundle,
       viewportHostBridge
     ]
   );
@@ -1670,6 +1917,7 @@ export function EditorProvider({
       handleBundleFileChange,
       toggleBundleEnabled,
       unloadBundle,
+      activateDemoBundle,
       handleViewportHostBridgeChange,
       setEditorToolbarControls,
       setGraphRuntimeControls,
@@ -1692,6 +1940,7 @@ export function EditorProvider({
       graphExecutionState,
       handleBundleFileChange,
       handleViewportHostBridgeChange,
+      activateDemoBundle,
       nodeLibraryHoverPreviewEnabled,
       openNodeAuthorityDemo,
       openPythonAuthorityDemo,
@@ -1816,10 +2065,12 @@ export function EditorProvider({
       </div>
     );
   };
+  void renderWorkspaceStage;
 
   return (
     <EditorContext.Provider value={contextValue}>
-      {children ?? (
+      {children ?? <EditorShell />}
+      {/* 旧的内联壳层已停用，默认统一走 EditorShell；保留待后续整体删除。
         <div
           class="app-shell"
           data-theme={theme}
@@ -2187,7 +2438,10 @@ export function EditorProvider({
             ) : null}
             <div class="bundle-grid" ref={extensionsBundleGridRef}>
               {EDITOR_BUNDLE_SLOTS.map((slot) => {
-                const state = runtimeSetup.slots[slot];
+                const state = runtimeSetup.bundles[slot][0] ?? null;
+                if (!state) {
+                  return null;
+                }
                 const manifest = state.manifest;
                 const quickCreateNodeType =
                   manifest?.kind === "node" || manifest?.kind === "widget"
@@ -2247,6 +2501,7 @@ export function EditorProvider({
                           type="file"
                           class="bundle-card__file-input"
                           accept=".js,text/javascript,application/javascript"
+                          multiple
                           onChange={(event) => {
                             void handleBundleFileChange(slot, event);
                           }}
@@ -2257,17 +2512,28 @@ export function EditorProvider({
                         class="workspace-secondary-button"
                         disabled={!manifest || state.loading}
                         onClick={() => {
-                          toggleBundleEnabled(slot);
+                          if (slot === "demo") {
+                            void activateDemoBundle(state.bundleKey);
+                            return;
+                          }
+
+                          toggleBundleEnabled(slot, state.bundleKey);
                         }}
                       >
-                        {state.enabled ? "停用" : "启用"}
+                        {slot === "demo"
+                          ? state.enabled
+                            ? "当前 Demo"
+                            : "切换为当前 Demo"
+                          : state.enabled
+                            ? "停用"
+                            : "启用"}
                       </button>
                       <button
                         type="button"
                         class="workspace-secondary-button"
                         disabled={state.loading && !manifest}
                         onClick={() => {
-                          unloadBundle(slot);
+                          unloadBundle(slot, state.bundleKey);
                         }}
                       >
                         卸载
@@ -2547,6 +2813,10 @@ export function EditorProvider({
                 value={String(workspaceState.runtime.graphExecutionState.stepCount)}
               />
               <WorkspaceField
+                label="最近推进"
+                value={workspaceState.status.runtimeDetailLabel ?? "暂无"}
+              />
+              <WorkspaceField
                 label="最近命令"
                 value={workspaceState.status.lastCommandSummary ?? "无"}
               />
@@ -2741,7 +3011,7 @@ export function EditorProvider({
         ) : null}
       </AppDialog>
         </div>
-      )}
+      */}
     </EditorContext.Provider>
   );
 }
@@ -3212,8 +3482,10 @@ export function EditorWorkspaceSettingsDialog() {
     resyncAuthorityDocument,
     extensionsBundleGridRef,
     scrollToBundleGrid,
-    shortcutItems
+    shortcutItems,
+    activateDemoBundle
   } = useEditorContext();
+  const currentDemoLabel = runtimeSetup.currentDemo?.manifest?.name ?? "未选择";
 
   return (
     <AppDialog
@@ -3257,7 +3529,7 @@ export function EditorWorkspaceSettingsDialog() {
             </div>
             <p class="dialog-section__summary">
               当前激活 <strong>{runtimeSetup.plugins.length}</strong> 个插件，
-              优先创建节点为{" "}
+              当前 demo 为 <strong>{currentDemoLabel}</strong>，优先创建节点为{" "}
               <strong>{runtimeSetup.quickCreateNodeType ?? "未指定"}</strong>
             </p>
           </div>
@@ -3296,100 +3568,143 @@ export function EditorWorkspaceSettingsDialog() {
               </div>
             </div>
           ) : null}
-          <div class="bundle-grid" ref={extensionsBundleGridRef}>
-            {EDITOR_BUNDLE_SLOTS.map((slot) => {
-              const bundleState = runtimeSetup.slots[slot];
-              const manifest = bundleState.manifest;
-              const quickCreateNodeType =
-                manifest?.kind === "node" || manifest?.kind === "widget"
-                  ? manifest.quickCreateNodeType
-                  : undefined;
+          <div class="bundle-stack" ref={extensionsBundleGridRef}>
+            {EDITOR_BUNDLE_SLOTS.map((slot) => (
+              <section class="bundle-group" key={slot}>
+                <div class="bundle-group__header">
+                  <div>
+                    <h4>{BUNDLE_SLOT_TITLE[slot]}</h4>
+                    <p>{BUNDLE_SLOT_DESCRIPTION[slot]}</p>
+                  </div>
+                  <label class="workspace-primary-button workspace-primary-button--ghost bundle-card__upload">
+                    选择文件
+                    <input
+                      type="file"
+                      class="bundle-card__file-input"
+                      accept=".js,text/javascript,application/javascript"
+                      multiple
+                      onChange={(event) => {
+                        void handleBundleFileChange(slot, event);
+                      }}
+                    />
+                  </label>
+                </div>
+                <div class="bundle-group__list">
+                  {runtimeSetup.bundles[slot].length ? (
+                    runtimeSetup.bundles[slot].map((bundleState) => {
+                      const manifest = bundleState.manifest;
+                      const quickCreateNodeType =
+                        manifest?.kind === "node" || manifest?.kind === "widget"
+                          ? manifest.quickCreateNodeType
+                          : undefined;
 
-              return (
-                <article class="bundle-card" key={slot}>
-                  <div class="bundle-card__header">
-                    <div>
-                      <h4>{BUNDLE_SLOT_TITLE[slot]}</h4>
-                      <p>{BUNDLE_SLOT_DESCRIPTION[slot]}</p>
+                      return (
+                        <article class="bundle-card" key={bundleState.bundleKey}>
+                          <div class="bundle-card__header">
+                            <div>
+                              <h4>{manifest?.name ?? bundleState.fileName ?? "未加载"}</h4>
+                              <p>{bundleState.fileName ?? "未选择文件"}</p>
+                            </div>
+                            <span
+                              class="bundle-card__status"
+                              data-status={bundleState.status}
+                            >
+                              {BUNDLE_STATUS_LABEL[bundleState.status]}
+                            </span>
+                          </div>
+                          <dl class="bundle-card__info">
+                            <WorkspaceField
+                              label="文件"
+                              value={bundleState.fileName ?? "未选择"}
+                            />
+                            <WorkspaceField
+                              label="名称"
+                              value={manifest?.name ?? "未加载"}
+                            />
+                            <WorkspaceField
+                              label="ID"
+                              value={resolveEditorBundleRecordId(bundleState) ?? "未加载"}
+                            />
+                            <WorkspaceField
+                              label="版本"
+                              value={manifest?.version ? `v${manifest.version}` : "未声明"}
+                            />
+                            <WorkspaceField
+                              label="依赖"
+                              value={
+                                manifest?.requires?.length
+                                  ? manifest.requires.join(" + ")
+                                  : "无"
+                              }
+                            />
+                            <WorkspaceField
+                              label="状态"
+                              value={resolveBundleActivationLabel(bundleState)}
+                            />
+                            <WorkspaceField
+                              label="持久化"
+                              value={formatBundlePersistenceLabel(bundleState)}
+                            />
+                            <WorkspaceField
+                              label="快速创建"
+                              value={quickCreateNodeType ?? "无"}
+                            />
+                          </dl>
+                          {bundleState.error ? (
+                            <p class="bundle-card__error">{bundleState.error}</p>
+                          ) : null}
+                          <div class="bundle-card__actions">
+                            {isDemoBundleRecord(bundleState) ? (
+                              <button
+                                type="button"
+                                class="workspace-secondary-button"
+                                disabled={
+                                  !manifest ||
+                                  bundleState.loading ||
+                                  bundleState.enabled ||
+                                  bundleState.missingRequirements.length > 0
+                                }
+                                onClick={() => {
+                                  void activateDemoBundle(bundleState.bundleKey);
+                                }}
+                              >
+                                {bundleState.enabled ? "当前 Demo" : "切换为当前 Demo"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                class="workspace-secondary-button"
+                                disabled={!manifest || bundleState.loading}
+                                onClick={() => {
+                                  toggleBundleEnabled(slot, bundleState.bundleKey);
+                                }}
+                              >
+                                {bundleState.enabled ? "停用" : "启用"}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              class="workspace-secondary-button"
+                              disabled={bundleState.loading && !manifest}
+                              onClick={() => {
+                                unloadBundle(slot, bundleState.bundleKey);
+                              }}
+                            >
+                              卸载
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div class="workspace-empty-state bundle-group__empty">
+                      <h3>{BUNDLE_SLOT_TITLE[slot]} 尚未加载</h3>
+                      <p>可以一次选择多个 `.js` bundle 文件并加入当前工作区。</p>
                     </div>
-                    <span
-                      class="bundle-card__status"
-                      data-status={bundleState.status}
-                    >
-                      {BUNDLE_STATUS_LABEL[bundleState.status]}
-                    </span>
-                  </div>
-                  <dl class="bundle-card__info">
-                    <WorkspaceField
-                      label="文件"
-                      value={bundleState.fileName ?? "未选择"}
-                    />
-                    <WorkspaceField label="名称" value={manifest?.name ?? "未加载"} />
-                    <WorkspaceField label="ID" value={manifest?.id ?? "未加载"} />
-                    <WorkspaceField
-                      label="版本"
-                      value={manifest?.version ? `v${manifest.version}` : "未声明"}
-                    />
-                    <WorkspaceField
-                      label="依赖"
-                      value={
-                        manifest?.requires?.length
-                          ? manifest.requires.join(" + ")
-                          : "无"
-                      }
-                    />
-                    <WorkspaceField
-                      label="状态"
-                      value={resolveBundleActivationLabel(bundleState)}
-                    />
-                    <WorkspaceField
-                      label="持久化"
-                      value={formatBundlePersistenceLabel(bundleState)}
-                    />
-                    <WorkspaceField
-                      label="快速创建"
-                      value={quickCreateNodeType ?? "无"}
-                    />
-                  </dl>
-                  {bundleState.error ? (
-                    <p class="bundle-card__error">{bundleState.error}</p>
-                  ) : null}
-                  <div class="bundle-card__actions">
-                    <label class="workspace-primary-button workspace-primary-button--ghost bundle-card__upload">
-                      选择文件
-                      <input
-                        type="file"
-                        class="bundle-card__file-input"
-                        accept=".js,text/javascript,application/javascript"
-                        onChange={(event) => {
-                          void handleBundleFileChange(slot, event);
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      class="workspace-secondary-button"
-                      disabled={!manifest || bundleState.loading}
-                      onClick={() => {
-                        toggleBundleEnabled(slot);
-                      }}
-                    >
-                      {bundleState.enabled ? "停用" : "启用"}
-                    </button>
-                    <button
-                      type="button"
-                      class="workspace-secondary-button"
-                      disabled={bundleState.loading && !manifest}
-                      onClick={() => {
-                        unloadBundle(slot);
-                      }}
-                    >
-                      卸载
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+                  )}
+                </div>
+              </section>
+            ))}
           </div>
         </section>
       ) : null}
@@ -3684,6 +3999,10 @@ function EditorRunConsolePanels() {
           <WorkspaceField
             label="已推进步数"
             value={String(workspaceState.runtime.graphExecutionState.stepCount)}
+          />
+          <WorkspaceField
+            label="最近推进"
+            value={workspaceState.status.runtimeDetailLabel ?? "暂无"}
           />
           <WorkspaceField
             label="最近命令"

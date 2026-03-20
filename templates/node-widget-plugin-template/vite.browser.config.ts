@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vite";
 
-type BrowserBundleMode = "demo" | "node" | "widget";
+type BrowserBundleMode = "demo" | "demo-alt" | "node" | "widget";
 
 const templateRoot = fileURLToPath(new URL("./", import.meta.url));
 
@@ -22,6 +22,11 @@ const browserBundleEntries: Readonly<
     fileName: "demo.iife.js",
     name: "TemplateDemoBundle"
   },
+  "demo-alt": {
+    entry: "src/browser/demo_alt_bundle.ts",
+    fileName: "demo-alt.iife.js",
+    name: "TemplateAlternateDemoBundle"
+  },
   node: {
     entry: "src/browser/node_bundle.ts",
     fileName: "node.iife.js",
@@ -36,13 +41,18 @@ const browserBundleEntries: Readonly<
 
 /** 判断当前 mode 是否为合法 browser bundle。 */
 function isBrowserBundleMode(value: string): value is BrowserBundleMode {
-  return value === "demo" || value === "node" || value === "widget";
+  return (
+    value === "demo" ||
+    value === "demo-alt" ||
+    value === "node" ||
+    value === "widget"
+  );
 }
 
 export default defineConfig(({ mode }) => {
   if (!isBrowserBundleMode(mode)) {
     throw new Error(
-      `未知的 browser bundle 模式：${mode}。请使用 demo、node 或 widget。`
+      `未知的 browser bundle 模式：${mode}。请使用 demo、demo-alt、node 或 widget。`
     );
   }
 

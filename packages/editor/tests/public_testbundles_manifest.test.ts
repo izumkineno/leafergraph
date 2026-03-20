@@ -48,4 +48,26 @@ test("editor 内置 demo bundle 应注册 document manifest", () => {
   expect(document?.documentId).toBe("template-demo-document");
   expect(Array.isArray(document?.nodes)).toBe(true);
   expect(Array.isArray(document?.links)).toBe(true);
+  expect(manifest.requires).toEqual([
+    "@template/node-widget-demo/node",
+    "@template/node-widget-demo/widget"
+  ]);
+});
+
+test("editor 内置备用 demo bundle 应注册独立 document manifest", () => {
+  const manifest = executeBundleAndCaptureManifest(
+    "../public/__testbundles/demo-alt.iife.js"
+  );
+
+  expect(manifest.kind).toBe("demo");
+  expect(manifest.name).toBe("Template Alternate Demo Document");
+
+  const document =
+    "document" in manifest && typeof manifest.document === "object"
+      ? (manifest.document as Record<string, unknown>)
+      : null;
+
+  expect(document?.documentId).toBe("template-demo-document-alt");
+  expect(Array.isArray(document?.nodes)).toBe(true);
+  expect(Array.isArray(document?.links)).toBe(true);
 });

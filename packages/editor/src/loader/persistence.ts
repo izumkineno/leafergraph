@@ -1,8 +1,10 @@
 import type { EditorBundleSlot } from "./types";
 
-/** 单个槽位写入浏览器后的持久化记录。 */
+/** 单个 bundle 写入浏览器后的持久化记录。 */
 export interface PersistedEditorBundleRecord {
+  key: string;
   slot: EditorBundleSlot;
+  bundleId: string;
   fileName: string;
   sourceCode: string;
   enabled: boolean;
@@ -11,7 +13,7 @@ export interface PersistedEditorBundleRecord {
 
 const BUNDLE_PERSISTENCE_DB_NAME = "leafergraph-editor";
 const BUNDLE_PERSISTENCE_STORE_NAME = "bundle-records";
-const BUNDLE_PERSISTENCE_DB_VERSION = 1;
+const BUNDLE_PERSISTENCE_DB_VERSION = 2;
 
 /** 判断当前环境是否支持 IndexedDB。 */
 function canUseIndexedDb(): boolean {
@@ -33,11 +35,13 @@ function openBundlePersistenceDatabase(): Promise<IDBDatabase | null> {
     request.onupgradeneeded = () => {
       const database = request.result;
 
-      if (!database.objectStoreNames.contains(BUNDLE_PERSISTENCE_STORE_NAME)) {
-        database.createObjectStore(BUNDLE_PERSISTENCE_STORE_NAME, {
-          keyPath: "slot"
-        });
+      if (database.objectStoreNames.contains(BUNDLE_PERSISTENCE_STORE_NAME)) {
+        database.deleteObjectStore(BUNDLE_PERSISTENCE_STORE_NAME);
       }
+
+      database.createObjectStore(BUNDLE_PERSISTENCE_STORE_NAME, {
+        keyPath: "key"
+      });
     };
 
     request.onsuccess = () => {
@@ -98,7 +102,7 @@ export async function readPersistedEditorBundleRecords(): Promise<
       });
     })) ?? [];
 
-  return records.sort((left, right) => right.savedAt - left.savedAt);
+  return records.sort((left, right) => left.savedAt - right.savedAt);
 }
 
 /** 写入或替换一个 bundle 持久化记录。 */
@@ -123,14 +127,14 @@ export async function persistEditorBundleRecord(
   return Boolean(result);
 }
 
-/** 只更新某个槽位的启用态。 */
+/** 只更新某个 bundle 记录的启用态。 */
 export async function updatePersistedEditorBundleEnabled(
-  slot: EditorBundleSlot,
+  key: string,
   enabled: boolean
 ): Promise<boolean> {
   const result = await withBundlePersistenceStore("readwrite", (store) => {
     return new Promise<boolean>((resolve) => {
-      const readRequest = store.get(slot);
+      const readRequest = store.get(key);
 
       readRequest.onsuccess = () => {
         const record = readRequest.result as PersistedEditorBundleRecord | undefined;
@@ -165,13 +169,13 @@ export async function updatePersistedEditorBundleEnabled(
   return Boolean(result);
 }
 
-/** 删除某个槽位的持久化记录。 */
+/** 删除某个 bundle 记录。 */
 export async function removePersistedEditorBundleRecord(
-  slot: EditorBundleSlot
+  key: string
 ): Promise<boolean> {
   const result = await withBundlePersistenceStore("readwrite", (store) => {
     return new Promise<boolean>((resolve) => {
-      const request = store.delete(slot);
+      const request = store.delete(key);
 
       request.onsuccess = () => {
         resolve(true);

@@ -2,11 +2,12 @@ import * as LeaferGraphRuntime from "leafergraph";
 import type { GraphDocument, LeaferGraphNodePlugin } from "leafergraph";
 
 import type {
+  EditorBundleCatalogState,
   EditorBundleManifest,
+  EditorBundleRecordState,
   EditorBundleRequirement,
   EditorBundleRuntimeSetup,
   EditorBundleSlot,
-  EditorBundleSlotState,
   EditorPluginBundleManifest
 } from "./types";
 
@@ -36,19 +37,166 @@ const pendingBundleLoadState: {
   error: null
 };
 
-/** 创建单个槽位的初始状态。 */
-export function createInitialBundleSlotState(
-  slot: EditorBundleSlot
-): EditorBundleSlotState {
+/** 基于槽位和 bundle id 生成稳定主键。 */
+export function createEditorBundleRecordKey(
+  slot: EditorBundleSlot,
+  bundleId: string
+): string {
+  return `${slot}:${bundleId}`;
+}
+
+/** 读取 bundle 记录显示用的逻辑 id。 */
+export function resolveEditorBundleRecordId(
+  record: EditorBundleRecordState
+): string | null {
+  return record.manifest?.id ?? null;
+}
+
+/** 创建空目录状态。 */
+export function createInitialBundleCatalogState(): EditorBundleCatalogState {
+  return {
+    demo: [],
+    node: [],
+    widget: []
+  };
+}
+
+/** 创建一个“正在加载”占位记录。 */
+export function createLoadingBundleRecordState(
+  slot: EditorBundleSlot,
+  fileName: string,
+  bundleKey = `${slot}:__loading__:${Date.now()}:${Math.random()
+    .toString(36)
+    .slice(2, 8)}`
+): EditorBundleRecordState {
   return {
     slot,
+    bundleKey,
     manifest: null,
-    fileName: null,
+    fileName,
     enabled: false,
-    loading: false,
+    loading: true,
     error: null,
     persisted: false,
-    restoredFromPersistence: false
+    restoredFromPersistence: false,
+    savedAt: null
+  };
+}
+
+/** 创建单个正式 bundle 记录。 */
+export function createLoadedBundleRecordState(options: {
+  slot: EditorBundleSlot;
+  manifest: EditorBundleManifest;
+  fileName: string;
+  enabled: boolean;
+  persisted: boolean;
+  restoredFromPersistence: boolean;
+  savedAt?: number | null;
+}): EditorBundleRecordState {
+  return {
+    slot: options.slot,
+    bundleKey: createEditorBundleRecordKey(options.slot, options.manifest.id),
+    manifest: options.manifest,
+    fileName: options.fileName,
+    enabled: options.enabled,
+    loading: false,
+    error: null,
+    persisted: options.persisted,
+    restoredFromPersistence: options.restoredFromPersistence,
+    savedAt: options.savedAt ?? null
+  };
+}
+
+/** 以同一 bundleKey 替换或追加 bundle 记录。 */
+export function upsertEditorBundleRecord(
+  catalog: EditorBundleCatalogState,
+  record: EditorBundleRecordState
+): EditorBundleCatalogState {
+  const currentRecords = catalog[record.slot];
+  const nextRecords = [...currentRecords];
+  const currentIndex = nextRecords.findIndex(
+    (entry) => entry.bundleKey === record.bundleKey
+  );
+
+  if (record.slot === "demo" && record.enabled) {
+    for (let index = 0; index < nextRecords.length; index += 1) {
+      nextRecords[index] = {
+        ...nextRecords[index],
+        enabled: false
+      };
+    }
+  }
+
+  if (currentIndex >= 0) {
+    nextRecords[currentIndex] = record;
+  } else {
+    nextRecords.push(record);
+  }
+
+  return {
+    ...catalog,
+    [record.slot]: nextRecords
+  };
+}
+
+/** 删除指定 bundle 记录。 */
+export function removeEditorBundleRecord(
+  catalog: EditorBundleCatalogState,
+  slot: EditorBundleSlot,
+  bundleKey: string
+): EditorBundleCatalogState {
+  return {
+    ...catalog,
+    [slot]: catalog[slot].filter((record) => record.bundleKey !== bundleKey)
+  };
+}
+
+/** 按主键读取 bundle 记录。 */
+export function findEditorBundleRecord(
+  catalog: EditorBundleCatalogState,
+  slot: EditorBundleSlot,
+  bundleKey: string
+): EditorBundleRecordState | null {
+  return (
+    catalog[slot].find((record) => record.bundleKey === bundleKey) ?? null
+  );
+}
+
+/** 更新单个 bundle 记录的启用态。 */
+export function setEditorBundleRecordEnabled(
+  catalog: EditorBundleCatalogState,
+  slot: EditorBundleSlot,
+  bundleKey: string,
+  enabled: boolean
+): EditorBundleCatalogState {
+  if (slot === "demo") {
+    return setCurrentDemoBundle(catalog, enabled ? bundleKey : null);
+  }
+
+  return {
+    ...catalog,
+    [slot]: catalog[slot].map((record) =>
+      record.bundleKey === bundleKey
+        ? {
+            ...record,
+            enabled
+          }
+        : record
+    )
+  };
+}
+
+/** 设置当前 demo；传入 null 时清空所有当前 demo 标记。 */
+export function setCurrentDemoBundle(
+  catalog: EditorBundleCatalogState,
+  bundleKey: string | null
+): EditorBundleCatalogState {
+  return {
+    ...catalog,
+    demo: catalog.demo.map((record) => ({
+      ...record,
+      enabled: bundleKey !== null && record.bundleKey === bundleKey
+    }))
   };
 }
 
@@ -63,6 +211,29 @@ export function toErrorMessage(error: unknown): string {
   }
 
   return "发生了未知错误";
+}
+
+/** 生成忽略 identity 字段的文档对比快照。 */
+function createDocumentComparableSnapshot(document: GraphDocument): unknown {
+  return {
+    appKind: document.appKind,
+    nodes: document.nodes,
+    links: document.links,
+    meta: document.meta ?? null,
+    capabilityProfile: document.capabilityProfile ?? null,
+    adapterBinding: document.adapterBinding ?? null
+  };
+}
+
+/** 判断两份图文档在忽略 documentId/revision 后是否一致。 */
+export function areEditorBundleDocumentsEquivalent(
+  left: GraphDocument,
+  right: GraphDocument
+): boolean {
+  return (
+    JSON.stringify(createDocumentComparableSnapshot(left)) ===
+    JSON.stringify(createDocumentComparableSnapshot(right))
+  );
 }
 
 /** 规范化字符串字段。 */
@@ -112,17 +283,8 @@ function normalizeBundleRequirements(
   }
 
   const requirements = value
-    .map((item) => {
-      if (item === "demo" || item === "node" || item === "widget") {
-        return item;
-      }
-
-      throw new Error(`Bundle requires 包含未知槽位: ${String(item)}`);
-    })
-    .filter(
-      (item, index, items): item is EditorBundleRequirement =>
-        items.indexOf(item) === index
-    );
+    .map((item) => requireNonEmptyText(item, "requires[]"))
+    .filter((item, index, items) => items.indexOf(item) === index);
 
   return requirements.length > 0 ? requirements : undefined;
 }
@@ -343,73 +505,104 @@ export async function loadLocalEditorBundle(
   return loadEditorBundleSource(slot, await file.text(), file.name);
 }
 
-/** 判断一个槽位当前是否真的参与运行时装配。 */
-function resolveSlotActivity(
-  slot: EditorBundleSlot,
-  slots: Record<EditorBundleSlot, EditorBundleSlotState>,
-  cache: Partial<Record<EditorBundleSlot, boolean>>,
-  trail: EditorBundleSlot[] = []
-): boolean {
-  if (cache[slot] !== undefined) {
-    return cache[slot];
-  }
+/** 把目录摊平成一维列表。 */
+function listBundleRecords(
+  catalog: EditorBundleCatalogState
+): EditorBundleRecordState[] {
+  return [...catalog.demo, ...catalog.node, ...catalog.widget];
+}
 
-  if (trail.includes(slot)) {
-    cache[slot] = false;
-    return false;
-  }
-
-  const current = slots[slot];
-  if (
-    !current.manifest ||
-    !current.enabled ||
-    current.loading ||
-    (!current.manifest && current.error)
-  ) {
-    cache[slot] = false;
-    return false;
-  }
-
-  const requirements = current.manifest.requires ?? [];
-  const active = requirements.every((requirement) =>
-    resolveSlotActivity(requirement, slots, cache, [...trail, slot])
+/** 根据 bundle id 查找全部候选依赖。 */
+function findBundleRecordsById(
+  catalog: EditorBundleCatalogState,
+  bundleId: string
+): EditorBundleRecordState[] {
+  return listBundleRecords(catalog).filter(
+    (record) => record.manifest?.id === bundleId
   );
+}
 
-  cache[slot] = active;
+/** 判断某条 bundle 记录当前是否真的参与运行时装配。 */
+function resolveRecordActivity(
+  record: EditorBundleRecordState,
+  catalog: EditorBundleCatalogState,
+  cache: Map<string, boolean>,
+  trail: string[] = []
+): boolean {
+  if (cache.has(record.bundleKey)) {
+    return cache.get(record.bundleKey) ?? false;
+  }
+
+  if (trail.includes(record.bundleKey)) {
+    cache.set(record.bundleKey, false);
+    return false;
+  }
+
+  if (
+    !record.manifest ||
+    !record.enabled ||
+    record.loading ||
+    (!record.manifest && record.error)
+  ) {
+    cache.set(record.bundleKey, false);
+    return false;
+  }
+
+  const requirements = record.manifest.requires ?? [];
+  const active = requirements.every((requirement) => {
+    const candidates = findBundleRecordsById(catalog, requirement);
+    if (candidates.length === 0) {
+      return false;
+    }
+
+    return candidates.some((candidate) =>
+      resolveRecordActivity(candidate, catalog, cache, [...trail, record.bundleKey])
+    );
+  });
+
+  cache.set(record.bundleKey, active);
   return active;
 }
 
-/** 解析某个槽位当前缺失的依赖。 */
+/** 解析某条 bundle 记录当前缺失的依赖。 */
 function resolveMissingRequirements(
-  slot: EditorBundleSlot,
-  slots: Record<EditorBundleSlot, EditorBundleSlotState>,
-  cache: Partial<Record<EditorBundleSlot, boolean>>
-): EditorBundleSlot[] {
-  const current = slots[slot];
-  if (!current.manifest || !current.enabled) {
+  record: EditorBundleRecordState,
+  catalog: EditorBundleCatalogState,
+  cache: Map<string, boolean>
+): EditorBundleRequirement[] {
+  if (!record.manifest || !record.enabled) {
     return [];
   }
 
-  return (current.manifest.requires ?? []).filter(
-    (requirement) => !resolveSlotActivity(requirement, slots, cache)
-  );
+  return (record.manifest.requires ?? []).filter((requirement) => {
+    const candidates = findBundleRecordsById(catalog, requirement);
+    if (candidates.length === 0) {
+      return true;
+    }
+
+    return !candidates.some((candidate) =>
+      resolveRecordActivity(candidate, catalog, cache)
+    );
+  });
 }
 
-/** 从槽位集合中挑出当前应参与主包实例化的插件。 */
+/** 从目录集合中挑出当前应参与主包实例化的插件。 */
 function resolveActivePlugins(
-  slots: Record<EditorBundleSlot, EditorBundleSlotState>,
-  activityCache: Partial<Record<EditorBundleSlot, boolean>>
+  catalog: EditorBundleCatalogState,
+  activityCache: Map<string, boolean>
 ): LeaferGraphNodePlugin[] {
   const plugins: LeaferGraphNodePlugin[] = [];
 
   for (const slot of ["widget", "node"] as const) {
-    if (!resolveSlotActivity(slot, slots, activityCache)) {
-      continue;
-    }
+    for (const record of catalog[slot]) {
+      if (!resolveRecordActivity(record, catalog, activityCache)) {
+        continue;
+      }
 
-    const manifest = slots[slot].manifest;
-    if (manifest?.kind === "widget" || manifest?.kind === "node") {
-      plugins.push(manifest.plugin);
+      const manifest = record.manifest;
+      if (manifest?.kind === "widget" || manifest?.kind === "node") {
+        plugins.push(manifest.plugin);
+      }
     }
   }
 
@@ -418,17 +611,19 @@ function resolveActivePlugins(
 
 /** 解析当前应优先用于右键创建节点的类型。 */
 function resolveQuickCreateNodeType(
-  slots: Record<EditorBundleSlot, EditorBundleSlotState>,
-  activityCache: Partial<Record<EditorBundleSlot, boolean>>
+  catalog: EditorBundleCatalogState,
+  activityCache: Map<string, boolean>
 ): string | undefined {
   for (const slot of ["node", "widget"] as const) {
-    if (!resolveSlotActivity(slot, slots, activityCache)) {
-      continue;
-    }
+    for (const record of catalog[slot]) {
+      if (!resolveRecordActivity(record, catalog, activityCache)) {
+        continue;
+      }
 
-    const manifest = slots[slot].manifest as EditorPluginBundleManifest | null;
-    if (manifest?.quickCreateNodeType) {
-      return manifest.quickCreateNodeType;
+      const manifest = record.manifest as EditorPluginBundleManifest | null;
+      if (manifest?.quickCreateNodeType) {
+        return manifest.quickCreateNodeType;
+      }
     }
   }
 
@@ -436,51 +631,58 @@ function resolveQuickCreateNodeType(
 }
 
 /**
- * 将 bundle 槽位状态归一化成 editor 真正需要的运行时装配结果。
- * 这一步集中完成依赖分析、graph 选择和插件装配顺序。
+ * 将 bundle 目录归一化成 editor 真正需要的运行时装配结果。
+ * 这一步集中完成依赖分析、demo 选择和插件装配顺序。
  */
 export function resolveEditorBundleRuntimeSetup(
-  slots: Record<EditorBundleSlot, EditorBundleSlotState>
+  catalog: EditorBundleCatalogState
 ): EditorBundleRuntimeSetup {
-  const activityCache: Partial<Record<EditorBundleSlot, boolean>> = {};
-  const resolvedSlots = {} as EditorBundleRuntimeSetup["slots"];
+  const activityCache = new Map<string, boolean>();
+  const resolvedBundles = {
+    demo: [],
+    node: [],
+    widget: []
+  } as EditorBundleRuntimeSetup["bundles"];
 
   for (const slot of EDITOR_BUNDLE_SLOTS) {
-    const current = slots[slot];
-    const missingRequirements = resolveMissingRequirements(
-      slot,
-      slots,
-      activityCache
-    );
-    const active = resolveSlotActivity(slot, slots, activityCache);
+    resolvedBundles[slot] = catalog[slot].map((record) => {
+      const missingRequirements = resolveMissingRequirements(
+        record,
+        catalog,
+        activityCache
+      );
+      const active = resolveRecordActivity(record, catalog, activityCache);
 
-    resolvedSlots[slot] = {
-      ...current,
-      status: current.loading
-        ? "loading"
-        : current.error && !current.manifest
-          ? "failed"
-          : !current.manifest
-            ? "idle"
-            : current.enabled && missingRequirements.length > 0
-              ? "dependency-missing"
-              : "ready",
-      active,
-      missingRequirements
-    };
+      return {
+        ...record,
+        status: record.loading
+          ? "loading"
+          : record.error && !record.manifest
+            ? "failed"
+            : !record.manifest
+              ? "idle"
+              : record.enabled && missingRequirements.length > 0
+                ? "dependency-missing"
+                : "ready",
+        active,
+        missingRequirements
+      };
+    });
   }
 
-  const activeDemo = resolvedSlots.demo.active
-    ? resolvedSlots.demo.manifest
-    : null;
+  const currentDemo =
+    resolvedBundles.demo.find(
+      (record) => record.active && record.manifest?.kind === "demo"
+    ) ?? null;
 
   return {
     document:
-      activeDemo?.kind === "demo"
-        ? activeDemo.document
+      currentDemo?.manifest?.kind === "demo"
+        ? currentDemo.manifest.document
         : EMPTY_EDITOR_DOCUMENT,
-    plugins: resolveActivePlugins(slots, activityCache),
-    quickCreateNodeType: resolveQuickCreateNodeType(slots, activityCache),
-    slots: resolvedSlots
+    plugins: resolveActivePlugins(catalog, activityCache),
+    quickCreateNodeType: resolveQuickCreateNodeType(catalog, activityCache),
+    bundles: resolvedBundles,
+    currentDemo
   };
 }

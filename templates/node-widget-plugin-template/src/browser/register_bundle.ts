@@ -9,7 +9,7 @@ interface TemplateBrowserBundleManifestBase {
   name: string;
   kind: TemplateBrowserBundleSlot;
   version?: string;
-  requires?: TemplateBrowserBundleSlot[];
+  requires?: string[];
 }
 
 /** demo bundle manifest。 */

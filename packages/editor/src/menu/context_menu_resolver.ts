@@ -63,7 +63,8 @@ function sortNodeDefinitions(
 function buildNodeCreateSubmenuItems(
   tree: NodeMenuGroupTree,
   context: LeaferGraphContextMenuContext,
-  commandBus: EditorCommandBus
+  commandBus: EditorCommandBus,
+  executeUiCommand: (request: EditorCommandRequest) => void
 ): LeaferGraphContextMenuItem[] {
   const items: LeaferGraphContextMenuItem[] = [];
   const sortedGroups = [...tree.groups.entries()].sort(([left], [right]) =>
@@ -71,7 +72,12 @@ function buildNodeCreateSubmenuItems(
   );
 
   for (const [groupName, groupTree] of sortedGroups) {
-    const childItems = buildNodeCreateSubmenuItems(groupTree, context, commandBus);
+    const childItems = buildNodeCreateSubmenuItems(
+      groupTree,
+      context,
+      commandBus,
+      executeUiCommand
+    );
     if (!childItems.length) {
       continue;
     }
@@ -98,7 +104,7 @@ function buildNodeCreateSubmenuItems(
       disabled: state.disabled,
       danger: state.danger,
       onSelect() {
-        commandBus.execute(request);
+        executeUiCommand(request);
       }
     });
   }
@@ -121,7 +127,13 @@ function resolveCreateNodeRegistrySubmenu(
     insertNodeDefinitionIntoTree(tree, definition);
   }
 
-  const items = buildNodeCreateSubmenuItems(tree, context, commandBus);
+  const executeUiCommand = options.executeUiCommand;
+  const items = buildNodeCreateSubmenuItems(
+    tree,
+    context,
+    commandBus,
+    executeUiCommand
+  );
   if (!items.length) {
     return null;
   }
@@ -146,6 +158,7 @@ export interface CreateEditorContextMenuResolverOptions {
   graph: LeaferGraph;
   selection: EditorNodeSelectionController;
   resolveCommandBus(): EditorCommandBus;
+  executeUiCommand(request: EditorCommandRequest): void;
   resolveNodePlayState(nodeId: string): {
     disabled: boolean;
     description?: string;
@@ -211,7 +224,7 @@ function resolveNodeContextMenuItems(
       disabled: copyState.disabled,
       danger: copyState.danger,
       onSelect() {
-        commandBus.execute(copyRequest);
+        options.executeUiCommand(copyRequest);
       }
     },
     {
@@ -226,7 +239,7 @@ function resolveNodeContextMenuItems(
           options.selection.select(nodeId);
         }
 
-        commandBus.execute(cutRequest);
+        options.executeUiCommand(cutRequest);
       }
     },
     {
@@ -237,7 +250,7 @@ function resolveNodeContextMenuItems(
       disabled: duplicateState.disabled,
       danger: duplicateState.danger,
       onSelect() {
-        commandBus.execute(duplicateRequest);
+        options.executeUiCommand(duplicateRequest);
       }
     },
     {
@@ -257,7 +270,7 @@ function resolveNodeContextMenuItems(
       disabled: resetSizeState.disabled,
       danger: resetSizeState.danger,
       onSelect() {
-        commandBus.execute(resetSizeRequest);
+        options.executeUiCommand(resetSizeRequest);
       }
     },
     { kind: "separator", key: "node-divider" },
@@ -269,7 +282,7 @@ function resolveNodeContextMenuItems(
       disabled: removeState.disabled,
       danger: removeState.danger,
       onSelect() {
-        commandBus.execute(removeRequest);
+        options.executeUiCommand(removeRequest);
       }
     }
   ];
@@ -346,7 +359,7 @@ function resolveCanvasContextMenuItems(
       disabled: createNodeState.disabled,
       danger: createNodeState.danger,
       onSelect() {
-        commandBus.execute(createNodeRequest);
+        options.executeUiCommand(createNodeRequest);
       }
     },
     {
@@ -357,7 +370,7 @@ function resolveCanvasContextMenuItems(
       disabled: fitViewState.disabled,
       danger: fitViewState.danger,
       onSelect() {
-        commandBus.execute(fitViewRequest);
+        options.executeUiCommand(fitViewRequest);
       }
     }
   ];
@@ -386,7 +399,7 @@ function resolveCanvasContextMenuItems(
       disabled: pasteState.disabled,
       danger: pasteState.danger,
       onSelect() {
-        commandBus.execute(pasteRequest);
+        options.executeUiCommand(pasteRequest);
       }
     });
   }

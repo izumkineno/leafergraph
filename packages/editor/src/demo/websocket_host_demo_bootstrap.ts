@@ -26,6 +26,12 @@ export const WEBSOCKET_HOST_DEMO_TEST_BUNDLES: readonly EditorAppBootstrapPreloa
       url: "/__testbundles/demo.iife.js",
       fileName: "demo.iife.js",
       enabled: true
+    },
+    {
+      slot: "demo",
+      url: "/__testbundles/demo-alt.iife.js",
+      fileName: "demo-alt.iife.js",
+      enabled: false
     }
   ] as const;
 

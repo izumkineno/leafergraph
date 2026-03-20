@@ -794,9 +794,9 @@ class PythonAuthorityRuntime:
                 return self._create_runtime_control_result(reason="图已在运行中")
 
             self._stop_active_graph_step_without_event()
-            queue = self._collect_root_node_ids()
+            queue = self._collect_graph_entry_node_ids()
             if not queue:
-                return self._create_runtime_control_result(reason="图中没有可执行节点")
+                return self._create_runtime_control_result(reason="图中没有 On Play 入口节点")
 
             started_at = now_ms()
             run_id = self._create_graph_run_id("graph-play")
@@ -835,9 +835,9 @@ class PythonAuthorityRuntime:
 
             run = self._active_graph_step_run
             if run is None:
-                root_node_ids = self._collect_root_node_ids()
+                root_node_ids = self._collect_graph_entry_node_ids()
                 if not root_node_ids:
-                    return self._create_runtime_control_result(reason="图中没有可执行节点")
+                    return self._create_runtime_control_result(reason="图中没有 On Play 入口节点")
 
                 if self._step_cursor >= len(root_node_ids):
                     self._step_cursor = 0
@@ -1430,31 +1430,13 @@ class PythonAuthorityRuntime:
 
         return {"changed": False}
 
-    def _collect_root_node_ids(self) -> list[str]:
-        executable_node_ids = [
+    def _collect_graph_entry_node_ids(self) -> list[str]:
+        return [
             node["id"]
             for node in self._current_document["nodes"]
-            if self._get_node(node["id"])
+            if node.get("type") == SYSTEM_ON_PLAY_NODE_TYPE
+            and self._get_node(node["id"])
         ]
-        if not executable_node_ids:
-            return []
-
-        executable_node_id_set = set(executable_node_ids)
-        incoming_target_node_ids = {
-            link["target"]["nodeId"]
-            for link in self._current_document["links"]
-            if link["source"]["nodeId"] in executable_node_id_set
-            and link["target"]["nodeId"] in executable_node_id_set
-        }
-        root_node_ids = [
-            node_id
-            for node_id in executable_node_ids
-            if node_id not in incoming_target_node_ids
-        ]
-
-        # 对 DAG 优先只从真正根节点起跑，避免下游节点在 graph.step/play 中重复作为 root。
-        # 若整张图没有入边为 0 的节点（例如纯环），再保底回退到全部节点顺序。
-        return root_node_ids if root_node_ids else executable_node_ids
 
     def _schedule_next_graph_play_run_tick(self) -> None:
         run = self._active_graph_play_run

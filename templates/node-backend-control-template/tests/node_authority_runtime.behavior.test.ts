@@ -212,7 +212,7 @@ function createTemplateExecutionAuthorityDocument(): GraphDocument {
 }
 
 describe("node authority runtime behavior", () => {
-  test("默认文档应提供可直接执行的 demo 双节点链", () => {
+  test("默认文档应提供基础双节点链", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
     });
@@ -399,9 +399,38 @@ describe("node authority runtime behavior", () => {
     });
   });
 
-  test("graph.step 应发出图级执行反馈、节点执行和链路传播", () => {
+  test("没有 On Play 时，graph.step 不应直接起跑普通节点", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
+    });
+    const events: AuthorityRuntimeFeedbackEvent[] = [];
+    const dispose = runtime.subscribe((event) => {
+      events.push(event);
+    });
+
+    const result = runtime.controlRuntime({
+      type: "graph.step"
+    });
+
+    dispose();
+
+    expect(result).toMatchObject({
+      accepted: true,
+      changed: false,
+      reason: "图中没有 On Play 入口节点",
+      state: {
+        status: "idle",
+        queueSize: 0,
+        stepCount: 0
+      }
+    });
+    expect(events).toHaveLength(0);
+  });
+
+  test("graph.step 应发出图级执行反馈、节点执行和链路传播", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTemplateExecutionAuthorityDocument()
     });
     const events: AuthorityRuntimeFeedbackEvent[] = [];
     const dispose = runtime.subscribe((event) => {
@@ -433,7 +462,7 @@ describe("node authority runtime behavior", () => {
       events.some(
         (event) =>
           event.type === "node.execution" &&
-          event.event.nodeId === "node-1" &&
+          event.event.nodeId === "template-on-play" &&
           event.event.source === "graph-step"
       )
     ).toBe(true);
@@ -441,9 +470,64 @@ describe("node authority runtime behavior", () => {
       events.some(
         (event) =>
           event.type === "link.propagation" &&
-          event.event.linkId === "link-1"
+          event.event.linkId === "template-link:on-play->execute-source"
       )
     ).toBe(true);
+  });
+
+  test("没有 On Play 时，graph.play 不应直接起跑普通节点", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test"
+    });
+
+    const result = runtime.controlRuntime({
+      type: "graph.play"
+    });
+
+    expect(result).toMatchObject({
+      accepted: true,
+      changed: false,
+      reason: "图中没有 On Play 入口节点",
+      state: {
+        status: "idle",
+        queueSize: 0,
+        stepCount: 0
+      }
+    });
+  });
+
+  test("node.play 应继续允许从普通节点直接调试起跑", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test"
+    });
+
+    const result = runtime.controlRuntime({
+      type: "node.play",
+      nodeId: "node-1"
+    });
+
+    expect(result).toMatchObject({
+      accepted: true,
+      changed: true
+    });
+    expect(runtime.getDocument()).toMatchObject({
+      revision: "2",
+      nodes: expect.arrayContaining([
+        expect.objectContaining({
+          id: "node-1",
+          properties: expect.objectContaining({
+            runCount: 1,
+            status: "RUN 1"
+          })
+        }),
+        expect.objectContaining({
+          id: "node-2",
+          properties: expect.objectContaining({
+            status: "VALUE OBJECT"
+          })
+        })
+      ])
+    });
   });
 
   test("graph.step 应按节点逐步推进，并在后续步写回 authority 文档", () => {
@@ -592,7 +676,8 @@ describe("node authority runtime behavior", () => {
 
   test("graph.play 后应允许 stop，并回发 stopped 事件", () => {
     const runtime = createNodeAuthorityRuntime({
-      authorityName: "behavior-test"
+      authorityName: "behavior-test",
+      initialDocument: createTemplateExecutionAuthorityDocument()
     });
     const events: AuthorityRuntimeFeedbackEvent[] = [];
     const dispose = runtime.subscribe((event) => {

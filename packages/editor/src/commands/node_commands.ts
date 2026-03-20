@@ -1,7 +1,6 @@
 import type {
   GraphLink,
   LeaferGraph,
-  LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput
 } from "leafergraph";
 import type { NodeDefinition, NodePropertySpec } from "@leafergraph/node";
@@ -10,9 +9,14 @@ import {
   createNodeCreateOperation,
   createNodeRemoveOperation,
   createNodeResizeOperation,
-  ensureLinkCreateInputId,
   ensureNodeCreateInputId
 } from "./graph_operation_utils";
+import {
+  copyNodesToClipboardPayload,
+  createClipboardLinkSnapshotsFromPayload,
+  createNodesFromClipboardPayload,
+  type LeaferGraphClipboardPayload
+} from "./clipboard_payload";
 import type { EditorGraphDocumentSession } from "../session/graph_document_session";
 import type { EditorNodeSelectionController } from "../state/selection";
 
@@ -28,27 +32,13 @@ export type EditorNodeSnapshot = NonNullable<
 export type EditorNodeCommandResult = EditorNodeSnapshot[];
 
 /**
- * 剪贴板中的单个节点条目。
- * `offsetX / offsetY` 记录的是相对选区左上角的偏移，
- * 这样粘贴多节点时可以稳定保留原有相对排布。
- */
-export interface EditorNodeClipboardEntry {
-  sourceNodeId: string;
-  snapshot: EditorNodeSnapshot;
-  offsetX: number;
-  offsetY: number;
-}
-
-/**
  * editor 当前阶段的节点剪贴板。
- * 它既支持单节点，也支持多节点批量复制 / 剪切 / 粘贴。
+ * 当前统一收口为 LeaferGraph 原生 JSON payload，
+ * `sourceNodeIds` 只用于 editor 内部判断“这份剪贴板是否来自当前图中的某些源节点”。
  */
 export interface EditorNodeClipboard {
   sourceNodeIds: string[];
-  anchorX: number;
-  anchorY: number;
-  entries: EditorNodeClipboardEntry[];
-  links: GraphLink[];
+  payload: LeaferGraphClipboardPayload;
 }
 
 /**
@@ -68,6 +58,8 @@ export interface EditorNodeResizeCommandState {
 export interface EditorNodeCommandController {
   /** 当前剪贴板，没有复制内容时返回 `null`。 */
   readonly clipboard: EditorNodeClipboard | null;
+  /** 用外部 JSON payload 覆盖当前内存剪贴板。 */
+  setClipboardPayload(payload: LeaferGraphClipboardPayload | null): void;
   /** 创建节点并自动绑定菜单与选区。 */
   createNode(input: LeaferGraphCreateNodeInput): EditorNodeSnapshot | undefined;
   /** 删除当前选中节点；多选时删除整个选区。 */
@@ -259,53 +251,14 @@ export function normalizeNodeIdList(nodeIds: readonly string[]): string[] {
   return orderedNodeIds;
 }
 
-/** 深拷贝正式连线快照，避免剪贴板与运行时共享引用。 */
-function cloneClipboardLink(link: GraphLink): GraphLink {
-  return structuredClone(link);
-}
-
-/** 判断一条连线是否完整落在当前复制选区内部。 */
-function isClipboardInternalLink(
-  link: GraphLink,
-  nodeIdSet: ReadonlySet<string>
-): boolean {
-  return (
-    nodeIdSet.has(link.source.nodeId) && nodeIdSet.has(link.target.nodeId)
-  );
-}
-
-/**
- * 抓取一组选中节点之间的内部连线。
- *
- * @remarks
- * 这里只复制 source / target 都落在选区内部的连线；
- * 指向选区外部的边不会被带走，避免粘贴后出现悬空端点。
- */
-export function captureClipboardLinks(
-  graph: LeaferGraph,
-  nodeIds: readonly string[]
-): GraphLink[] {
-  const orderedNodeIds = normalizeNodeIdList(nodeIds);
-  if (!orderedNodeIds.length) {
-    return [];
-  }
-
-  const nodeIdSet = new Set(orderedNodeIds);
-  const linkMap = new Map<string, GraphLink>();
-
-  for (const nodeId of orderedNodeIds) {
-    for (const link of graph.findLinksByNode(nodeId)) {
-      if (!isClipboardInternalLink(link, nodeIdSet)) {
-        continue;
-      }
-
-      if (!linkMap.has(link.id)) {
-        linkMap.set(link.id, cloneClipboardLink(link));
-      }
-    }
-  }
-
-  return [...linkMap.values()];
+export function createEditorNodeClipboardFromPayload(
+  payload: LeaferGraphClipboardPayload,
+  sourceNodeIds: readonly string[] = payload.nodes.map((node) => node.id)
+): EditorNodeClipboard {
+  return {
+    sourceNodeIds: normalizeNodeIdList(sourceNodeIds),
+    payload: structuredClone(payload)
+  };
 }
 
 /** 判断当前剪贴板是否来自某个节点。 */
@@ -324,47 +277,12 @@ export function copyNodesToClipboard(
   graph: LeaferGraph,
   nodeIds: readonly string[]
 ): EditorNodeClipboard | null {
-  const orderedNodeIds = normalizeNodeIdList(nodeIds);
-  const snapshotEntries = orderedNodeIds
-    .map((sourceNodeId) => {
-      const snapshot = graph.getNodeSnapshot(sourceNodeId);
-      return snapshot ? { sourceNodeId, snapshot } : null;
-    })
-    .filter(
-      (
-        entry
-      ): entry is {
-        sourceNodeId: string;
-        snapshot: EditorNodeSnapshot;
-      } => Boolean(entry)
-    );
-
-  if (!snapshotEntries.length) {
+  const payload = copyNodesToClipboardPayload(graph, nodeIds);
+  if (!payload) {
     return null;
   }
 
-  const anchorX = Math.min(
-    ...snapshotEntries.map(({ snapshot }) => snapshot.layout.x)
-  );
-  const anchorY = Math.min(
-    ...snapshotEntries.map(({ snapshot }) => snapshot.layout.y)
-  );
-
-  return {
-    sourceNodeIds: snapshotEntries.map(({ sourceNodeId }) => sourceNodeId),
-    anchorX,
-    anchorY,
-    entries: snapshotEntries.map(({ sourceNodeId, snapshot }) => ({
-      sourceNodeId,
-      snapshot,
-      offsetX: snapshot.layout.x - anchorX,
-      offsetY: snapshot.layout.y - anchorY
-    })),
-    links: captureClipboardLinks(
-      graph,
-      snapshotEntries.map(({ sourceNodeId }) => sourceNodeId)
-    )
-  };
+  return createEditorNodeClipboardFromPayload(payload, nodeIds);
 }
 
 /**
@@ -402,8 +320,8 @@ export function resolveKeyboardPastePosition(
   }
 
   return {
-    x: clipboard.anchorX + 48,
-    y: clipboard.anchorY + 48
+    x: clipboard.payload.anchor.x + 48,
+    y: clipboard.payload.anchor.y + 48
   };
 }
 
@@ -418,50 +336,7 @@ export function createNodesFromClipboard(
   x: number,
   y: number
 ): EditorNodeCommandResult {
-  const createdNodeEntries = clipboard.entries
-    .map((entry) => ({
-      sourceNodeId: entry.sourceNodeId,
-      input: ensureNodeCreateInputId(
-        createNodeInputFromSnapshot(
-          entry.snapshot,
-          x + entry.offsetX,
-          y + entry.offsetY
-        )
-      )
-    }))
-    .map(({ sourceNodeId, input }) => {
-      const result = session.submitOperation(createNodeCreateOperation(input));
-      if (!result.accepted) {
-        return null;
-      }
-
-      const snapshot =
-        graph.getNodeSnapshot(result.affectedNodeIds[0] ?? input.id ?? "") ??
-        createPendingNodeSnapshot(input);
-
-      return {
-        sourceNodeId,
-        snapshot
-      };
-    })
-    .filter(
-      (
-        entry
-      ): entry is {
-        sourceNodeId: string;
-        snapshot: EditorNodeSnapshot;
-      } => Boolean(entry)
-    );
-
-  const nodeIdMap = new Map(
-    createdNodeEntries.map(({ sourceNodeId, snapshot }) => [
-      sourceNodeId,
-      snapshot.id
-    ])
-  );
-  createLinksFromClipboard(graph, session, clipboard, nodeIdMap);
-
-  return createdNodeEntries.map(({ snapshot }) => snapshot);
+  return createNodesFromClipboardPayload(graph, session, clipboard.payload, x, y);
 }
 
 /**
@@ -515,30 +390,7 @@ export function createClipboardLinkSnapshots(
   clipboard: EditorNodeClipboard,
   nodeIdMap: ReadonlyMap<string, string>
 ): GraphLink[] {
-  return clipboard.links
-    .map((link) => {
-      const sourceNodeId = nodeIdMap.get(link.source.nodeId);
-      const targetNodeId = nodeIdMap.get(link.target.nodeId);
-      if (!sourceNodeId || !targetNodeId) {
-        return null;
-      }
-
-      const nextInput = ensureLinkCreateInputId({
-        source: {
-          ...structuredClone(link.source),
-          nodeId: sourceNodeId
-        },
-        target: {
-          ...structuredClone(link.target),
-          nodeId: targetNodeId
-        },
-        label: link.label,
-        data: structuredClone(link.data)
-      } satisfies LeaferGraphCreateLinkInput);
-
-      return createPendingLinkSnapshot(nextInput);
-    })
-    .filter((link): link is GraphLink => Boolean(link));
+  return createClipboardLinkSnapshotsFromPayload(clipboard.payload, nodeIdMap);
 }
 
 /** 基于当前 clipboard links 在新节点之间恢复内部连线。 */
@@ -646,20 +498,6 @@ function createPendingNodeSnapshot(
     ) as EditorNodeSnapshot["outputs"],
     widgets: structuredClone(normalizedInput.widgets ?? []),
     data: structuredClone(normalizedInput.data ?? {})
-  };
-}
-
-/** 为 authority pending 场景生成最小连线快照。 */
-function createPendingLinkSnapshot(
-  input: LeaferGraphCreateLinkInput
-): GraphLink {
-  const normalizedInput = ensureLinkCreateInputId(input);
-  return {
-    id: normalizedInput.id ?? "",
-    source: structuredClone(normalizedInput.source),
-    target: structuredClone(normalizedInput.target),
-    label: normalizedInput.label,
-    data: structuredClone(normalizedInput.data)
   };
 }
 
@@ -819,13 +657,14 @@ export function createEditorNodeCommandController(
       return undefined;
     }
 
+    const { anchor, nodes } = clipboard.payload;
     const { snapshots, nodeIdMap } = createNodesWithSourceMap(
-      clipboard.entries.map((entry) => ({
-        sourceNodeId: entry.sourceNodeId,
+      nodes.map((node) => ({
+        sourceNodeId: node.id,
         input: createNodeInputFromSnapshot(
-          entry.snapshot,
-          x + entry.offsetX,
-          y + entry.offsetY
+          node,
+          x + (node.layout.x - anchor.x),
+          y + (node.layout.y - anchor.y)
         )
       }))
     );
@@ -868,13 +707,14 @@ export function createEditorNodeCommandController(
       return undefined;
     }
 
-    const inputs = selectionClipboard.entries.map((entry) =>
+    const { anchor, nodes } = selectionClipboard.payload;
+    const inputs = nodes.map((node) =>
       ({
-        sourceNodeId: entry.sourceNodeId,
+        sourceNodeId: node.id,
         input: createNodeInputFromSnapshot(
-          entry.snapshot,
-          selectionClipboard.anchorX + 48 + entry.offsetX,
-          selectionClipboard.anchorY + 48 + entry.offsetY
+          node,
+          anchor.x + 48 + (node.layout.x - anchor.x),
+          anchor.y + 48 + (node.layout.y - anchor.y)
         )
       })
     );
@@ -957,6 +797,10 @@ export function createEditorNodeCommandController(
   return {
     get clipboard(): EditorNodeClipboard | null {
       return clipboard;
+    },
+
+    setClipboardPayload(payload: LeaferGraphClipboardPayload | null): void {
+      clipboard = payload ? createEditorNodeClipboardFromPayload(payload) : null;
     },
 
     createNode(input: LeaferGraphCreateNodeInput) {

@@ -1218,6 +1218,7 @@ pre {
 }
 
 .bundle-grid,
+.bundle-stack,
 .preferences-grid,
 .run-console-grid,
 .run-console-node-grid {
@@ -1230,6 +1231,46 @@ pre {
 .run-console-grid,
 .run-console-node-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bundle-stack {
+  grid-template-columns: 1fr;
+}
+
+.bundle-group {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--panel-bg-soft);
+}
+
+.bundle-group__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bundle-group__header h4 {
+  margin: 0;
+}
+
+.bundle-group__header p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.bundle-group__list {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bundle-group__empty {
+  min-height: 120px;
 }
 
 .bundle-card,
@@ -1777,6 +1818,7 @@ pre {
 }
 
 .app-shell[data-adaptive="mobile"] .bundle-grid,
+.app-shell[data-adaptive="mobile"] .bundle-group__list,
 .app-shell[data-adaptive="mobile"] .preferences-grid,
 .app-shell[data-adaptive="mobile"] .run-console-grid,
 .app-shell[data-adaptive="mobile"] .run-console-node-grid,

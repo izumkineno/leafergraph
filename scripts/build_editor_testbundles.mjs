@@ -23,6 +23,8 @@ const editorTestBundleDir = resolve(
 const filesToSync = [
   "demo.iife.js",
   "demo.iife.js.map",
+  "demo-alt.iife.js",
+  "demo-alt.iife.js.map",
   "node.iife.js",
   "node.iife.js.map",
   "widget.iife.js",

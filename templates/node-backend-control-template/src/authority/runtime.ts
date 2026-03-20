@@ -1059,31 +1059,13 @@ export function createNodeAuthorityRuntime(
     }, 0);
   };
 
-  const collectRootNodeIds = (): string[] => {
-    const executableNodeIds = currentDocument.nodes
-      .map((node) => node.id)
-      .filter((nodeId) => Boolean(getNode(nodeId)));
-    if (!executableNodeIds.length) {
-      return [];
-    }
-
-    const executableNodeIdSet = new Set(executableNodeIds);
-    const incomingTargetNodeIds = new Set(
-      currentDocument.links
-        .filter(
-          (link) =>
-            executableNodeIdSet.has(link.source.nodeId) &&
-            executableNodeIdSet.has(link.target.nodeId)
-        )
-        .map((link) => link.target.nodeId)
-    );
-    const rootNodeIds = executableNodeIds.filter(
-      (nodeId) => !incomingTargetNodeIds.has(nodeId)
-    );
-
-    // 对 DAG 优先只从真正根节点起跑，避免下游节点在 graph.step/play 中重复作为 root。
-    // 若整张图没有入边为 0 的节点（例如纯环），再保底回退到全部节点顺序。
-    return rootNodeIds.length ? rootNodeIds : executableNodeIds;
+  const collectGraphEntryNodeIds = (): string[] => {
+    return currentDocument.nodes
+      .filter(
+        (node) =>
+          node.type === SYSTEM_ON_PLAY_NODE_TYPE && Boolean(getNode(node.id))
+      )
+      .map((node) => node.id);
   };
 
   const createRuntimeControlResult = (
@@ -1519,9 +1501,11 @@ export function createNodeAuthorityRuntime(
           }
 
           stopActiveGraphStepWithoutEvent();
-          const queue = collectRootNodeIds();
+          const queue = collectGraphEntryNodeIds();
           if (!queue.length) {
-            return createRuntimeControlResult({ reason: "图中没有可执行节点" });
+            return createRuntimeControlResult({
+              reason: "图中没有 On Play 入口节点"
+            });
           }
 
           const startedAt = Date.now();
@@ -1560,9 +1544,11 @@ export function createNodeAuthorityRuntime(
 
           let run = activeGraphStepRun;
           if (!run) {
-            const rootNodeIds = collectRootNodeIds();
+            const rootNodeIds = collectGraphEntryNodeIds();
             if (!rootNodeIds.length) {
-              return createRuntimeControlResult({ reason: "图中没有可执行节点" });
+              return createRuntimeControlResult({
+                reason: "图中没有 On Play 入口节点"
+              });
             }
 
             if (stepCursor >= rootNodeIds.length) {

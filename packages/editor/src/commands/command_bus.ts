@@ -33,6 +33,7 @@ import {
   type EditorNodeSnapshot,
   type EditorNodeResizeCommandState
 } from "./node_commands";
+import type { LeaferGraphClipboardPayload } from "./clipboard_payload";
 import {
   createEditorLinkCommandController,
   type EditorLinkReconnectInput
@@ -321,6 +322,8 @@ export interface EditorCommandBus {
   readonly clipboard: EditorNodeClipboard | null;
   /** 最近一次命令执行记录；还未执行任何命令时返回 `null`。 */
   readonly lastExecution: EditorCommandExecution | null;
+  /** 用外部 JSON payload 覆盖当前内存剪贴板。 */
+  setClipboardPayload(payload: LeaferGraphClipboardPayload | null): void;
   /** 判断某个命令当前是否可执行。 */
   canExecute(request: EditorCommandRequest): boolean;
   /** 读取某个命令当前的统一展示状态。 */
@@ -498,10 +501,10 @@ function createClipboardNodeIdMap(
   nodeSnapshots: readonly EditorCommandNodeSnapshot[]
 ): Map<string, string> {
   const nodeIdMap = new Map<string, string>();
-  const count = Math.min(clipboard.entries.length, nodeSnapshots.length);
+  const count = Math.min(clipboard.payload.nodes.length, nodeSnapshots.length);
 
   for (let index = 0; index < count; index += 1) {
-    const sourceNodeId = clipboard.entries[index]?.sourceNodeId;
+    const sourceNodeId = clipboard.payload.nodes[index]?.id;
     const nextNodeId = nodeSnapshots[index]?.id;
     if (!sourceNodeId || !nextNodeId) {
       continue;
@@ -518,7 +521,7 @@ function captureCreatedLinksFromClipboard(
   clipboard: EditorNodeClipboard | null,
   nodeSnapshots: readonly EditorCommandNodeSnapshot[]
 ): GraphLink[] {
-  if (!clipboard || !clipboard.links.length || !nodeSnapshots.length) {
+  if (!clipboard || !clipboard.payload.links.length || !nodeSnapshots.length) {
     return [];
   }
 
@@ -754,7 +757,9 @@ export function createEditorCommandBus(
       | "historyPayload"
       | "operations"
       | "documentRecorded"
-    >,
+    > & {
+      summary?: string;
+    },
     pendingOperationIdsBefore: ReadonlySet<string>
   ): EditorCommandExecution =>
     commitExecution({
@@ -770,7 +775,7 @@ export function createEditorCommandBus(
       success: executionState.success,
       changed: executionState.changed,
       recordable: executionState.recordable,
-      summary: resolveCommandSummary(request),
+      summary: executionState.summary ?? resolveCommandSummary(request),
       timestamp: Date.now()
     });
 
@@ -818,7 +823,7 @@ export function createEditorCommandBus(
       case "selection.remove":
         return !hasSelection(options.selection);
       case "clipboard.paste":
-        return !Boolean(nodeCommands.clipboard);
+        return false;
       case "node.duplicate":
         return !Boolean(options.graph.getNodeSnapshot(request.nodeId));
       case "node.remove":
@@ -921,15 +926,15 @@ export function createEditorCommandBus(
         return {
           disabled,
           description: nodeCommands.isClipboardSourceNode(request.nodeId)
-            ? "当前节点已经在剪贴板中，再次复制会刷新快照"
-            : "保存当前节点快照，供画布菜单粘贴使用",
+            ? "当前节点已经在 JSON 剪贴板中，再次复制会刷新序列化快照"
+            : "把当前节点序列化为 LeaferGraph JSON，并写入系统剪贴板",
           shortcut: "Ctrl+C"
         };
       case "clipboard.copy-selection":
       case "selection.copy":
         return {
           disabled,
-          description: "把当前多选节点整体写入剪贴板，并保留相对布局",
+          description: "尝试把当前选区序列化为 LeaferGraph JSON 并写入系统剪贴板",
           shortcut: "Ctrl+C"
         };
       case "clipboard.cut-selection":
@@ -937,17 +942,15 @@ export function createEditorCommandBus(
           disabled,
           description:
             options.selection.selectedNodeIds.length > 1
-              ? "把当前多选节点写入剪贴板后，从画布中批量移除"
-              : "把当前节点写入剪贴板后，从画布中移除",
+              ? "先把当前多选节点写入 JSON 剪贴板，再从画布中批量移除"
+              : "先把当前节点写入 JSON 剪贴板，再从画布中移除",
           shortcut: "Ctrl+X"
         };
       case "clipboard.paste":
         return {
           disabled,
           description: isRuntimeReady()
-            ? `把最近复制的节点放到当前画布位置${
-                options.selection.primarySelectedNodeId ? "，并切换选中态" : ""
-              }`
+            ? "尝试从系统 JSON 剪贴板读取，失败时回退到本地复制内容"
             : "图初始化完成后可用",
           shortcut: "Ctrl+V"
         };
@@ -1174,7 +1177,10 @@ export function createEditorCommandBus(
           historyPayload: undefined,
           success: result,
           changed: result,
-          recordable: false
+          recordable: false,
+          summary: result
+            ? `已写入 JSON 剪贴板：节点 ${request.nodeId}`
+            : `复制节点 ${request.nodeId} 失败`
         }, pendingOperationIdsBefore);
       }
       case "clipboard.copy-selection":
@@ -1186,7 +1192,10 @@ export function createEditorCommandBus(
           historyPayload: undefined,
           success: result,
           changed: result,
-          recordable: false
+          recordable: false,
+          summary: result
+            ? `已写入 JSON 剪贴板：${options.selection.selectedNodeIds.length} 个节点`
+            : "复制当前选区失败"
         }, pendingOperationIdsBefore);
       }
       case "clipboard.cut-selection": {
@@ -1212,7 +1221,10 @@ export function createEditorCommandBus(
               : undefined,
           success: result,
           changed: result,
-          recordable: true
+          recordable: true,
+          summary: result
+            ? `已剪切到 JSON 剪贴板：${selectedNodeIds.length} 个节点`
+            : "剪切当前选区失败"
         }, pendingOperationIdsBefore);
       }
       case "clipboard.paste": {
@@ -1244,7 +1256,12 @@ export function createEditorCommandBus(
             : undefined,
           success: nodeSnapshots.length > 0,
           changed: nodeSnapshots.length > 0,
-          recordable: true
+          recordable: nodeSnapshots.length > 0,
+          summary: !clipboard
+            ? "粘贴失败：剪贴板中没有 LeaferGraph JSON"
+            : nodeSnapshots.length
+              ? `已从 JSON 剪贴板粘贴 ${nodeSnapshots.length} 个节点`
+              : "粘贴失败：当前剪贴板内容无法恢复"
         }, pendingOperationIdsBefore);
       }
       case "node.duplicate": {
@@ -1446,6 +1463,10 @@ export function createEditorCommandBus(
 
     get lastExecution(): EditorCommandExecution | null {
       return lastExecution;
+    },
+
+    setClipboardPayload(payload: LeaferGraphClipboardPayload | null): void {
+      nodeCommands.setClipboardPayload(payload);
     },
 
     canExecute(request: EditorCommandRequest): boolean {

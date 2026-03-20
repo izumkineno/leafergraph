@@ -352,12 +352,12 @@ describe("node clipboard with internal links", () => {
     const clipboard = copyNodesToClipboard(harness.graph, ["node-a", "node-b"]);
 
     expect(clipboard).not.toBeNull();
-    expect(clipboard?.entries).toHaveLength(2);
-    expect(clipboard?.links).toEqual([internalLink]);
-    expect(clipboard?.entries[0]?.snapshot.properties).toEqual(nodeA.properties);
-    expect(clipboard?.entries[0]?.snapshot.data).toEqual(nodeA.data);
-    expect(clipboard?.entries[0]?.snapshot.flags).toEqual(nodeA.flags);
-    expect(clipboard?.entries[0]?.snapshot.widgets).toEqual(nodeA.widgets);
+    expect(clipboard?.payload.nodes).toHaveLength(2);
+    expect(clipboard?.payload.links).toEqual([internalLink]);
+    expect(clipboard?.payload.nodes[0]?.properties).toEqual(nodeA.properties);
+    expect(clipboard?.payload.nodes[0]?.data).toEqual(nodeA.data);
+    expect(clipboard?.payload.nodes[0]?.flags).toEqual(nodeA.flags);
+    expect(clipboard?.payload.nodes[0]?.widgets).toEqual(nodeA.widgets);
   });
 
   test("selection.duplicate 应一并重建内部连线，并在历史负载里记录", () => {

@@ -23,6 +23,14 @@ import {
   type EditorCommandExecution
 } from "../commands/command_bus";
 import {
+  parseLeaferGraphClipboardPayload,
+  serializeLeaferGraphClipboardPayload
+} from "../commands/clipboard_payload";
+import {
+  readBrowserClipboardText,
+  writeBrowserClipboardText
+} from "../commands/browser_clipboard_bridge";
+import {
   createEditorCommandHistory,
   type EditorCommandHistory
 } from "../commands/command_history";
@@ -66,6 +74,7 @@ import {
   type GraphViewportRuntimeFailureGroup,
   type GraphViewportRuntimeHistoryEntry
 } from "./graph_viewport_runtime_collections";
+import { resolveGraphViewportRuntimeDetailLabel } from "./graph_viewport_runtime_status";
 import {
   resolveRemoteRuntimeControlNotice,
   type GraphViewportRemoteRuntimeControlNotice
@@ -141,6 +150,7 @@ export interface GraphViewportWorkspaceState {
   status: {
     documentLabel: string;
     runtimeLabel: string;
+    runtimeDetailLabel: string | null;
     selectionLabel: string;
     focusLabel: string;
     lastCommandSummary: string | null;
@@ -1279,16 +1289,116 @@ export function GraphViewport({
 
       selection.select(nodeId);
     };
-    const pasteCopiedNodeAtLatestPointer = (): void => {
-      const pointerPagePoint = resolveLatestPointerPagePoint();
-      commandBus.execute({
-        type: "clipboard.paste",
-        point: pointerPagePoint
-      });
-    };
     /** 统一从命令状态读取快捷键是否可触发，避免 GraphViewport 自己维护第二套禁用判断。 */
     const isCommandShortcutEnabled = (request: EditorCommandRequest): boolean =>
       !commandBus.resolveCommandState(request).disabled;
+    const serializeCommandClipboardPayload = (): string | null => {
+      const payload = commandBus.clipboard?.payload;
+      return payload ? serializeLeaferGraphClipboardPayload(payload) : null;
+    };
+    const prepareClipboardWriteText = (
+      request: Extract<
+        EditorCommandRequest,
+        | { type: "clipboard.copy-node" }
+        | { type: "clipboard.copy-selection" }
+        | { type: "clipboard.cut-selection" }
+        | { type: "selection.copy" }
+      >
+    ): string | null => {
+      const execution = commandBus.execute(request);
+      if (!execution.success) {
+        return null;
+      }
+
+      const text = serializeCommandClipboardPayload();
+      if (!text) {
+        return null;
+      }
+
+      return text;
+    };
+    const executeClipboardWriteRequest = (
+      request: Extract<
+        EditorCommandRequest,
+        | { type: "clipboard.copy-node" }
+        | { type: "clipboard.copy-selection" }
+        | { type: "clipboard.cut-selection" }
+        | { type: "selection.copy" }
+      >
+    ): string | null => {
+      const text = prepareClipboardWriteText(request);
+      if (!text) {
+        return null;
+      }
+
+      void writeBrowserClipboardText(ownerWindow, text);
+      return text;
+    };
+    /**
+     * 键盘复制/剪切优先显式写系统剪贴板，
+     * 避免跨工作区切换时继续依赖浏览器对原生 clipboard 事件的隐式提交时机。
+     */
+    const executeKeyboardClipboardWriteRequest = async (
+      request: Extract<
+        EditorCommandRequest,
+        | { type: "clipboard.copy-node" }
+        | { type: "clipboard.copy-selection" }
+        | { type: "clipboard.cut-selection" }
+        | { type: "selection.copy" }
+      >
+    ): Promise<void> => {
+      const text = prepareClipboardWriteText(request);
+      if (!text) {
+        return;
+      }
+
+      await writeBrowserClipboardText(ownerWindow, text);
+    };
+    const resolveClipboardPayloadFromText = (
+      text: string | null | undefined
+    ) => (text ? parseLeaferGraphClipboardPayload(text) : null);
+    const executeClipboardPasteRequest = async (
+      point: { x: number; y: number } | null,
+      preferredText?: string | null
+    ): Promise<void> => {
+      const payloadFromEvent = resolveClipboardPayloadFromText(preferredText);
+      const payload =
+        payloadFromEvent ??
+        resolveClipboardPayloadFromText(
+          await readBrowserClipboardText(ownerWindow)
+        );
+
+      if (disposed) {
+        return;
+      }
+
+      if (payload) {
+        commandBus.setClipboardPayload(payload);
+      }
+
+      commandBus.execute({
+        type: "clipboard.paste",
+        point
+      });
+    };
+    const executeUiCommand = (request: EditorCommandRequest): void => {
+      switch (request.type) {
+        case "clipboard.copy-node":
+        case "clipboard.copy-selection":
+        case "clipboard.cut-selection":
+        case "selection.copy":
+          executeClipboardWriteRequest(request);
+          return;
+        case "clipboard.paste":
+          void executeClipboardPasteRequest(request.point);
+          return;
+        default:
+          commandBus.execute(request);
+      }
+    };
+    const pasteCopiedNodeAtLatestPointer = (): void => {
+      void executeClipboardPasteRequest(resolveLatestPointerPagePoint());
+    };
     const pasteCopiedNodeByKeyboard = (): void => {
       if (!isCommandShortcutEnabled({ type: "clipboard.paste", point: null })) {
         return;
@@ -1314,7 +1424,7 @@ export function GraphViewport({
         return;
       }
 
-      commandBus.execute(request);
+      executeUiCommand(request);
     };
     menu = createLeaferGraphContextMenu({
       app: graph.app,
@@ -1323,6 +1433,7 @@ export function GraphViewport({
         graph,
         selection,
         resolveCommandBus: () => commandBus,
+        executeUiCommand,
         resolveNodePlayState,
         onPlayNode(nodeId) {
           playNode(nodeId);
@@ -1589,7 +1700,7 @@ export function GraphViewport({
           fitGraphView();
           return;
         case "select-all":
-          commandBus.execute({
+          executeUiCommand({
             type: "selection.select-all",
             nodeIds: [...boundNodeIds]
           });
@@ -1598,16 +1709,16 @@ export function GraphViewport({
           pasteCopiedNodeByKeyboard();
           return;
         case "copy":
-          commandBus.execute({ type: "selection.copy" });
+          executeUiCommand({ type: "selection.copy" });
           return;
         case "cut":
-          commandBus.execute({ type: "clipboard.cut-selection" });
+          executeUiCommand({ type: "clipboard.cut-selection" });
           return;
         case "duplicate":
-          commandBus.execute({ type: "selection.duplicate" });
+          executeUiCommand({ type: "selection.duplicate" });
           return;
         case "delete":
-          commandBus.execute({ type: "selection.remove" });
+          executeUiCommand({ type: "selection.remove" });
           return;
       }
     };
@@ -1996,7 +2107,7 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
+        executeUiCommand(request);
         return;
       }
 
@@ -2053,7 +2164,42 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
+        void executeKeyboardClipboardWriteRequest(request);
+        return;
+      }
+
+      if (key === "x") {
+        if (event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = {
+          type: "clipboard.cut-selection"
+        };
+        if (!isCommandShortcutEnabled(request)) {
+          return;
+        }
+
+        event.preventDefault();
+        void executeKeyboardClipboardWriteRequest(request);
+        return;
+      }
+
+      if (key === "v") {
+        if (event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = {
+          type: "clipboard.paste",
+          point: null
+        };
+        if (!isCommandShortcutEnabled(request)) {
+          return;
+        }
+
+        event.preventDefault();
+        pasteCopiedNodeByKeyboard();
         return;
       }
 
@@ -2071,24 +2217,7 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
-        return;
-      }
-
-      if (key === "x") {
-        if (event.shiftKey) {
-          return;
-        }
-
-        const request: EditorCommandRequest = {
-          type: "clipboard.cut-selection"
-        };
-        if (!isCommandShortcutEnabled(request)) {
-          return;
-        }
-
-        event.preventDefault();
-        commandBus.execute(request);
+        executeUiCommand(request);
         return;
       }
 
@@ -2103,22 +2232,68 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
+        executeUiCommand(request);
+      }
+    };
+    const handleNativeCopy = (event: ClipboardEvent): void => {
+      if (isTextEditingElement(event.target)) {
         return;
       }
 
-      if (key === "v") {
-        if (event.shiftKey) {
-          return;
-        }
-
-        if (!isCommandShortcutEnabled({ type: "clipboard.paste", point: null })) {
-          return;
-        }
-
-        event.preventDefault();
-        pasteCopiedNodeByKeyboard();
+      const request: EditorCommandRequest = { type: "selection.copy" };
+      if (!isCommandShortcutEnabled(request)) {
+        return;
       }
+
+      event.preventDefault();
+      const text = executeClipboardWriteRequest(request);
+      if (text) {
+        event.clipboardData?.setData("text/plain", text);
+      }
+    };
+    const handleNativeCut = (event: ClipboardEvent): void => {
+      if (isTextEditingElement(event.target)) {
+        return;
+      }
+
+      const request: EditorCommandRequest = {
+        type: "clipboard.cut-selection"
+      };
+      if (!isCommandShortcutEnabled(request)) {
+        return;
+      }
+
+      event.preventDefault();
+      const text = executeClipboardWriteRequest(request);
+      if (text) {
+        event.clipboardData?.setData("text/plain", text);
+      }
+    };
+    const handleNativePaste = (event: ClipboardEvent): void => {
+      if (isTextEditingElement(event.target)) {
+        return;
+      }
+
+      const request: EditorCommandRequest = {
+        type: "clipboard.paste",
+        point: null
+      };
+      if (!isCommandShortcutEnabled(request)) {
+        return;
+      }
+
+      event.preventDefault();
+      const preferredText = event.clipboardData?.getData("text/plain") ?? null;
+      runAfterViewportSettle(() => {
+        if (!isCommandShortcutEnabled(request)) {
+          return;
+        }
+
+        void executeClipboardPasteRequest(
+          resolveLatestPointerPagePoint(),
+          preferredText
+        );
+      });
     };
     const handleWindowKeyUp = (event: KeyboardEvent): void => {
       if (event.code === "Space") {
@@ -2141,6 +2316,9 @@ export function GraphViewport({
     ownerWindow.addEventListener("keydown", handleWindowKeyDown);
     ownerWindow.addEventListener("keyup", handleWindowKeyUp);
     ownerWindow.addEventListener("blur", handleWindowBlur);
+    ownerWindow.document.addEventListener("copy", handleNativeCopy);
+    ownerWindow.document.addEventListener("cut", handleNativeCut);
+    ownerWindow.document.addEventListener("paste", handleNativePaste);
 
     return () => {
       disposed = true;
@@ -2168,6 +2346,9 @@ export function GraphViewport({
       ownerWindow.removeEventListener("keydown", handleWindowKeyDown);
       ownerWindow.removeEventListener("keyup", handleWindowKeyUp);
       ownerWindow.removeEventListener("blur", handleWindowBlur);
+      ownerWindow.document.removeEventListener("copy", handleNativeCopy);
+      ownerWindow.document.removeEventListener("cut", handleNativeCut);
+      ownerWindow.document.removeEventListener("paste", handleNativePaste);
       for (const linkId of [...boundLinkIds]) {
         unbindEditorLink(linkId);
       }
@@ -2257,6 +2438,10 @@ export function GraphViewport({
       status: {
         documentLabel: `${workspaceDocument.documentId} @ ${workspaceDocument.revision}`,
         runtimeLabel: formatGraphExecutionStatusLabel(graphExecutionState.status),
+        runtimeDetailLabel: resolveGraphViewportRuntimeDetailLabel(
+          graphExecutionState,
+          activeRuntimeChainGroup
+        ),
         selectionLabel:
           selectionCount > 0 ? `已选 ${selectionCount} 个节点` : "未选择节点",
         focusLabel: runtimeInspectorState.focusNodeTitle ?? "未命中焦点节点",

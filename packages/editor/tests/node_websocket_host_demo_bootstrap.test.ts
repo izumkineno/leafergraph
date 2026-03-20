@@ -228,6 +228,11 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
     expect(bootstrap.preloadedBundles).toEqual(
       NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES
     );
+    expect(
+      NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES.filter(
+        (bundle) => bundle.slot === "demo"
+      ).map((bundle) => bundle.fileName)
+    ).toEqual(["demo.iife.js", "demo-alt.iife.js"]);
   });
 
   test("应把 authority health 地址收敛到稳定的 loopback /health", () => {

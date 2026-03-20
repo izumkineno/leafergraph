@@ -13,8 +13,11 @@ import type { NodeLibraryPreviewRequest } from "./node_library_hover_preview";
 import type { EditorRemoteAuthorityAppSource } from "./remote_authority_app_runtime";
 import type { GraphViewportRemoteRuntimeControlNotice } from "./graph_viewport_runtime_control_notice";
 import type { EditorTheme } from "../theme";
-import type { EditorBundleSlot, EditorBundleSlotState } from "../loader/types";
-import { createInitialBundleSlotState } from "../loader/runtime";
+import type {
+  EditorBundleCatalogState,
+  EditorBundleSlot
+} from "../loader/types";
+import { createInitialBundleCatalogState } from "../loader/runtime";
 import type { EditorRemoteAuthorityConnectionStatus } from "../session/graph_document_authority_client";
 import type {
   EditorGraphDocumentResyncOptions
@@ -64,7 +67,7 @@ export interface EditorControllerState {
   activeLibraryNodeType: string | null;
   availableNodeDefinitions: readonly NodeDefinition[];
   nodeLibraryPreviewRequest: NodeLibraryPreviewRequest | null;
-  bundleSlots: Record<EditorBundleSlot, EditorBundleSlotState>;
+  bundleCatalog: EditorBundleCatalogState;
   remoteAuthorityStatus: RemoteAuthorityRuntimeStatus;
   remoteAuthorityError: string | null;
   remoteAuthorityConnectionStatus: RemoteAuthorityConnectionDisplayStatus;
@@ -104,6 +107,10 @@ export interface EditorControllerActions {
   setNodeLibrarySearchQuery(value: string): void;
   setActiveLibraryNodeType(nodeType: string | null): void;
   setNodeLibraryPreviewRequest(request: NodeLibraryPreviewRequest | null): void;
+  loadBundleFiles(slot: EditorBundleSlot, files: readonly File[]): Promise<void>;
+  toggleBundleRecord(slot: EditorBundleSlot, bundleKey: string): void;
+  unloadBundleRecord(slot: EditorBundleSlot, bundleKey: string): void;
+  activateDemoBundle(bundleKey: string): Promise<void>;
   createNodeFromWorkspace(nodeType: string): void;
   openNodeAuthorityDemo(): void;
   openPythonAuthorityDemo(): void;
@@ -130,14 +137,6 @@ interface InternalEditorController extends EditorController {
   ): void;
 }
 
-function createInitialBundleSlots(): Record<EditorBundleSlot, EditorBundleSlotState> {
-  return {
-    demo: createInitialBundleSlotState("demo"),
-    node: createInitialBundleSlotState("node"),
-    widget: createInitialBundleSlotState("widget")
-  };
-}
-
 function createInitialEditorControllerState(
   options: CreateEditorControllerOptions
 ): EditorControllerState {
@@ -155,7 +154,7 @@ function createInitialEditorControllerState(
     activeLibraryNodeType: null,
     availableNodeDefinitions: [],
     nodeLibraryPreviewRequest: null,
-    bundleSlots: createInitialBundleSlots(),
+    bundleCatalog: createInitialBundleCatalogState(),
     remoteAuthorityStatus: options.remoteAuthoritySource ? "idle" : "disabled",
     remoteAuthorityError: null,
     remoteAuthorityConnectionStatus: "idle",
@@ -202,6 +201,10 @@ function createNoopActions(): EditorControllerActions {
     setNodeLibrarySearchQuery() {},
     setActiveLibraryNodeType() {},
     setNodeLibraryPreviewRequest() {},
+    async loadBundleFiles() {},
+    toggleBundleRecord() {},
+    unloadBundleRecord() {},
+    async activateDemoBundle() {},
     createNodeFromWorkspace() {},
     openNodeAuthorityDemo() {},
     openPythonAuthorityDemo() {},

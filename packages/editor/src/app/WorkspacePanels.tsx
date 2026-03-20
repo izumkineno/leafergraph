@@ -661,6 +661,11 @@ export function InspectorPane({
                   value={workspaceState.runtime.focus.focusNodeTitle ?? "未命中"}
                 />
               </dl>
+              {workspaceState.status.runtimeDetailLabel ? (
+                <p class="workspace-note">
+                  {workspaceState.status.runtimeDetailLabel}
+                </p>
+              ) : null}
             </section>
 
             <section class="inspector-section">

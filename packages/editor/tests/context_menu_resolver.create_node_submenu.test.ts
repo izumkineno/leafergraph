@@ -69,6 +69,7 @@ describe("editor context menu resolver", () => {
     const commandBus: EditorCommandBus = {
       clipboard: null,
       lastExecution: null,
+      setClipboardPayload(): void {},
       canExecute() {
         return true;
       },
@@ -119,6 +120,16 @@ describe("editor context menu resolver", () => {
       resolveCommandBus() {
         return commandBus;
       },
+      executeUiCommand(request) {
+        commandBus.execute(request);
+      },
+      resolveNodePlayState() {
+        return {
+          disabled: true,
+          description: "play disabled"
+        };
+      },
+      onPlayNode(): void {},
       onRemoveLink(): void {},
       onStartReconnect(): void {}
     });
