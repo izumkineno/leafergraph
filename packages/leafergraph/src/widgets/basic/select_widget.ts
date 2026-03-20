@@ -157,7 +157,7 @@ export class SelectFieldController extends BasicWidgetController<
       value: this.formatWidgetValue(context.value),
       options: items,
       onSelect: (nextValue) => {
-        context.setValue(nextValue);
+        context.commitValue(nextValue);
       }
     });
   }

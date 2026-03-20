@@ -338,8 +338,25 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       width: portHitAreaWidth,
       height: port.portHeight + 18,
       fill: "rgba(255, 255, 255, 0.001)",
+      stroke: "transparent",
+      strokeWidth: 0,
       cornerRadius: 999,
-      cursor: "crosshair"
+      cursor: "crosshair",
+      hoverStyle: {
+        fill: "rgba(255, 255, 255, 0.001)",
+        stroke: "transparent",
+        strokeWidth: 0
+      },
+      pressStyle: {
+        fill: "rgba(255, 255, 255, 0.001)",
+        stroke: "transparent",
+        strokeWidth: 0
+      },
+      selectedStyle: {
+        fill: "rgba(255, 255, 255, 0.001)",
+        stroke: "transparent",
+        strokeWidth: 0
+      }
     });
     portViews.push({
       layout: port,

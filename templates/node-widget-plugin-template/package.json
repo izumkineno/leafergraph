@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build:esm": "node ./scripts/prepare_dist.mjs && tsc -p tsconfig.build.json && vite build",
-    "build:browser": "vite build --config vite.browser.config.ts --mode demo && vite build --config vite.browser.config.ts --mode node && vite build --config vite.browser.config.ts --mode widget",
+    "build:browser": "vite build --config vite.browser.config.ts --mode demo && vite build --config vite.browser.config.ts --mode demo-alt && vite build --config vite.browser.config.ts --mode node && vite build --config vite.browser.config.ts --mode widget",
     "build": "bun run build:esm && bun run build:browser"
   },
   "peerDependencies": {

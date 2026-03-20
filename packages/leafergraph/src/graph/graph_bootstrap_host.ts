@@ -46,7 +46,7 @@ interface InstalledPluginRecord {
 interface LeaferGraphBootstrapHostOptions {
   nodeRegistry: NodeRegistry;
   widgetRegistry: LeaferGraphWidgetRegistry;
-  restoreGraph(graph?: LeaferGraphOptions["graph"]): void;
+  replaceGraphDocument(document?: LeaferGraphOptions["document"]): void;
 }
 
 /**
@@ -63,6 +63,7 @@ export interface LeaferGraphBootstrapRuntimeLike {
     options?: InstallNodeModuleOptions
   ): ResolvedNodeModule;
   initialize(options: LeaferGraphOptions): Promise<void>;
+  replaceGraphDocument(document?: LeaferGraphOptions["document"]): void;
   registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void;
   listNodes(): NodeDefinition[];
   registerWidget(
@@ -80,6 +81,7 @@ export interface LeaferGraphBootstrapRuntimeLike {
  * 2. 节点模块安装
  * 3. 插件安装与插件上下文组装
  * 4. 启动期 `modules/plugins/graph` 初始化顺序
+ * 4. 启动期 `modules/plugins/document` 初始化顺序
  */
 export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike {
   private readonly options: LeaferGraphBootstrapHostOptions;
@@ -187,8 +189,8 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
   }
 
   /**
-   * 执行启动期安装流程，然后恢复初始图数据。
-   * 顺序保持为：内建 Widget -> 模块 -> 插件 -> 图恢复。
+   * 执行启动期安装流程，然后恢复初始文档。
+   * 顺序保持为：内建 Widget -> 模块 -> 插件 -> 文档恢复。
    *
    * @param options - 主包初始化配置。
    */
@@ -206,8 +208,13 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
       await this.use(plugin);
     }
 
-    // 等注册表完全就绪后再恢复图，避免启动时出现“节点已在图里，但类型还没注册”的半状态。
-    this.options.restoreGraph(options.graph);
+    // 等注册表完全就绪后再恢复文档，避免启动时出现“节点已在图里，但类型还没注册”的半状态。
+    this.options.replaceGraphDocument(options.document);
+  }
+
+  /** 直接替换当前正式文档。 */
+  replaceGraphDocument(document?: LeaferGraphOptions["document"]): void {
+    this.options.replaceGraphDocument(document);
   }
 
   /** 注册单个节点定义。 */

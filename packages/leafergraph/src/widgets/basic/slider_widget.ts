@@ -223,6 +223,11 @@ export class SliderFieldController extends BasicWidgetController<
         onValue: (progress) => {
           state.preferStaticDisplayValue = false;
           context.setValue(this.resolveSliderValue(progress, range));
+        },
+        onEnd: () => {
+          context.commitValue(
+            context.node.widgets[context.widgetIndex]?.value
+          );
         }
       })
     );
@@ -247,25 +252,29 @@ export class SliderFieldController extends BasicWidgetController<
 
     if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
       state.preferStaticDisplayValue = false;
-      context.setValue(this.roundToStep(safeValue - state.range.step, state.range));
+      context.commitValue(
+        this.roundToStep(safeValue - state.range.step, state.range)
+      );
       return true;
     }
 
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
       state.preferStaticDisplayValue = false;
-      context.setValue(this.roundToStep(safeValue + state.range.step, state.range));
+      context.commitValue(
+        this.roundToStep(safeValue + state.range.step, state.range)
+      );
       return true;
     }
 
     if (event.key === "Home") {
       state.preferStaticDisplayValue = false;
-      context.setValue(state.range.min);
+      context.commitValue(state.range.min);
       return true;
     }
 
     if (event.key === "End") {
       state.preferStaticDisplayValue = false;
-      context.setValue(state.range.max);
+      context.commitValue(state.range.max);
       return true;
     }
 

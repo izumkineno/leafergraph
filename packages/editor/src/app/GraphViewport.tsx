@@ -1,18 +1,20 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import {
   createLeaferGraph,
   createLeaferGraphContextMenu,
+  type GraphDocument,
+  type GraphLink,
+  type GraphOperation,
   type LeaferGraphConnectionPortState,
   type LeaferGraphGraphExecutionState,
   type LeaferGraph,
-  type LeaferGraphData,
   type LeaferGraphContextMenuManager,
-  type LeaferGraphLinkData,
   type LeaferGraphNodeExecutionEvent,
   type LeaferGraphNodeInspectorState,
   type LeaferGraphNodeStateChangeEvent,
-  type LeaferGraphOptions
+  type LeaferGraphOptions,
+  type RuntimeFeedbackEvent
 } from "leafergraph";
 import {
   createEditorCommandBus,
@@ -21,9 +23,26 @@ import {
   type EditorCommandExecution
 } from "../commands/command_bus";
 import {
+  parseLeaferGraphClipboardPayload,
+  serializeLeaferGraphClipboardPayload
+} from "../commands/clipboard_payload";
+import {
+  readBrowserClipboardText,
+  writeBrowserClipboardText
+} from "../commands/browser_clipboard_bridge";
+import {
   createEditorCommandHistory,
   type EditorCommandHistory
 } from "../commands/command_history";
+import {
+  createLoopbackGraphDocumentSessionBinding,
+  type EditorGraphDocumentSessionBindingFactory
+} from "../session/graph_document_session_binding";
+import type {
+  EditorGraphDocumentResyncOptions,
+  EditorGraphOperationAuthorityConfirmation,
+  EditorGraphOperationSubmission
+} from "../session/graph_document_session";
 import { createEditorNodeSelection } from "../state/selection";
 import {
   GRAPH_VIEWPORT_BACKGROUND_SIZE,
@@ -41,11 +60,35 @@ import {
   createEditorContextMenuBeforeOpenHandler,
   createEditorContextMenuResolver
 } from "../menu/context_menu_resolver";
+import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
+import type {
+  EditorRemoteAuthorityRuntimeControlRequest,
+  EditorRemoteAuthorityRuntimeController
+} from "../session/graph_document_authority_client";
+import { createGraphInteractionCommitBridge } from "../interaction/graph_interaction_commit_bridge";
+import {
+  appendRuntimeHistoryEntry,
+  createGraphViewportRuntimeCollectionsProjector,
+  createRuntimeHistoryEntryFromEvent,
+  type GraphViewportRuntimeChainGroup,
+  type GraphViewportRuntimeFailureGroup,
+  type GraphViewportRuntimeHistoryEntry
+} from "./graph_viewport_runtime_collections";
+import { resolveGraphViewportRuntimeDetailLabel } from "./graph_viewport_runtime_status";
+import {
+  resolveRemoteRuntimeControlNotice,
+  type GraphViewportRemoteRuntimeControlNotice
+} from "./graph_viewport_runtime_control_notice";
 
-interface GraphViewportProps {
-  graph: LeaferGraphData;
+export interface GraphViewportProps {
+  document: GraphDocument;
   modules?: LeaferGraphOptions["modules"];
   plugins?: LeaferGraphOptions["plugins"];
+  createDocumentSessionBinding?: EditorGraphDocumentSessionBindingFactory;
+  runtimeFeedbackInlet?: EditorRuntimeFeedbackInlet;
+  runtimeController?: EditorRemoteAuthorityRuntimeController;
+  runtimeControlMode?: "local" | "remote";
+  onHostBridgeChange?(bridge: GraphViewportHostBridge | null): void;
   quickCreateNodeType?: string;
   theme: EditorTheme;
   onEditorToolbarControlsChange?(
@@ -54,6 +97,10 @@ interface GraphViewportProps {
   onGraphRuntimeControlsChange?(
     controls: GraphViewportRuntimeControlsState | null
   ): void;
+  onRemoteRuntimeControlNoticeChange?(
+    notice: GraphViewportRemoteRuntimeControlNotice | null
+  ): void;
+  onWorkspaceStateChange?(state: GraphViewportWorkspaceState | null): void;
 }
 
 type GraphViewportNodeExecutionSnapshot = NonNullable<
@@ -61,16 +108,78 @@ type GraphViewportNodeExecutionSnapshot = NonNullable<
 >;
 type GraphViewportGraphExecutionSnapshot = LeaferGraphGraphExecutionState;
 
-type GraphViewportRuntimeHistoryStatus =
-  | GraphViewportNodeExecutionSnapshot["status"]
-  | "skipped";
-
 export interface GraphViewportRuntimeControlsState {
   available: boolean;
   executionState: GraphViewportGraphExecutionSnapshot;
   play(): void;
   step(): void;
   stop(): void;
+}
+
+export interface GraphViewportWorkspaceState {
+  selection: {
+    count: number;
+    nodeIds: readonly string[];
+    primaryNodeId: string | null;
+  };
+  document: {
+    documentId: string;
+    revision: string | number;
+    appKind: string;
+    nodeCount: number;
+    linkCount: number;
+  };
+  inspector: {
+    mode: "document" | "node" | "multi";
+    focusNodeId: string | null;
+    focusNodeTitle: string | null;
+    focusNodeType: string | null;
+    node: LeaferGraphNodeInspectorState | null;
+    selectionCount: number;
+  };
+  runtime: {
+    graphExecutionState: GraphViewportGraphExecutionSnapshot;
+    focus: GraphViewportRuntimeInspectorState;
+    focusNode: LeaferGraphNodeInspectorState | null;
+    recentEntries: readonly GraphViewportRuntimeHistoryEntry[];
+    recentChains: readonly GraphViewportRuntimeChainGroup[];
+    latestChain: GraphViewportRuntimeChainGroup | null;
+    failures: readonly GraphViewportRuntimeFailureGroup[];
+    latestErrorMessage: string | null;
+  };
+  status: {
+    documentLabel: string;
+    runtimeLabel: string;
+    runtimeDetailLabel: string | null;
+    selectionLabel: string;
+    focusLabel: string;
+    lastCommandSummary: string | null;
+  };
+}
+
+/** 外部宿主可选接入的最小视口桥。 */
+export interface GraphViewportHostBridge {
+  readonly graph: LeaferGraph;
+  executeCommand(request: EditorCommandRequest): EditorCommandExecution;
+  submitOperationWithAuthority(
+    operation: GraphOperation
+  ): EditorGraphOperationSubmission;
+  resyncAuthorityDocument(
+    options?: EditorGraphDocumentResyncOptions
+  ): Promise<GraphDocument>;
+  replaceDocument(document: GraphDocument): void;
+  getCurrentDocument(): GraphDocument;
+  subscribeDocument(listener: (document: GraphDocument) => void): () => void;
+  getPendingOperationIds(): readonly string[];
+  subscribePending?(
+    listener: (pendingOperationIds: readonly string[]) => void
+  ): () => void;
+  subscribeOperationConfirmation?(
+    listener: (confirmation: EditorGraphOperationAuthorityConfirmation) => void
+  ): () => void;
+  getSelectedNodeIds(): readonly string[];
+  getNodeSnapshot(nodeId: string): ReturnType<LeaferGraph["getNodeSnapshot"]>;
+  getLink(linkId: string): GraphLink | undefined;
 }
 
 /** editor 顶栏工具栏当前支持的动作 ID。 */
@@ -115,7 +224,7 @@ export interface GraphViewportToolbarControlsState {
   execute(actionId: GraphViewportToolbarActionId): void;
 }
 
-interface GraphViewportRuntimeInspectorState {
+export interface GraphViewportRuntimeInspectorState {
   focusMode: "idle" | "selection" | "recent-execution";
   focusNodeId: string | null;
   focusNodeTitle: string | null;
@@ -126,61 +235,6 @@ interface GraphViewportRuntimeInspectorState {
   lastCommandTimestamp: number | null;
 }
 
-interface GraphViewportRuntimeHistoryEntry {
-  id: string;
-  chainId: string;
-  rootNodeId: string;
-  rootNodeTitle: string;
-  rootNodeType: string | null;
-  nodeId: string;
-  nodeTitle: string;
-  nodeType: string | null;
-  depth: number;
-  sequence: number;
-  status: GraphViewportRuntimeHistoryStatus;
-  source: LeaferGraphNodeExecutionEvent["source"];
-  trigger: LeaferGraphNodeExecutionEvent["trigger"];
-  summary: string;
-  timestamp: number;
-  runCount: number;
-  errorMessage: string | null;
-}
-
-interface GraphViewportRuntimeChainGroup {
-  chainId: string;
-  rootNodeId: string;
-  rootNodeTitle: string;
-  rootNodeType: string | null;
-  source: LeaferGraphNodeExecutionEvent["source"];
-  status: GraphViewportRuntimeHistoryStatus;
-  startedAt: number;
-  finishedAt: number;
-  stepCount: number;
-  maxDepth: number;
-  successCount: number;
-  errorCount: number;
-  skippedCount: number;
-  directCount: number;
-  propagatedCount: number;
-  latestEntry: GraphViewportRuntimeHistoryEntry | null;
-  entries: GraphViewportRuntimeHistoryEntry[];
-}
-
-interface GraphViewportRuntimeFailureGroup {
-  nodeId: string;
-  nodeTitle: string;
-  nodeType: string | null;
-  failureCount: number;
-  latestTimestamp: number;
-  latestErrorMessage: string | null;
-  latestSource: LeaferGraphNodeExecutionEvent["source"];
-  latestTrigger: LeaferGraphNodeExecutionEvent["trigger"];
-}
-
-const MAX_RUNTIME_HISTORY_ENTRIES = 8;
-const MAX_RUNTIME_CHAIN_GROUPS = 4;
-const MAX_RUNTIME_FAILURE_ENTRIES = 4;
-
 function createIdleGraphExecutionState(): GraphViewportGraphExecutionSnapshot {
   return {
     status: "idle",
@@ -189,11 +243,11 @@ function createIdleGraphExecutionState(): GraphViewportGraphExecutionSnapshot {
   };
 }
 
+
 function resolveInspectorFocusState(
   graph: LeaferGraph,
   selection: ReturnType<typeof createEditorNodeSelection>,
-  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null,
-  lastExecution: EditorCommandExecution | null
+  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null
 ): Pick<
   GraphViewportRuntimeInspectorState,
   "focusMode" | "focusNodeId" | "selectionCount"
@@ -205,18 +259,12 @@ function resolveInspectorFocusState(
   const recentRuntimeExecutedNodeId = resolveExistingNodeId(
     lastRuntimeExecution?.nodeId ?? null
   );
-  const recentExecutedNodeId = resolveExistingNodeId(
-    lastExecution?.request.type === "node.play"
-      ? lastExecution.request.nodeId
-      : null
-  );
-  const focusNodeId =
-    selectedNodeId ?? recentRuntimeExecutedNodeId ?? recentExecutedNodeId ?? null;
+  const focusNodeId = selectedNodeId ?? recentRuntimeExecutedNodeId ?? null;
 
   return {
     focusMode: selectedNodeId
       ? "selection"
-      : recentRuntimeExecutedNodeId || recentExecutedNodeId
+      : recentRuntimeExecutedNodeId
         ? "recent-execution"
         : "idle",
     focusNodeId,
@@ -246,8 +294,7 @@ function resolveRuntimeInspectorState(
   const { focusNodeId, focusMode, selectionCount } = resolveInspectorFocusState(
     graph,
     selection,
-    lastRuntimeExecution,
-    lastExecution
+    lastRuntimeExecution
   );
 
   if (!focusNodeId) {
@@ -276,14 +323,12 @@ function resolveRuntimeInspectorState(
 function resolveNodeInspectorState(
   graph: LeaferGraph,
   selection: ReturnType<typeof createEditorNodeSelection>,
-  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null,
-  lastExecution: EditorCommandExecution | null
+  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null
 ): LeaferGraphNodeInspectorState | null {
   const { focusNodeId } = resolveInspectorFocusState(
     graph,
     selection,
-    lastRuntimeExecution,
-    lastExecution
+    lastRuntimeExecution
   );
 
   return focusNodeId ? graph.getNodeInspectorState(focusNodeId) ?? null : null;
@@ -293,8 +338,7 @@ function shouldSyncInspectorForNodeState(
   graph: LeaferGraph,
   event: LeaferGraphNodeStateChangeEvent,
   selection: ReturnType<typeof createEditorNodeSelection>,
-  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null,
-  lastExecution: EditorCommandExecution | null
+  lastRuntimeExecution: LeaferGraphNodeExecutionEvent | null
 ): boolean {
   if (!event.exists) {
     return true;
@@ -304,46 +348,9 @@ function shouldSyncInspectorForNodeState(
     resolveInspectorFocusState(
       graph,
       selection,
-      lastRuntimeExecution,
-      lastExecution
+      lastRuntimeExecution
     ).focusNodeId === event.nodeId
   );
-}
-
-function formatExecutionTimestamp(timestamp: number | null): string {
-  if (!timestamp) {
-    return "无";
-  }
-
-  return new Date(timestamp).toLocaleTimeString();
-}
-
-function formatExecutionDuration(
-  startedAt: number | null,
-  finishedAt: number | null
-): string {
-  if (!startedAt || !finishedAt) {
-    return "0 ms";
-  }
-
-  return `${Math.max(0, finishedAt - startedAt)} ms`;
-}
-
-function formatRuntimeStatusLabel(
-  status: GraphViewportRuntimeHistoryStatus | null | undefined
-): string {
-  switch (status) {
-    case "running":
-      return "运行中";
-    case "success":
-      return "成功";
-    case "error":
-      return "失败";
-    case "skipped":
-      return "未执行";
-    default:
-      return "空闲";
-  }
 }
 
 function formatGraphExecutionStatusLabel(
@@ -357,264 +364,6 @@ function formatGraphExecutionStatusLabel(
     default:
       return "图空闲";
   }
-}
-
-function formatRuntimeTriggerLabel(
-  trigger: LeaferGraphNodeExecutionEvent["trigger"]
-): string {
-  return trigger === "propagated" ? "链路传播" : "主动执行";
-}
-
-function formatRuntimeSourceLabel(
-  source: LeaferGraphNodeExecutionEvent["source"] | null | undefined
-): string {
-  switch (source) {
-    case "graph-play":
-      return "图级 Play";
-    case "graph-step":
-      return "图级 Step";
-    case "node-play":
-      return "节点起跑";
-    default:
-      return "未知来源";
-  }
-}
-
-function formatRuntimeFocusModeLabel(
-  focusMode: GraphViewportRuntimeInspectorState["focusMode"]
-): string {
-  switch (focusMode) {
-    case "selection":
-      return "主选中节点";
-    case "recent-execution":
-      return "最近执行节点";
-    default:
-      return "未锁定节点";
-  }
-}
-
-function formatInspectorValue(value: unknown): string {
-  if (value === undefined) {
-    return "undefined";
-  }
-
-  if (value === null) {
-    return "null";
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-function hasOwnEntries(record: Record<string, unknown> | undefined): boolean {
-  return Boolean(record && Object.keys(record).length);
-}
-
-function formatSlotTypeLabel(type: unknown): string {
-  if (type === undefined) {
-    return "any";
-  }
-
-  return String(type);
-}
-
-function resolveRuntimeHistorySummary(
-  source: LeaferGraphNodeExecutionEvent["source"],
-  status: GraphViewportRuntimeHistoryStatus,
-  trigger: LeaferGraphNodeExecutionEvent["trigger"],
-  errorMessage: string | null
-): string {
-  const sourceLabel = formatRuntimeSourceLabel(source);
-  const triggerLabel = formatRuntimeTriggerLabel(trigger);
-
-  switch (status) {
-    case "running":
-      return `${sourceLabel}触发，${triggerLabel}已进入执行中。`;
-    case "success":
-      return `${sourceLabel}触发成功，${triggerLabel}结果已经写回运行时。`;
-    case "error":
-      return errorMessage
-        ? `${sourceLabel}触发失败：${errorMessage}`
-        : `${sourceLabel}触发失败，请查看控制台日志。`;
-    case "skipped":
-      return "这次执行没有命中可用的 onExecute(...)。";
-    default:
-      return "当前节点还没有执行记录。";
-  }
-}
-
-function createRuntimeHistoryEntryFromEvent(
-  event: LeaferGraphNodeExecutionEvent
-): GraphViewportRuntimeHistoryEntry {
-  return {
-    id: `${event.chainId}:${event.sequence}:${event.nodeId}:${event.state.status}`,
-    chainId: event.chainId,
-    rootNodeId: event.rootNodeId,
-    rootNodeTitle: event.rootNodeTitle,
-    rootNodeType: event.rootNodeType,
-    nodeId: event.nodeId,
-    nodeTitle: event.nodeTitle,
-    nodeType: event.nodeType,
-    depth: event.depth,
-    sequence: event.sequence,
-    status: event.state.status,
-    source: event.source,
-    trigger: event.trigger,
-    summary: resolveRuntimeHistorySummary(
-      event.source,
-      event.state.status,
-      event.trigger,
-      event.state.lastErrorMessage ?? null
-    ),
-    timestamp: event.timestamp,
-    runCount: event.state.runCount,
-    errorMessage: event.state.lastErrorMessage ?? null
-  };
-}
-
-function appendRuntimeHistoryEntry(
-  entries: readonly GraphViewportRuntimeHistoryEntry[],
-  entry: GraphViewportRuntimeHistoryEntry
-): GraphViewportRuntimeHistoryEntry[] {
-  return [entry, ...entries].slice(0, MAX_RUNTIME_HISTORY_ENTRIES);
-}
-
-function resolveRuntimeChainStatus(
-  entries: readonly GraphViewportRuntimeHistoryEntry[]
-): GraphViewportRuntimeHistoryStatus {
-  if (entries.some((entry) => entry.status === "error")) {
-    return "error";
-  }
-
-  if (entries.some((entry) => entry.status === "running")) {
-    return "running";
-  }
-
-  if (entries.some((entry) => entry.status === "success")) {
-    return "success";
-  }
-
-  return "skipped";
-}
-
-function groupRuntimeHistoryEntries(
-  entries: readonly GraphViewportRuntimeHistoryEntry[]
-): GraphViewportRuntimeChainGroup[] {
-  const chainMap = new Map<string, GraphViewportRuntimeChainGroup>();
-  const orderedChains: GraphViewportRuntimeChainGroup[] = [];
-
-  for (const entry of entries) {
-    let chain = chainMap.get(entry.chainId);
-
-    if (!chain) {
-      chain = {
-        chainId: entry.chainId,
-        rootNodeId: entry.rootNodeId,
-        rootNodeTitle: entry.rootNodeTitle,
-        rootNodeType: entry.rootNodeType,
-        source: entry.source,
-        status: entry.status,
-        startedAt: entry.timestamp,
-        finishedAt: entry.timestamp,
-        stepCount: 0,
-        maxDepth: entry.depth,
-        successCount: 0,
-        errorCount: 0,
-        skippedCount: 0,
-        directCount: 0,
-        propagatedCount: 0,
-        latestEntry: null,
-        entries: []
-      };
-      chainMap.set(entry.chainId, chain);
-      orderedChains.push(chain);
-    }
-
-    chain.startedAt = Math.min(chain.startedAt, entry.timestamp);
-    chain.finishedAt = Math.max(chain.finishedAt, entry.timestamp);
-    chain.stepCount += 1;
-    chain.maxDepth = Math.max(chain.maxDepth, entry.depth);
-    chain.entries.push(entry);
-    chain.source = entry.source;
-
-    if (entry.status === "success") {
-      chain.successCount += 1;
-    } else if (entry.status === "error") {
-      chain.errorCount += 1;
-    } else if (entry.status === "skipped") {
-      chain.skippedCount += 1;
-    }
-
-    if (entry.trigger === "direct") {
-      chain.directCount += 1;
-    } else {
-      chain.propagatedCount += 1;
-    }
-  }
-
-  for (const chain of orderedChains) {
-    chain.entries.sort(
-      (left, right) =>
-        left.sequence - right.sequence || left.timestamp - right.timestamp
-    );
-    chain.status = resolveRuntimeChainStatus(chain.entries);
-    chain.latestEntry = chain.entries[chain.entries.length - 1] ?? null;
-  }
-
-  return orderedChains.slice(0, MAX_RUNTIME_CHAIN_GROUPS);
-}
-
-function groupRuntimeFailureEntries(
-  entries: readonly GraphViewportRuntimeHistoryEntry[]
-): GraphViewportRuntimeFailureGroup[] {
-  const groups = new Map<string, GraphViewportRuntimeFailureGroup>();
-
-  for (const entry of entries) {
-    if (entry.status !== "error") {
-      continue;
-    }
-
-    const group = groups.get(entry.nodeId);
-    if (!group) {
-      groups.set(entry.nodeId, {
-        nodeId: entry.nodeId,
-        nodeTitle: entry.nodeTitle,
-        nodeType: entry.nodeType,
-        failureCount: 1,
-        latestTimestamp: entry.timestamp,
-        latestErrorMessage: entry.errorMessage,
-        latestSource: entry.source,
-        latestTrigger: entry.trigger
-      });
-      continue;
-    }
-
-    group.failureCount += 1;
-
-    if (entry.timestamp >= group.latestTimestamp) {
-      group.nodeTitle = entry.nodeTitle;
-      group.nodeType = entry.nodeType;
-      group.latestTimestamp = entry.timestamp;
-      group.latestErrorMessage = entry.errorMessage;
-      group.latestSource = entry.source;
-      group.latestTrigger = entry.trigger;
-    }
-  }
-
-  return [...groups.values()]
-    .sort((left, right) => right.latestTimestamp - left.latestTimestamp)
-    .slice(0, MAX_RUNTIME_FAILURE_ENTRIES);
 }
 
 /**
@@ -756,13 +505,20 @@ function intersectsWorldBounds(
  * 除了负责图初始化，这里也承担画布背景与 editor 主题同步的职责。
  */
 export function GraphViewport({
-  graph: graphData,
+  document: documentData,
   modules,
   plugins,
+  createDocumentSessionBinding,
+  runtimeFeedbackInlet,
+  runtimeController,
+  runtimeControlMode = "local",
+  onHostBridgeChange,
   quickCreateNodeType,
   theme,
   onEditorToolbarControlsChange,
-  onGraphRuntimeControlsChange
+  onGraphRuntimeControlsChange,
+  onRemoteRuntimeControlNoticeChange,
+  onWorkspaceStateChange
 }: GraphViewportProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const selectionBoxRef = useRef<HTMLDivElement | null>(null);
@@ -773,6 +529,13 @@ export function GraphViewport({
     );
   const [nodeInspectorState, setNodeInspectorState] =
     useState<LeaferGraphNodeInspectorState | null>(null);
+  const [selectionSnapshot, setSelectionSnapshot] = useState<{
+    nodeIds: string[];
+    primaryNodeId: string | null;
+  }>({
+    nodeIds: [],
+    primaryNodeId: null
+  });
   const [runtimeHistoryEntries, setRuntimeHistoryEntries] = useState<
     GraphViewportRuntimeHistoryEntry[]
   >([]);
@@ -780,8 +543,18 @@ export function GraphViewport({
     useState<GraphViewportGraphExecutionSnapshot>(() =>
       createIdleGraphExecutionState()
     );
+  const [workspaceDocument, setWorkspaceDocument] = useState<GraphDocument>(
+    () => documentData
+  );
+  const runtimeCollectionsProjectorRef = useRef(
+    createGraphViewportRuntimeCollectionsProjector()
+  );
   const themeRef = useRef(theme);
   themeRef.current = theme;
+
+  useEffect(() => {
+    setWorkspaceDocument(documentData);
+  }, [documentData]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -806,7 +579,7 @@ export function GraphViewport({
     setGraphExecutionState(createIdleGraphExecutionState());
 
     const graph = createLeaferGraph(host, {
-      graph: graphData,
+      document: documentData,
       modules,
       plugins,
       fill: resolveGraphViewportBackground(themeRef.current),
@@ -818,19 +591,18 @@ export function GraphViewport({
       }
     });
     graphRef.current = graph;
-    onGraphRuntimeControlsChange?.({
-      available: false,
-      executionState: graph.getGraphExecutionState(),
-      play: () => {
-        graph.play();
-      },
-      step: () => {
-        graph.step();
-      },
-      stop: () => {
-        graph.stop();
-      }
+    const documentSessionBinding = (
+      createDocumentSessionBinding ??
+      createLoopbackGraphDocumentSessionBinding
+    )({
+      graph,
+      document: documentData
     });
+    const documentSession = documentSessionBinding.session;
+    const activeDocument = documentSession.currentDocument;
+    let projectedDocument = activeDocument;
+    let latestGraphExecutionState = graph.getGraphExecutionState();
+    setWorkspaceDocument(activeDocument);
     const selection = createEditorNodeSelection(graph);
     const ownerWindow = host.ownerDocument.defaultView ?? window;
     let latestExecution: EditorCommandExecution | null = null;
@@ -856,32 +628,197 @@ export function GraphViewport({
     let commandHistory!: EditorCommandHistory;
     let disposed = false;
     let syncEditorToolbarControls = (): void => {};
-    const syncGraphRuntimeControls = (): void => {
+    const isRuntimeControlAvailable = (): boolean =>
+      graphReady && (runtimeControlMode === "local" || Boolean(runtimeController));
+    const resolveLocalNodePlayState = (
+      nodeId: string
+    ): {
+      disabled: boolean;
+      description: string;
+    } => {
+      if (!graphReady) {
+        return {
+          disabled: true,
+          description: "图初始化完成后可用"
+        };
+      }
+
+      if (!graph.getNodeSnapshot(nodeId)) {
+        return {
+          disabled: true,
+          description: "节点不存在"
+        };
+      }
+
+      const executionState = graph.getNodeExecutionState(nodeId);
+      if (!executionState || executionState.status === "idle") {
+        return {
+          disabled: false,
+          description:
+            "从当前节点开始运行正式执行链；若节点未实现 onExecute(...) 则不会产生运行结果"
+        };
+      }
+
+      if (executionState.status === "running") {
+        return {
+          disabled: false,
+          description: `节点正在执行中，当前累计执行 ${executionState.runCount} 次`
+        };
+      }
+
+      if (executionState.status === "success") {
+        return {
+          disabled: false,
+          description: `最近一次执行成功，当前累计执行 ${executionState.runCount} 次`
+        };
+      }
+
+      return {
+        disabled: false,
+        description: executionState.lastErrorMessage
+          ? `最近一次执行失败：${executionState.lastErrorMessage}`
+          : "最近一次执行失败，请查看节点信号灯或控制台日志"
+      };
+    };
+    const resolveNodePlayState = (
+      nodeId: string
+    ): {
+      disabled: boolean;
+      description: string;
+    } => {
+      if (runtimeControlMode === "remote") {
+        if (!graphReady) {
+          return {
+            disabled: true,
+            description: "图初始化完成后可用"
+          };
+        }
+
+        if (!graph.getNodeSnapshot(nodeId)) {
+          return {
+            disabled: true,
+            description: "节点不存在"
+          };
+        }
+
+        if (!runtimeController) {
+          return {
+            disabled: true,
+            description: "当前 authority 不支持远端运行控制"
+          };
+        }
+
+        return {
+          disabled: false,
+          description: "通过 authority 从当前节点开始运行一条执行链"
+        };
+      }
+
+      return resolveLocalNodePlayState(nodeId);
+    };
+    const syncGraphRuntimeControls = (
+      nextGraphExecutionState: GraphViewportGraphExecutionSnapshot = latestGraphExecutionState
+    ): void => {
       if (disposed) {
         return;
       }
 
-      const nextGraphExecutionState = graph.getGraphExecutionState();
+      latestGraphExecutionState = nextGraphExecutionState;
       setGraphExecutionState(nextGraphExecutionState);
       onGraphRuntimeControlsChange?.({
-        available: graphReady,
+        available: isRuntimeControlAvailable(),
         executionState: nextGraphExecutionState,
-        play: () => {
-          graph.play();
-        },
-        step: () => {
-          graph.step();
-        },
-        stop: () => {
-          graph.stop();
-        }
+        play: playGraph,
+        step: stepGraph,
+        stop: stopGraph
       });
     };
+    const requestRemoteRuntimeControl = (
+      request: EditorRemoteAuthorityRuntimeControlRequest
+    ): void => {
+      if (!runtimeController) {
+        return;
+      }
+
+      void runtimeController
+        .controlRuntime(request)
+        .then((result) => {
+          if (disposed) {
+            return;
+          }
+
+          if (result.state) {
+            syncGraphRuntimeControls(result.state);
+          }
+
+          onRemoteRuntimeControlNoticeChange?.(
+            resolveRemoteRuntimeControlNotice({
+              request,
+              result
+            })
+          );
+        })
+        .catch((error: unknown) => {
+          if (disposed) {
+            return;
+          }
+
+          onRemoteRuntimeControlNoticeChange?.(
+            resolveRemoteRuntimeControlNotice({
+              request,
+              error
+            })
+          );
+        });
+    };
+    const playGraph = (): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "graph.play" });
+        return;
+      }
+
+      graph.play();
+    };
+    const stepGraph = (): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "graph.step" });
+        return;
+      }
+
+      graph.step();
+    };
+    const stopGraph = (): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "graph.stop" });
+        return;
+      }
+
+      graph.stop();
+    };
+    const playNode = (nodeId: string): void => {
+      if (runtimeControlMode === "remote") {
+        requestRemoteRuntimeControl({ type: "node.play", nodeId });
+        return;
+      }
+
+      graph.playFromNode(nodeId);
+    };
+    onGraphRuntimeControlsChange?.({
+      available: false,
+      executionState: latestGraphExecutionState,
+      play: playGraph,
+      step: stepGraph,
+      stop: stopGraph
+    });
     const syncInfoPanelState = (): void => {
       if (disposed) {
         return;
       }
 
+      setSelectionSnapshot({
+        nodeIds: [...selection.selectedNodeIds],
+        primaryNodeId: selection.primarySelectedNodeId
+      });
       setRuntimeInspectorState(
         resolveRuntimeInspectorState(
           graph,
@@ -894,8 +831,7 @@ export function GraphViewport({
         resolveNodeInspectorState(
           graph,
           selection,
-          latestRuntimeExecution,
-          latestExecution
+          latestRuntimeExecution
         )
       );
     };
@@ -903,38 +839,61 @@ export function GraphViewport({
       syncInfoPanelState();
       syncEditorToolbarControls();
     });
-    const disposeNodeExecutionSubscription = graph.subscribeNodeExecution(
-      (event) => {
-        latestRuntimeExecution = event;
-        setRuntimeHistoryEntries((entries) =>
-          appendRuntimeHistoryEntry(entries, createRuntimeHistoryEntryFromEvent(event))
-        );
-        syncInfoPanelState();
-        syncEditorToolbarControls();
+    const handleRuntimeFeedback = (feedback: RuntimeFeedbackEvent): void => {
+      documentSessionBinding.handleRuntimeFeedback(feedback);
+
+      switch (feedback.type) {
+        case "node.execution": {
+          onRemoteRuntimeControlNoticeChange?.(null);
+          const event = feedback.event;
+          latestRuntimeExecution = event;
+          setRuntimeHistoryEntries((entries) =>
+            appendRuntimeHistoryEntry(entries, createRuntimeHistoryEntryFromEvent(event))
+          );
+          syncInfoPanelState();
+          syncEditorToolbarControls();
+          return;
+        }
+        case "graph.execution": {
+          onRemoteRuntimeControlNoticeChange?.(null);
+          syncGraphRuntimeControls(feedback.event.state);
+          return;
+        }
+        case "node.state": {
+          const event = feedback.event;
+          if (!event.exists) {
+            selection.clearIfContains(event.nodeId);
+          }
+
+          if (
+            shouldSyncInspectorForNodeState(
+              graph,
+              event,
+              selection,
+              latestRuntimeExecution
+            )
+          ) {
+            syncInfoPanelState();
+          }
+
+          syncEditorToolbarControls();
+          return;
+        }
+        case "link.propagation":
+          return;
       }
+    };
+    const disposeLocalRuntimeFeedbackSubscription = graph.subscribeRuntimeFeedback(
+      handleRuntimeFeedback
     );
-    const disposeGraphExecutionSubscription = graph.subscribeGraphExecution(() => {
-      syncGraphRuntimeControls();
-    });
-    const disposeNodeStateSubscription = graph.subscribeNodeState((event) => {
-      if (!event.exists) {
-        selection.clearIfContains(event.nodeId);
-      }
+    const disposeExternalRuntimeFeedbackSubscription =
+      runtimeFeedbackInlet?.subscribe((feedback) => {
+        if (disposed) {
+          return;
+        }
 
-      if (
-        shouldSyncInspectorForNodeState(
-          graph,
-          event,
-          selection,
-          latestRuntimeExecution,
-          latestExecution
-        )
-      ) {
-        syncInfoPanelState();
-      }
-
-      syncEditorToolbarControls();
-    });
+        graph.projectRuntimeFeedback(feedback);
+      }) ?? (() => {});
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
       if (!selectionBox) {
@@ -1131,6 +1090,18 @@ export function GraphViewport({
 
       return lastPointerPagePoint;
     };
+    /** 读取当前画布可视区中心对应的 page 坐标。 */
+    const resolveViewportCenterPagePoint = (): { x: number; y: number } | null => {
+      const hostRect = host.getBoundingClientRect();
+      if (hostRect.width <= 0 || hostRect.height <= 0) {
+        return null;
+      }
+
+      return resolvePagePointByClient(
+        hostRect.left + hostRect.width / 2,
+        hostRect.top + hostRect.height / 2
+      );
+    };
     /** 清理当前重连会话的预览线、高亮与鼠标样式。 */
     const clearReconnectSession = (): void => {
       reconnectState = null;
@@ -1318,16 +1289,116 @@ export function GraphViewport({
 
       selection.select(nodeId);
     };
-    const pasteCopiedNodeAtLatestPointer = (): void => {
-      const pointerPagePoint = resolveLatestPointerPagePoint();
-      commandBus.execute({
-        type: "clipboard.paste",
-        point: pointerPagePoint
-      });
-    };
     /** 统一从命令状态读取快捷键是否可触发，避免 GraphViewport 自己维护第二套禁用判断。 */
     const isCommandShortcutEnabled = (request: EditorCommandRequest): boolean =>
       !commandBus.resolveCommandState(request).disabled;
+    const serializeCommandClipboardPayload = (): string | null => {
+      const payload = commandBus.clipboard?.payload;
+      return payload ? serializeLeaferGraphClipboardPayload(payload) : null;
+    };
+    const prepareClipboardWriteText = (
+      request: Extract<
+        EditorCommandRequest,
+        | { type: "clipboard.copy-node" }
+        | { type: "clipboard.copy-selection" }
+        | { type: "clipboard.cut-selection" }
+        | { type: "selection.copy" }
+      >
+    ): string | null => {
+      const execution = commandBus.execute(request);
+      if (!execution.success) {
+        return null;
+      }
+
+      const text = serializeCommandClipboardPayload();
+      if (!text) {
+        return null;
+      }
+
+      return text;
+    };
+    const executeClipboardWriteRequest = (
+      request: Extract<
+        EditorCommandRequest,
+        | { type: "clipboard.copy-node" }
+        | { type: "clipboard.copy-selection" }
+        | { type: "clipboard.cut-selection" }
+        | { type: "selection.copy" }
+      >
+    ): string | null => {
+      const text = prepareClipboardWriteText(request);
+      if (!text) {
+        return null;
+      }
+
+      void writeBrowserClipboardText(ownerWindow, text);
+      return text;
+    };
+    /**
+     * 键盘复制/剪切优先显式写系统剪贴板，
+     * 避免跨工作区切换时继续依赖浏览器对原生 clipboard 事件的隐式提交时机。
+     */
+    const executeKeyboardClipboardWriteRequest = async (
+      request: Extract<
+        EditorCommandRequest,
+        | { type: "clipboard.copy-node" }
+        | { type: "clipboard.copy-selection" }
+        | { type: "clipboard.cut-selection" }
+        | { type: "selection.copy" }
+      >
+    ): Promise<void> => {
+      const text = prepareClipboardWriteText(request);
+      if (!text) {
+        return;
+      }
+
+      await writeBrowserClipboardText(ownerWindow, text);
+    };
+    const resolveClipboardPayloadFromText = (
+      text: string | null | undefined
+    ) => (text ? parseLeaferGraphClipboardPayload(text) : null);
+    const executeClipboardPasteRequest = async (
+      point: { x: number; y: number } | null,
+      preferredText?: string | null
+    ): Promise<void> => {
+      const payloadFromEvent = resolveClipboardPayloadFromText(preferredText);
+      const payload =
+        payloadFromEvent ??
+        resolveClipboardPayloadFromText(
+          await readBrowserClipboardText(ownerWindow)
+        );
+
+      if (disposed) {
+        return;
+      }
+
+      if (payload) {
+        commandBus.setClipboardPayload(payload);
+      }
+
+      commandBus.execute({
+        type: "clipboard.paste",
+        point
+      });
+    };
+    const executeUiCommand = (request: EditorCommandRequest): void => {
+      switch (request.type) {
+        case "clipboard.copy-node":
+        case "clipboard.copy-selection":
+        case "clipboard.cut-selection":
+        case "selection.copy":
+          executeClipboardWriteRequest(request);
+          return;
+        case "clipboard.paste":
+          void executeClipboardPasteRequest(request.point);
+          return;
+        default:
+          commandBus.execute(request);
+      }
+    };
+    const pasteCopiedNodeAtLatestPointer = (): void => {
+      void executeClipboardPasteRequest(resolveLatestPointerPagePoint());
+    };
     const pasteCopiedNodeByKeyboard = (): void => {
       if (!isCommandShortcutEnabled({ type: "clipboard.paste", point: null })) {
         return;
@@ -1353,7 +1424,7 @@ export function GraphViewport({
         return;
       }
 
-      commandBus.execute(request);
+      executeUiCommand(request);
     };
     menu = createLeaferGraphContextMenu({
       app: graph.app,
@@ -1362,6 +1433,11 @@ export function GraphViewport({
         graph,
         selection,
         resolveCommandBus: () => commandBus,
+        executeUiCommand,
+        resolveNodePlayState,
+        onPlayNode(nodeId) {
+          playNode(nodeId);
+        },
         onRemoveLink(linkId) {
           commandBus.execute({ type: "link.remove", linkId });
           scheduleLinkContextMenuSync();
@@ -1387,7 +1463,7 @@ export function GraphViewport({
       boundNodeIds.delete(nodeId);
       menu.unbindTarget(createNodeMenuBindingKey(nodeId));
     };
-    const bindEditorLink = (link: LeaferGraphLinkData): void => {
+    const bindEditorLink = (link: GraphLink): void => {
       boundLinkIds.add(link.id);
       bindLinkContextMenu(graph, menu, link);
     };
@@ -1395,8 +1471,60 @@ export function GraphViewport({
       boundLinkIds.delete(linkId);
       menu.unbindTarget(createLinkMenuBindingKey(linkId));
     };
-    const collectCurrentLinks = (): LeaferGraphLinkData[] => {
-      const linkMap = new Map<string, LeaferGraphLinkData>();
+    const syncNodeBindingsFromDocument = (document: GraphDocument): void => {
+      const nextNodeIds = new Set(document.nodes.map((node) => node.id));
+
+      for (const nodeId of [...boundNodeIds]) {
+        if (!nextNodeIds.has(nodeId)) {
+          unbindEditorNode(nodeId);
+        }
+      }
+
+      for (const node of document.nodes) {
+        bindEditorNode({
+          id: node.id,
+          title: node.title ?? node.id,
+          type: node.type
+        });
+      }
+    };
+    const syncLinkBindingsFromDocument = (document: GraphDocument): void => {
+      const nextLinkIds = new Set(document.links.map((link) => link.id));
+
+      for (const linkId of [...boundLinkIds]) {
+        if (!nextLinkIds.has(linkId)) {
+          unbindEditorLink(linkId);
+        }
+      }
+
+      for (const link of document.links) {
+        bindEditorLink(link);
+      }
+    };
+    const syncAuthoritativeDocumentProjection = (
+      document: GraphDocument
+    ): void => {
+      projectedDocument = document;
+      if (!graphReady || disposed) {
+        return;
+      }
+
+      graph.replaceGraphDocument(document);
+      syncNodeBindingsFromDocument(document);
+      syncLinkBindingsFromDocument(document);
+
+      const nextSelectedNodeIds = selection.selectedNodeIds.filter((nodeId) =>
+        document.nodes.some((node) => node.id === nodeId)
+      );
+      if (nextSelectedNodeIds.length !== selection.selectedNodeIds.length) {
+        selection.setMany(nextSelectedNodeIds);
+      }
+
+      syncInfoPanelState();
+      syncEditorToolbarControls();
+    };
+    const collectCurrentLinks = (): GraphLink[] => {
+      const linkMap = new Map<string, GraphLink>();
 
       for (const nodeId of boundNodeIds) {
         for (const link of graph.findLinksByNode(nodeId)) {
@@ -1436,26 +1564,114 @@ export function GraphViewport({
         syncLinkContextMenus();
       });
     };
+    const disposeDocumentProjectionSubscription = documentSession.subscribe(
+      (document) => {
+        if (disposed) {
+          return;
+        }
+
+        setWorkspaceDocument(document);
+        if (documentSessionBinding.projectsSessionDocument) {
+          syncAuthoritativeDocumentProjection(document);
+        }
+      }
+    );
+    const handleRecordedExecution = (execution: EditorCommandExecution): void => {
+      documentSessionBinding.handleCommandExecution(execution);
+      latestExecution = execution;
+      commandHistory.record(execution);
+      scheduleLinkContextMenuSync();
+      syncInfoPanelState();
+      syncEditorToolbarControls();
+    };
     commandHistory = createEditorCommandHistory({
       graph,
+      session: documentSession,
       selection,
       bindNode: bindEditorNode,
-      unbindNode: unbindEditorNode
+      unbindNode: unbindEditorNode,
+      onDidChange: () => {
+        syncEditorToolbarControls();
+      }
     });
     commandBus = createEditorCommandBus({
       graph,
+      session: documentSession,
       selection,
       bindNode: bindEditorNode,
       unbindNode: unbindEditorNode,
       quickCreateNodeType,
       isRuntimeReady: () => graphReady,
       onAfterFitView: schedulePointerWorldPointRefresh,
+      resolveLastPointerPagePoint: resolveLatestPointerPagePoint,
+      resolveViewportCenterPagePoint,
       onDidExecute(execution) {
-        latestExecution = execution;
-        commandHistory.record(execution);
-        scheduleLinkContextMenuSync();
-        syncInfoPanelState();
-        syncEditorToolbarControls();
+        handleRecordedExecution(execution);
+      }
+    });
+    const interactionCommitBridge = createGraphInteractionCommitBridge({
+      session: documentSession,
+      rollbackToAuthorityDocument: () => {
+        syncAuthoritativeDocumentProjection(documentSession.currentDocument);
+      }
+    });
+    const disposeInteractionCommitSubscription = graph.subscribeInteractionCommit(
+      (event) => {
+        const execution = interactionCommitBridge.submit(event);
+        if (!execution) {
+          return;
+        }
+
+        handleRecordedExecution(execution);
+      }
+    );
+    onHostBridgeChange?.({
+      graph,
+      executeCommand(request: EditorCommandRequest): EditorCommandExecution {
+        return commandBus.execute(request);
+      },
+      submitOperationWithAuthority(
+        operation: GraphOperation
+      ): EditorGraphOperationSubmission {
+        return documentSession.submitOperationWithAuthority(operation);
+      },
+      resyncAuthorityDocument(
+        options?: EditorGraphDocumentResyncOptions
+      ): Promise<GraphDocument> {
+        return documentSession.resyncAuthorityDocument
+          ? documentSession.resyncAuthorityDocument(options)
+          : Promise.resolve(documentSession.currentDocument);
+      },
+      replaceDocument(document: GraphDocument): void {
+        documentSessionBinding.replaceDocument(document);
+      },
+      getCurrentDocument(): GraphDocument {
+        return documentSession.currentDocument;
+      },
+      subscribeDocument(listener: (document: GraphDocument) => void): () => void {
+        return documentSession.subscribe(listener);
+      },
+      getPendingOperationIds(): readonly string[] {
+        return documentSession.pendingOperationIds;
+      },
+      subscribePending(
+        listener: (pendingOperationIds: readonly string[]) => void
+      ): () => void {
+        return documentSession.subscribePending(listener);
+      },
+      subscribeOperationConfirmation(
+        listener: (confirmation: EditorGraphOperationAuthorityConfirmation) => void
+      ): () => void {
+        return documentSession.subscribeOperationConfirmation(listener);
+      },
+      getSelectedNodeIds(): readonly string[] {
+        return [...selection.selectedNodeIds];
+      },
+      getNodeSnapshot(nodeId: string) {
+        return graph.getNodeSnapshot(nodeId);
+      },
+      getLink(linkId: string): GraphLink | undefined {
+        return graph.getLink(linkId);
       }
     });
     const executeEditorToolbarAction = (
@@ -1484,7 +1700,7 @@ export function GraphViewport({
           fitGraphView();
           return;
         case "select-all":
-          commandBus.execute({
+          executeUiCommand({
             type: "selection.select-all",
             nodeIds: [...boundNodeIds]
           });
@@ -1493,16 +1709,16 @@ export function GraphViewport({
           pasteCopiedNodeByKeyboard();
           return;
         case "copy":
-          commandBus.execute({ type: "selection.copy" });
+          executeUiCommand({ type: "selection.copy" });
           return;
         case "cut":
-          commandBus.execute({ type: "clipboard.cut-selection" });
+          executeUiCommand({ type: "clipboard.cut-selection" });
           return;
         case "duplicate":
-          commandBus.execute({ type: "selection.duplicate" });
+          executeUiCommand({ type: "selection.duplicate" });
           return;
         case "delete":
-          commandBus.execute({ type: "selection.remove" });
+          executeUiCommand({ type: "selection.remove" });
           return;
       }
     };
@@ -1634,17 +1850,12 @@ export function GraphViewport({
       }
 
       graphReady = true;
-      syncGraphRuntimeControls();
-
-      for (const node of graphData.nodes) {
-        bindEditorNode({
-          id: node.id,
-          title: node.title ?? node.id,
-          type: node.type
-        });
+      if (runtimeControlMode !== "remote") {
+        onRemoteRuntimeControlNoticeChange?.(null);
       }
-
-      syncLinkContextMenus();
+      syncGraphRuntimeControls();
+      syncNodeBindingsFromDocument(projectedDocument);
+      syncLinkBindingsFromDocument(projectedDocument);
       syncInfoPanelState();
       syncEditorToolbarControls();
     });
@@ -1896,7 +2107,7 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
+        executeUiCommand(request);
         return;
       }
 
@@ -1953,7 +2164,42 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
+        void executeKeyboardClipboardWriteRequest(request);
+        return;
+      }
+
+      if (key === "x") {
+        if (event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = {
+          type: "clipboard.cut-selection"
+        };
+        if (!isCommandShortcutEnabled(request)) {
+          return;
+        }
+
+        event.preventDefault();
+        void executeKeyboardClipboardWriteRequest(request);
+        return;
+      }
+
+      if (key === "v") {
+        if (event.shiftKey) {
+          return;
+        }
+
+        const request: EditorCommandRequest = {
+          type: "clipboard.paste",
+          point: null
+        };
+        if (!isCommandShortcutEnabled(request)) {
+          return;
+        }
+
+        event.preventDefault();
+        pasteCopiedNodeByKeyboard();
         return;
       }
 
@@ -1971,24 +2217,7 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
-        return;
-      }
-
-      if (key === "x") {
-        if (event.shiftKey) {
-          return;
-        }
-
-        const request: EditorCommandRequest = {
-          type: "clipboard.cut-selection"
-        };
-        if (!isCommandShortcutEnabled(request)) {
-          return;
-        }
-
-        event.preventDefault();
-        commandBus.execute(request);
+        executeUiCommand(request);
         return;
       }
 
@@ -2003,22 +2232,68 @@ export function GraphViewport({
         }
 
         event.preventDefault();
-        commandBus.execute(request);
+        executeUiCommand(request);
+      }
+    };
+    const handleNativeCopy = (event: ClipboardEvent): void => {
+      if (isTextEditingElement(event.target)) {
         return;
       }
 
-      if (key === "v") {
-        if (event.shiftKey) {
-          return;
-        }
-
-        if (!isCommandShortcutEnabled({ type: "clipboard.paste", point: null })) {
-          return;
-        }
-
-        event.preventDefault();
-        pasteCopiedNodeByKeyboard();
+      const request: EditorCommandRequest = { type: "selection.copy" };
+      if (!isCommandShortcutEnabled(request)) {
+        return;
       }
+
+      event.preventDefault();
+      const text = executeClipboardWriteRequest(request);
+      if (text) {
+        event.clipboardData?.setData("text/plain", text);
+      }
+    };
+    const handleNativeCut = (event: ClipboardEvent): void => {
+      if (isTextEditingElement(event.target)) {
+        return;
+      }
+
+      const request: EditorCommandRequest = {
+        type: "clipboard.cut-selection"
+      };
+      if (!isCommandShortcutEnabled(request)) {
+        return;
+      }
+
+      event.preventDefault();
+      const text = executeClipboardWriteRequest(request);
+      if (text) {
+        event.clipboardData?.setData("text/plain", text);
+      }
+    };
+    const handleNativePaste = (event: ClipboardEvent): void => {
+      if (isTextEditingElement(event.target)) {
+        return;
+      }
+
+      const request: EditorCommandRequest = {
+        type: "clipboard.paste",
+        point: null
+      };
+      if (!isCommandShortcutEnabled(request)) {
+        return;
+      }
+
+      event.preventDefault();
+      const preferredText = event.clipboardData?.getData("text/plain") ?? null;
+      runAfterViewportSettle(() => {
+        if (!isCommandShortcutEnabled(request)) {
+          return;
+        }
+
+        void executeClipboardPasteRequest(
+          resolveLatestPointerPagePoint(),
+          preferredText
+        );
+      });
     };
     const handleWindowKeyUp = (event: KeyboardEvent): void => {
       if (event.code === "Space") {
@@ -2041,6 +2316,9 @@ export function GraphViewport({
     ownerWindow.addEventListener("keydown", handleWindowKeyDown);
     ownerWindow.addEventListener("keyup", handleWindowKeyUp);
     ownerWindow.addEventListener("blur", handleWindowBlur);
+    ownerWindow.document.addEventListener("copy", handleNativeCopy);
+    ownerWindow.document.addEventListener("cut", handleNativeCut);
+    ownerWindow.document.addEventListener("paste", handleNativePaste);
 
     return () => {
       disposed = true;
@@ -2068,73 +2346,125 @@ export function GraphViewport({
       ownerWindow.removeEventListener("keydown", handleWindowKeyDown);
       ownerWindow.removeEventListener("keyup", handleWindowKeyUp);
       ownerWindow.removeEventListener("blur", handleWindowBlur);
+      ownerWindow.document.removeEventListener("copy", handleNativeCopy);
+      ownerWindow.document.removeEventListener("cut", handleNativeCut);
+      ownerWindow.document.removeEventListener("paste", handleNativePaste);
       for (const linkId of [...boundLinkIds]) {
         unbindEditorLink(linkId);
       }
       clearReconnectSession();
       commandHistory.clear();
-      disposeNodeStateSubscription();
-      disposeNodeExecutionSubscription();
-      disposeGraphExecutionSubscription();
+      disposeLocalRuntimeFeedbackSubscription();
+      disposeExternalRuntimeFeedbackSubscription();
+      disposeDocumentProjectionSubscription();
+      disposeInteractionCommitSubscription();
       disposeSelectionSubscription();
+      documentSessionBinding.dispose();
       hideSelectionBox();
       menu.destroy();
+      onHostBridgeChange?.(null);
       onEditorToolbarControlsChange?.(null);
       onGraphRuntimeControlsChange?.(null);
+      onRemoteRuntimeControlNoticeChange?.(null);
+      onWorkspaceStateChange?.(null);
       graphRef.current = null;
       graph.destroy();
     };
   }, [
-    graphData,
+    createDocumentSessionBinding,
+    documentData,
     modules,
     onEditorToolbarControlsChange,
     onGraphRuntimeControlsChange,
+    onHostBridgeChange,
+    onRemoteRuntimeControlNoticeChange,
+    onWorkspaceStateChange,
     plugins,
-    quickCreateNodeType
+    quickCreateNodeType,
+    runtimeControlMode,
+    runtimeController,
+    runtimeFeedbackInlet
   ]);
 
-  const runtimeChainGroups = groupRuntimeHistoryEntries(runtimeHistoryEntries);
-  const runtimeFailureGroups = groupRuntimeFailureEntries(runtimeHistoryEntries);
-  const activeRuntimeChainGroup = runtimeChainGroups[0] ?? null;
-  const activeRuntimeChainLatestEntry = activeRuntimeChainGroup?.latestEntry ?? null;
-  const primaryInspectorStatus =
-    graphExecutionState.status !== "idle"
-      ? graphExecutionState.status
-      : activeRuntimeChainGroup?.status ??
-        runtimeInspectorState.executionState?.status ??
-        "idle";
-  const primaryInspectorStatusLabel =
-    graphExecutionState.status !== "idle"
-      ? formatGraphExecutionStatusLabel(graphExecutionState.status)
-      : formatRuntimeStatusLabel(
-          activeRuntimeChainGroup?.status ??
-            runtimeInspectorState.executionState?.status ??
-            "idle"
-        );
-  const runtimePanelLead =
-    graphExecutionState.status !== "idle"
-      ? "当前正在跟随图级运行状态，可同时检查最新执行链和焦点节点快照。"
-      : activeRuntimeChainGroup
-        ? "当前默认展开最近一次执行链，右侧已按“运行概览 / 执行链 / 失败聚合 / 节点快照”收敛。"
-        : runtimeInspectorState.focusNodeId
-          ? "当前没有活动运行，面板会继续保留焦点节点快照与最近命令信息。"
-          : "当前还没有执行记录，先点击顶栏 Play / Step，或从节点菜单里直接起跑一个节点。";
-  const runtimeOverviewLatestRoot =
-    activeRuntimeChainGroup?.rootNodeTitle ?? "无";
-  const runtimeOverviewLatestDuration = activeRuntimeChainGroup
-    ? formatExecutionDuration(
-        activeRuntimeChainGroup.startedAt,
-        activeRuntimeChainGroup.finishedAt
-      )
-    : "0 ms";
-  const runtimePanelErrorMessage =
-    activeRuntimeChainLatestEntry?.errorMessage ??
-    runtimeInspectorState.executionState?.lastErrorMessage ??
-    null;
-  const nodeLayout = nodeInspectorState?.layout;
-  const nodeFlags = nodeInspectorState?.flags;
-  const nodeProperties = nodeInspectorState?.properties;
-  const nodeData = nodeInspectorState?.data;
+  const runtimeCollections = useMemo(
+    () =>
+      runtimeCollectionsProjectorRef.current(
+        runtimeHistoryEntries,
+        runtimeInspectorState.executionState?.lastErrorMessage ?? null
+      ),
+    [runtimeHistoryEntries, runtimeInspectorState.executionState?.lastErrorMessage]
+  );
+  const runtimeChainGroups = runtimeCollections.recentChains;
+  const runtimeFailureGroups = runtimeCollections.failures;
+  const activeRuntimeChainGroup = runtimeCollections.latestChain;
+  const latestRuntimeErrorMessage = runtimeCollections.latestErrorMessage;
+
+  const workspaceState = useMemo<GraphViewportWorkspaceState>(() => {
+    const selectionCount = selectionSnapshot.nodeIds.length;
+    const inspectorMode =
+      selectionCount === 0 ? "document" : selectionCount === 1 ? "node" : "multi";
+
+    return {
+      selection: {
+        count: selectionCount,
+        nodeIds: selectionSnapshot.nodeIds,
+        primaryNodeId: selectionSnapshot.primaryNodeId
+      },
+      document: {
+        documentId: workspaceDocument.documentId,
+        revision: workspaceDocument.revision,
+        appKind: workspaceDocument.appKind,
+        nodeCount: workspaceDocument.nodes.length,
+        linkCount: workspaceDocument.links.length
+      },
+      inspector: {
+        mode: inspectorMode,
+        focusNodeId: runtimeInspectorState.focusNodeId,
+        focusNodeTitle: runtimeInspectorState.focusNodeTitle,
+        focusNodeType: runtimeInspectorState.focusNodeType,
+        node: inspectorMode === "node" ? nodeInspectorState : null,
+        selectionCount
+      },
+      runtime: {
+        graphExecutionState,
+        focus: runtimeInspectorState,
+        focusNode: nodeInspectorState,
+        recentEntries: runtimeHistoryEntries,
+        recentChains: runtimeChainGroups,
+        latestChain: activeRuntimeChainGroup,
+        failures: runtimeFailureGroups,
+        latestErrorMessage: latestRuntimeErrorMessage
+      },
+      status: {
+        documentLabel: `${workspaceDocument.documentId} @ ${workspaceDocument.revision}`,
+        runtimeLabel: formatGraphExecutionStatusLabel(graphExecutionState.status),
+        runtimeDetailLabel: resolveGraphViewportRuntimeDetailLabel(
+          graphExecutionState,
+          activeRuntimeChainGroup
+        ),
+        selectionLabel:
+          selectionCount > 0 ? `已选 ${selectionCount} 个节点` : "未选择节点",
+        focusLabel: runtimeInspectorState.focusNodeTitle ?? "未命中焦点节点",
+        lastCommandSummary: runtimeInspectorState.lastCommandSummary
+      }
+    };
+  }, [
+    activeRuntimeChainGroup,
+    graphExecutionState,
+    latestRuntimeErrorMessage,
+    nodeInspectorState,
+    runtimeChainGroups,
+    runtimeHistoryEntries,
+    runtimeInspectorState,
+    runtimeFailureGroups,
+    selectionSnapshot.nodeIds,
+    selectionSnapshot.primaryNodeId,
+    workspaceDocument
+  ]);
+
+  useEffect(() => {
+    onWorkspaceStateChange?.(workspaceState);
+  }, [onWorkspaceStateChange, workspaceState]);
 
   return (
     <div class="graph-viewport">
@@ -2147,507 +2477,6 @@ export function GraphViewport({
           aria-hidden="true"
         />
       </div>
-      <aside
-        class="graph-runtime-panel"
-        data-status={primaryInspectorStatus}
-        aria-live="polite"
-      >
-        <p class="graph-runtime-panel__eyebrow">Execution Inspector</p>
-        <div class="graph-runtime-panel__header">
-          <div>
-            <h3>执行检查面板</h3>
-            <p>{runtimePanelLead}</p>
-          </div>
-          <span class="graph-runtime-panel__status" data-status={primaryInspectorStatus}>
-            {primaryInspectorStatusLabel}
-          </span>
-        </div>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>运行概览</h4>
-            <span>图级与焦点摘要</span>
-          </div>
-          <div class="graph-runtime-panel__summary-grid">
-            <article class="graph-runtime-panel__summary-card">
-              <p class="graph-runtime-panel__summary-label">图级状态</p>
-              <strong class="graph-runtime-panel__summary-value">
-                {formatGraphExecutionStatusLabel(graphExecutionState.status)}
-              </strong>
-              <p class="graph-runtime-panel__summary-meta">
-                {graphExecutionState.runId
-                  ? `Run ${graphExecutionState.runId}`
-                  : "等待新的图级运行"}
-              </p>
-            </article>
-            <article class="graph-runtime-panel__summary-card">
-              <p class="graph-runtime-panel__summary-label">焦点节点</p>
-              <strong class="graph-runtime-panel__summary-value">
-                {runtimeInspectorState.focusNodeTitle ?? "未命中"}
-              </strong>
-              <p class="graph-runtime-panel__summary-meta">
-                {formatRuntimeFocusModeLabel(runtimeInspectorState.focusMode)} ·{" "}
-                {runtimeInspectorState.selectionCount || 0} 个节点
-              </p>
-            </article>
-            <article class="graph-runtime-panel__summary-card">
-              <p class="graph-runtime-panel__summary-label">最近检查链</p>
-              <strong class="graph-runtime-panel__summary-value">
-                {runtimeOverviewLatestRoot}
-              </strong>
-              <p class="graph-runtime-panel__summary-meta">
-                {activeRuntimeChainGroup
-                  ? `${runtimeOverviewLatestDuration} · ${activeRuntimeChainGroup.stepCount} 步`
-                  : "当前还没有执行批次"}
-              </p>
-            </article>
-            <article class="graph-runtime-panel__summary-card">
-              <p class="graph-runtime-panel__summary-label">失败聚合</p>
-              <strong class="graph-runtime-panel__summary-value">
-                {runtimeFailureGroups.length} 个节点
-              </strong>
-              <p class="graph-runtime-panel__summary-meta">
-                保留最近 {MAX_RUNTIME_FAILURE_ENTRIES} 个失败节点聚合
-              </p>
-            </article>
-          </div>
-          <dl class="graph-runtime-panel__info">
-            <div>
-              <dt>当前 Run ID</dt>
-              <dd>{graphExecutionState.runId ?? "无"}</dd>
-            </div>
-            <div>
-              <dt>队列长度</dt>
-              <dd>{graphExecutionState.queueSize}</dd>
-            </div>
-            <div>
-              <dt>已推进步数</dt>
-              <dd>{graphExecutionState.stepCount}</dd>
-            </div>
-            <div>
-              <dt>最近启动来源</dt>
-              <dd>
-                {graphExecutionState.lastSource
-                  ? formatRuntimeSourceLabel(graphExecutionState.lastSource)
-                  : "无"}
-              </dd>
-            </div>
-            <div>
-              <dt>最近命令</dt>
-              <dd>{runtimeInspectorState.lastCommandSummary ?? "无"}</dd>
-            </div>
-            <div>
-              <dt>命令时间</dt>
-              <dd>{formatExecutionTimestamp(runtimeInspectorState.lastCommandTimestamp)}</dd>
-            </div>
-            <div>
-              <dt>最近成功</dt>
-              <dd>
-                {formatExecutionTimestamp(
-                  runtimeInspectorState.executionState?.lastSucceededAt ?? null
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>最近失败</dt>
-              <dd>
-                {formatExecutionTimestamp(
-                  runtimeInspectorState.executionState?.lastFailedAt ?? null
-                )}
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        {runtimePanelErrorMessage ? (
-          <p class="graph-runtime-panel__error">{runtimePanelErrorMessage}</p>
-        ) : (
-          <p class="graph-runtime-panel__hint">
-            右侧已经按“运行概览 / 当前检查链 / 失败聚合 / 节点快照”收敛，选中节点后会继续显示 properties、内部数据和 IO 值。
-          </p>
-        )}
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>当前检查链</h4>
-            <span>{activeRuntimeChainGroup ? activeRuntimeChainGroup.chainId : "未命中"}</span>
-          </div>
-          {activeRuntimeChainGroup ? (
-            <>
-              <dl class="graph-runtime-panel__info">
-                <div>
-                  <dt>根节点</dt>
-                  <dd>{activeRuntimeChainGroup.rootNodeTitle}</dd>
-                </div>
-                <div>
-                  <dt>根类型</dt>
-                  <dd>{activeRuntimeChainGroup.rootNodeType ?? "未知类型"}</dd>
-                </div>
-                <div>
-                  <dt>来源</dt>
-                  <dd>{formatRuntimeSourceLabel(activeRuntimeChainGroup.source)}</dd>
-                </div>
-                <div>
-                  <dt>状态</dt>
-                  <dd>{formatRuntimeStatusLabel(activeRuntimeChainGroup.status)}</dd>
-                </div>
-                <div>
-                  <dt>最深层级</dt>
-                  <dd>{activeRuntimeChainGroup.maxDepth}</dd>
-                </div>
-                <div>
-                  <dt>命中步数</dt>
-                  <dd>{activeRuntimeChainGroup.stepCount}</dd>
-                </div>
-                <div>
-                  <dt>持续时间</dt>
-                  <dd>
-                    {formatExecutionDuration(
-                      activeRuntimeChainGroup.startedAt,
-                      activeRuntimeChainGroup.finishedAt
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>最近时间</dt>
-                  <dd>{formatExecutionTimestamp(activeRuntimeChainGroup.finishedAt)}</dd>
-                </div>
-                <div>
-                  <dt>主动执行</dt>
-                  <dd>{activeRuntimeChainGroup.directCount} 次</dd>
-                </div>
-                <div>
-                  <dt>传播命中</dt>
-                  <dd>{activeRuntimeChainGroup.propagatedCount} 次</dd>
-                </div>
-                <div>
-                  <dt>成功 / 失败</dt>
-                  <dd>
-                    {activeRuntimeChainGroup.successCount} / {activeRuntimeChainGroup.errorCount}
-                  </dd>
-                </div>
-                <div>
-                  <dt>最新节点</dt>
-                  <dd>{activeRuntimeChainLatestEntry?.nodeTitle ?? "无"}</dd>
-                </div>
-              </dl>
-              {activeRuntimeChainLatestEntry ? (
-                activeRuntimeChainLatestEntry.errorMessage ? (
-                  <p class="graph-runtime-panel__timeline-error">
-                    {activeRuntimeChainLatestEntry.errorMessage}
-                  </p>
-                ) : (
-                  <p class="graph-runtime-panel__timeline-summary">
-                    {activeRuntimeChainLatestEntry.summary}
-                  </p>
-                )
-              ) : null}
-              <ul class="graph-runtime-panel__chain-steps">
-                {activeRuntimeChainGroup.entries.map((entry) => (
-                  <li
-                    class="graph-runtime-panel__chain-step"
-                    key={`${activeRuntimeChainGroup.chainId}:${entry.sequence}:${entry.nodeId}`}
-                  >
-                    <div class="graph-runtime-panel__timeline-row">
-                      <strong class="graph-runtime-panel__timeline-node">
-                        {entry.sequence + 1}. {entry.nodeTitle}
-                      </strong>
-                      <span
-                        class="graph-runtime-panel__status graph-runtime-panel__status--small"
-                        data-status={entry.status}
-                      >
-                        {formatRuntimeStatusLabel(entry.status)}
-                      </span>
-                    </div>
-                    <p class="graph-runtime-panel__timeline-meta">
-                      depth {entry.depth} · {formatRuntimeSourceLabel(entry.source)} ·{" "}
-                      {formatRuntimeTriggerLabel(entry.trigger)} ·{" "}
-                      {formatExecutionTimestamp(entry.timestamp)} · 第 {entry.runCount} 次
-                    </p>
-                    {entry.errorMessage ? (
-                      <p class="graph-runtime-panel__timeline-error">
-                        {entry.errorMessage}
-                      </p>
-                    ) : (
-                      <p class="graph-runtime-panel__timeline-summary">
-                        {entry.summary}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <p class="graph-runtime-panel__hint">
-              当前还没有执行链，先点击顶栏 Play / Step，或从节点菜单里直接起跑一个节点。
-            </p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>最近执行批次</h4>
-            <span>保留最近 {MAX_RUNTIME_CHAIN_GROUPS} 组</span>
-          </div>
-          {runtimeChainGroups.length ? (
-            <ul class="graph-runtime-panel__chain-list">
-              {runtimeChainGroups.map((chain) => (
-                <li class="graph-runtime-panel__chain-item" key={chain.chainId}>
-                  <div class="graph-runtime-panel__chain-header">
-                    <div>
-                      <strong class="graph-runtime-panel__timeline-node">
-                        {chain.rootNodeTitle}
-                      </strong>
-                      <p class="graph-runtime-panel__timeline-meta">
-                        {chain.rootNodeType ?? "未知类型"} ·{" "}
-                        {formatExecutionTimestamp(chain.finishedAt)}
-                      </p>
-                    </div>
-                    <span
-                      class="graph-runtime-panel__status graph-runtime-panel__status--small"
-                      data-status={chain.status}
-                    >
-                      {formatRuntimeStatusLabel(chain.status)}
-                    </span>
-                  </div>
-                  <p class="graph-runtime-panel__chain-summary">
-                    {formatRuntimeSourceLabel(chain.source)} · {chain.stepCount} 步 · 最深{" "}
-                    {chain.maxDepth} 层 · 主动 {chain.directCount} 次 · 传播{" "}
-                    {chain.propagatedCount} 次 ·{" "}
-                    {formatExecutionDuration(chain.startedAt, chain.finishedAt)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="graph-runtime-panel__hint">
-              当前还没有执行批次，先用图级 Play / Step，或从某个节点开始运行一条链。
-            </p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>失败聚合</h4>
-            <span>{runtimeFailureGroups.length} 个节点</span>
-          </div>
-          {runtimeFailureGroups.length ? (
-            <ul class="graph-runtime-panel__timeline">
-              {runtimeFailureGroups.map((entry) => (
-                <li
-                  class="graph-runtime-panel__timeline-item"
-                  key={`${entry.nodeId}:failure-group`}
-                >
-                  <div class="graph-runtime-panel__timeline-row">
-                    <strong class="graph-runtime-panel__timeline-node">
-                      {entry.nodeTitle}
-                    </strong>
-                    <span
-                      class="graph-runtime-panel__status graph-runtime-panel__status--small"
-                      data-status="error"
-                    >
-                      失败
-                    </span>
-                  </div>
-                  <p class="graph-runtime-panel__timeline-meta">
-                    {entry.nodeType ?? "未知类型"} ·{" "}
-                    {formatRuntimeSourceLabel(entry.latestSource)} ·{" "}
-                    {formatRuntimeTriggerLabel(entry.latestTrigger)} ·{" "}
-                    {formatExecutionTimestamp(entry.latestTimestamp)}
-                  </p>
-                  <p class="graph-runtime-panel__timeline-summary">
-                    累计失败 {entry.failureCount} 次
-                  </p>
-                  {entry.latestErrorMessage ? (
-                    <p class="graph-runtime-panel__timeline-error">
-                      {entry.latestErrorMessage}
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="graph-runtime-panel__hint">当前没有失败聚合记录。</p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>焦点节点快照</h4>
-            <span>{formatRuntimeFocusModeLabel(runtimeInspectorState.focusMode)}</span>
-          </div>
-          {nodeInspectorState ? (
-            <dl class="graph-runtime-panel__info">
-              <div>
-                <dt>ID</dt>
-                <dd>{nodeInspectorState.id}</dd>
-              </div>
-              <div>
-                <dt>标题</dt>
-                <dd>{nodeInspectorState.title}</dd>
-              </div>
-              <div>
-                <dt>类型</dt>
-                <dd>{nodeInspectorState.type}</dd>
-              </div>
-              <div>
-                <dt>选区</dt>
-                <dd>{runtimeInspectorState.selectionCount || 0} 个节点</dd>
-              </div>
-              <div>
-                <dt>焦点来源</dt>
-                <dd>{formatRuntimeFocusModeLabel(runtimeInspectorState.focusMode)}</dd>
-              </div>
-              <div>
-                <dt>位置</dt>
-                <dd>
-                  {nodeLayout ? `${nodeLayout.x}, ${nodeLayout.y}` : "无"}
-                </dd>
-              </div>
-              <div>
-                <dt>尺寸</dt>
-                <dd>
-                  {nodeLayout
-                    ? `${nodeLayout.width ?? "auto"} × ${nodeLayout.height ?? "auto"}`
-                    : "无"}
-                </dd>
-              </div>
-              <div>
-                <dt>Flags</dt>
-                <dd>{nodeFlags ? formatInspectorValue(nodeFlags) : "{}"}</dd>
-              </div>
-              <div>
-                <dt>执行次数</dt>
-                <dd>{nodeInspectorState.executionState.runCount}</dd>
-              </div>
-              <div>
-                <dt>最近成功</dt>
-                <dd>
-                  {formatExecutionTimestamp(
-                    nodeInspectorState.executionState.lastSucceededAt ?? null
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>最近失败</dt>
-                <dd>
-                  {formatExecutionTimestamp(
-                    nodeInspectorState.executionState.lastFailedAt ?? null
-                  )}
-                </dd>
-              </div>
-            </dl>
-          ) : (
-            <p class="graph-runtime-panel__hint">
-              当前还没有焦点节点，先选中一个节点，或用顶栏 Play / Step，或从节点菜单里直接起跑。
-            </p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>Properties</h4>
-            <span>
-              {nodeProperties ? Object.keys(nodeProperties).length : 0} 项
-            </span>
-          </div>
-          {nodeInspectorState && hasOwnEntries(nodeProperties) ? (
-            <dl class="graph-runtime-panel__kv">
-              {Object.entries(nodeProperties ?? {}).map(([key, value]) => (
-                <div class="graph-runtime-panel__kv-item" key={key}>
-                  <dt>{key}</dt>
-                  <dd>
-                    <pre class="graph-runtime-panel__value-block">
-                      {formatInspectorValue(value)}
-                    </pre>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p class="graph-runtime-panel__hint">当前节点没有 properties。</p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>内部数据</h4>
-            <span>{nodeData ? Object.keys(nodeData).length : 0} 项</span>
-          </div>
-          {nodeInspectorState && hasOwnEntries(nodeData) ? (
-            <dl class="graph-runtime-panel__kv">
-              {Object.entries(nodeData ?? {}).map(([key, value]) => (
-                <div class="graph-runtime-panel__kv-item" key={key}>
-                  <dt>{key}</dt>
-                  <dd>
-                    <pre class="graph-runtime-panel__value-block">
-                      {formatInspectorValue(value)}
-                    </pre>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : (
-            <p class="graph-runtime-panel__hint">当前节点没有内部 data。</p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>输入值</h4>
-            <span>{nodeInspectorState?.inputs.length ?? 0} 个槽位</span>
-          </div>
-          {nodeInspectorState?.inputs.length ? (
-            <ul class="graph-runtime-panel__io-list">
-              {nodeInspectorState.inputs.map((entry) => (
-                <li class="graph-runtime-panel__io-item" key={`input:${entry.slot}`}>
-                  <div class="graph-runtime-panel__timeline-row">
-                    <strong class="graph-runtime-panel__timeline-node">
-                      {entry.label ?? entry.name}
-                    </strong>
-                    <span class="graph-runtime-panel__io-badge">
-                      in #{entry.slot} · {formatSlotTypeLabel(entry.type)}
-                    </span>
-                  </div>
-                  <pre class="graph-runtime-panel__value-block">
-                    {formatInspectorValue(entry.value)}
-                  </pre>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="graph-runtime-panel__hint">当前节点没有输入槽位。</p>
-          )}
-        </section>
-
-        <section class="graph-runtime-panel__section">
-          <div class="graph-runtime-panel__section-header">
-            <h4>输出值</h4>
-            <span>{nodeInspectorState?.outputs.length ?? 0} 个槽位</span>
-          </div>
-          {nodeInspectorState?.outputs.length ? (
-            <ul class="graph-runtime-panel__io-list">
-              {nodeInspectorState.outputs.map((entry) => (
-                <li class="graph-runtime-panel__io-item" key={`output:${entry.slot}`}>
-                  <div class="graph-runtime-panel__timeline-row">
-                    <strong class="graph-runtime-panel__timeline-node">
-                      {entry.label ?? entry.name}
-                    </strong>
-                    <span class="graph-runtime-panel__io-badge">
-                      out #{entry.slot} · {formatSlotTypeLabel(entry.type)}
-                    </span>
-                  </div>
-                  <pre class="graph-runtime-panel__value-block">
-                    {formatInspectorValue(entry.value)}
-                  </pre>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="graph-runtime-panel__hint">当前节点没有输出槽位。</p>
-          )}
-        </section>
-      </aside>
     </div>
   );
 }

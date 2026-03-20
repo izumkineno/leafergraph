@@ -1,6 +1,6 @@
-import { createNodeApi } from "./api";
-import type { NodeRegistry } from "./registry";
-import type { NodeRuntimeState, NodeSerializeResult } from "./types";
+import { createNodeApi } from "./api.js";
+import type { NodeRegistry } from "./registry.js";
+import type { NodeRuntimeState, NodeSerializeResult } from "./types.js";
 import {
   createMissingNodeDefinition,
   cloneFlags,
@@ -8,8 +8,8 @@ import {
   clonePropertySpecs,
   cloneRecord,
   cloneSlotSpecs
-} from "./utils";
-import { serializeWidgetSpecs } from "./widget";
+} from "./utils.js";
+import { serializeWidgetSpecs } from "./widget.js";
 
 /**
  * 将节点运行时状态转成可持久化结构。

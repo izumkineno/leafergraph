@@ -10,6 +10,7 @@ import { NodeRegistry } from "@leafergraph/node";
 import type { LeaferGraphThemeMode, LeaferGraphWidgetEditingContext } from "../api/plugin";
 import { LeaferGraphInteractionRuntimeHost } from "../interaction/graph_interaction_runtime_host";
 import { LeaferGraphInteractionHost } from "../interaction/interaction_host";
+import { createLeaferGraphInteractionCommitSource } from "../interaction/interaction_commit_source";
 import { LeaferGraphLinkDataFlowAnimationHost } from "../link/link_data_flow_animation_host";
 import { LeaferGraphLinkHost, type GraphLinkViewState } from "../link/link_host";
 import { LeaferGraphNodeHost, type NodeViewState } from "../node/node_host";
@@ -100,6 +101,9 @@ export interface LeaferGraphSceneRuntimeAssemblyResult<
     TNodeState,
     NodeViewState<TNodeState>
   >;
+  interactionCommitSource: ReturnType<
+    typeof createLeaferGraphInteractionCommitSource
+  >;
   restoreHost: LeaferGraphRestoreHost<TNodeState, NodeViewState<TNodeState>>;
 }
 
@@ -133,6 +137,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
   >;
   let dataFlowAnimationHost!: LeaferGraphLinkDataFlowAnimationHost<TNodeState>;
   let graphExecutionRuntimeHost!: LeaferGraphExecutionRuntimeHost<TNodeState>;
+  const interactionCommitSource = createLeaferGraphInteractionCommitSource();
 
   const widgetHost = new LeaferGraphWidgetHost({
     registry: options.widgetRegistry,
@@ -140,6 +145,42 @@ export function createLeaferGraphSceneRuntimeAssembly<
     getEditing: () => options.widgetEditingContext,
     setNodeWidgetValue: (nodeId, widgetIndex, newValue) => {
       sceneRuntimeHost.setNodeWidgetValue(nodeId, widgetIndex, newValue);
+    },
+    commitNodeWidgetValue: (nodeId, widgetIndex, commit) => {
+      const node = options.graphState.nodes.get(nodeId);
+      if (!node) {
+        return;
+      }
+
+      const nextValue =
+        commit.newValue === undefined
+          ? node.widgets[widgetIndex]?.value
+          : commit.newValue;
+
+      if (
+        !sceneRuntimeHost.setNodeWidgetValue(nodeId, widgetIndex, nextValue)
+      ) {
+        return;
+      }
+
+      const afterWidgets = structuredClone(node.widgets);
+      const afterValue = afterWidgets[widgetIndex]?.value;
+      if (
+        Object.is(commit.beforeValue, afterValue) &&
+        JSON.stringify(commit.beforeWidgets) === JSON.stringify(afterWidgets)
+      ) {
+        return;
+      }
+
+      interactionCommitSource.emit({
+        type: "node.widget.commit",
+        nodeId,
+        widgetIndex,
+        beforeValue: commit.beforeValue,
+        afterValue,
+        beforeWidgets: commit.beforeWidgets,
+        afterWidgets
+      });
     },
     requestRender: options.requestRender,
     emitNodeWidgetAction: (nodeId, action, param, extra) =>
@@ -320,7 +361,8 @@ export function createLeaferGraphSceneRuntimeAssembly<
     NodeViewState<TNodeState>
   >({
     container: options.container,
-    runtime: interactionRuntimeHost
+    runtime: interactionRuntimeHost,
+    emitInteractionCommit: (event) => interactionCommitSource.emit(event)
   });
 
   const themeRuntimeHost = new LeaferGraphThemeRuntimeHost({
@@ -366,6 +408,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     graphExecutionRuntimeHost,
     interactionHost,
     interactionRuntimeHost,
+    interactionCommitSource,
     restoreHost
   };
 }

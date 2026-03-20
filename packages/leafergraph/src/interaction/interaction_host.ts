@@ -7,7 +7,10 @@
 
 import type { Group } from "leafer-ui";
 import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
-import type { LeaferGraphConnectionPortState } from "../api/graph_api_types";
+import type {
+  LeaferGraphConnectionPortState,
+  LeaferGraphInteractionCommitEvent
+} from "../api/graph_api_types";
 import type {
   GraphDragNodePosition,
   LeaferGraphInteractionRuntimeLike
@@ -87,6 +90,7 @@ interface LeaferGraphInteractionHostOptions<
 > {
   container: HTMLElement;
   runtime: LeaferGraphInteractionRuntimeLike<TNodeState, TNodeViewState>;
+  emitInteractionCommit?(event: LeaferGraphInteractionCommitEvent): void;
 }
 
 /**
@@ -155,8 +159,68 @@ export class LeaferGraphInteractionHost<
       return;
     }
 
-    const resizeNodeId = this.resizeState?.nodeId;
-    const dragNodeId = this.dragState?.anchorNodeId;
+    const resizeState = this.resizeState;
+    const dragState = this.dragState;
+    const resizeNodeId = resizeState?.nodeId;
+    const dragNodeId = dragState?.anchorNodeId;
+
+    if (resizeState) {
+      const nextSize = this.options.runtime.resolveNodeSize(resizeState.nodeId);
+      if (
+        nextSize &&
+        (Math.round(nextSize.width) !== Math.round(resizeState.startWidth) ||
+          Math.round(nextSize.height) !== Math.round(resizeState.startHeight))
+      ) {
+        this.options.emitInteractionCommit?.({
+          type: "node.resize.commit",
+          nodeId: resizeState.nodeId,
+          before: {
+            width: resizeState.startWidth,
+            height: resizeState.startHeight
+          },
+          after: {
+            width: Math.round(nextSize.width),
+            height: Math.round(nextSize.height)
+          }
+        });
+      }
+    }
+
+    if (dragState) {
+      const entries = dragState.nodes
+        .map((item) => {
+          const currentNode = this.options.runtime.getNodeView(item.nodeId)?.state;
+          if (!currentNode) {
+            return null;
+          }
+
+          const nextX = Math.round(currentNode.layout.x);
+          const nextY = Math.round(currentNode.layout.y);
+          if (nextX === Math.round(item.startX) && nextY === Math.round(item.startY)) {
+            return null;
+          }
+
+          return {
+            nodeId: item.nodeId,
+            before: {
+              x: Math.round(item.startX),
+              y: Math.round(item.startY)
+            },
+            after: {
+              x: nextX,
+              y: nextY
+            }
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+      if (entries.length) {
+        this.options.emitInteractionCommit?.({
+          type: "node.move.commit",
+          entries
+        });
+      }
+    }
 
     if (this.resizeState) {
       this.resizeState = null;
@@ -312,10 +376,20 @@ export class LeaferGraphInteractionHost<
         this.dragState = null;
         this.resizeState = null;
         this.options.container.style.cursor = "";
-        this.options.runtime.setNodeCollapsed(
+        const beforeCollapsed = Boolean(state.state.flags.collapsed);
+        const afterCollapsed = !beforeCollapsed;
+        const changed = this.options.runtime.setNodeCollapsed(
           nodeId,
-          !Boolean(state.state.flags.collapsed)
+          afterCollapsed
         );
+        if (changed && beforeCollapsed !== afterCollapsed) {
+          this.options.emitInteractionCommit?.({
+            type: "node.collapse.commit",
+            nodeId,
+            beforeCollapsed,
+            afterCollapsed
+          });
+        }
       }
     );
   }
@@ -510,7 +584,23 @@ export class LeaferGraphInteractionHost<
     if (originPort && targetPort) {
       const endpoints = this.resolveConnectionEndpoints(originPort, targetPort);
       if (endpoints) {
-        this.options.runtime.createLink(endpoints.source, endpoints.target);
+        if (this.options.emitInteractionCommit) {
+          this.options.emitInteractionCommit({
+            type: "link.create.commit",
+            input: {
+              source: {
+                nodeId: endpoints.source.nodeId,
+                slot: endpoints.source.slot
+              },
+              target: {
+                nodeId: endpoints.target.nodeId,
+                slot: endpoints.target.slot
+              }
+            }
+          });
+        } else {
+          this.options.runtime.createLink(endpoints.source, endpoints.target);
+        }
       }
     }
 

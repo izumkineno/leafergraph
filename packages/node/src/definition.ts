@@ -1,5 +1,5 @@
-import type { NodeLifecycle } from "./lifecycle";
-import type { NodePropertySpec, NodeSlotSpec, NodeWidgetSpec } from "./types";
+import type { NodeLifecycle } from "./lifecycle.js";
+import type { NodePropertySpec, NodeSlotSpec, NodeWidgetSpec } from "./types.js";
 
 /**
  * 节点尺寸调整配置。

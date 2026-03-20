@@ -1,11 +1,11 @@
-import type { NodeDefinition } from "./definition";
+import type { NodeDefinition } from "./definition.js";
 import type {
   NodeFlags,
   NodeLayout,
   NodePropertySpec,
   NodeSlotSpec,
   NodeWidgetSpec
-} from "./types";
+} from "./types.js";
 
 let nodeIdSeed = 1;
 

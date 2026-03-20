@@ -78,6 +78,8 @@ export interface LeaferGraphPressWidgetInteractionOptions {
   hitArea: LeaferGraphWidgetEventSource;
   onPress(event: LeaferGraphWidgetPointerEvent): void;
   allowPointer?(event: LeaferGraphWidgetPointerEvent): boolean;
+  onHoverChange?(hovered: boolean): void;
+  onPressChange?(pressed: boolean): void;
 }
 
 /**
@@ -242,21 +244,70 @@ export function bindPressWidgetInteraction(
   const allowPointer =
     options.allowPointer ??
     ((event: LeaferGraphWidgetPointerEvent) => !event.middle && !event.right);
+  let hovered = false;
+  let pressed = false;
+
+  const setHovered = (nextHovered: boolean): void => {
+    if (hovered === nextHovered) {
+      return;
+    }
+
+    hovered = nextHovered;
+    options.onHoverChange?.(hovered);
+  };
+
+  const setPressed = (nextPressed: boolean): void => {
+    if (pressed === nextPressed) {
+      return;
+    }
+
+    pressed = nextPressed;
+    options.onPressChange?.(pressed);
+  };
+
+  const handlePointerEnter = (event: LeaferGraphWidgetPointerEvent): void => {
+    if (!allowPointer(event)) {
+      return;
+    }
+
+    setHovered(true);
+  };
+
+  const handlePointerLeave = (): void => {
+    setHovered(false);
+    setPressed(false);
+  };
 
   const handlePointerDown = (event: LeaferGraphWidgetPointerEvent): void => {
     if (!allowPointer(event)) {
       return;
     }
 
+    setHovered(true);
+    setPressed(true);
     stopWidgetPointerEvent(event);
     options.onPress(event);
   };
 
+  const handlePointerUp = (): void => {
+    setPressed(false);
+  };
+
+  options.hitArea.on("pointer.enter", handlePointerEnter);
+  options.hitArea.on("pointer.leave", handlePointerLeave);
   options.hitArea.on("pointer.down", handlePointerDown);
+  options.hitArea.on("pointer.up", handlePointerUp);
+  options.hitArea.on("pointer.cancel", handlePointerUp);
 
   return {
     destroy() {
+      setHovered(false);
+      setPressed(false);
+      options.hitArea.off("pointer.enter", handlePointerEnter);
+      options.hitArea.off("pointer.leave", handlePointerLeave);
       options.hitArea.off("pointer.down", handlePointerDown);
+      options.hitArea.off("pointer.up", handlePointerUp);
+      options.hitArea.off("pointer.cancel", handlePointerUp);
     }
   };
 }

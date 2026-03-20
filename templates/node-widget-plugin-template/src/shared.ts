@@ -73,7 +73,7 @@ export const TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE = resolveTemplateScopedNodeType(
 
 /**
  * 用模块级 namespace 生成最终节点类型。
- * 这样节点定义文件里可以只写局部类型，模板 graph 数据仍然能拿到最终类型。
+ * 这样节点定义文件里可以只写局部类型，模板 document 数据仍然能拿到最终类型。
  */
 export function resolveTemplateScopedNodeType(localType: string): string {
   return `${TEMPLATE_MODULE_SCOPE.namespace}/${localType}`;

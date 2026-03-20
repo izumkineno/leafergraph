@@ -4,6 +4,7 @@ import type {
   LeaferGraphContextMenuItem,
   LeaferGraphContextMenuResolver
 } from "leafergraph";
+import type { NodeDefinition } from "@leafergraph/node";
 
 import type {
   EditorCommandBus,
@@ -11,6 +12,140 @@ import type {
 } from "../commands/command_bus";
 import type { EditorNodeSelectionController } from "../state/selection";
 import { isEditorLinkMenuBindingMeta } from "./context_menu_bindings";
+
+interface NodeMenuGroupTree {
+  groups: Map<string, NodeMenuGroupTree>;
+  definitions: NodeDefinition[];
+}
+
+function createNodeMenuGroupTree(): NodeMenuGroupTree {
+  return {
+    groups: new Map(),
+    definitions: []
+  };
+}
+
+function normalizeCategoryPath(category: string | undefined): string[] {
+  const safeCategory = category?.trim() || "Other";
+  const parts = safeCategory
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.length ? parts : ["Other"];
+}
+
+function insertNodeDefinitionIntoTree(
+  root: NodeMenuGroupTree,
+  definition: NodeDefinition
+): void {
+  let current = root;
+  for (const segment of normalizeCategoryPath(definition.category)) {
+    let next = current.groups.get(segment);
+    if (!next) {
+      next = createNodeMenuGroupTree();
+      current.groups.set(segment, next);
+    }
+    current = next;
+  }
+
+  current.definitions.push(definition);
+}
+
+function sortNodeDefinitions(
+  definitions: readonly NodeDefinition[]
+): NodeDefinition[] {
+  return [...definitions].sort((left, right) =>
+    (left.title ?? left.type).localeCompare(right.title ?? right.type)
+  );
+}
+
+function buildNodeCreateSubmenuItems(
+  tree: NodeMenuGroupTree,
+  context: LeaferGraphContextMenuContext,
+  commandBus: EditorCommandBus,
+  executeUiCommand: (request: EditorCommandRequest) => void
+): LeaferGraphContextMenuItem[] {
+  const items: LeaferGraphContextMenuItem[] = [];
+  const sortedGroups = [...tree.groups.entries()].sort(([left], [right]) =>
+    left.localeCompare(right)
+  );
+
+  for (const [groupName, groupTree] of sortedGroups) {
+    const childItems = buildNodeCreateSubmenuItems(
+      groupTree,
+      context,
+      commandBus,
+      executeUiCommand
+    );
+    if (!childItems.length) {
+      continue;
+    }
+
+    items.push({
+      kind: "submenu",
+      key: `create-group:${groupName}`,
+      label: groupName,
+      items: childItems
+    });
+  }
+
+  for (const definition of sortNodeDefinitions(tree.definitions)) {
+    const request: EditorCommandRequest = {
+      type: "canvas.create-node-by-type",
+      context,
+      nodeType: definition.type
+    };
+    const state = commandBus.resolveCommandState(request);
+    items.push({
+      key: `create-node:${definition.type}`,
+      label: definition.title ?? definition.type,
+      description: definition.description ?? definition.type,
+      disabled: state.disabled,
+      danger: state.danger,
+      onSelect() {
+        executeUiCommand(request);
+      }
+    });
+  }
+
+  return items;
+}
+
+function resolveCreateNodeRegistrySubmenu(
+  context: LeaferGraphContextMenuContext,
+  options: CreateEditorContextMenuResolverOptions,
+  commandBus: EditorCommandBus
+): LeaferGraphContextMenuItem | null {
+  const definitions = options.graph.listNodes();
+  if (!definitions.length) {
+    return null;
+  }
+
+  const tree = createNodeMenuGroupTree();
+  for (const definition of definitions) {
+    insertNodeDefinitionIntoTree(tree, definition);
+  }
+
+  const executeUiCommand = options.executeUiCommand;
+  const items = buildNodeCreateSubmenuItems(
+    tree,
+    context,
+    commandBus,
+    executeUiCommand
+  );
+  if (!items.length) {
+    return null;
+  }
+
+  return {
+    kind: "submenu",
+    key: "create-node-from-registry",
+    label: "创建节点",
+    description: `已注册 ${definitions.length} 种节点`,
+    items
+  };
+}
 
 /**
  * editor 菜单解析器创建参数。
@@ -23,6 +158,12 @@ export interface CreateEditorContextMenuResolverOptions {
   graph: LeaferGraph;
   selection: EditorNodeSelectionController;
   resolveCommandBus(): EditorCommandBus;
+  executeUiCommand(request: EditorCommandRequest): void;
+  resolveNodePlayState(nodeId: string): {
+    disabled: boolean;
+    description?: string;
+  };
+  onPlayNode(nodeId: string): void;
   onRemoveLink(linkId: string): void;
   onStartReconnect(linkId: string): void;
 }
@@ -60,7 +201,6 @@ function resolveNodeContextMenuItems(
           y: (snapshot?.layout.y ?? 0) + 48
         };
       })();
-  const playRequest: EditorCommandRequest = { type: "node.play", nodeId };
   const resetSizeRequest: EditorCommandRequest = {
     type: "node.reset-size",
     nodeId
@@ -71,7 +211,7 @@ function resolveNodeContextMenuItems(
   const copyState = commandBus.resolveCommandState(copyRequest);
   const cutState = commandBus.resolveCommandState(cutRequest);
   const duplicateState = commandBus.resolveCommandState(duplicateRequest);
-  const playState = commandBus.resolveCommandState(playRequest);
+  const playState = options.resolveNodePlayState(nodeId);
   const resetSizeState = commandBus.resolveCommandState(resetSizeRequest);
   const removeState = commandBus.resolveCommandState(removeRequest);
 
@@ -84,7 +224,7 @@ function resolveNodeContextMenuItems(
       disabled: copyState.disabled,
       danger: copyState.danger,
       onSelect() {
-        commandBus.execute(copyRequest);
+        options.executeUiCommand(copyRequest);
       }
     },
     {
@@ -99,7 +239,7 @@ function resolveNodeContextMenuItems(
           options.selection.select(nodeId);
         }
 
-        commandBus.execute(cutRequest);
+        options.executeUiCommand(cutRequest);
       }
     },
     {
@@ -110,18 +250,16 @@ function resolveNodeContextMenuItems(
       disabled: duplicateState.disabled,
       danger: duplicateState.danger,
       onSelect() {
-        commandBus.execute(duplicateRequest);
+        options.executeUiCommand(duplicateRequest);
       }
     },
     {
       key: "execute-node",
       label: "从此节点开始运行",
-      shortcut: playState.shortcut,
       description: playState.description,
       disabled: playState.disabled,
-      danger: playState.danger,
       onSelect() {
-        commandBus.execute(playRequest);
+        options.onPlayNode(nodeId);
       }
     },
     {
@@ -132,7 +270,7 @@ function resolveNodeContextMenuItems(
       disabled: resetSizeState.disabled,
       danger: resetSizeState.danger,
       onSelect() {
-        commandBus.execute(resetSizeRequest);
+        options.executeUiCommand(resetSizeRequest);
       }
     },
     { kind: "separator", key: "node-divider" },
@@ -144,7 +282,7 @@ function resolveNodeContextMenuItems(
       disabled: removeState.disabled,
       danger: removeState.danger,
       onSelect() {
-        commandBus.execute(removeRequest);
+        options.executeUiCommand(removeRequest);
       }
     }
   ];
@@ -221,7 +359,7 @@ function resolveCanvasContextMenuItems(
       disabled: createNodeState.disabled,
       danger: createNodeState.danger,
       onSelect() {
-        commandBus.execute(createNodeRequest);
+        options.executeUiCommand(createNodeRequest);
       }
     },
     {
@@ -232,10 +370,19 @@ function resolveCanvasContextMenuItems(
       disabled: fitViewState.disabled,
       danger: fitViewState.danger,
       onSelect() {
-        commandBus.execute(fitViewRequest);
+        options.executeUiCommand(fitViewRequest);
       }
     }
   ];
+  const createNodeRegistrySubmenu = resolveCreateNodeRegistrySubmenu(
+    context,
+    options,
+    commandBus
+  );
+
+  if (createNodeRegistrySubmenu) {
+    items.splice(1, 0, createNodeRegistrySubmenu);
+  }
 
   const pasteRequest: EditorCommandRequest = {
     type: "clipboard.paste",
@@ -252,7 +399,7 @@ function resolveCanvasContextMenuItems(
       disabled: pasteState.disabled,
       danger: pasteState.danger,
       onSelect() {
-        commandBus.execute(pasteRequest);
+        options.executeUiCommand(pasteRequest);
       }
     });
   }

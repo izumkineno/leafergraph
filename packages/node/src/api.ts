@@ -1,19 +1,19 @@
-import type { NodeDefinition } from "./definition";
-import type { NodeApi } from "./lifecycle";
+import type { NodeDefinition } from "./definition.js";
+import type { NodeApi } from "./lifecycle.js";
 import type {
   NodePropertySpec,
   NodeRuntimeState,
   NodeSlotSpec,
   NodeWidgetSpec,
   SlotType
-} from "./types";
+} from "./types.js";
 import {
   clonePropertySpec,
   cloneSlotSpec,
   cloneWidgetSpec,
   resizeRuntimeValues
-} from "./utils";
-import { type WidgetDefinitionReader, normalizeWidgetSpec } from "./widget";
+} from "./utils.js";
+import { type WidgetDefinitionReader, normalizeWidgetSpec } from "./widget.js";
 
 /**
  * 创建 `NodeApi` 时的额外上下文。

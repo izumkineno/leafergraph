@@ -3,8 +3,9 @@
   "compilerOptions": {
     "noEmit": false,
     "declaration": true,
-    "emitDeclarationOnly": true,
-    "outDir": "dist"
+    "emitDeclarationOnly": false,
+    "outDir": "dist",
+    "allowImportingTsExtensions": false
   },
   "include": ["src"]
 }

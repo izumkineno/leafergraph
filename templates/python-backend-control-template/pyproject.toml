@@ -1,0 +1,27 @@
+[project]
+name = "leafergraph-python-backend-control-template"
+version = "0.1.0"
+description = "Python backend control example template for LeaferGraph."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116.0,<1.0.0",
+  "uvicorn[standard]>=0.35.0,<1.0.0",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28.0,<1.0.0",
+  "pytest>=8.4.0,<9.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=69.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

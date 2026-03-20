@@ -8,7 +8,8 @@
 import type { Box, Group } from "leafer-ui";
 import type {
   InstallNodeModuleOptions,
-  LeaferGraphLinkData,
+  GraphDocument,
+  GraphLink,
   NodeDefinition,
   NodeModule,
   NodeSerializeResult,
@@ -23,10 +24,17 @@ import type {
   LeaferGraphWidgetRenderInstance
 } from "./plugin";
 import type { LeaferGraphContextMenuBindingTarget } from "../interaction/context_menu";
+import { projectExternalRuntimeFeedback } from "../graph/graph_runtime_feedback_projection";
 import type {
+  GraphOperation,
+  GraphOperationApplyResult,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
+  LeaferGraphInteractionCommitEvent,
+  RuntimeAdapter,
+  RuntimeFeedbackEvent,
   LeaferGraphConnectionPortState,
+  LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
   LeaferGraphNodeInspectorState,
@@ -42,6 +50,7 @@ import type {
 import type { LeaferGraphRenderableNodeState } from "../graph/graph_runtime_types";
 import type { LeaferGraphBootstrapRuntimeLike } from "../graph/graph_bootstrap_host";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
+import type { LeaferGraphInteractionCommitSource } from "../interaction/interaction_commit_source";
 
 type LeaferGraphApiNodeViewState<
   TNodeState extends LeaferGraphRenderableNodeState
@@ -68,6 +77,7 @@ export interface LeaferGraphApiRuntime<
     destroy(): void;
   };
   bootstrapRuntime: LeaferGraphBootstrapRuntimeLike;
+  runtimeAdapter: RuntimeAdapter;
   widgetEditingManager: {
     destroy(): void;
   };
@@ -79,6 +89,7 @@ export interface LeaferGraphApiRuntime<
     | "setNodeWidgetValue"
     | "findLinksByNode"
     | "getLink"
+    | "applyGraphOperation"
     | "createNode"
     | "removeNode"
     | "updateNode"
@@ -86,6 +97,10 @@ export interface LeaferGraphApiRuntime<
     | "resizeNode"
     | "createLink"
     | "removeLink"
+  >;
+  interactionCommitSource: Pick<
+    LeaferGraphInteractionCommitSource,
+    "subscribe"
   >;
   interactionHost: {
     destroy(): void;
@@ -133,6 +148,15 @@ export interface LeaferGraphApiRuntime<
     subscribeNodeExecution(
       listener: (event: LeaferGraphNodeExecutionEvent) => void
     ): () => void;
+    projectExternalNodeExecution(
+      event: LeaferGraphNodeExecutionEvent
+    ): void;
+    projectExternalNodeState(
+      event: LeaferGraphNodeStateChangeEvent
+    ): void;
+    projectExternalLinkPropagation(
+      event: LeaferGraphLinkPropagationEvent
+    ): void;
   };
   graphExecutionHost: {
     play(): boolean;
@@ -142,6 +166,9 @@ export interface LeaferGraphApiRuntime<
     subscribeGraphExecution(
       listener: (event: LeaferGraphGraphExecutionEvent) => void
     ): () => void;
+    projectExternalGraphExecution(
+      event: LeaferGraphGraphExecutionEvent
+    ): void;
   };
   themeHost: {
     setThemeMode(mode: LeaferGraphThemeMode): void;
@@ -207,6 +234,7 @@ export class LeaferGraphApiHost<
       );
     }
 
+    this.options.runtime.runtimeAdapter.destroy?.();
     this.options.runtime.interactionHost.destroy();
     this.options.runtime.dataFlowAnimationHost.destroy();
     this.options.runtime.widgetEditingManager.destroy();
@@ -241,6 +269,11 @@ export class LeaferGraphApiHost<
   /** 列出当前已注册 Widget。 */
   listWidgets(): LeaferGraphWidgetEntry[] {
     return this.options.runtime.bootstrapRuntime.listWidgets();
+  }
+
+  /** 直接替换当前正式文档。 */
+  replaceGraphDocument(document: GraphDocument): void {
+    this.options.runtime.bootstrapRuntime.replaceGraphDocument(document);
   }
 
   /** 运行时切换主包主题，并局部刷新现有节点壳与 Widget。 */
@@ -367,14 +400,58 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.subscribeNodeState(listener);
   }
 
+  /** 订阅统一运行反馈事件。 */
+  subscribeRuntimeFeedback(
+    listener: (event: RuntimeFeedbackEvent) => void
+  ): () => void {
+    return this.options.runtime.runtimeAdapter.subscribe(listener);
+  }
+
+  /** 把外部 runtime feedback 投影回当前图运行时。 */
+  projectRuntimeFeedback(feedback: RuntimeFeedbackEvent): void {
+    projectExternalRuntimeFeedback(
+      {
+        projectExternalGraphExecution: (event) =>
+          this.options.runtime.graphExecutionHost.projectExternalGraphExecution(
+            event
+          ),
+        projectExternalNodeExecution: (event) =>
+          this.options.runtime.nodeRuntimeHost.projectExternalNodeExecution(
+            event
+          ),
+        projectExternalNodeState: (event) =>
+          this.options.runtime.nodeRuntimeHost.projectExternalNodeState(event),
+        projectExternalLinkPropagation: (event) =>
+          this.options.runtime.nodeRuntimeHost.projectExternalLinkPropagation(
+            event
+          )
+      },
+      feedback
+    );
+  }
+
+  /** 订阅交互结束后的正式提交事件。 */
+  subscribeInteractionCommit(
+    listener: (event: LeaferGraphInteractionCommitEvent) => void
+  ): () => void {
+    return this.options.runtime.interactionCommitSource.subscribe(listener);
+  }
+
   /** 根据节点 ID 查询当前图中的所有关联连线。 */
-  findLinksByNode(nodeId: string): LeaferGraphLinkData[] {
+  findLinksByNode(nodeId: string): GraphLink[] {
     return this.options.runtime.sceneRuntime.findLinksByNode(nodeId);
   }
 
   /** 根据连线 ID 读取当前图中的正式连线快照。 */
-  getLink(linkId: string): LeaferGraphLinkData | undefined {
+  getLink(linkId: string): GraphLink | undefined {
     return this.options.runtime.sceneRuntime.getLink(linkId);
+  }
+
+  /** 应用一条正式图操作。 */
+  applyGraphOperation(
+    operation: GraphOperation
+  ): GraphOperationApplyResult {
+    return this.options.runtime.sceneRuntime.applyGraphOperation(operation);
   }
 
   /** 解析某个节点方向和槽位对应的正式端口几何。 */
@@ -474,7 +551,7 @@ export class LeaferGraphApiHost<
   }
 
   /** 创建一条正式连线并加入当前图状态。 */
-  createLink(input: LeaferGraphCreateLinkInput): LeaferGraphLinkData {
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink {
     return this.options.runtime.sceneRuntime.createLink(input);
   }
 

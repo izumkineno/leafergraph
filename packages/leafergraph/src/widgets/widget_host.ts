@@ -40,6 +40,15 @@ interface LeaferGraphWidgetHostOptions {
   getTheme(): LeaferGraphWidgetThemeContext;
   getEditing(): LeaferGraphWidgetEditingContext;
   setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void;
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void;
   requestRender(): void;
   emitNodeWidgetAction(
     nodeId: string,
@@ -58,6 +67,13 @@ interface LeaferGraphWidgetHostOptions {
  */
 export class LeaferGraphWidgetHost {
   private readonly options: LeaferGraphWidgetHostOptions;
+  private readonly widgetCommitBaselines = new Map<
+    string,
+    {
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  >();
 
   constructor(options: LeaferGraphWidgetHostOptions) {
     this.options = options;
@@ -115,8 +131,31 @@ export class LeaferGraphWidgetHost {
           height
         },
         setValue: (newValue) => {
+          const commitKey = this.createWidgetCommitKey(node.id, index);
+          if (!this.widgetCommitBaselines.has(commitKey)) {
+            this.widgetCommitBaselines.set(commitKey, {
+              beforeValue: structuredClone(node.widgets[index]?.value),
+              beforeWidgets: structuredClone(node.widgets)
+            });
+          }
+
           // Widget 不能直接写 graphNodes，而是统一走场景运行时的值回写入口。
           this.options.setNodeWidgetValue(node.id, index, newValue);
+        },
+        commitValue: (newValue) => {
+          const commitKey = this.createWidgetCommitKey(node.id, index);
+          const baseline =
+            this.widgetCommitBaselines.get(commitKey) ?? {
+              beforeValue: structuredClone(node.widgets[index]?.value),
+              beforeWidgets: structuredClone(node.widgets)
+            };
+
+          this.widgetCommitBaselines.delete(commitKey);
+          this.options.commitNodeWidgetValue(node.id, index, {
+            newValue,
+            beforeValue: structuredClone(baseline.beforeValue),
+            beforeWidgets: structuredClone(baseline.beforeWidgets)
+          });
         },
         requestRender: () => {
           this.options.requestRender();
@@ -185,6 +224,11 @@ export class LeaferGraphWidgetHost {
 
     widgetInstances.length = 0;
     widgetLayer.removeAll();
+  }
+
+  /** 为节点 Widget 生成稳定提交键。 */
+  private createWidgetCommitKey(nodeId: string, widgetIndex: number): string {
+    return `${nodeId}:${widgetIndex}`;
   }
 }
 

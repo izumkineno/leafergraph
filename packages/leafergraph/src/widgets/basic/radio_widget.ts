@@ -117,7 +117,7 @@ export class RadioFieldController extends BasicWidgetController<
         allowPointer: () => !disabled && !sourceItem.disabled,
         onPress: () => {
           context.editing.focusWidget(focusKey);
-          context.setValue(sourceItem.value);
+          context.commitValue(sourceItem.value);
         }
       });
       this.addCleanup(state, pointerBinding);
@@ -213,18 +213,18 @@ export class RadioFieldController extends BasicWidgetController<
 
     if (event.key === "ArrowDown" || event.key === "ArrowRight") {
       const nextIndex = this.resolveNextEnabledOptionIndex(currentIndex, options, 1);
-      context.setValue(options[nextIndex].value);
+      context.commitValue(options[nextIndex].value);
       return true;
     }
 
     if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
       const nextIndex = this.resolveNextEnabledOptionIndex(currentIndex, options, -1);
-      context.setValue(options[nextIndex].value);
+      context.commitValue(options[nextIndex].value);
       return true;
     }
 
     if (event.key === " " || event.key === "Enter") {
-      context.setValue(options[currentIndex].value);
+      context.commitValue(options[currentIndex].value);
       return true;
     }
 

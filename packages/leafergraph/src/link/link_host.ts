@@ -7,7 +7,7 @@
 
 import type { Group } from "leafer-ui";
 import { Arrow } from "@leafer-in/arrow";
-import type { LeaferGraphLinkData, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
 import {
   PORT_DIRECTION_LEFT,
   PORT_DIRECTION_RIGHT,
@@ -86,7 +86,7 @@ export function resolveGraphLinkCurve<
 }
 
 interface LeaferGraphLinkHostOptions<TNodeState extends LeaferGraphLinkNodeState> {
-  graphLinks: Map<string, LeaferGraphLinkData>;
+  graphLinks: Map<string, GraphLink>;
   linkViews: GraphLinkViewState<TNodeState>[];
   linkLayer: Group;
   getNode(nodeId: string): TNodeState | undefined;
@@ -110,7 +110,7 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
   }
 
   /** 将连线状态和连线视图一起挂入当前图。 */
-  mountLinkView(link: LeaferGraphLinkData): GraphLinkViewState<TNodeState> | null {
+  mountLinkView(link: GraphLink): GraphLinkViewState<TNodeState> | null {
     if (this.options.graphLinks.has(link.id)) {
       console.warn("[leafergraph] 跳过重复连线 ID", link.id);
       return null;
@@ -178,7 +178,7 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
    * 当端点节点不存在时，当前阶段直接跳过并打印告警，避免半有效数据破坏整体渲染。
    */
   private createLinkView(
-    link: LeaferGraphLinkData
+    link: GraphLink
   ): GraphLinkViewState<TNodeState> | null {
     const source = this.options.getNode(link.source.nodeId);
     const target = this.options.getNode(link.target.nodeId);

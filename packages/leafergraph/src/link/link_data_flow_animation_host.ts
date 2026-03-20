@@ -6,12 +6,12 @@
  * 在连线层上播放瞬时脉冲粒子动画。
  */
 
-import type { LeaferGraphLinkData } from "@leafergraph/node";
+import type { GraphLink } from "@leafergraph/node";
 import { Group, Rect } from "leafer-ui";
 import type { LeaferGraphThemeMode } from "../api/plugin";
+import type { LeaferGraphLinkPropagationEvent } from "../api/graph_api_types";
 import type { LeaferGraphDataFlowAnimationStyleConfig } from "../graph/graph_runtime_style";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
-import type { LeaferGraphLinkPropagationEvent } from "../node/node_runtime_host";
 import { sampleLinkCurvePoint } from "./link";
 import {
   resolveGraphLinkCurve,
@@ -24,7 +24,7 @@ interface LeaferGraphLinkDataFlowAnimationHostOptions<
   container: HTMLElement;
   linkLayer: Group;
   graphNodes: Map<string, TNodeState>;
-  graphLinks: Map<string, LeaferGraphLinkData>;
+  graphLinks: Map<string, GraphLink>;
   layoutMetrics: NodeShellLayoutMetrics;
   defaultNodeWidth: number;
   portSize: number;

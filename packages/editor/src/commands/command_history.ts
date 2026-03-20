@@ -13,16 +13,27 @@
  */
 
 import type {
+  GraphLink,
+  GraphOperation,
   LeaferGraph,
-  LeaferGraphCreateNodeInput,
-  LeaferGraphLinkData,
-  LeaferGraphResizeNodeInput
 } from "leafergraph";
 import type {
   EditorCommandExecution,
   EditorCommandHistoryPayload,
   EditorCommandNodeSnapshot
 } from "./command_bus";
+import {
+  createLinkCreateOperation,
+  createLinkReconnectOperation,
+  createLinkRemoveOperation,
+  createNodeCreateOperationFromSnapshot,
+  createNodeMoveOperation,
+  createNodeRemoveOperation,
+  createNodeResizeOperation,
+  createNodeUpdateOperation,
+  recreateGraphOperation
+} from "./graph_operation_utils";
+import type { EditorGraphDocumentSession } from "../session/graph_document_session";
 import type { EditorNodeSelectionController } from "../state/selection";
 
 /** editor 历史记录的公开条目。 */
@@ -76,11 +87,14 @@ export interface EditorCommandHistory {
  */
 export interface CreateEditorCommandHistoryOptions {
   graph: LeaferGraph;
+  session: EditorGraphDocumentSession;
   selection: EditorNodeSelectionController;
   bindNode(node: { id: string; title: string; type?: string }): void;
   unbindNode(nodeId: string): void;
   /** 历史栈最大保留条目数。 */
   maxEntries?: number;
+  /** 历史栈发生变化时的通知。 */
+  onDidChange?(): void;
 }
 
 interface EditorCommandHistoryStackEntry extends EditorCommandHistoryEntry {
@@ -106,41 +120,22 @@ function normalizeNodeIdList(nodeIds: readonly string[]): string[] {
   return nextNodeIds;
 }
 
-/** 把正式节点快照恢复成主包 `createNode(...)` 可消费的输入。 */
-function createRestoreNodeInput(
-  snapshot: EditorCommandNodeSnapshot
-): LeaferGraphCreateNodeInput {
-  return structuredClone({
-    id: snapshot.id,
-    type: snapshot.type,
-    title: snapshot.title,
-    x: snapshot.layout.x,
-    y: snapshot.layout.y,
-    width: snapshot.layout.width,
-    height: snapshot.layout.height,
-    properties: snapshot.properties,
-    propertySpecs: snapshot.propertySpecs,
-    inputs: snapshot.inputs,
-    outputs: snapshot.outputs,
-    widgets: snapshot.widgets,
-    data: snapshot.data
-  } satisfies LeaferGraphCreateNodeInput);
-}
+/** 重放一组记录过的正式操作，并给历史方向补充新的来源标记。 */
+function replayGraphOperations(
+  session: EditorGraphDocumentSession,
+  operations: readonly GraphOperation[],
+  source: string
+): boolean {
+  let changed = false;
 
-/** 恢复节点尺寸时使用的最小宽高结构。 */
-function createResizeInput(size: {
-  width: number;
-  height: number;
-}): LeaferGraphResizeNodeInput {
-  return {
-    width: size.width,
-    height: size.height
-  };
-}
+  for (const operation of operations) {
+    const result = session.submitOperation(
+      recreateGraphOperation(operation, source)
+    );
+    changed = (result.accepted && result.changed) || changed;
+  }
 
-/** 深拷贝正式连线快照。 */
-function cloneLink(link: LeaferGraphLinkData): LeaferGraphLinkData {
-  return structuredClone(link);
+  return changed;
 }
 
 /**
@@ -156,7 +151,10 @@ export function createEditorCommandHistory(
   const undoStack: EditorCommandHistoryStackEntry[] = [];
   const redoStack: EditorCommandHistoryStackEntry[] = [];
 
-  const removeNodeIds = (nodeIds: readonly string[]): boolean => {
+  const removeNodeIds = (
+    nodeIds: readonly string[],
+    source: string
+  ): boolean => {
     const orderedNodeIds = normalizeNodeIdList(nodeIds);
     if (!orderedNodeIds.length) {
       return false;
@@ -170,45 +168,71 @@ export function createEditorCommandHistory(
     let removed = false;
     for (const nodeId of orderedNodeIds) {
       options.unbindNode(nodeId);
-      removed = options.graph.removeNode(nodeId) || removed;
+      const result = options.session.submitOperation(
+        createNodeRemoveOperation(nodeId, source)
+      );
+      removed = (result.accepted && result.changed) || removed;
     }
 
     return removed;
   };
 
   const restoreNodeSnapshots = (
-    nodeSnapshots: readonly EditorCommandNodeSnapshot[]
+    nodeSnapshots: readonly EditorCommandNodeSnapshot[],
+    source: string
   ): string[] => {
     const restoredNodeIds: string[] = [];
 
     for (const snapshot of nodeSnapshots) {
-      if (options.graph.getNodeSnapshot(snapshot.id)) {
-        restoredNodeIds.push(snapshot.id);
+      const existingSnapshot = options.graph.getNodeSnapshot(snapshot.id);
+      if (existingSnapshot) {
+        options.bindNode({
+          id: existingSnapshot.id,
+          title: existingSnapshot.title ?? existingSnapshot.id,
+          type: existingSnapshot.type
+        });
+        restoredNodeIds.push(existingSnapshot.id);
         continue;
       }
 
-      const node = options.graph.createNode(createRestoreNodeInput(snapshot));
-      options.bindNode(node);
+      const result = options.session.submitOperation(
+        createNodeCreateOperationFromSnapshot(snapshot, source)
+      );
+      if (!result.accepted) {
+        continue;
+      }
+
+      const restoredSnapshot = options.graph.getNodeSnapshot(snapshot.id);
+      if (!restoredSnapshot) {
+        continue;
+      }
+
+      options.bindNode({
+        id: restoredSnapshot.id,
+        title: restoredSnapshot.title ?? restoredSnapshot.id,
+        type: restoredSnapshot.type
+      });
 
       if (snapshot.flags?.collapsed) {
         options.graph.setNodeCollapsed(snapshot.id, true);
       }
 
-      restoredNodeIds.push(node.id);
+      restoredNodeIds.push(restoredSnapshot.id);
     }
 
     options.selection.setMany(restoredNodeIds);
     return restoredNodeIds;
   };
 
-  const restoreLinks = (links: readonly LeaferGraphLinkData[]): void => {
+  const restoreLinks = (links: readonly GraphLink[], source: string): void => {
     for (const link of links) {
-      try {
-        options.graph.createLink(cloneLink(link));
-      } catch {
-        // 当前阶段历史记录优先保证主流程可继续，
-        // 若某条连线因端点不存在或 ID 冲突无法恢复，则跳过单条连线。
-      }
+      options.session.submitOperation(createLinkCreateOperation(link, source));
+    }
+  };
+
+  const removeLinksByIds = (linkIds: readonly string[], source: string): void => {
+    for (const linkId of linkIds) {
+      options.session.submitOperation(createLinkRemoveOperation(linkId, source));
     }
   };
 
@@ -231,6 +255,7 @@ export function createEditorCommandHistory(
     };
 
     const payload: EditorCommandHistoryPayload = execution.historyPayload;
+    const recordedOperations = execution.operations ?? [];
 
     switch (payload.kind) {
       case "create-nodes": {
@@ -238,10 +263,11 @@ export function createEditorCommandHistory(
         return {
           ...baseEntry,
           undo() {
-            removeNodeIds(nodeIds);
+            removeNodeIds(nodeIds, "editor.history.undo");
           },
           redo() {
-            restoreNodeSnapshots(payload.nodeSnapshots);
+            restoreNodeSnapshots(payload.nodeSnapshots, "editor.history.redo");
+            restoreLinks(payload.links ?? [], "editor.history.redo");
           }
         };
       }
@@ -250,11 +276,11 @@ export function createEditorCommandHistory(
         return {
           ...baseEntry,
           undo() {
-            restoreNodeSnapshots(payload.nodeSnapshots);
-            restoreLinks(payload.links);
+            restoreNodeSnapshots(payload.nodeSnapshots, "editor.history.undo");
+            restoreLinks(payload.links, "editor.history.undo");
           },
           redo() {
-            removeNodeIds(nodeIds);
+            removeNodeIds(nodeIds, "editor.history.redo");
           }
         };
       }
@@ -262,21 +288,83 @@ export function createEditorCommandHistory(
         return {
           ...baseEntry,
           undo() {
-            const changed = options.graph.resizeNode(
-              payload.nodeId,
-              createResizeInput(payload.beforeSize)
+            const result = options.session.submitOperation(
+              createNodeResizeOperation(
+                payload.nodeId,
+                payload.beforeSize,
+                "editor.history.undo"
+              )
             );
-            if (changed) {
+            if (result.accepted && result.changed) {
               options.selection.select(payload.nodeId);
             }
           },
           redo() {
-            const changed = options.graph.resizeNode(
-              payload.nodeId,
-              createResizeInput(payload.afterSize)
-            );
+            const changed = recordedOperations.length
+              ? replayGraphOperations(
+                  options.session,
+                  recordedOperations,
+                  "editor.history.redo"
+                )
+              : options.session.submitOperation(
+                    createNodeResizeOperation(
+                      payload.nodeId,
+                      payload.afterSize,
+                      "editor.history.redo"
+                    )
+                  ).changed;
             if (changed) {
               options.selection.select(payload.nodeId);
+            }
+          }
+        };
+      }
+      case "move-nodes": {
+        const movedNodeIds = payload.positions.map((item) => item.nodeId);
+        return {
+          ...baseEntry,
+          undo() {
+            let changed = false;
+            for (const item of payload.positions) {
+              const result = options.session.submitOperation(
+                createNodeMoveOperation(
+                  item.nodeId,
+                  item.beforePosition,
+                  "editor.history.undo"
+                )
+              );
+              changed = (result.accepted && result.changed) || changed;
+            }
+
+            if (changed) {
+              options.selection.setMany(movedNodeIds);
+            }
+          },
+          redo() {
+            const changed = recordedOperations.length
+              ? replayGraphOperations(
+                  options.session,
+                  recordedOperations,
+                  "editor.history.redo"
+                )
+              : (() => {
+                  let replayChanged = false;
+                  for (const item of payload.positions) {
+                    const result = options.session.submitOperation(
+                      createNodeMoveOperation(
+                        item.nodeId,
+                        item.afterPosition,
+                        "editor.history.redo"
+                      )
+                    );
+                    replayChanged =
+                      (result.accepted && result.changed) || replayChanged;
+                  }
+
+                  return replayChanged;
+                })();
+            if (changed) {
+              options.selection.setMany(movedNodeIds);
             }
           }
         };
@@ -286,12 +374,19 @@ export function createEditorCommandHistory(
         return {
           ...baseEntry,
           undo() {
-            for (const linkId of linkIds) {
-              options.graph.removeLink(linkId);
-            }
+            removeLinksByIds(linkIds, "editor.history.undo");
           },
           redo() {
-            restoreLinks(payload.links);
+            if (recordedOperations.length) {
+              replayGraphOperations(
+                options.session,
+                recordedOperations,
+                "editor.history.redo"
+              );
+              return;
+            }
+
+            restoreLinks(payload.links, "editor.history.redo");
           }
         };
       }
@@ -300,12 +395,19 @@ export function createEditorCommandHistory(
         return {
           ...baseEntry,
           undo() {
-            restoreLinks(payload.links);
+            restoreLinks(payload.links, "editor.history.undo");
           },
           redo() {
-            for (const linkId of linkIds) {
-              options.graph.removeLink(linkId);
+            if (recordedOperations.length) {
+              replayGraphOperations(
+                options.session,
+                recordedOperations,
+                "editor.history.redo"
+              );
+              return;
             }
+
+            removeLinksByIds(linkIds, "editor.history.redo");
           }
         };
       }
@@ -313,19 +415,71 @@ export function createEditorCommandHistory(
         return {
           ...baseEntry,
           undo() {
-            options.graph.removeLink(payload.afterLink.id);
-            try {
-              options.graph.createLink(cloneLink(payload.beforeLink));
-            } catch {
-              // 当前阶段优先让历史栈继续可用，单条恢复失败时跳过。
+            options.session.submitOperation(
+              createLinkReconnectOperation(
+                payload.afterLink.id,
+                {
+                  source: payload.beforeLink.source,
+                  target: payload.beforeLink.target
+                },
+                "editor.history.undo"
+              )
+            );
+          },
+          redo() {
+            if (recordedOperations.length) {
+              replayGraphOperations(
+                options.session,
+                recordedOperations,
+                "editor.history.redo"
+              );
+              return;
+            }
+
+            options.session.submitOperation(
+              createLinkReconnectOperation(
+                payload.beforeLink.id,
+                {
+                  source: payload.afterLink.source,
+                  target: payload.afterLink.target
+                },
+                "editor.history.redo"
+              )
+            );
+          }
+        };
+      }
+      case "update-node": {
+        return {
+          ...baseEntry,
+          undo() {
+            const result = options.session.submitOperation(
+              createNodeUpdateOperation(
+                payload.nodeId,
+                payload.beforeInput,
+                "editor.history.undo"
+              )
+            );
+            if (result.accepted && result.changed) {
+              options.selection.select(payload.nodeId);
             }
           },
           redo() {
-            options.graph.removeLink(payload.beforeLink.id);
-            try {
-              options.graph.createLink(cloneLink(payload.afterLink));
-            } catch {
-              // 当前阶段优先让历史栈继续可用，单条恢复失败时跳过。
+            const changed = recordedOperations.length
+              ? replayGraphOperations(
+                  options.session,
+                  recordedOperations,
+                  "editor.history.redo"
+                )
+              : options.session.submitOperation(
+                    createNodeUpdateOperation(
+                      payload.nodeId,
+                      payload.afterInput,
+                      "editor.history.redo"
+                    )
+                  ).changed;
+            if (changed) {
+              options.selection.select(payload.nodeId);
             }
           }
         };
@@ -340,6 +494,20 @@ export function createEditorCommandHistory(
     if (undoStack.length > maxEntries) {
       undoStack.shift();
     }
+    options.onDidChange?.();
+  };
+
+  const applyRecordedExecution = (
+    execution: EditorCommandExecution
+  ): EditorCommandHistoryEntry | null => {
+    const entry = buildHistoryEntry(execution);
+    if (!entry) {
+      return null;
+    }
+
+    pushUndoEntry(entry);
+    redoStack.length = 0;
+    return entry;
   };
 
   return {
@@ -364,14 +532,32 @@ export function createEditorCommandHistory(
     },
 
     record(execution: EditorCommandExecution): EditorCommandHistoryEntry | null {
-      const entry = buildHistoryEntry(execution);
-      if (!entry) {
+      if (execution.authority.status === "pending") {
+        void execution.authority.confirmation?.then((confirmations) => {
+          const hasRejectedConfirmation = confirmations.some(
+            (confirmation) => !confirmation.accepted
+          );
+          if (hasRejectedConfirmation) {
+            return;
+          }
+
+          applyRecordedExecution({
+            ...execution,
+            authority: {
+              ...execution.authority,
+              status: "confirmed",
+              pendingOperationIds: []
+            }
+          });
+        });
         return null;
       }
 
-      pushUndoEntry(entry);
-      redoStack.length = 0;
-      return entry;
+      if (execution.authority.status === "rejected") {
+        return null;
+      }
+
+      return applyRecordedExecution(execution);
     },
 
     undo(): EditorCommandHistoryStep | null {
@@ -382,6 +568,7 @@ export function createEditorCommandHistory(
 
       entry.undo();
       redoStack.push(entry);
+      options.onDidChange?.();
       return {
         direction: "undo",
         entry
@@ -405,6 +592,7 @@ export function createEditorCommandHistory(
     clear(): void {
       undoStack.length = 0;
       redoStack.length = 0;
+      options.onDidChange?.();
     }
   };
 }

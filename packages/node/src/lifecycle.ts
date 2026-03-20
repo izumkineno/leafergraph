@@ -6,7 +6,7 @@ import type {
   NodeWidgetSpec,
   SlotDirection,
   SlotType
-} from "./types";
+} from "./types.js";
 
 /**
  * 节点实例在运行时可调用的结构性 API。

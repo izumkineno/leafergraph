@@ -23,11 +23,17 @@ export interface EditorCanvasCommandController {
   /** 当前是否存在可粘贴的剪贴板内容。 */
   readonly canPaste: boolean;
   /** 读取当前“快速创建节点”命令是否可用。 */
-  resolveCreateNodeState(): EditorCanvasCreateNodeState;
+  resolveCreateNodeState(nodeType?: string): EditorCanvasCreateNodeState;
   /** 在指定画布位置快速创建节点。 */
   createNodeAt(
-    context: LeaferGraphContextMenuContext
-  ): ReturnType<LeaferGraph["createNode"]> | null;
+    context: LeaferGraphContextMenuContext,
+    nodeType?: string
+  ): EditorNodeCommandResult | undefined;
+  /** 从工作区节点库创建节点。 */
+  createNodeForWorkspace(
+    nodeType: string,
+    placement: EditorCanvasCreatePlacement
+  ): EditorNodeCommandResult | undefined;
   /** 将剪贴板节点粘贴到指定位置；若未提供坐标则回退到选区附近。 */
   pasteClipboardAt(
     point: { x: number; y: number } | null
@@ -47,6 +53,10 @@ export interface CreateEditorCanvasCommandControllerOptions {
   quickCreateNodeType?: string;
   /** 视口发生变化后的回调，用于同步鼠标坐标等外部状态。 */
   onAfterFitView?: () => void;
+  /** 读取当前最近一次鼠标停留位置对应的 page 坐标。 */
+  resolveLastPointerPagePoint?(): { x: number; y: number } | null;
+  /** 读取当前画布视口中心对应的 page 坐标。 */
+  resolveViewportCenterPagePoint?(): { x: number; y: number } | null;
 }
 
 /** editor 画布“快速创建节点”命令的最小状态。 */
@@ -54,6 +64,11 @@ export interface EditorCanvasCreateNodeState {
   disabled: boolean;
   description: string;
 }
+
+/** 从工作区节点库创建节点时允许的放置策略。 */
+export type EditorCanvasCreatePlacement =
+  | "last-pointer"
+  | "viewport-center";
 
 /** 创建一个最小的快速建节点输入。 */
 function createQuickCreateNodeInput(
@@ -64,6 +79,18 @@ function createQuickCreateNodeInput(
     type,
     x: Math.round(context.pagePoint.x),
     y: Math.round(context.pagePoint.y)
+  };
+}
+
+/** 直接通过 page 坐标构造最小建节点输入。 */
+function createQuickCreateNodeInputAtPoint(
+  point: { x: number; y: number },
+  type: string
+): LeaferGraphCreateNodeInput {
+  return {
+    type,
+    x: Math.round(point.x),
+    y: Math.round(point.y)
   };
 }
 
@@ -80,6 +107,43 @@ function resolveQuickCreateNodeType(
   return definitions[0]?.type;
 }
 
+/** 解析一个显式节点类型是否已注册；未提供时回退到快速创建节点类型。 */
+function resolveRequestedNodeType(
+  graph: LeaferGraph,
+  preferredType?: string,
+  explicitType?: string
+): string | undefined {
+  const definitions = graph.listNodes();
+  if (
+    explicitType &&
+    definitions.some((definition) => definition.type === explicitType)
+  ) {
+    return explicitType;
+  }
+
+  return resolveQuickCreateNodeType(graph, preferredType);
+}
+
+/** 根据工作区创建策略解析最终落点。 */
+function resolveWorkspaceCreatePoint(
+  options: CreateEditorCanvasCommandControllerOptions,
+  placement: EditorCanvasCreatePlacement
+): { x: number; y: number } | null {
+  if (placement === "last-pointer") {
+    return (
+      options.resolveLastPointerPagePoint?.() ??
+      options.resolveViewportCenterPagePoint?.() ??
+      null
+    );
+  }
+
+  return (
+    options.resolveViewportCenterPagePoint?.() ??
+    options.resolveLastPointerPagePoint?.() ??
+    null
+  );
+}
+
 /**
  * 创建 editor 画布命令控制器。
  * 这层只做“画布语义”，不关心节点内部细节。
@@ -87,10 +151,13 @@ function resolveQuickCreateNodeType(
 export function createEditorCanvasCommandController(
   options: CreateEditorCanvasCommandControllerOptions
 ): EditorCanvasCommandController {
-  const resolveCreateNodeState = (): EditorCanvasCreateNodeState => {
-    const nodeType = resolveQuickCreateNodeType(
+  const resolveCreateNodeState = (
+    explicitType?: string
+  ): EditorCanvasCreateNodeState => {
+    const nodeType = resolveRequestedNodeType(
       options.graph,
-      options.quickCreateNodeType
+      options.quickCreateNodeType,
+      explicitType
     );
 
     if (!nodeType) {
@@ -107,20 +174,46 @@ export function createEditorCanvasCommandController(
   };
 
   const createNodeAt = (
-    context: LeaferGraphContextMenuContext
-  ): ReturnType<LeaferGraph["createNode"]> | null => {
-    const nodeType = resolveQuickCreateNodeType(
+    context: LeaferGraphContextMenuContext,
+    explicitType?: string
+  ): EditorNodeCommandResult | undefined => {
+    const nodeType = resolveRequestedNodeType(
       options.graph,
-      options.quickCreateNodeType
+      options.quickCreateNodeType,
+      explicitType
     );
     if (!nodeType) {
-      return null;
+      return undefined;
     }
 
     const node = options.nodeCommands.createNode(
       createQuickCreateNodeInput(context, nodeType)
     );
-    return node;
+    return node ? [node] : undefined;
+  };
+
+  const createNodeForWorkspace = (
+    explicitType: string,
+    placement: EditorCanvasCreatePlacement
+  ): EditorNodeCommandResult | undefined => {
+    const nodeType = resolveRequestedNodeType(
+      options.graph,
+      options.quickCreateNodeType,
+      explicitType
+    );
+    if (!nodeType) {
+      return undefined;
+    }
+
+    const point = resolveWorkspaceCreatePoint(options, placement);
+    if (!point) {
+      return undefined;
+    }
+
+    const node = options.nodeCommands.createNode(
+      createQuickCreateNodeInputAtPoint(point, nodeType)
+    );
+    return node ? [node] : undefined;
   };
 
   const pasteClipboardAt = (
@@ -151,6 +244,7 @@ export function createEditorCanvasCommandController(
     },
     resolveCreateNodeState,
     createNodeAt,
+    createNodeForWorkspace,
     pasteClipboardAt,
     fitView
   };

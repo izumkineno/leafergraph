@@ -1,4 +1,4 @@
-import type { LeaferGraphData } from "leafergraph";
+import type { GraphDocument } from "leafergraph";
 
 import {
   TEMPLATE_BASIC_WIDGET_NODE_TYPE,
@@ -10,16 +10,19 @@ import {
 } from "./shared";
 
 /**
- * 这份图数据是给宿主项目快速验证模板接入是否成功的。
+ * 这份 document 数据是给宿主项目快速验证模板接入是否成功的。
  *
  * 用法通常是：
  * 1. 先安装模板插件
- * 2. 再把这份 graph 作为初始化图数据传给宿主
+ * 2. 再把这份 document 作为初始化图数据传给宿主
  *
  * 注意这里的 `type` 必须写“安装后的最终类型”，
  * 也就是带 namespace 的那一套值。
  */
-export const templateDemoGraph: LeaferGraphData = {
+export const templateDemoDocument: GraphDocument = {
+  documentId: "template-demo-document",
+  revision: 1,
+  appKind: "leafergraph-local",
   nodes: [
     {
       id: "template-on-play",
@@ -159,4 +162,34 @@ export const templateDemoGraph: LeaferGraphData = {
       }
     }
   ]
+};
+
+export const templateAlternateDemoDocument: GraphDocument = {
+  ...templateDemoDocument,
+  documentId: "template-demo-document-alt",
+  revision: 1,
+  nodes: templateDemoDocument.nodes.map((node, index) => ({
+    ...node,
+    id: `${node.id}-alt`,
+    title: node.title ? `${node.title} Alt` : node.title,
+    layout: node.layout
+      ? {
+          ...node.layout,
+          x: (node.layout.x ?? 0) + 96 + index * 12,
+          y: (node.layout.y ?? 0) + (index % 2 === 0 ? 24 : 96)
+        }
+      : node.layout
+  })),
+  links: templateDemoDocument.links.map((link) => ({
+    ...link,
+    id: `${link.id}-alt`,
+    source: {
+      ...link.source,
+      nodeId: `${link.source.nodeId}-alt`
+    },
+    target: {
+      ...link.target,
+      nodeId: `${link.target.nodeId}-alt`
+    }
+  }))
 };

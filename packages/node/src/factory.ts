@@ -1,6 +1,6 @@
-import { createNodeApi } from "./api";
-import type { NodeRegistry } from "./registry";
-import type { NodeInit, NodeRuntimeState } from "./types";
+import { createNodeApi } from "./api.js";
+import type { NodeRegistry } from "./registry.js";
+import type { NodeInit, NodeRuntimeState } from "./types.js";
 import {
   createMissingNodeDefinition,
   cloneFlags,
@@ -12,8 +12,8 @@ import {
   createPropertyValues,
   resizeRuntimeValues,
   resolveNodeLayout
-} from "./utils";
-import { normalizeWidgetSpecs } from "./widget";
+} from "./utils.js";
+import { normalizeWidgetSpecs } from "./widget.js";
 
 /**
  * 根据注册表中的节点定义创建一个新的节点运行时实例。
