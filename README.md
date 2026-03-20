@@ -153,3 +153,31 @@ bun run build:testbundles
 - `dist/authority-python-host-demo.html`
 
 这样用 `bun run preview:editor` 时，host demo 页面也会保留各自的 bootstrap 入口，不会再回退成通用 `index.html`。
+
+## GitHub Pages 托管
+
+当前仓库已经补上 editor 的 GitHub Pages 工作流，默认会把 `packages/editor/dist/` 发布到 Pages。
+
+工作流文件：
+
+- `.github/workflows/deploy-editor.yml`
+
+当前行为：
+
+1. workflow 只在“默认分支”上真正执行部署
+2. 会自动根据仓库名推导 Vite `base`
+3. 普通仓库会使用 `/<repo>/`
+4. 如果仓库名本身是 `<user>.github.io`，则自动使用根路径 `/`
+
+启用方式：
+
+1. 把当前仓库推到 GitHub
+2. 进入 `Settings -> Pages`
+3. 在 `Build and deployment` 里选择 `GitHub Actions`
+4. 再次推送默认分支，或手动触发 `Deploy Editor to GitHub Pages`
+
+补充说明：
+
+- editor 仍然是静态页面，适合 GitHub Pages
+- 页面里的“本地 bundle 文件选择”和浏览器持久化在 Pages 上可以继续使用
+- authority demo 若依赖本地或远程后端，需要你另外准备可访问的后端地址
