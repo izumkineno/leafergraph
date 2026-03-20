@@ -22,8 +22,10 @@ const editorHtmlEntries = {
 
 export default defineConfig(({ mode }) => {
   const enableLanHost = mode === "lan" || process.env.VITE_LAN === "true";
+  const githubPagesBase = process.env.GITHUB_PAGES_BASE || "/";
 
   return {
+    base: githubPagesBase,
     plugins: [preact()],
     resolve: {
       alias: {
