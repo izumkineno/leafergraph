@@ -13,9 +13,10 @@
   - 可直接复制出去的外部模板工程
   - 当前已提供：
     - `templates/node-widget-plugin-template`
-    - `templates/node-backend-control-template`
+    - `templates/node-backend-template`
       - 当前仓库内 Node authority 后端的唯一实现来源
-    - `templates/python-backend-control-template`
+    - `templates/python-backend-template`
+  - 模板职责矩阵见 `templates/README.md`
 
 ## 当前边界
 
@@ -36,10 +37,11 @@ bun run dev:editor:lan
 bun run build:testbundles
 bun run dev:node-backend
 bun run start:node-backend
+bun run start:python-backend
 bun run build
 ```
 
-Node authority demo 现在统一走模板目录实现；你可以在根目录直接运行：
+后端模板命令统一走 `backend` 命名；你可以在根目录直接运行：
 
 ```bash
 bun run check:node-backend
@@ -47,6 +49,8 @@ bun run build:node-backend
 bun run dev:node-backend
 bun run start:node-backend
 bun run test:node-backend
+bun run start:python-backend
+bun run test:python-backend
 ```
 
 ## 当前定位
