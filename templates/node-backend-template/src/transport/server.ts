@@ -7,12 +7,12 @@ import {
   createNodeAuthorityRuntime,
   type CreateNodeAuthorityRuntimeOptions,
   type NodeAuthorityRuntime
-} from "./runtime.js";
+} from "../core/runtime.js";
 import {
   DEFAULT_AUTHORITY_PROTOCOL_ADAPTER,
   type AuthorityProtocolAdapter,
   type AuthorityOutboundEnvelope
-} from "./protocol.js";
+} from "../core/protocol.js";
 
 /** Node authority server 的最小启动参数。 */
 export interface StartNodeAuthorityServerOptions

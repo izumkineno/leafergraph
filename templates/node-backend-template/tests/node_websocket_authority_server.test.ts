@@ -202,7 +202,7 @@ describe("node websocket authority server", () => {
     const replacementDocument: GraphDocument = {
       documentId: "node-authority-doc-2",
       revision: "7",
-      appKind: "node-authority-demo",
+      appKind: "node-backend-demo",
       nodes: [],
       links: [],
       meta: {

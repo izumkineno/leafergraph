@@ -191,17 +191,17 @@ async function startPythonAuthorityServer(): Promise<StartedPythonAuthorityServe
     [
       "run",
       "--project",
-      "templates/python-backend-control-template",
+      "templates/python-backend-template",
       "python",
       "-m",
-      "leafergraph_python_backend_control_template.server"
+      "leafergraph_python_backend_control_template.entry"
     ],
     {
       cwd: "E:\\Code\\Node_editor\\leafergraph",
       env: {
         ...process.env,
-        LEAFERGRAPH_PYTHON_AUTHORITY_HOST: "127.0.0.1",
-        LEAFERGRAPH_PYTHON_AUTHORITY_PORT: String(port)
+        LEAFERGRAPH_PYTHON_BACKEND_HOST: "127.0.0.1",
+        LEAFERGRAPH_PYTHON_BACKEND_PORT: String(port)
       },
       stdio: ["ignore", "pipe", "pipe"]
     }

@@ -57,7 +57,7 @@ def create_default_authority_document() -> dict[str, Any]:
     return {
         "documentId": "node-authority-doc",
         "revision": "1",
-        "appKind": "node-authority-demo",
+        "appKind": "node-backend-demo",
         "nodes": [
             {
                 "id": "node-1",

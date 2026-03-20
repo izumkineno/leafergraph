@@ -4,7 +4,9 @@ import json
 
 from fastapi.testclient import TestClient
 
-from leafergraph_python_backend_control_template.server import create_authority_app
+from leafergraph_python_backend_control_template.transport.server import (
+    create_authority_app,
+)
 
 
 def test_server_should_expose_health_and_websocket_contract() -> None:

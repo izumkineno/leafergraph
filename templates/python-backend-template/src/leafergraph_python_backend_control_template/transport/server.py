@@ -9,13 +9,13 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from .protocol import (
+from ..core.protocol import (
     create_event_envelope,
     create_failure_envelope,
     create_success_envelope,
     parse_request_envelope,
 )
-from .runtime import PythonAuthorityRuntime, create_python_authority_runtime
+from ..core.runtime import PythonAuthorityRuntime, create_python_authority_runtime
 
 
 def _read_env_number(value: str | None, fallback: int) -> int:
@@ -36,7 +36,7 @@ class AuthorityServerState:
 
 def create_authority_app(
     *,
-    authority_name: str = "python-authority-demo",
+    authority_name: str = "python-backend-template",
     runtime: PythonAuthorityRuntime | None = None,
     logger: Any = None,
 ) -> FastAPI:
@@ -69,7 +69,7 @@ def create_authority_app(
         await websocket.accept()
         state.connection_count += 1
         log_info(
-            "[python-authority]",
+            "[python-backend]",
             f"ws connected (connections={state.connection_count})",
         )
         outbound_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -120,7 +120,7 @@ def create_authority_app(
                 try:
                     if action == "getDocument":
                         log_info(
-                            "[python-authority]",
+                            "[python-backend]",
                             f"request getDocument (connections={state.connection_count})",
                         )
                         response = {
@@ -129,7 +129,7 @@ def create_authority_app(
                         }
                     elif action == "submitOperation":
                         log_info(
-                            "[python-authority]",
+                            "[python-backend]",
                             "request submitOperation:"
                             f"{request['operation']['type']} "
                             f"(connections={state.connection_count})",
@@ -140,7 +140,7 @@ def create_authority_app(
                         }
                     elif action == "replaceDocument":
                         log_info(
-                            "[python-authority]",
+                            "[python-backend]",
                             f"request replaceDocument (connections={state.connection_count})",
                         )
                         response = {
@@ -149,7 +149,7 @@ def create_authority_app(
                         }
                     elif action == "controlRuntime":
                         log_info(
-                            "[python-authority]",
+                            "[python-backend]",
                             "request controlRuntime:"
                             f"{request['request']['type']} "
                             f"(connections={state.connection_count})",
@@ -183,7 +183,7 @@ def create_authority_app(
             sender_task.cancel()
             state.connection_count = max(0, state.connection_count - 1)
             log_info(
-                "[python-authority]",
+                "[python-backend]",
                 f"ws closed (connections={state.connection_count})",
             )
 
@@ -191,19 +191,19 @@ def create_authority_app(
 
 
 def main() -> None:
-    host = os.environ.get("LEAFERGRAPH_PYTHON_AUTHORITY_HOST", "127.0.0.1")
-    port = _read_env_number(os.environ.get("LEAFERGRAPH_PYTHON_AUTHORITY_PORT"), 5503)
+    host = os.environ.get("LEAFERGRAPH_PYTHON_BACKEND_HOST", "127.0.0.1")
+    port = _read_env_number(os.environ.get("LEAFERGRAPH_PYTHON_BACKEND_PORT"), 5503)
     authority_name = os.environ.get(
-        "LEAFERGRAPH_PYTHON_AUTHORITY_NAME", "python-authority-demo"
+        "LEAFERGRAPH_PYTHON_BACKEND_NAME", "python-backend-template"
     )
     app = create_authority_app(authority_name=authority_name)
 
     print(
-        "[python-authority-demo]",
+        "[python-backend-template]",
         f"authority server listening on ws://{host}:{port}/authority",
     )
     print(
-        "[python-authority-demo]",
+        "[python-backend-template]",
         f"health endpoint available at http://{host}:{port}/health",
     )
     uvicorn.run(app, host=host, port=port, log_level="warning")

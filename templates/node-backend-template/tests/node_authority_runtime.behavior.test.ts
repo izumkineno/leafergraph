@@ -133,7 +133,7 @@ function createTemplateExecutionAuthorityDocument(): GraphDocument {
   return {
     documentId: "template-execution-doc",
     revision: "1",
-    appKind: "node-authority-demo",
+    appKind: "node-backend-demo",
     nodes: [
       {
         id: "template-on-play",

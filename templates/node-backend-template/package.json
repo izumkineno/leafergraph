@@ -1,5 +1,5 @@
 {
-  "name": "@template/node-backend-control-template",
+  "name": "@template/node-backend-template",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,9 +11,9 @@
   ],
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
-    "build": "bun build ./src/server.ts --outfile ./dist/server.js --target node --format esm",
+    "build": "bun build ./src/entry/server.ts --outfile ./dist/server.js --target node --format esm",
     "start": "node ./dist/server.js",
-    "dev": "bun run ./src/server.ts",
+    "dev": "bun run ./src/entry/server.ts",
     "test": "bun test ./tests"
   },
   "dependencies": {

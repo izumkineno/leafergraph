@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from leafergraph_python_backend_control_template.runtime import (
+from leafergraph_python_backend_control_template.core.runtime import (
     create_python_authority_runtime,
 )
 
@@ -9,7 +9,7 @@ def create_sample_authority_document() -> dict:
     return {
         "documentId": "behavior-doc",
         "revision": "1",
-        "appKind": "node-authority-demo",
+        "appKind": "node-backend-demo",
         "nodes": [
             {
                 "id": "node-1",
@@ -142,7 +142,7 @@ def create_template_execution_authority_document() -> dict:
     return {
         "documentId": "template-execution-doc",
         "revision": "1",
-        "appKind": "node-authority-demo",
+        "appKind": "node-backend-demo",
         "nodes": [
             {
                 "id": "template-on-play",

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import type { GraphDocument } from "leafergraph";
-import { startNodeAuthorityServer } from "../../../templates/node-backend-control-template/src/index.js";
+import { startNodeAuthorityServer } from "../../../templates/node-backend-template/src/index.js";
 import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
 import type { GraphViewportHostBridge } from "../src/ui/viewport";
 import { createEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/remote_authority_app_runtime";

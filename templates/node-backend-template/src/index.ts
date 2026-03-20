@@ -2,7 +2,7 @@ import {
   startNodeAuthorityServer,
   type StartedNodeAuthorityServer,
   type StartNodeAuthorityServerOptions
-} from "./authority/index.js";
+} from "./transport/index.js";
 
 export interface StartTemplateNodeBackendControlServerOptions
   extends Omit<StartNodeAuthorityServerOptions, "host" | "port" | "authorityName"> {
@@ -28,14 +28,14 @@ export function resolveTemplateNodeBackendControlServerOptions(
 ): StartNodeAuthorityServerOptions {
   return {
     ...options,
-    host: options.host ?? process.env.LEAFERGRAPH_NODE_AUTHORITY_HOST ?? "127.0.0.1",
+    host: options.host ?? process.env.LEAFERGRAPH_NODE_BACKEND_HOST ?? "127.0.0.1",
     port:
       options.port ??
-      readEnvNumber(process.env.LEAFERGRAPH_NODE_AUTHORITY_PORT, 5502),
+      readEnvNumber(process.env.LEAFERGRAPH_NODE_BACKEND_PORT, 5502),
     authorityName:
       options.authorityName ??
-      process.env.LEAFERGRAPH_NODE_AUTHORITY_NAME ??
-      "node-backend-control-template"
+      process.env.LEAFERGRAPH_NODE_BACKEND_NAME ??
+      "node-backend-template"
   };
 }
 
@@ -65,15 +65,16 @@ export async function runTemplateNodeBackendControlServer(
   });
 
   console.info(
-    "[node-backend-control-template]",
+    "[node-backend-template]",
     `authority server listening on ${server.authorityUrl}`
   );
   console.info(
-    "[node-backend-control-template]",
+    "[node-backend-template]",
     `health endpoint available at ${server.healthUrl}`
   );
 
   return server;
 }
 
-export * from "./authority/index.js";
+export * from "./core/index.js";
+export * from "./transport/index.js";

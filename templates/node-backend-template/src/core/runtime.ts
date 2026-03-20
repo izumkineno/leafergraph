@@ -106,7 +106,7 @@ function createDefaultAuthorityDocument(): GraphDocument {
   return {
     documentId: "node-authority-doc",
     revision: "1",
-    appKind: "node-authority-demo",
+    appKind: "node-backend-demo",
     nodes: [
       {
         id: "node-1",

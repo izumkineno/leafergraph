@@ -1,5 +1,5 @@
 [project]
-name = "leafergraph-python-backend-control-template"
+name = "leafergraph-python-backend-template"
 version = "0.1.0"
 description = "Python backend control example template for LeaferGraph."
 readme = "README.md"
