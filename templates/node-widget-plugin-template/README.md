@@ -1,15 +1,16 @@
-# Node + Widget 外部插件模板
+# Node Widget Plugin Template
 
-这个模板现在同时覆盖两条接入路线：
+这份模板用于产出“可复制出去”的外部节点/Widget 插件，并同时支持：
 
 - ESM 包接入
-  - 适合其它工程直接 `import "@template/node-widget-demo"`
-- browser IIFE 接入
-  - 适合当前 `packages/editor` 通过本地文件选择器读取 `dist/browser/*.iife.js`
+- browser IIFE bundle 接入（供 editor 本地加载）
 
-模板目标不是参与 workspace 的长期源码联动，而是作为“外部节点包 / widget 包参考实现”存在。你可以直接复制整个目录到仓库外，再替换包名、命名空间和节点定义。
+源码职责按两层收口：
 
-## 目录说明
+- 插件核心：`core`（nodes/widgets/module/shared）
+- 分发与预置：`presets`（demo 文档）+ `browser`（bundle 注册入口）
+
+## 目录结构
 
 ```text
 templates/node-widget-plugin-template/
@@ -22,104 +23,62 @@ templates/node-widget-plugin-template/
     prepare_dist.mjs
   src/
     index.ts
-    module.ts
-    demo-document.ts
-    shared.ts
+    core/
+      shared.ts
+      module.ts
+      nodes/
+      widgets/
+    presets/
+      demo_document.ts
     browser/
       register_bundle.ts
       demo_bundle.ts
+      demo_alt_bundle.ts
       node_bundle.ts
       widget_bundle.ts
-    nodes/
-      index.ts
-      category_node.ts
-      basic_widgets_node.ts
-      external_status_node.ts
-    widgets/
-      index.ts
-      external_status_widget.ts
 ```
 
-## 这份模板演示了什么
+## 角色边界
 
-### 1. 一个外部包如何同时交付节点和 widget
+### 需要改
 
-- 节点通过 `NodeModule` 统一声明
-- widget 通过 `LeaferGraphWidgetEntry` 单次注册
-- 正式插件安装顺序固定为：
-  - 先 `registerWidget(...)`
-  - 再 `installModule(...)`
+- 插件包名、命名空间、节点定义、Widget 定义。
+- demo 文档内容（节点/连线/属性）。
+- 业务运行语义（节点输入输出、显示字段、交互文案）。
 
-### 2. 一个模板如何同时输出 ESM 包和 browser bundle
+### 按需改
 
-- `vite.config.ts`
-  - 负责正常 ESM 构建
-- `vite.browser.config.ts`
-  - 负责 browser IIFE 构建
-- `scripts/prepare_dist.mjs`
-  - 在构建前确保 `dist/browser/` 一定是目录，而不是历史遗留单文件
+- browser bundle 产物拆分策略与构建脚本。
+- ESM 对外导出面与外部宿主示例。
+- `demo-alt` 等预置样例数量与内容。
 
-### 3. browser bundle 如何拆分成 demo / node / widget 三类
+### 不要改
 
-- `demo.iife.js`
-  - 只注册演示 document 数据
-  - 显式声明依赖 `node + widget`
-- `node.iife.js`
-  - 只安装可独立成立的节点模块
-  - 不包含依赖外部 widget 的节点
-- `widget.iife.js`
-  - 先注册外部 widget
-  - 再安装消费该 widget 的伴生节点
-  - 保证只加载 widget 槽位时 editor 也能看到结果
+- `LeaferGraphEditorBundleBridge.registerBundle(...)` 注册契约。
+- bundle manifest 的 `kind/id/requires` 基本语义。
+- `demo/node/widget` 三类分包职责边界（防止循环依赖与加载歧义）。
 
-## 构建命令
+## 命令
+
+在模板目录执行：
 
 ```bash
 bun install
+bun run check
 bun run build
 ```
 
-`build` 会串联两条产物线：
+`build` 会产出：
 
-1. `bun run build:esm`
-   - 生成 `dist/*.d.ts`
-   - 生成 `dist/index.js`
-2. `bun run build:browser`
-   - 生成 `dist/browser/demo.iife.js`
-   - 生成 `dist/browser/node.iife.js`
-   - 生成 `dist/browser/widget.iife.js`
+- ESM：`dist/index.js` + `dist/*.d.ts`
+- browser：`dist/browser/demo.iife.js`、`demo-alt.iife.js`、`node.iife.js`、`widget.iife.js`
 
-## 在当前 editor 里联调
+## 联调
 
-当前 editor 不再直接源码 import 模板，而是通过本地文件加载：
+在 editor 页面可通过本地文件选择器加载 `dist/browser/*.iife.js`。  
+推荐顺序：
 
-1. 在本模板目录执行 `bun run build`
-2. 打开 `packages/editor`
-3. 在页面顶部的本地 bundle 面板里按顺序选择：
-   - `dist/browser/widget.iife.js`
-   - `dist/browser/node.iife.js`
-   - `dist/browser/demo.iife.js`
-4. editor 会通过 `LeaferGraphEditorBundleBridge.registerBundle(...)` 读取 manifest
-
-推荐按上面的顺序加载，因为 demo 图里的部分节点依赖 node 和 widget 都已经就绪。
-
-## 宿主侧 ESM 接入示例
-
-```ts
-import { createLeaferGraph } from "leafergraph";
-import templatePlugin, {
-  templateDemoDocument
-} from "@template/node-widget-demo";
-
-const graph = createLeaferGraph(container, {
-  plugins: [templatePlugin],
-  document: templateDemoDocument
-});
-```
-
-## 使用建议
-
-- 如果你只需要“纯节点包”，可以删掉 `src/widgets/`
-- 如果你只需要“纯 widget 包”，可以删掉 `src/nodes/` 和节点模块
-- 如果你只想保留 browser 方案，可以继续输出 `dist/browser/*.iife.js`
-- 如果你要做真正的 npm 发布，请去掉 `package.json` 里的 `"private": true`
+1. `widget.iife.js`
+2. `node.iife.js`
+3. `demo.iife.js`
+4. `demo-alt.iife.js`

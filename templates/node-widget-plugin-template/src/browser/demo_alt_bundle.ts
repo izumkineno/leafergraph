@@ -1,8 +1,8 @@
-import { templateAlternateDemoDocument } from "../demo-document";
+import { templateAlternateDemoDocument } from "../presets/demo_document";
 import {
   TEMPLATE_PLUGIN_NAME,
   TEMPLATE_PLUGIN_VERSION
-} from "../shared";
+} from "../core/shared";
 import { registerTemplateBundle } from "./register_bundle";
 
 registerTemplateBundle({

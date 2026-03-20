@@ -7,7 +7,7 @@ import {
   TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE,
   TEMPLATE_EXTERNAL_WIDGET_NODE_TYPE,
   createTemplateControlWidget
-} from "./shared";
+} from "../core/shared";
 
 /**
  * 这份 document 数据是给宿主项目快速验证模板接入是否成功的。

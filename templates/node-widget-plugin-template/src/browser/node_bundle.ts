@@ -1,11 +1,11 @@
 import type { LeaferGraphNodePlugin } from "leafergraph";
 
-import { templateNodeOnlyDemoModule } from "../module";
+import { templateNodeOnlyDemoModule } from "../core/module";
 import {
   TEMPLATE_CATEGORY_NODE_TYPE,
   TEMPLATE_PLUGIN_NAME,
   TEMPLATE_PLUGIN_VERSION
-} from "../shared";
+} from "../core/shared";
 import { registerTemplateBundle } from "./register_bundle";
 
 /** 只安装可独立成立模板节点的 browser 插件。 */

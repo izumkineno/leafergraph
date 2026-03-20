@@ -1,26 +1,25 @@
 import type { LeaferGraphNodePlugin } from "leafergraph";
 
-import { templateDemoDocument } from "./demo-document";
+import { templateDemoDocument } from "./presets";
 import {
   templateNodeOnlyDemoModule,
   templateNodeWidgetDemoModule,
   templateWidgetCompanionModule
-} from "./module";
+} from "./core";
 import {
   TEMPLATE_PLUGIN_NAME,
   TEMPLATE_PLUGIN_VERSION
-} from "./shared";
-import { templateExternalStatusWidget } from "./widgets";
+} from "./core";
+import { templateExternalStatusWidget } from "./core";
 
-export { templateDemoDocument } from "./demo-document";
+export { templateDemoDocument } from "./presets";
 export {
   templateNodeOnlyDemoModule,
   templateNodeWidgetDemoModule,
   templateWidgetCompanionModule
-} from "./module";
-export * from "./nodes";
-export * from "./shared";
-export * from "./widgets";
+} from "./core";
+export * from "./core";
+export * from "./presets";
 
 /**
  * 模板工程默认导出的插件对象。

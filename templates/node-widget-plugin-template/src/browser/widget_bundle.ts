@@ -1,12 +1,12 @@
 import type { LeaferGraphNodePlugin } from "leafergraph";
 
-import { templateWidgetCompanionModule } from "../module";
+import { templateWidgetCompanionModule } from "../core/module";
 import {
   TEMPLATE_EXTERNAL_WIDGET_NODE_TYPE,
   TEMPLATE_PLUGIN_NAME,
   TEMPLATE_PLUGIN_VERSION
-} from "../shared";
-import { templateExternalStatusWidget } from "../widgets";
+} from "../core/shared";
+import { templateExternalStatusWidget } from "../core/widgets";
 import { registerTemplateBundle } from "./register_bundle";
 
 /** 只安装外部 widget 及其伴生节点的 browser 插件。 */
