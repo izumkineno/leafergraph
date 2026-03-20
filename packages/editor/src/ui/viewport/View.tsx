@@ -21,51 +21,51 @@ import {
   type EditorCommandBus,
   type EditorCommandRequest,
   type EditorCommandExecution
-} from "../commands/command_bus";
+} from "../../commands/command_bus";
 import {
   parseLeaferGraphClipboardPayload,
   serializeLeaferGraphClipboardPayload
-} from "../commands/clipboard_payload";
+} from "../../commands/clipboard_payload";
 import {
   readBrowserClipboardText,
   writeBrowserClipboardText
-} from "../commands/browser_clipboard_bridge";
+} from "../../commands/browser_clipboard_bridge";
 import {
   createEditorCommandHistory,
   type EditorCommandHistory
-} from "../commands/command_history";
+} from "../../commands/command_history";
 import {
   createLoopbackGraphDocumentSessionBinding,
   type EditorGraphDocumentSessionBindingFactory
-} from "../session/graph_document_session_binding";
+} from "../../session/graph_document_session_binding";
 import type {
   EditorGraphDocumentResyncOptions,
   EditorGraphOperationAuthorityConfirmation,
   EditorGraphOperationSubmission
-} from "../session/graph_document_session";
-import { createEditorNodeSelection } from "../state/selection";
+} from "../../session/graph_document_session";
+import { createEditorNodeSelection } from "../../state/selection";
 import {
   GRAPH_VIEWPORT_BACKGROUND_SIZE,
   resolveGraphViewportBackground,
   type EditorTheme
-} from "../theme";
+} from "../../theme";
 import {
   bindLinkContextMenu,
   bindNodeContextMenu,
   createLinkMenuBindingKey,
   createNodeMenuBindingKey,
   type EditorNodePointerDownEvent
-} from "../menu/context_menu_bindings";
+} from "../../menu/context_menu_bindings";
 import {
   createEditorContextMenuBeforeOpenHandler,
   createEditorContextMenuResolver
-} from "../menu/context_menu_resolver";
-import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
+} from "../../menu/context_menu_resolver";
+import type { EditorRuntimeFeedbackInlet } from "../../runtime/runtime_feedback_inlet";
 import type {
   EditorRemoteAuthorityRuntimeControlRequest,
   EditorRemoteAuthorityRuntimeController
-} from "../session/graph_document_authority_client";
-import { createGraphInteractionCommitBridge } from "../interaction/graph_interaction_commit_bridge";
+} from "../../session/graph_document_authority_client";
+import { createGraphInteractionCommitBridge } from "../../interaction/graph_interaction_commit_bridge";
 import {
   appendRuntimeHistoryEntry,
   createGraphViewportRuntimeCollectionsProjector,
@@ -73,12 +73,12 @@ import {
   type GraphViewportRuntimeChainGroup,
   type GraphViewportRuntimeFailureGroup,
   type GraphViewportRuntimeHistoryEntry
-} from "./graph_viewport_runtime_collections";
-import { resolveGraphViewportRuntimeDetailLabel } from "./graph_viewport_runtime_status";
+} from "./runtime_collections";
+import { resolveGraphViewportRuntimeDetailLabel } from "./runtime_status";
 import {
   resolveRemoteRuntimeControlNotice,
   type GraphViewportRemoteRuntimeControlNotice
-} from "./graph_viewport_runtime_control_notice";
+} from "./runtime_control_notice";
 
 export interface GraphViewportProps {
   document: GraphDocument;
@@ -2480,3 +2480,4 @@ export function GraphViewport({
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 import type { LeaferGraphGraphExecutionState } from "leafergraph";
 
-import type { GraphViewportRuntimeChainGroup } from "./graph_viewport_runtime_collections";
+import type { GraphViewportRuntimeChainGroup } from "./runtime_collections";
 
 function formatRuntimeSourceLabel(
   source: GraphViewportRuntimeChainGroup["source"]

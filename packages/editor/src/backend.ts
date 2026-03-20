@@ -1,5 +1,5 @@
-export * from "./app/remote_authority_app_runtime";
-export * from "./app/remote_authority_host_adapter";
+export * from "./backend/authority/remote_authority_app_runtime";
+export * from "./backend/authority/remote_authority_host_adapter";
 export * from "./session/graph_document_authority_client";
 export * from "./session/graph_document_authority_protocol";
 export * from "./session/graph_document_authority_service";

@@ -2,8 +2,8 @@ import type {
   EditorAppBootstrap,
   EditorAppBootstrapPreloadedBundle
 } from "../app/editor_app_bootstrap";
-import type { GraphViewportHostBridge } from "../app/GraphViewport";
-import type { EditorRemoteAuthorityHostAdapter } from "../app/remote_authority_host_adapter";
+import type { GraphViewportHostBridge } from "../ui/viewport";
+import type { EditorRemoteAuthorityHostAdapter } from "../backend/authority/remote_authority_host_adapter";
 import { createWebSocketRemoteAuthorityTransport } from "../session/websocket_remote_authority_transport";
 
 /** 通用 WebSocket host demo 可选预装的本地 test bundle 列表。 */
@@ -40,6 +40,7 @@ export interface WebSocketHostDemoBootstrapOptions {
   authorityLabel?: string;
   authorityName?: string;
   preloadTestBundles?: boolean;
+  debugViewportBridgeLog?: boolean;
 }
 
 export interface WebSocketHostDemoState<TMode extends string> {
@@ -49,6 +50,7 @@ export interface WebSocketHostDemoState<TMode extends string> {
   readonly authorityLabel: string;
   readonly authorityName: string;
   readonly preloadTestBundles: boolean;
+  readonly debugViewportBridgeLog: boolean;
 }
 
 interface WebSocketHostDemoGlobal {
@@ -91,7 +93,8 @@ function normalizeWebSocketHostDemoBootstrapOptions(
       options.authorityName.trim().length > 0
         ? options.authorityName.trim()
         : config.defaultAuthorityName,
-    preloadTestBundles: options.preloadTestBundles === true
+    preloadTestBundles: options.preloadTestBundles === true,
+    debugViewportBridgeLog: options.debugViewportBridgeLog === true
   };
 }
 
@@ -108,7 +111,10 @@ function readWebSocketHostDemoBootstrapOptions(
       authorityName: params.get("authorityName") ?? undefined,
       preloadTestBundles:
         params.get("preloadTestBundles") === "1" ||
-        params.get("preloadTestBundles") === "true"
+        params.get("preloadTestBundles") === "true",
+      debugViewportBridgeLog:
+        params.get("debugViewportBridge") === "1" ||
+        params.get("debugViewportBridge") === "true"
     },
     config
   );
@@ -339,7 +345,8 @@ export function installWebSocketHostDemoBootstrap<TMode extends string>(
     authorityUrl: authorityOptions.authorityUrl,
     authorityLabel: authorityOptions.authorityLabel,
     authorityName: authorityOptions.authorityName,
-    preloadTestBundles: authorityOptions.preloadTestBundles
+    preloadTestBundles: authorityOptions.preloadTestBundles,
+    debugViewportBridgeLog: authorityOptions.debugViewportBridgeLog
   };
 
   (host as Record<string, unknown>)[config.globalStateKey] = hostDemoState;
@@ -349,12 +356,14 @@ export function installWebSocketHostDemoBootstrap<TMode extends string>(
     onViewportHostBridgeChange(bridge) {
       hostDemoState.bridge = bridge;
       previousListener?.(bridge);
-      host.console?.info(
-        config.logPrefix,
-        bridge
-          ? `viewport bridge ready for ${authorityOptions.authorityUrl}`
-          : `viewport bridge disposed for ${authorityOptions.authorityUrl}`
-      );
+      if (authorityOptions.debugViewportBridgeLog) {
+        host.console?.info(
+          config.logPrefix,
+          bridge
+            ? `viewport bridge ready for ${authorityOptions.authorityUrl}`
+            : `viewport bridge disposed for ${authorityOptions.authorityUrl}`
+        );
+      }
     }
   };
 }

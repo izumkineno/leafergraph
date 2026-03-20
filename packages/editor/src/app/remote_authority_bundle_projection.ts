@@ -1,6 +1,6 @@
 import type { GraphDocument } from "leafergraph";
 
-import type { ResolvedEditorRemoteAuthorityAppRuntime } from "./remote_authority_app_runtime";
+import type { ResolvedEditorRemoteAuthorityAppRuntime } from "../backend/authority/remote_authority_app_runtime";
 import type { EditorBundleRuntimeSetup } from "../loader/types";
 
 export interface RemoteAuthorityBundleProjection {

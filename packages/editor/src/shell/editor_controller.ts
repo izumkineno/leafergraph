@@ -6,12 +6,12 @@ import type {
   GraphViewportRuntimeControlsState,
   GraphViewportToolbarControlsState,
   GraphViewportWorkspaceState
-} from "./GraphViewport";
-import type { DefaultEntryOnboardingState } from "./default_entry_onboarding";
-import type { EditorAppBootstrapPreloadedBundle } from "./editor_app_bootstrap";
-import type { NodeLibraryPreviewRequest } from "./node_library_hover_preview";
-import type { EditorRemoteAuthorityAppSource } from "./remote_authority_app_runtime";
-import type { GraphViewportRemoteRuntimeControlNotice } from "./graph_viewport_runtime_control_notice";
+} from "../ui/viewport";
+import type { DefaultEntryOnboardingState } from "./onboarding/default_entry_onboarding";
+import type { EditorAppBootstrapPreloadedBundle } from "../app/editor_app_bootstrap";
+import type { NodeLibraryPreviewRequest } from "../ui/node-library-preview/helpers";
+import type { EditorRemoteAuthorityAppSource } from "../backend/authority/remote_authority_app_runtime";
+import type { GraphViewportRemoteRuntimeControlNotice } from "../ui/viewport/runtime_control_notice";
 import type { EditorTheme } from "../theme";
 import type {
   EditorBundleCatalogState,
@@ -26,7 +26,7 @@ import type {
   WorkspaceAdaptiveMode,
   WorkspacePanePresentation,
   WorkspaceStageLayout
-} from "./workspace_adaptive";
+} from "./layout/workspace_adaptive";
 
 export type RemoteAuthorityRuntimeStatus =
   | "disabled"

@@ -54,6 +54,27 @@ pre {
   border: 0;
 }
 
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 10px;
+  background: var(--panel-bg-strong);
+  color: var(--text-strong);
+  text-decoration: none;
+  transform: translateY(-160%);
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid rgba(59, 130, 246, 0.28);
+  outline-offset: 2px;
+}
+
 .app-shell {
   --workspace-bg:
     radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 28%),
@@ -1794,7 +1815,47 @@ pre {
 
 .app-shell[data-adaptive="mobile"] .titlebar {
   gap: 14px;
-  padding: 12px;
+  padding: 10px 12px 8px;
+}
+
+.app-shell[data-adaptive="mobile"] .titlebar__toolbar {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.app-shell[data-adaptive="mobile"] .titlebar__runtime {
+  display: flex;
+  width: auto;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.app-shell[data-adaptive="mobile"] .commandbar {
+  display: flex;
+  width: auto;
+  gap: 8px;
+  min-height: 40px;
+  padding: 2px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+
+.app-shell[data-adaptive="mobile"] .commandbar__group {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.app-shell[data-adaptive="mobile"] .commandbar__button,
+.app-shell[data-adaptive="mobile"] .workspace-primary-button,
+.app-shell[data-adaptive="mobile"] .workspace-secondary-button,
+.app-shell[data-adaptive="mobile"] .titlebar-icon-button,
+.app-shell[data-adaptive="mobile"] .titlebar__workspace-item {
+  min-height: 38px;
+  padding-inline: 10px;
 }
 
 .app-shell[data-adaptive="mobile"] .titlebar__document-meta {
@@ -1829,7 +1890,10 @@ pre {
 
 .app-shell[data-adaptive="mobile"] .statusbar {
   gap: 8px;
-  align-items: center;
+  align-items: stretch;
+  flex-wrap: wrap;
+  overflow-x: hidden;
+  white-space: normal;
   min-height: calc(var(--statusbar-height-mobile) + env(safe-area-inset-bottom, 0px));
   padding:
     8px
@@ -1839,13 +1903,37 @@ pre {
 }
 
 .app-shell[data-adaptive="mobile"] .statusbar__item {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  flex: 1 1 calc(50% - 8px);
+  min-width: 0;
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--panel-border);
   border-radius: 999px;
   background: var(--panel-bg-soft);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .workspace-sidebar[data-presentation="drawer"],
+  .workspace-sidebar[data-presentation="fullscreen"],
+  .titlebar-icon-button__tooltip,
+  .graph-selection-box,
+  .skip-link {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 @container workspace-pane (max-width: 339px) {

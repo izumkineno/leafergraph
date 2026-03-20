@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { LeaferGraphNodePlugin } from "leafergraph";
 import { createLeaferGraph, type LeaferGraph } from "leafergraph";
 
-import type { EditorTheme } from "../theme";
+import type { EditorTheme } from "../../theme";
 import {
   createNodeLibraryPreviewDocument,
   NODE_LIBRARY_HOVER_PREVIEW_SIZE,
@@ -10,7 +10,7 @@ import {
   type NodeLibraryPreviewAnchorRect,
   type NodeLibraryPreviewPlacement,
   type NodeLibraryPreviewRequest
-} from "./node_library_hover_preview";
+} from "./helpers";
 
 export interface NodeLibraryHoverPreviewOverlayProps {
   request: NodeLibraryPreviewRequest;

@@ -2,12 +2,12 @@ import type { NodeDefinition } from "@leafergraph/node";
 import type { JSX } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
-import type { GraphViewportWorkspaceState } from "./GraphViewport";
+import type { GraphViewportWorkspaceState } from "../ui/viewport";
 import {
   createNodeLibraryPreviewRequest,
   type NodeLibraryPreviewRequest
-} from "./node_library_hover_preview";
-import type { WorkspacePanePresentation } from "./workspace_adaptive";
+} from "../ui/node-library-preview/helpers";
+import type { WorkspacePanePresentation } from "../shell/layout/workspace_adaptive";
 
 interface NodeLibraryGroup {
   key: string;
@@ -446,6 +446,10 @@ export function InspectorPane({
   const [activeTab, setActiveTab] = useState<"properties" | "runtime">(
     "properties"
   );
+  const propertiesTabId = "inspector-tab-properties";
+  const runtimeTabId = "inspector-tab-runtime";
+  const propertiesPanelId = "inspector-panel-properties";
+  const runtimePanelId = "inspector-panel-runtime";
   const node = workspaceState?.inspector.node ?? null;
   const latestChain = workspaceState?.runtime.latestChain ?? null;
 
@@ -462,9 +466,13 @@ export function InspectorPane({
         </div>
         <div class="workspace-tabs" role="tablist" aria-label="检查器标签">
           <button
+            id={propertiesTabId}
             type="button"
+            role="tab"
             class="workspace-tab"
             data-active={activeTab === "properties" ? "true" : "false"}
+            aria-selected={activeTab === "properties" ? "true" : "false"}
+            aria-controls={propertiesPanelId}
             onClick={() => {
               setActiveTab("properties");
             }}
@@ -472,9 +480,13 @@ export function InspectorPane({
             Properties
           </button>
           <button
+            id={runtimeTabId}
             type="button"
+            role="tab"
             class="workspace-tab"
             data-active={activeTab === "runtime" ? "true" : "false"}
+            aria-selected={activeTab === "runtime" ? "true" : "false"}
+            aria-controls={runtimePanelId}
             onClick={() => {
               setActiveTab("runtime");
             }}
@@ -484,7 +496,14 @@ export function InspectorPane({
         </div>
       </header>
 
-      <div class="inspector-pane__scroll">
+      <div
+        class="inspector-pane__scroll"
+        role="tabpanel"
+        id={activeTab === "properties" ? propertiesPanelId : runtimePanelId}
+        aria-labelledby={
+          activeTab === "properties" ? propertiesTabId : runtimeTabId
+        }
+      >
         {!workspaceState ? (
           <div class="workspace-empty-state">
             <h3>等待画布挂载</h3>

@@ -1,20 +1,12 @@
 export {
   App,
-  EditorInspector,
-  EditorNodeLibrary,
   EditorProvider,
-  EditorRunConsoleDialog,
   EditorShell,
-  EditorStatusbar,
-  EditorTitlebar,
-  EditorViewportPane,
-  EditorWorkspace,
-  EditorWorkspaceSettingsDialog,
   useEditorContext,
   type AppProps,
   type EditorProviderProps,
   type EditorShellProps
-} from "./app/App";
+} from "./shell/provider";
 export {
   createEditorController,
   type CreateEditorControllerOptions,
@@ -25,4 +17,4 @@ export {
   type RemoteAuthorityRuntimeStatus,
   type RunConsoleTab,
   type WorkspaceSettingsTab
-} from "./app/editor_controller";
+} from "./shell/editor_controller";

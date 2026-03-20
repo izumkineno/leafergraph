@@ -1,22 +1,22 @@
 import type { GraphDocument } from "leafergraph";
-import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
+import type { EditorRuntimeFeedbackInlet } from "../../runtime/runtime_feedback_inlet";
 import {
   createConfigurableSessionBindingFactory,
   type EditorGraphDocumentSessionBindingFactory
-} from "../session/graph_document_session_binding";
+} from "../../session/graph_document_session_binding";
 import {
   createTransportRemoteAuthorityClient,
   type EditorRemoteAuthorityDocumentClient,
   type EditorRemoteAuthorityTransport
-} from "../session/graph_document_authority_transport";
-import type { EditorRemoteAuthorityDocumentService } from "../session/graph_document_authority_service";
+} from "../../session/graph_document_authority_transport";
+import type { EditorRemoteAuthorityDocumentService } from "../../session/graph_document_authority_service";
 import type {
   EditorRemoteAuthorityConnectionStatus,
   EditorRemoteAuthorityRuntimeController
-} from "../session/graph_document_authority_client";
-import { createMessagePortRemoteAuthorityTransport } from "../session/message_port_remote_authority_transport";
-import { createMessagePortRemoteAuthorityHost } from "../session/message_port_remote_authority_host";
-import { DEFAULT_REMOTE_AUTHORITY_BRIDGE_HANDSHAKE_TYPE } from "../session/message_port_remote_authority_bridge_host";
+} from "../../session/graph_document_authority_client";
+import { createMessagePortRemoteAuthorityTransport } from "../../session/message_port_remote_authority_transport";
+import { createMessagePortRemoteAuthorityHost } from "../../session/message_port_remote_authority_host";
+import { DEFAULT_REMOTE_AUTHORITY_BRIDGE_HANDSHAKE_TYPE } from "../../session/message_port_remote_authority_bridge_host";
 
 /** editor 浏览器侧可装配的 remote authority 来源。 */
 export interface EditorRemoteAuthorityAppSource {

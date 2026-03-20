@@ -1,7 +1,7 @@
 import type {
   EditorRemoteAuthorityRuntimeControlRequest,
   EditorRemoteAuthorityRuntimeControlResult
-} from "../session/graph_document_authority_client";
+} from "../../session/graph_document_authority_client";
 
 export interface GraphViewportRemoteRuntimeControlNotice {
   tone: "info" | "error";
@@ -28,6 +28,8 @@ function formatRemoteRuntimeControlActionLabel(
       return "图停止";
     case "node.play":
       return "节点运行";
+    default:
+      return "运行";
   }
 }
 

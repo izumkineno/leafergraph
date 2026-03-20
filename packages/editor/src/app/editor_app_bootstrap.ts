@@ -1,8 +1,8 @@
 import {
   type EditorRemoteAuthorityAppSource
-} from "./remote_authority_app_runtime";
+} from "../backend/authority/remote_authority_app_runtime";
 import type { EditorBundleSlot } from "../loader/types";
-import type { GraphViewportHostBridge } from "./GraphViewport";
+import type { GraphViewportHostBridge } from "../ui/viewport";
 import {
   DEMO_WORKER_REMOTE_AUTHORITY_HOST_ADAPTER_ID,
   MESSAGE_PORT_REMOTE_AUTHORITY_HOST_ADAPTER_ID,
@@ -13,11 +13,11 @@ import {
   resolveEditorRemoteAuthorityHostAdapterSource,
   type EditorRemoteAuthorityHostAdapter,
   type EditorRemoteAuthorityHostAdapterDescriptor
-} from "./remote_authority_host_adapter";
+} from "../backend/authority/remote_authority_host_adapter";
 import type {
   EditorRemoteAuthorityPortConnectorTarget,
   EditorRemoteAuthorityWindowTarget
-} from "./remote_authority_app_runtime";
+} from "../backend/authority/remote_authority_app_runtime";
 
 /** editor 浏览器入口允许读取的最小 bootstrap 配置。 */
 export interface EditorAppBootstrapMessagePortAuthority {

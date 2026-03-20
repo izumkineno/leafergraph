@@ -3,8 +3,8 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "p
 import type { GraphDocument } from "leafergraph";
 import type { NodeDefinition } from "@leafergraph/node";
 
-import { AppDialog } from "./AppDialog";
-import { NodeLibraryHoverPreviewOverlay } from "./NodeLibraryHoverPreviewOverlay";
+import { AppDialog } from "../ui/foundation/dialog";
+import { NodeLibraryHoverPreviewOverlay } from "../ui/node-library-preview";
 import {
   GraphViewport,
   type GraphViewportHostBridge,
@@ -12,19 +12,19 @@ import {
   type GraphViewportToolbarActionState,
   type GraphViewportToolbarControlsState,
   type GraphViewportWorkspaceState
-} from "./GraphViewport";
-import type { GraphViewportRemoteRuntimeControlNotice } from "./graph_viewport_runtime_control_notice";
-import { InspectorPane, NodeLibraryPane } from "./WorkspacePanels";
+} from "../ui/viewport";
+import type { GraphViewportRemoteRuntimeControlNotice } from "../ui/viewport/runtime_control_notice";
+import { InspectorPane, NodeLibraryPane } from "../app/WorkspacePanels";
 import {
   shouldEnableNodeLibraryHoverPreview,
   type NodeLibraryPreviewRequest
-} from "./node_library_hover_preview";
+} from "../ui/node-library-preview/helpers";
 import {
   DEFAULT_NODE_AUTHORITY_DEMO_URL,
   DEFAULT_PYTHON_AUTHORITY_DEMO_URL,
   resolveDefaultEntryOnboardingDocumentNodeCount,
   resolveDefaultEntryOnboardingState
-} from "./default_entry_onboarding";
+} from "./onboarding/default_entry_onboarding";
 import {
   EDITOR_THEME_STORAGE_KEY,
   resolveInitialEditorTheme,
@@ -65,7 +65,7 @@ import type {
 import {
   createEditorRemoteAuthorityAppRuntime,
   type ResolvedEditorRemoteAuthorityAppRuntime
-} from "./remote_authority_app_runtime";
+} from "../backend/authority/remote_authority_app_runtime";
 import type {
   EditorGraphDocumentResyncOptions,
   EditorGraphOperationAuthorityConfirmation
@@ -74,14 +74,14 @@ import {
   resolveRemoteAuthorityBundleProjection,
   shouldApplyRemoteAuthorityBundleProjection,
   type RemoteAuthorityBundleProjectionCheckpoint
-} from "./remote_authority_bundle_projection";
-import type { EditorAppBootstrapPreloadedBundle } from "./editor_app_bootstrap";
+} from "../app/remote_authority_bundle_projection";
+import type { EditorAppBootstrapPreloadedBundle } from "../app/editor_app_bootstrap";
 import {
   resolveWorkspaceAdaptiveMode,
   resolveWorkspaceStageLayout,
   resolveWorkspacePanePresentation,
   type WorkspaceAdaptiveMode
-} from "./workspace_adaptive";
+} from "./layout/workspace_adaptive";
 import {
   createEditorController,
   syncEditorController,
@@ -3427,7 +3427,7 @@ export function EditorWorkspace() {
           <EditorNodeLibrary />
         </aside>
 
-        <main class="workspace-stage">
+        <main class="workspace-stage" id="editor-main-canvas" tabIndex={-1}>
           <EditorViewportPane />
         </main>
 
@@ -3486,6 +3486,8 @@ export function EditorWorkspaceSettingsDialog() {
     activateDemoBundle
   } = useEditorContext();
   const currentDemoLabel = runtimeSetup.currentDemo?.manifest?.name ?? "未选择";
+  const workspaceSettingsTabIdPrefix = "workspace-settings-tab-";
+  const workspaceSettingsPanelIdPrefix = "workspace-settings-panel-";
 
   return (
     <AppDialog
@@ -3508,9 +3510,13 @@ export function EditorWorkspaceSettingsDialog() {
         ).map(([tabId, label]) => (
           <button
             key={tabId}
+            id={`${workspaceSettingsTabIdPrefix}${tabId}`}
             type="button"
+            role="tab"
             class="dialog-tab"
             data-active={state.workspaceSettingsTab === tabId ? "true" : "false"}
+            aria-selected={state.workspaceSettingsTab === tabId ? "true" : "false"}
+            aria-controls={`${workspaceSettingsPanelIdPrefix}${tabId}`}
             onClick={() => {
               actions.setWorkspaceSettingsTab(tabId);
             }}
@@ -3521,7 +3527,12 @@ export function EditorWorkspaceSettingsDialog() {
       </div>
 
       {state.workspaceSettingsTab === "extensions" ? (
-        <section class="dialog-section">
+        <section
+          class="dialog-section"
+          id={`${workspaceSettingsPanelIdPrefix}extensions`}
+          role="tabpanel"
+          aria-labelledby={`${workspaceSettingsTabIdPrefix}extensions`}
+        >
           <div class="dialog-section__header">
             <div>
               <p class="workspace-pane__eyebrow">Extensions</p>
@@ -3710,7 +3721,12 @@ export function EditorWorkspaceSettingsDialog() {
       ) : null}
 
       {state.workspaceSettingsTab === "authority" ? (
-        <section class="dialog-section">
+        <section
+          class="dialog-section"
+          id={`${workspaceSettingsPanelIdPrefix}authority`}
+          role="tabpanel"
+          aria-labelledby={`${workspaceSettingsTabIdPrefix}authority`}
+        >
           <div class="dialog-section__header">
             <div>
               <p class="workspace-pane__eyebrow">Authority</p>
@@ -3795,7 +3811,12 @@ export function EditorWorkspaceSettingsDialog() {
       ) : null}
 
       {state.workspaceSettingsTab === "preferences" ? (
-        <section class="dialog-section">
+        <section
+          class="dialog-section"
+          id={`${workspaceSettingsPanelIdPrefix}preferences`}
+          role="tabpanel"
+          aria-labelledby={`${workspaceSettingsTabIdPrefix}preferences`}
+        >
           <div class="dialog-section__header">
             <div>
               <p class="workspace-pane__eyebrow">Preferences</p>
@@ -3861,7 +3882,12 @@ export function EditorWorkspaceSettingsDialog() {
       ) : null}
 
       {state.workspaceSettingsTab === "shortcuts" ? (
-        <section class="dialog-section">
+        <section
+          class="dialog-section"
+          id={`${workspaceSettingsPanelIdPrefix}shortcuts`}
+          role="tabpanel"
+          aria-labelledby={`${workspaceSettingsTabIdPrefix}shortcuts`}
+        >
           <div class="dialog-section__header">
             <div>
               <p class="workspace-pane__eyebrow">Shortcuts</p>
@@ -3887,6 +3913,8 @@ export function EditorWorkspaceSettingsDialog() {
 
 export function EditorRunConsoleDialog() {
   const { state, actions, workspaceDialogSize } = useEditorContext();
+  const runConsoleTabIdPrefix = "run-console-tab-";
+  const runConsolePanelIdPrefix = "run-console-panel-";
 
   return (
     <AppDialog
@@ -3909,9 +3937,13 @@ export function EditorRunConsoleDialog() {
         ).map(([tabId, label]) => (
           <button
             key={tabId}
+            id={`${runConsoleTabIdPrefix}${tabId}`}
             type="button"
+            role="tab"
             class="dialog-tab"
             data-active={state.runConsoleTab === tabId ? "true" : "false"}
+            aria-selected={state.runConsoleTab === tabId ? "true" : "false"}
+            aria-controls={`${runConsolePanelIdPrefix}${tabId}`}
             onClick={() => {
               actions.setRunConsoleTab(tabId);
             }}
@@ -3920,7 +3952,13 @@ export function EditorRunConsoleDialog() {
           </button>
         ))}
       </div>
-      <EditorRunConsoleBody />
+      <div
+        id={`${runConsolePanelIdPrefix}${state.runConsoleTab}`}
+        role="tabpanel"
+        aria-labelledby={`${runConsoleTabIdPrefix}${state.runConsoleTab}`}
+      >
+        <EditorRunConsoleBody />
+      </div>
     </AppDialog>
   );
 }
@@ -4207,6 +4245,9 @@ export function EditorShell(_: EditorShellProps) {
       data-right-open={state.rightPaneOpen ? "true" : "false"}
       data-stage-layout={state.stageLayout}
     >
+      <a class="skip-link" href="#editor-main-canvas">
+        跳到主画布
+      </a>
       <EditorTitlebar />
       <EditorWorkspace />
       <EditorStatusbar />

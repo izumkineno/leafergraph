@@ -1,7 +1,7 @@
 import {
   createEditorRemoteAuthorityWorkerSource,
   type CreateEditorRemoteAuthorityWorkerSourceOptions
-} from "../app/remote_authority_app_runtime";
+} from "../backend/authority/remote_authority_app_runtime";
 
 /** 浏览器内 demo worker authority source 的最小创建参数。 */
 export interface CreateEditorRemoteAuthorityDemoWorkerSourceOptions {

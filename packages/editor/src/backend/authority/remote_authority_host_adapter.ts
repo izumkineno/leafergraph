@@ -9,8 +9,8 @@ import {
 import {
   createEditorRemoteAuthorityDemoWorkerSource,
   type CreateEditorRemoteAuthorityDemoWorkerSourceOptions
-} from "../demo/remote_authority_demo_source";
-import { DEFAULT_REMOTE_AUTHORITY_BRIDGE_HANDSHAKE_TYPE } from "../session/message_port_remote_authority_bridge_host";
+} from "../../demo/remote_authority_demo_source";
+import { DEFAULT_REMOTE_AUTHORITY_BRIDGE_HANDSHAKE_TYPE } from "../../session/message_port_remote_authority_bridge_host";
 
 /** 内置 MessagePort authority host adapter 标识。 */
 export const MESSAGE_PORT_REMOTE_AUTHORITY_HOST_ADAPTER_ID = "message-port";

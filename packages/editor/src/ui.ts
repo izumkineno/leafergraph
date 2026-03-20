@@ -1,27 +1,17 @@
 export {
-  EditorInspector,
-  EditorNodeLibrary,
-  EditorRunConsoleDialog,
   EditorShell,
-  EditorStatusbar,
-  EditorTitlebar,
-  EditorViewportPane,
-  EditorWorkspace,
-  EditorWorkspaceSettingsDialog,
   useEditorContext
-} from "./app/App";
-export {
-  GraphViewport,
-  type GraphViewportHostBridge,
-  type GraphViewportProps,
-  type GraphViewportRuntimeControlsState,
-  type GraphViewportToolbarActionGroup,
-  type GraphViewportToolbarActionId,
-  type GraphViewportToolbarActionState,
-  type GraphViewportToolbarControlsState,
-  type GraphViewportWorkspaceState
-} from "./app/GraphViewport";
-export { AppDialog, type AppDialogProps } from "./app/AppDialog";
+} from "./shell/provider";
+export * from "./ui/foundation";
+export * from "./ui/titlebar";
+export * from "./ui/workspace";
+export * from "./ui/node-library";
+export * from "./ui/viewport";
+export * from "./ui/inspector";
+export * from "./ui/statusbar";
+export * from "./ui/workspace-settings";
+export * from "./ui/run-console";
+export * from "./ui/node-library-preview";
 export {
   InspectorPane,
   NodeLibraryPane,
@@ -31,4 +21,4 @@ export {
 export {
   NodeLibraryHoverPreviewOverlay,
   type NodeLibraryHoverPreviewOverlayProps
-} from "./app/NodeLibraryHoverPreviewOverlay";
+} from "./ui/node-library-preview";

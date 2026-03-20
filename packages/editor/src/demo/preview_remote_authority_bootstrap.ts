@@ -2,8 +2,8 @@ import type { EditorAppBootstrap } from "../app/editor_app_bootstrap";
 import {
   isEditorRemoteAuthorityHostAdapter,
   type EditorRemoteAuthorityHostAdapter
-} from "../app/remote_authority_host_adapter";
-import { createEditorRemoteAuthorityServiceSource } from "../app/remote_authority_app_runtime";
+} from "../backend/authority/remote_authority_host_adapter";
+import { createEditorRemoteAuthorityServiceSource } from "../backend/authority/remote_authority_app_runtime";
 import { createDemoRemoteAuthorityService } from "./remote_authority_demo_service";
 
 /** 预览页 query 参数中用于启用自定义 authority adapter 的 key。 */

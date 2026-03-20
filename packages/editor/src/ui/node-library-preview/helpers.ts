@@ -1,7 +1,7 @@
 import type { GraphDocument } from "leafergraph";
 import type { NodeDefinition } from "@leafergraph/node";
 
-import type { WorkspaceAdaptiveMode } from "./workspace_adaptive";
+import type { WorkspaceAdaptiveMode } from "../../shell/layout/workspace_adaptive";
 
 export interface NodeLibraryPreviewAnchorRect {
   top: number;

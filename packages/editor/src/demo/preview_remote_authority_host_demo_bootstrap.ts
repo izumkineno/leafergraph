@@ -1,5 +1,5 @@
 import type { EditorAppBootstrap } from "../app/editor_app_bootstrap";
-import type { GraphViewportHostBridge } from "../app/GraphViewport";
+import type { GraphViewportHostBridge } from "../ui/viewport";
 import {
   createPreviewRemoteAuthorityBootstrap,
   type PreviewRemoteAuthorityAdapterOptions
@@ -14,6 +14,7 @@ export interface PreviewRemoteAuthorityHostDemoState {
   bridge: GraphViewportHostBridge | null;
   readonly authorityLabel: string;
   readonly authorityName: string;
+  readonly debugViewportBridgeLog: boolean;
 }
 
 interface PreviewRemoteAuthorityHostDemoGlobal {
@@ -41,6 +42,16 @@ function readHostDemoAuthorityOptions(
   };
 }
 
+function readViewportBridgeDebugEnabled(
+  host: PreviewRemoteAuthorityHostDemoGlobal
+): boolean {
+  const params = new URLSearchParams(host.location?.search ?? "");
+  return (
+    params.get("debugViewportBridge") === "1" ||
+    params.get("debugViewportBridge") === "true"
+  );
+}
+
 /**
  * 安装浏览器宿主示例使用的 bootstrap。
  *
@@ -56,13 +67,15 @@ export function installPreviewRemoteAuthorityHostDemoBootstrap(
 ): void {
   const currentBootstrap = host.LeaferGraphEditorAppBootstrap ?? {};
   const authorityOptions = readHostDemoAuthorityOptions(host);
+  const debugViewportBridgeLog = readViewportBridgeDebugEnabled(host);
   const previewBootstrap = createPreviewRemoteAuthorityBootstrap(authorityOptions);
   const previousListener = currentBootstrap.onViewportHostBridgeChange;
   const hostDemoState: PreviewRemoteAuthorityHostDemoState = {
     mode: "host-demo",
     bridge: null,
     authorityLabel: authorityOptions.label,
-    authorityName: authorityOptions.authorityName
+    authorityName: authorityOptions.authorityName,
+    debugViewportBridgeLog
   };
 
   host.LeaferGraphEditorHostDemo = hostDemoState;
@@ -72,12 +85,14 @@ export function installPreviewRemoteAuthorityHostDemoBootstrap(
     onViewportHostBridgeChange(bridge) {
       hostDemoState.bridge = bridge;
       previousListener?.(bridge);
-      host.console?.info(
-        "[authority-host-demo]",
-        bridge
-          ? `viewport bridge ready for ${authorityOptions.authorityName}`
-          : `viewport bridge disposed for ${authorityOptions.authorityName}`
-      );
+      if (debugViewportBridgeLog) {
+        host.console?.info(
+          "[authority-host-demo]",
+          bridge
+            ? `viewport bridge ready for ${authorityOptions.authorityName}`
+            : `viewport bridge disposed for ${authorityOptions.authorityName}`
+        );
+      }
     }
   };
 }
