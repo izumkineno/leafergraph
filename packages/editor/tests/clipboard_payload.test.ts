@@ -290,4 +290,67 @@ describe("clipboard payload helpers", () => {
       target: { nodeId: "node-b", slot: 0 }
     });
   });
+
+  test("parseLeaferGraphClipboardPayload 应接受缺省 width / height 的节点", () => {
+    const node = createNodeSnapshot("node-on-play", {
+      type: "system/on-play",
+      title: "On Play",
+      x: 389,
+      y: 379
+    });
+    delete node.layout.width;
+    delete node.layout.height;
+
+    const payloadText = JSON.stringify({
+      kind: "leafergraph/clipboard",
+      version: 1,
+      anchor: { x: 389, y: 379 },
+      nodes: [node],
+      links: []
+    });
+
+    const parsed = parseLeaferGraphClipboardPayload(payloadText);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.nodes[0]?.type).toBe("system/on-play");
+    expect(parsed?.nodes[0]?.layout).toEqual({
+      x: 389,
+      y: 379
+    });
+  });
+
+  test("createNodesFromClipboardPayload 应接受缺省 width / height 的节点", () => {
+    const target = createGraphHarness();
+    const node = createNodeSnapshot("node-on-play", {
+      type: "system/on-play",
+      title: "On Play",
+      x: 389,
+      y: 379
+    });
+    delete node.layout.width;
+    delete node.layout.height;
+
+    const payload = {
+      kind: "leafergraph/clipboard" as const,
+      version: 1 as const,
+      anchor: { x: 389, y: 379 },
+      nodes: [node],
+      links: []
+    };
+
+    const createdNodes = createNodesFromClipboardPayload(
+      target.graph,
+      target.session,
+      payload,
+      437,
+      427
+    );
+
+    expect(createdNodes).toHaveLength(1);
+    expect(createdNodes[0]?.type).toBe("system/on-play");
+    expect(createdNodes[0]?.layout.x).toBe(437);
+    expect(createdNodes[0]?.layout.y).toBe(427);
+    expect(createdNodes[0]?.layout.width).toBe(240);
+    expect(createdNodes[0]?.layout.height).toBe(140);
+  });
 });

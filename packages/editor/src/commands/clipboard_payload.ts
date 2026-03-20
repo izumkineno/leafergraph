@@ -179,7 +179,11 @@ function isClipboardLinkShape(value: unknown): value is GraphLink {
 }
 
 function isClipboardNodeShape(value: unknown): value is NodeSerializeResult {
-  if (!isRecord(value) || typeof value.id !== "string" || typeof value.type !== "string") {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.type !== "string"
+  ) {
     return false;
   }
 
@@ -190,8 +194,8 @@ function isClipboardNodeShape(value: unknown): value is NodeSerializeResult {
   return (
     isFiniteNumber(value.layout.x) &&
     isFiniteNumber(value.layout.y) &&
-    isFiniteNumber(value.layout.width) &&
-    isFiniteNumber(value.layout.height)
+    (value.layout.width === undefined || isFiniteNumber(value.layout.width)) &&
+    (value.layout.height === undefined || isFiniteNumber(value.layout.height))
   );
 }
 

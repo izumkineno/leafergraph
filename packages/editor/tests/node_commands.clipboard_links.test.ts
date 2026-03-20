@@ -524,4 +524,76 @@ describe("node clipboard with internal links", () => {
       createdNodeB?.id
     );
   });
+
+  test("clipboard.paste 应接受缺省 width / height 的节点 payload", () => {
+    const harness = createGraphHarness();
+    const selection = createSelectionStub();
+    const commandBus = createEditorCommandBus({
+      graph: harness.graph,
+      session: harness.session,
+      selection,
+      bindNode: () => {},
+      unbindNode: () => {},
+      quickCreateNodeType: "demo/node",
+      isRuntimeReady: () => true,
+      resolveLastPointerPagePoint: () => ({
+        x: 180,
+        y: 160
+      }),
+      resolveViewportCenterPagePoint: () => ({
+        x: 360,
+        y: 240
+      })
+    });
+    const node = createNodeSnapshot("node-on-play", {
+      type: "system/on-play",
+      title: "On Play",
+      x: 389,
+      y: 379
+    });
+    delete node.layout.width;
+    delete node.layout.height;
+
+    commandBus.setClipboardPayload({
+      kind: "leafergraph/clipboard",
+      version: 1,
+      anchor: {
+        x: 389,
+        y: 379
+      },
+      nodes: [node],
+      links: []
+    });
+
+    const pasteExecution = commandBus.execute({
+      type: "clipboard.paste",
+      point: {
+        x: 437,
+        y: 427
+      }
+    });
+
+    expect(pasteExecution.success).toBe(true);
+    expect(pasteExecution.operations?.map((operation) => operation.type)).toEqual([
+      "node.create"
+    ]);
+
+    if (
+      !pasteExecution.historyPayload ||
+      pasteExecution.historyPayload.kind !== "create-nodes"
+    ) {
+      throw new Error("缺少 create-nodes 历史负载");
+    }
+
+    expect(pasteExecution.historyPayload.nodeSnapshots).toHaveLength(1);
+    expect(pasteExecution.historyPayload.nodeSnapshots[0]?.type).toBe(
+      "system/on-play"
+    );
+    expect(pasteExecution.historyPayload.nodeSnapshots[0]?.layout).toEqual({
+      x: 437,
+      y: 427,
+      width: 240,
+      height: 140
+    });
+  });
 });
