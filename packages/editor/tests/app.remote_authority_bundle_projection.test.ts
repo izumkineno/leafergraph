@@ -6,7 +6,7 @@ import {
   shouldApplyRemoteAuthorityBundleProjection,
   type RemoteAuthorityBundleProjection
 } from "../src/app/remote_authority_bundle_projection";
-import type { ResolvedEditorRemoteAuthorityAppRuntime } from "../src/app/remote_authority_app_runtime";
+import type { ResolvedEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/remote_authority_app_runtime";
 import type { EditorBundleRuntimeSetup } from "../src/loader/types";
 
 function createDocument(documentId: string): GraphDocument {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { GraphDocument } from "leafergraph";
-import type { ResolvedEditorRemoteAuthorityAppRuntime } from "../src/app/remote_authority_app_runtime";
+import type { ResolvedEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/remote_authority_app_runtime";
 import {
   shouldApplyRemoteAuthorityBundleProjection,
   type RemoteAuthorityBundleProjection

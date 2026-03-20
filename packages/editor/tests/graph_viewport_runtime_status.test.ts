@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import type { LeaferGraphGraphExecutionState } from "leafergraph";
 
-import type { GraphViewportRuntimeChainGroup } from "../src/app/graph_viewport_runtime_collections";
-import { resolveGraphViewportRuntimeDetailLabel } from "../src/app/graph_viewport_runtime_status";
+import type { GraphViewportRuntimeChainGroup } from "../src/ui/viewport/runtime_collections";
+import { resolveGraphViewportRuntimeDetailLabel } from "../src/ui/viewport/runtime_status";
 
 function createExecutionState(
   overrides: Partial<LeaferGraphGraphExecutionState> = {}

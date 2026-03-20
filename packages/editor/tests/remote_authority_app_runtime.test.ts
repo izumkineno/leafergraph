@@ -2,14 +2,14 @@ import { describe, expect, test } from "bun:test";
 
 import type { GraphDocument } from "leafergraph";
 import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
-import type { EditorRemoteAuthorityHostAdapter } from "../src/app/remote_authority_host_adapter";
+import type { EditorRemoteAuthorityHostAdapter } from "../src/backend/authority/remote_authority_host_adapter";
 import {
   createEditorRemoteAuthorityAppRuntime,
   createEditorRemoteAuthorityMessagePortSource,
   createEditorRemoteAuthorityWindowSource,
   createEditorRemoteAuthorityWorkerSource,
   type EditorRemoteAuthorityAppSource
-} from "../src/app/remote_authority_app_runtime";
+} from "../src/backend/authority/remote_authority_app_runtime";
 import { createEditorRemoteAuthorityDemoWorkerSource } from "../src/demo/remote_authority_demo_source";
 import { attachMessagePortRemoteAuthorityBridgeHost } from "../src/session/message_port_remote_authority_bridge_host";
 import { createMessagePortRemoteAuthorityHost } from "../src/session/message_port_remote_authority_host";

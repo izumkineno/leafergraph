@@ -8,9 +8,13 @@ describe("editor public exports", () => {
   test("root 与 ui 入口文件存在且声明公共导出", () => {
     const rootEntry = resolve(import.meta.dir, "../src/index.ts");
     const uiEntry = resolve(import.meta.dir, "../src/ui.ts");
+    const shellEntry = resolve(import.meta.dir, "../src/shell/index.ts");
+    const viewportEntry = resolve(import.meta.dir, "../src/ui/viewport/index.ts");
 
     expect(existsSync(rootEntry)).toBeTruthy();
     expect(existsSync(uiEntry)).toBeTruthy();
+    expect(existsSync(shellEntry)).toBeTruthy();
+    expect(existsSync(viewportEntry)).toBeTruthy();
 
     const rootSource = readFileSync(rootEntry, "utf8");
     const uiSource = readFileSync(uiEntry, "utf8");
@@ -18,8 +22,8 @@ describe("editor public exports", () => {
     expect(rootSource.includes("EditorProvider")).toBeTruthy();
     expect(rootSource.includes("EditorShell")).toBeTruthy();
     expect(rootSource.includes("createEditorController")).toBeTruthy();
-    expect(uiSource.includes("EditorWorkspace")).toBeTruthy();
-    expect(uiSource.includes("GraphViewport")).toBeTruthy();
+    expect(uiSource.includes("ui/workspace")).toBeTruthy();
+    expect(uiSource.includes("ui/viewport")).toBeTruthy();
   });
 
   test("backend 入口暴露 authority 接线工厂", () => {
@@ -46,7 +50,11 @@ describe("editor public exports", () => {
     };
 
     expect(packageJson.exports?.["."]).toBe("./src/index.ts");
+    expect(packageJson.exports?.["./shell"]).toBe("./src/shell/index.ts");
     expect(packageJson.exports?.["./ui"]).toBe("./src/ui.ts");
+    expect(packageJson.exports?.["./ui/viewport"]).toBe(
+      "./src/ui/viewport/index.ts"
+    );
     expect(packageJson.exports?.["./backend"]).toBe("./src/backend.ts");
     expect(packageJson.exports?.["./styles.css"]).toBe("./src/styles.css");
   });

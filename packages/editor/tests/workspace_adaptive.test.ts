@@ -4,7 +4,7 @@ import {
   resolveWorkspaceAdaptiveMode,
   resolveWorkspacePanePresentation,
   resolveWorkspaceStageLayout
-} from "../src/app/workspace_adaptive";
+} from "../src/shell/layout/workspace_adaptive";
 
 describe("workspace adaptive helpers", () => {
   test("应按断点返回稳定的自适应模式", () => {

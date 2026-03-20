@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { GraphDocument } from "leafergraph";
-import type { GraphViewportHostBridge } from "../src/app/GraphViewport";
+import type { GraphViewportHostBridge } from "../src/ui/viewport";
 import {
   installPreviewRemoteAuthorityHostDemoBootstrap,
   PREVIEW_REMOTE_AUTHORITY_HOST_DEMO_AUTHORITY_NAME
@@ -32,6 +32,7 @@ interface HostDemoBootstrapHost {
     bridge: GraphViewportHostBridge | null;
     authorityLabel: string;
     authorityName: string;
+    debugViewportBridgeLog: boolean;
   };
 }
 
@@ -116,16 +117,15 @@ describe("installPreviewRemoteAuthorityHostDemoBootstrap", () => {
       mode: "host-demo",
       bridge: null,
       authorityLabel: "Hosted Demo",
-      authorityName: "browser-host-demo"
+      authorityName: "browser-host-demo",
+      debugViewportBridgeLog: false
     });
 
     const bridge = createHostBridge();
     host.LeaferGraphEditorAppBootstrap?.onViewportHostBridgeChange?.(bridge);
 
     expect(host.LeaferGraphEditorHostDemo?.bridge).toBe(bridge);
-    expect(infoLogs).toEqual([
-      ["[authority-host-demo]", "viewport bridge ready for browser-host-demo"]
-    ]);
+    expect(infoLogs).toEqual([]);
   });
 
   test("未提供 query 时应使用宿主示例默认 authority 名称", () => {

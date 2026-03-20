@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createGraphViewportRuntimeCollectionsProjector,
   type GraphViewportRuntimeHistoryEntry
-} from "../src/app/graph_viewport_runtime_collections";
+} from "../src/ui/viewport/runtime_collections";
 
 function createHistoryEntry(
   overrides: Partial<GraphViewportRuntimeHistoryEntry> = {}

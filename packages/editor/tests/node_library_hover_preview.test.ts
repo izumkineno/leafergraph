@@ -8,7 +8,7 @@ import {
   createNodeLibraryPreviewDocument,
   resolveNodeLibraryPreviewPlacement,
   shouldEnableNodeLibraryHoverPreview
-} from "../src/app/node_library_hover_preview";
+} from "../src/ui/node-library-preview/helpers";
 
 function createAnchorRect(overrides?: Partial<DOMRect>): DOMRect {
   return {

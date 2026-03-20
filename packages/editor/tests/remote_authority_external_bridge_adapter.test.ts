@@ -10,8 +10,8 @@ import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
 import {
   createEditorRemoteAuthorityAppRuntime,
   createEditorRemoteAuthorityServiceSource
-} from "../src/app/remote_authority_app_runtime";
-import type { EditorRemoteAuthorityHostAdapter } from "../src/app/remote_authority_host_adapter";
+} from "../src/backend/authority/remote_authority_app_runtime";
+import type { EditorRemoteAuthorityHostAdapter } from "../src/backend/authority/remote_authority_host_adapter";
 import {
   createClientBackedRemoteAuthorityService
 } from "../src/session/graph_document_authority_service_bridge";

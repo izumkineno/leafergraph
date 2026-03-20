@@ -5,7 +5,7 @@ import {
   MESSAGE_PORT_REMOTE_AUTHORITY_HOST_ADAPTER_ID,
   resolveEditorRemoteAuthorityHostAdapterSource,
   type EditorRemoteAuthorityHostAdapter
-} from "../src/app/remote_authority_host_adapter";
+} from "../src/backend/authority/remote_authority_host_adapter";
 
 function createDocument(revision: string): GraphDocument {
   return {

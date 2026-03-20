@@ -5,7 +5,7 @@ import {
   DEFAULT_PYTHON_AUTHORITY_DEMO_URL,
   resolveDefaultEntryOnboardingDocumentNodeCount,
   resolveDefaultEntryOnboardingState
-} from "../src/app/default_entry_onboarding";
+} from "../src/shell/onboarding/default_entry_onboarding";
 
 describe("default entry onboarding helper", () => {
   test("已收到 workspace 文档摘要时，应优先使用实时节点数", () => {

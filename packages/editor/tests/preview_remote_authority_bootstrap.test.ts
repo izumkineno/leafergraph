@@ -5,8 +5,8 @@ import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
 import {
   createEditorRemoteAuthorityAppRuntime,
   type EditorRemoteAuthorityAppSource
-} from "../src/app/remote_authority_app_runtime";
-import type { EditorRemoteAuthorityHostAdapter } from "../src/app/remote_authority_host_adapter";
+} from "../src/backend/authority/remote_authority_app_runtime";
+import type { EditorRemoteAuthorityHostAdapter } from "../src/backend/authority/remote_authority_host_adapter";
 import {
   installPreviewRemoteAuthorityBootstrap,
   PREVIEW_REMOTE_AUTHORITY_ADAPTER_ID,

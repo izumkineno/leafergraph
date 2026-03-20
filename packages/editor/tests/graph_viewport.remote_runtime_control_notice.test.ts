@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { resolveRemoteRuntimeControlNotice } from "../src/app/graph_viewport_runtime_control_notice";
+import { resolveRemoteRuntimeControlNotice } from "../src/ui/viewport/runtime_control_notice";
 
 describe("resolveRemoteRuntimeControlNotice", () => {
   test("远端运行成功且状态变化时应清空提示", () => {

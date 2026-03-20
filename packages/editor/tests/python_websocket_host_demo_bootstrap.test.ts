@@ -4,8 +4,8 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
 import type { GraphDocument } from "leafergraph";
 import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
-import type { GraphViewportHostBridge } from "../src/app/GraphViewport";
-import { createEditorRemoteAuthorityAppRuntime } from "../src/app/remote_authority_app_runtime";
+import type { GraphViewportHostBridge } from "../src/ui/viewport";
+import { createEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/remote_authority_app_runtime";
 import {
   DEFAULT_PYTHON_WEBSOCKET_AUTHORITY_URL,
   PYTHON_WEBSOCKET_HOST_DEMO_ADAPTER_ID,
@@ -44,6 +44,7 @@ interface PythonHostDemoBootstrapHost {
     authorityLabel: string;
     authorityName: string;
     preloadTestBundles: boolean;
+    debugViewportBridgeLog: boolean;
   };
 }
 
@@ -258,7 +259,8 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
         authorityUrl: server.authorityOrigin,
         authorityLabel: "Python Host Demo",
         authorityName: "python-host-demo",
-        preloadTestBundles: false
+        preloadTestBundles: false,
+        debugViewportBridgeLog: false
       }
     });
     expect(
@@ -294,19 +296,15 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
       authorityUrl: server.authorityOrigin,
       authorityLabel: "Python Host Demo",
       authorityName: "python-host-demo",
-      preloadTestBundles: false
+      preloadTestBundles: false,
+      debugViewportBridgeLog: false
     });
 
     const bridge = createHostBridge();
     host.LeaferGraphEditorAppBootstrap?.onViewportHostBridgeChange?.(bridge);
 
     expect(host.LeaferGraphEditorPythonHostDemo?.bridge).toBe(bridge);
-    expect(infoLogs).toEqual([
-      [
-        "[authority-python-host-demo]",
-        `viewport bridge ready for ${server.authorityOrigin}`
-      ]
-    ]);
+    expect(infoLogs).toEqual([]);
 
     runtime.dispose();
 
@@ -347,7 +345,8 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
       authorityUrl: DEFAULT_PYTHON_WEBSOCKET_AUTHORITY_URL,
       authorityLabel: "Python FastAPI Authority",
       authorityName: "python-websocket-host-demo",
-      preloadTestBundles: false
+      preloadTestBundles: false,
+      debugViewportBridgeLog: false
     });
   });
 

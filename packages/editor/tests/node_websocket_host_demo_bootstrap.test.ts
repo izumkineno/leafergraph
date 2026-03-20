@@ -3,8 +3,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { GraphDocument } from "leafergraph";
 import { startNodeAuthorityServer } from "../../../templates/node-backend-control-template/src/index.js";
 import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
-import type { GraphViewportHostBridge } from "../src/app/GraphViewport";
-import { createEditorRemoteAuthorityAppRuntime } from "../src/app/remote_authority_app_runtime";
+import type { GraphViewportHostBridge } from "../src/ui/viewport";
+import { createEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/remote_authority_app_runtime";
 import {
   DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL,
   NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES,
@@ -43,6 +43,7 @@ interface NodeHostDemoBootstrapHost {
     authorityLabel: string;
     authorityName: string;
     preloadTestBundles: boolean;
+    debugViewportBridgeLog: boolean;
   };
 }
 
@@ -132,7 +133,8 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
         authorityUrl: authorityOrigin,
         authorityLabel: "Node Host Demo",
         authorityName: "node-host-demo",
-        preloadTestBundles: false
+        preloadTestBundles: false,
+        debugViewportBridgeLog: false
       }
     });
     expect(
@@ -166,19 +168,15 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
       authorityUrl: authorityOrigin,
       authorityLabel: "Node Host Demo",
       authorityName: "node-host-demo",
-      preloadTestBundles: false
+      preloadTestBundles: false,
+      debugViewportBridgeLog: false
     });
 
     const bridge = createHostBridge();
     host.LeaferGraphEditorAppBootstrap?.onViewportHostBridgeChange?.(bridge);
 
     expect(host.LeaferGraphEditorNodeHostDemo?.bridge).toBe(bridge);
-    expect(infoLogs).toEqual([
-      [
-        "[authority-node-host-demo]",
-        `viewport bridge ready for ${authorityOrigin}`
-      ]
-    ]);
+    expect(infoLogs).toEqual([]);
 
     runtime.dispose();
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -206,7 +204,8 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
       authorityUrl: DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL,
       authorityLabel: "Node WebSocket Authority",
       authorityName: "node-websocket-host-demo",
-      preloadTestBundles: false
+      preloadTestBundles: false,
+      debugViewportBridgeLog: false
     });
   });
 
