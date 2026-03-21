@@ -47,6 +47,11 @@ interface ExecuteNodeChainOptions {
   timerRuntime?: DemoTimerRuntimeContext;
 }
 
+interface ExecuteNodeChainResult {
+  changed: boolean;
+  additionalAdvancedNodeIds: string[];
+}
+
 interface DemoTimerRuntimeContext {
   registerTimer?: (input: {
     nodeId: string;
@@ -501,6 +506,22 @@ export function createDemoRemoteAuthorityService(
     };
   };
 
+  const emitAdditionalGraphExecutionAdvances = (
+    run: DemoGraphPlayRun,
+    nodeIds: readonly string[]
+  ): void => {
+    for (const nodeId of nodeIds) {
+      run.stepCount += 1;
+      updateRunningGraphExecutionState(run);
+      emitGraphExecution("advanced", {
+        runId: run.runId,
+        source: run.source,
+        nodeId,
+        timestamp: Date.now()
+      });
+    }
+  };
+
   const registerGraphTimer = (input: {
     nodeId: string;
     source: "graph-play" | "graph-step";
@@ -551,7 +572,7 @@ export function createDemoRemoteAuthorityService(
     }, timer.intervalMs);
     activeGraphTimersByKey.set(timerKey, timer);
 
-    const changed = executeNodeChain({
+    const executionResult = executeNodeChain({
       rootNodeId: timer.nodeId,
       source: timer.source,
       runId: timer.runId,
@@ -562,7 +583,7 @@ export function createDemoRemoteAuthorityService(
       }
     });
 
-    if (!changed) {
+    if (!executionResult.changed) {
       stopGraphTimerByKey(timerKey);
       return;
     }
@@ -576,17 +597,25 @@ export function createDemoRemoteAuthorityService(
         nodeId: timer.nodeId,
         timestamp: Date.now()
       });
+      emitAdditionalGraphExecutionAdvances(
+        activeGraphPlayRun,
+        executionResult.additionalAdvancedNodeIds
+      );
     }
   };
 
-  const executeNodeChain = (input: ExecuteNodeChainOptions): boolean => {
+  const executeNodeChain = (input: ExecuteNodeChainOptions): ExecuteNodeChainResult => {
     const rootNode = getNode(input.rootNodeId);
     if (!rootNode) {
-      return false;
+      return {
+        changed: false,
+        additionalAdvancedNodeIds: []
+      };
     }
 
     const chainId = `${authorityName}:${input.source}:${rootNode.id}:${input.startedAt}`;
     const visited = new Set<string>();
+    const additionalAdvancedNodeIds: string[] = [];
     let sequence = 0;
     const walk = (
       nodeId: string,
@@ -646,6 +675,10 @@ export function createDemoRemoteAuthorityService(
         if (!shouldPropagate) {
           return;
         }
+
+        if (node.id !== rootNode.id) {
+          additionalAdvancedNodeIds.push(node.id);
+        }
       }
 
       for (const link of currentDocument.links) {
@@ -659,7 +692,10 @@ export function createDemoRemoteAuthorityService(
     };
 
     walk(rootNode.id, 0, "direct");
-    return true;
+    return {
+      changed: true,
+      additionalAdvancedNodeIds
+    };
   };
 
   const finalizeGraphPlayRun = (
@@ -713,7 +749,7 @@ export function createDemoRemoteAuthorityService(
         return;
       }
 
-      executeNodeChain({
+      const executionResult = executeNodeChain({
         rootNodeId,
         source: activeRun.source,
         runId: activeRun.runId,
@@ -742,6 +778,10 @@ export function createDemoRemoteAuthorityService(
         nodeId: rootNodeId,
         timestamp
       });
+      emitAdditionalGraphExecutionAdvances(
+        activeRun,
+        executionResult.additionalAdvancedNodeIds
+      );
 
       if (activeRun.queue.length > 0) {
         scheduleNextGraphPlayRunTick();
@@ -1150,15 +1190,15 @@ export function createDemoRemoteAuthorityService(
             });
           }
 
-          const changed = executeNodeChain({
+          const executionResult = executeNodeChain({
             rootNodeId: request.nodeId,
             source: "node-play",
             startedAt: Date.now()
           });
           return createRuntimeControlResult({
-            accepted: changed,
-            changed,
-            reason: changed ? undefined : "节点不存在"
+            accepted: executionResult.changed,
+            changed: executionResult.changed,
+            reason: executionResult.changed ? undefined : "节点不存在"
           });
         }
         case "graph.play": {
@@ -1233,7 +1273,7 @@ export function createDemoRemoteAuthorityService(
           });
 
           timerActivatedInCurrentGraphStepTick = false;
-          const changed = executeNodeChain({
+          const executionResult = executeNodeChain({
             rootNodeId,
             source: "graph-step",
             runId,
@@ -1258,20 +1298,20 @@ export function createDemoRemoteAuthorityService(
               source: "graph-step",
               startedAt,
               queue: [],
-              stepCount: changed ? 1 : 0,
+              stepCount: executionResult.changed ? 1 : 0,
               timer: null
             };
             updateRunningGraphExecutionState(activeGraphPlayRun);
             return createRuntimeControlResult({
-              changed,
-              reason: changed ? undefined : "节点不存在"
+              changed: executionResult.changed,
+              reason: executionResult.changed ? undefined : "节点不存在"
             });
           }
 
           graphExecutionState = {
             status: "idle",
             queueSize: 0,
-            stepCount: changed ? 1 : 0,
+            stepCount: executionResult.changed ? 1 : 0,
             startedAt,
             stoppedAt: timestamp,
             lastSource: "graph-step"
@@ -1282,8 +1322,8 @@ export function createDemoRemoteAuthorityService(
             timestamp: Date.now()
           });
           return createRuntimeControlResult({
-            changed,
-            reason: changed ? undefined : "节点不存在"
+            changed: executionResult.changed,
+            reason: executionResult.changed ? undefined : "节点不存在"
           });
         }
         case "graph.stop": {

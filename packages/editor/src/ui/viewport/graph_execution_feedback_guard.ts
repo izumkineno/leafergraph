@@ -15,12 +15,12 @@ export function shouldIgnoreProjectedGraphExecutionFeedback(input: {
   runtimeControlMode: "local" | "remote";
   feedback: RuntimeFeedbackEvent;
   isProjectingAuthorityDocument: boolean;
+  hasPendingProjectedReset: boolean;
   isExternalRuntimeFeedback: boolean;
   latestRemoteGraphExecutionState: LeaferGraphGraphExecutionState | null;
 }): boolean {
   if (
     input.runtimeControlMode !== "remote" ||
-    !input.isProjectingAuthorityDocument ||
     input.isExternalRuntimeFeedback ||
     input.feedback.type !== "graph.execution"
   ) {
@@ -29,6 +29,13 @@ export function shouldIgnoreProjectedGraphExecutionFeedback(input: {
 
   const latestRemoteStatus = input.latestRemoteGraphExecutionState?.status;
   if (latestRemoteStatus !== "running" && latestRemoteStatus !== "stepping") {
+    return false;
+  }
+
+  if (
+    !input.isProjectingAuthorityDocument &&
+    !input.hasPendingProjectedReset
+  ) {
     return false;
   }
 

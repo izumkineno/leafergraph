@@ -30,6 +30,7 @@ import type {
   GraphOperationApplyResult,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
+  LeaferGraphInteractionActivityState,
   LeaferGraphInteractionCommitEvent,
   RuntimeAdapter,
   RuntimeFeedbackEvent,
@@ -103,6 +104,10 @@ export interface LeaferGraphApiRuntime<
     "subscribe"
   >;
   interactionHost: {
+    getInteractionActivityState(): LeaferGraphInteractionActivityState;
+    subscribeInteractionActivity(
+      listener: (state: LeaferGraphInteractionActivityState) => void
+    ): () => void;
     destroy(): void;
   };
   interactionRuntime: {
@@ -342,6 +347,11 @@ export class LeaferGraphApiHost<
     return this.options.runtime.graphExecutionHost.getGraphExecutionState();
   }
 
+  /** 读取当前最小交互活跃态快照。 */
+  getInteractionActivityState(): LeaferGraphInteractionActivityState {
+    return this.options.runtime.interactionHost.getInteractionActivityState();
+  }
+
   /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
   canResizeNode(nodeId: string): boolean {
     return this.options.runtime.nodeRuntimeHost.canResizeNode(nodeId);
@@ -405,6 +415,15 @@ export class LeaferGraphApiHost<
     listener: (event: RuntimeFeedbackEvent) => void
   ): () => void {
     return this.options.runtime.runtimeAdapter.subscribe(listener);
+  }
+
+  /** 订阅交互活跃态变化。 */
+  subscribeInteractionActivity(
+    listener: (state: LeaferGraphInteractionActivityState) => void
+  ): () => void {
+    return this.options.runtime.interactionHost.subscribeInteractionActivity(
+      listener
+    );
   }
 
   /** 把外部 runtime feedback 投影回当前图运行时。 */

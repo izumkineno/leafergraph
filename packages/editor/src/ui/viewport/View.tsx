@@ -8,6 +8,7 @@ import {
   type GraphOperation,
   type LeaferGraphConnectionPortState,
   type LeaferGraphGraphExecutionState,
+  type LeaferGraphInteractionActivityState,
   type LeaferGraph,
   type LeaferGraphContextMenuManager,
   type LeaferGraphNodeExecutionEvent,
@@ -80,6 +81,11 @@ import {
   resolveRemoteRuntimeControlNotice,
   type GraphViewportRemoteRuntimeControlNotice
 } from "./runtime_control_notice";
+import {
+  canFlushDeferredAuthorityDocumentProjection,
+  isAuthorityDocumentProjectionInteractionActive
+} from "./authority_document_projection_gate";
+import { resolveNodePointerSelectionAction } from "./node_pointer_selection";
 
 export interface GraphViewportProps {
   document: GraphDocument;
@@ -241,6 +247,13 @@ function createIdleGraphExecutionState(): GraphViewportGraphExecutionSnapshot {
     status: "idle",
     queueSize: 0,
     stepCount: 0
+  };
+}
+
+function createIdleInteractionActivityState(): LeaferGraphInteractionActivityState {
+  return {
+    active: false,
+    mode: "idle"
   };
 }
 
@@ -613,6 +626,7 @@ export function GraphViewport({
     let isProjectingExternalRuntimeFeedback = false;
     let latestRemoteGraphExecutionState: GraphViewportGraphExecutionSnapshot | null =
       null;
+    let hasPendingProjectedGraphExecutionReset = false;
     let pointerDownSequence = 0;
     let hitNodePointerDownSequence = -1;
     let pendingCanvasSelectionFrame = 0;
@@ -625,7 +639,15 @@ export function GraphViewport({
     let pendingMarqueeSelection: GraphViewportMarqueeState | null = null;
     let activeMarqueeSelection: GraphViewportMarqueeState | null = null;
     let reconnectState: GraphViewportReconnectState | null = null;
+    let latestGraphInteractionActivityState =
+      graph.getInteractionActivityState?.() ?? createIdleInteractionActivityState();
+    let pendingAuthorityDocument: GraphDocument | null = null;
+    let latestPendingOperationCount = documentSession.pendingOperationIds.length;
+    let pendingAuthorityProjectionFlushFrame = 0;
     const boundNodeIds = new Set<string>();
+    const hasActiveRemoteGraphExecutionState = (
+      state: GraphViewportGraphExecutionSnapshot | null
+    ): boolean => state?.status === "running" || state?.status === "stepping";
     const boundLinkIds = new Set<string>();
     let pendingLinkMenuSyncFrame = 0;
     let menu!: LeaferGraphContextMenuManager;
@@ -754,6 +776,9 @@ export function GraphViewport({
 
           if (result.state) {
             latestRemoteGraphExecutionState = structuredClone(result.state);
+            if (!hasActiveRemoteGraphExecutionState(result.state)) {
+              hasPendingProjectedGraphExecutionReset = false;
+            }
             syncGraphRuntimeControls(result.state);
           }
 
@@ -863,17 +888,25 @@ export function GraphViewport({
         case "graph.execution": {
           if (isProjectingExternalRuntimeFeedback) {
             latestRemoteGraphExecutionState = structuredClone(feedback.event.state);
+            if (!hasActiveRemoteGraphExecutionState(feedback.event.state)) {
+              hasPendingProjectedGraphExecutionReset = false;
+            }
           }
 
+          const shouldIgnore = shouldIgnoreProjectedGraphExecutionFeedback({
+            runtimeControlMode,
+            feedback,
+            isProjectingAuthorityDocument,
+            hasPendingProjectedReset: hasPendingProjectedGraphExecutionReset,
+            isExternalRuntimeFeedback: isProjectingExternalRuntimeFeedback,
+            latestRemoteGraphExecutionState
+          });
           if (
-            shouldIgnoreProjectedGraphExecutionFeedback({
-              runtimeControlMode,
-              feedback,
-              isProjectingAuthorityDocument,
-              isExternalRuntimeFeedback: isProjectingExternalRuntimeFeedback,
-              latestRemoteGraphExecutionState
-            })
+            shouldIgnore
           ) {
+            if (!isProjectingAuthorityDocument) {
+              hasPendingProjectedGraphExecutionReset = false;
+            }
             return;
           }
 
@@ -1139,6 +1172,8 @@ export function GraphViewport({
       if (!activeMarqueeSelection && !pendingMarqueeSelection) {
         host.style.cursor = "";
       }
+
+      schedulePendingAuthorityDocumentProjectionFlush();
     };
     /** 在每次刷新预览前重新解析一次源端口，避免节点移动后仍引用旧几何。 */
     const resolveActiveReconnectSourcePort =
@@ -1290,31 +1325,23 @@ export function GraphViewport({
 
       hitNodePointerDownSequence = pointerDownSequence;
 
-      /**
-       * 右键命中已选中节点时，保留当前整组选区，
-       * 这样节点菜单才能继续对多选态执行批量动作。
-       */
-      if (isSecondaryPointerDownEvent(event)) {
-        if (!selection.isSelected(nodeId)) {
+      switch (
+        resolveNodePointerSelectionAction({
+          isSecondaryPointer: isSecondaryPointerDownEvent(event),
+          shouldToggleSelection: shouldToggleSelectionByPointerEvent(event),
+          hasMultipleSelected: selection.hasMultipleSelected(),
+          isNodeSelected: selection.isSelected(nodeId)
+        })
+      ) {
+        case "preserve-selection":
+          return;
+        case "toggle-node":
+          selection.toggle(nodeId);
+          return;
+        case "select-node":
+        default:
           selection.select(nodeId);
-        }
-        return;
       }
-
-      if (shouldToggleSelectionByPointerEvent(event)) {
-        selection.toggle(nodeId);
-        return;
-      }
-
-      /**
-       * 左键按在当前多选集合中的任一节点上时，保留整组选区，
-       * 这样拖拽开始前不会先把多选误收缩成单选。
-       */
-      if (selection.hasMultipleSelected() && selection.isSelected(nodeId)) {
-        return;
-      }
-
-      selection.select(nodeId);
     };
     /** 统一从命令状态读取快捷键是否可触发，避免 GraphViewport 自己维护第二套禁用判断。 */
     const isCommandShortcutEnabled = (request: EditorCommandRequest): boolean =>
@@ -1528,14 +1555,60 @@ export function GraphViewport({
         bindEditorLink(link);
       }
     };
-    const syncAuthoritativeDocumentProjection = (
-      document: GraphDocument
-    ): void => {
+    const hasActiveAuthorityProjectionInteraction = (): boolean =>
+      isAuthorityDocumentProjectionInteractionActive({
+        graphInteractionState: latestGraphInteractionActivityState,
+        hasPendingMarqueeSelection: Boolean(pendingMarqueeSelection),
+        hasActiveMarqueeSelection: Boolean(activeMarqueeSelection),
+        hasReconnectState: Boolean(reconnectState)
+      });
+    const canFlushPendingAuthorityDocumentProjection = (): boolean =>
+      canFlushDeferredAuthorityDocumentProjection({
+        graphInteractionState: latestGraphInteractionActivityState,
+        hasPendingMarqueeSelection: Boolean(pendingMarqueeSelection),
+        hasActiveMarqueeSelection: Boolean(activeMarqueeSelection),
+        hasReconnectState: Boolean(reconnectState),
+        hasPendingAuthorityDocument: Boolean(pendingAuthorityDocument),
+        pendingOperationCount: latestPendingOperationCount
+      });
+    const schedulePendingAuthorityDocumentProjectionFlush = (): void => {
+      if (
+        disposed ||
+        !pendingAuthorityDocument ||
+        !canFlushPendingAuthorityDocumentProjection()
+      ) {
+        return;
+      }
+
+      if (pendingAuthorityProjectionFlushFrame) {
+        ownerWindow.cancelAnimationFrame(pendingAuthorityProjectionFlushFrame);
+      }
+
+      pendingAuthorityProjectionFlushFrame = ownerWindow.requestAnimationFrame(() => {
+        pendingAuthorityProjectionFlushFrame = 0;
+        if (
+          disposed ||
+          !pendingAuthorityDocument ||
+          !canFlushPendingAuthorityDocumentProjection()
+        ) {
+          return;
+        }
+
+        const nextDocument = pendingAuthorityDocument;
+        pendingAuthorityDocument = null;
+        applyProjectedAuthorityDocument(nextDocument);
+      });
+    };
+    const applyProjectedAuthorityDocument = (document: GraphDocument): void => {
       projectedDocument = document;
+      setWorkspaceDocument(document);
       if (!graphReady || disposed) {
         return;
       }
 
+      hasPendingProjectedGraphExecutionReset =
+        runtimeControlMode === "remote" &&
+        hasActiveRemoteGraphExecutionState(latestRemoteGraphExecutionState);
       isProjectingAuthorityDocument = true;
       try {
         graph.replaceGraphDocument(document);
@@ -1554,6 +1627,31 @@ export function GraphViewport({
 
       syncInfoPanelState();
       syncEditorToolbarControls();
+    };
+    const syncAuthoritativeDocumentProjection = (
+      document: GraphDocument
+    ): void => {
+      if (disposed) {
+        return;
+      }
+
+      if (!graphReady) {
+        projectedDocument = document;
+        setWorkspaceDocument(document);
+        return;
+      }
+
+      if (
+        hasActiveAuthorityProjectionInteraction() ||
+        (pendingAuthorityDocument &&
+          !canFlushPendingAuthorityDocumentProjection())
+      ) {
+        pendingAuthorityDocument = document;
+        return;
+      }
+
+      pendingAuthorityDocument = null;
+      applyProjectedAuthorityDocument(document);
     };
     const collectCurrentLinks = (): GraphLink[] => {
       const linkMap = new Map<string, GraphLink>();
@@ -1602,10 +1700,23 @@ export function GraphViewport({
           return;
         }
 
-        setWorkspaceDocument(document);
         if (documentSessionBinding.projectsSessionDocument) {
           syncAuthoritativeDocumentProjection(document);
+          return;
         }
+
+        setWorkspaceDocument(document);
+      }
+    );
+    const disposeInteractionActivitySubscription =
+      graph.subscribeInteractionActivity((state) => {
+        latestGraphInteractionActivityState = state;
+        schedulePendingAuthorityDocumentProjectionFlush();
+      });
+    const disposePendingProjectionSubscription = documentSession.subscribePending(
+      (pendingOperationIds) => {
+        latestPendingOperationCount = pendingOperationIds.length;
+        schedulePendingAuthorityDocumentProjectionFlush();
       }
     );
     const handleRecordedExecution = (execution: EditorCommandExecution): void => {
@@ -2027,6 +2138,7 @@ export function GraphViewport({
         if (hitNodePointerDownSequence === pendingMarqueeSelection.sequence) {
           pendingMarqueeSelection = null;
           hideSelectionBox();
+          schedulePendingAuthorityDocumentProjectionFlush();
           return;
         }
 
@@ -2079,6 +2191,7 @@ export function GraphViewport({
         event.pointerId === pendingMarqueeSelection.pointerId
       ) {
         pendingMarqueeSelection = null;
+        schedulePendingAuthorityDocumentProjectionFlush();
       }
 
       if (
@@ -2087,6 +2200,7 @@ export function GraphViewport({
       ) {
         activeMarqueeSelection = null;
         hideSelectionBox();
+        schedulePendingAuthorityDocumentProjectionFlush();
       }
 
       scheduleLinkContextMenuSync();
@@ -2366,6 +2480,9 @@ export function GraphViewport({
       if (pendingLinkMenuSyncFrame) {
         ownerWindow.cancelAnimationFrame(pendingLinkMenuSyncFrame);
       }
+      if (pendingAuthorityProjectionFlushFrame) {
+        ownerWindow.cancelAnimationFrame(pendingAuthorityProjectionFlushFrame);
+      }
       host.removeEventListener("pointerdown", handleHostPointerDown, true);
       host.removeEventListener("pointermove", handleHostPointerMove, true);
       host.removeEventListener("wheel", handleHostWheel, true);
@@ -2389,6 +2506,8 @@ export function GraphViewport({
       disposeLocalRuntimeFeedbackSubscription();
       disposeExternalRuntimeFeedbackSubscription();
       disposeDocumentProjectionSubscription();
+      disposeInteractionActivitySubscription();
+      disposePendingProjectionSubscription();
       disposeInteractionCommitSubscription();
       disposeSelectionSubscription();
       documentSessionBinding.dispose();

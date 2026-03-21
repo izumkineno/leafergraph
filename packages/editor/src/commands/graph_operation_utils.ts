@@ -9,6 +9,7 @@ import type {
   LeaferGraphUpdateDocumentInput,
   LeaferGraphUpdateNodeInput
 } from "leafergraph";
+import { sanitizePersistedNodeFlags } from "./node_flag_utils";
 
 type GraphOperationType = GraphOperation["type"];
 
@@ -95,7 +96,7 @@ export function createNodeInputFromSnapshot(
     outputs: snapshot.outputs,
     widgets: snapshot.widgets,
     data: snapshot.data,
-    flags: snapshot.flags
+    flags: sanitizePersistedNodeFlags(snapshot.flags)
   } satisfies LeaferGraphCreateNodeInput);
 }
 

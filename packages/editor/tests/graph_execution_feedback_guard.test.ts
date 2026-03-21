@@ -31,6 +31,7 @@ describe("shouldIgnoreProjectedGraphExecutionFeedback", () => {
         runtimeControlMode: "remote",
         feedback: createGraphExecutionFeedback("stopped", "idle"),
         isProjectingAuthorityDocument: true,
+        hasPendingProjectedReset: false,
         isExternalRuntimeFeedback: false,
         latestRemoteGraphExecutionState: {
           status: "running",
@@ -49,6 +50,7 @@ describe("shouldIgnoreProjectedGraphExecutionFeedback", () => {
         runtimeControlMode: "remote",
         feedback: createGraphExecutionFeedback("stopped", "idle"),
         isProjectingAuthorityDocument: true,
+        hasPendingProjectedReset: false,
         isExternalRuntimeFeedback: true,
         latestRemoteGraphExecutionState: {
           status: "running",
@@ -67,6 +69,7 @@ describe("shouldIgnoreProjectedGraphExecutionFeedback", () => {
         runtimeControlMode: "remote",
         feedback: createGraphExecutionFeedback("stopped", "idle"),
         isProjectingAuthorityDocument: true,
+        hasPendingProjectedReset: false,
         isExternalRuntimeFeedback: false,
         latestRemoteGraphExecutionState: {
           status: "idle",
@@ -74,6 +77,44 @@ describe("shouldIgnoreProjectedGraphExecutionFeedback", () => {
           stepCount: 4,
           startedAt: 1,
           stoppedAt: 2
+        }
+      })
+    ).toBe(false);
+  });
+
+  test("authority 文档投影结束后的一条本地 stopped 噪声也应被忽略", () => {
+    expect(
+      shouldIgnoreProjectedGraphExecutionFeedback({
+        runtimeControlMode: "remote",
+        feedback: createGraphExecutionFeedback("stopped", "idle"),
+        isProjectingAuthorityDocument: false,
+        hasPendingProjectedReset: true,
+        isExternalRuntimeFeedback: false,
+        latestRemoteGraphExecutionState: {
+          status: "running",
+          runId: "graph:run-1",
+          queueSize: 0,
+          stepCount: 4,
+          startedAt: 1
+        }
+      })
+    ).toBe(true);
+  });
+
+  test("没有投影保护窗时，不应忽略普通 stopped 事件", () => {
+    expect(
+      shouldIgnoreProjectedGraphExecutionFeedback({
+        runtimeControlMode: "remote",
+        feedback: createGraphExecutionFeedback("stopped", "idle"),
+        isProjectingAuthorityDocument: false,
+        hasPendingProjectedReset: false,
+        isExternalRuntimeFeedback: false,
+        latestRemoteGraphExecutionState: {
+          status: "running",
+          runId: "graph:run-1",
+          queueSize: 0,
+          stepCount: 4,
+          startedAt: 1
         }
       })
     ).toBe(false);

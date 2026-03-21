@@ -74,6 +74,7 @@ function createLinkSnapshot(
 function createGraphHarness(options?: {
   nodes?: TestNodeSnapshot[];
   links?: GraphLink[];
+  reflectCreatedNodesInGraph?: boolean;
 }): {
   graph: LeaferGraph;
   session: EditorGraphDocumentSession;
@@ -119,21 +120,23 @@ function createGraphHarness(options?: {
         case "node.create": {
           const nodeId = operation.input.id ?? `node-created-${entitySeed}`;
           entitySeed += 1;
-          nodeMap.set(
-            nodeId,
-            createNodeSnapshot(nodeId, {
-              type: operation.input.type,
-              title: operation.input.title,
-              x: operation.input.x,
-              y: operation.input.y,
-              width: operation.input.width,
-              height: operation.input.height,
-              properties: operation.input.properties,
-              data: operation.input.data,
-              flags: operation.input.flags,
-              widgets: operation.input.widgets
-            })
-          );
+          if (options?.reflectCreatedNodesInGraph !== false) {
+            nodeMap.set(
+              nodeId,
+              createNodeSnapshot(nodeId, {
+                type: operation.input.type,
+                title: operation.input.title,
+                x: operation.input.x,
+                y: operation.input.y,
+                width: operation.input.width,
+                height: operation.input.height,
+                properties: operation.input.properties,
+                data: operation.input.data,
+                flags: operation.input.flags,
+                widgets: operation.input.widgets
+              })
+            );
+          }
           return {
             accepted: true,
             changed: true,
@@ -256,6 +259,54 @@ describe("clipboard payload helpers", () => {
     expect(recreatedLinks).toHaveLength(1);
     expect(recreatedLinks[0]?.source.nodeId).toBe(createdNodes[0]?.id);
     expect(recreatedLinks[0]?.target.nodeId).toBe(createdNodes[1]?.id);
+  });
+
+  test("createNodesFromClipboardPayload 应去掉粘贴节点里的 selected 标记", () => {
+    const source = createGraphHarness({
+      nodes: [
+        createNodeSnapshot("node-a", {
+          x: 48,
+          y: 72,
+          flags: {
+            selected: true,
+            collapsed: true
+          }
+        })
+      ]
+    });
+    const reflectedTarget = createGraphHarness();
+    const pendingTarget = createGraphHarness({
+      reflectCreatedNodesInGraph: false
+    });
+    const payload = copyNodesToClipboardPayload(source.graph, ["node-a"]);
+
+    if (!payload) {
+      throw new Error("未生成 payload");
+    }
+
+    const reflectedCreatedNodes = createNodesFromClipboardPayload(
+      reflectedTarget.graph,
+      reflectedTarget.session,
+      payload,
+      600,
+      320
+    );
+    const pendingCreatedNodes = createNodesFromClipboardPayload(
+      pendingTarget.graph,
+      pendingTarget.session,
+      payload,
+      680,
+      360
+    );
+
+    expect(reflectedCreatedNodes).toHaveLength(1);
+    expect(reflectedCreatedNodes[0]?.flags).toEqual({
+      collapsed: true
+    });
+    expect(pendingCreatedNodes).toHaveLength(1);
+    expect(pendingCreatedNodes[0]?.flags).toEqual({
+      collapsed: true
+    });
   });
 
   test("parseLeaferGraphClipboardPayload 遇到非 LeaferGraph JSON 时返回 null", () => {

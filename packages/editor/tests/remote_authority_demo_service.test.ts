@@ -293,6 +293,52 @@ describe("createDemoRemoteAuthorityService", () => {
     });
   });
 
+  test("timer immediate 首拍应补发 timer advanced，运行中不应插入 stopped", async () => {
+    const service = createDemoRemoteAuthorityService({
+      initialDocument: createTimerDemoDocument({
+        immediate: true,
+        intervalMs: 100
+      })
+    });
+    const runtimeFeedbackEvents: RuntimeFeedbackEvent[] = [];
+    const disposeRuntimeFeedbackSubscription = service.subscribe?.(
+      (event) => {
+        runtimeFeedbackEvents.push(event);
+      }
+    );
+
+    if (typeof service.controlRuntime !== "function") {
+      throw new Error("demo authority service 缺少 controlRuntime");
+    }
+
+    await service.controlRuntime({
+      type: "graph.play"
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await service.controlRuntime({
+      type: "graph.stop"
+    });
+
+    expect(
+      runtimeFeedbackEvents
+        .filter((event): event is Extract<RuntimeFeedbackEvent, { type: "graph.execution" }> =>
+          event.type === "graph.execution"
+        )
+        .slice(0, -1)
+        .some((event) => event.event.type === "stopped")
+    ).toBe(false);
+    expect(
+      runtimeFeedbackEvents.some(
+        (event) =>
+          event.type === "graph.execution" &&
+          event.event.type === "advanced" &&
+          event.event.nodeId === "demo-timer"
+      )
+    ).toBe(true);
+
+    disposeRuntimeFeedbackSubscription?.();
+  });
+
   test("graph.step 命中 timer 后应升级为 running", async () => {
     const service = createDemoRemoteAuthorityService({
       initialDocument: createTimerDemoDocument({

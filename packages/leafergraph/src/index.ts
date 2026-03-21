@@ -85,6 +85,8 @@ export type {
   GraphOperation,
   GraphOperationApplyResult,
   LeaferGraphInteractionCommitEvent,
+  LeaferGraphInteractionActivityMode,
+  LeaferGraphInteractionActivityState,
   LinkCreateInteractionCommitEvent,
   LeaferGraphNodeMoveCommitEntry,
   LeaferGraphLinkPropagationEvent,
@@ -153,6 +155,7 @@ import type {
   LeaferGraphInteractionCommitEvent,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
+  LeaferGraphInteractionActivityState,
   RuntimeFeedbackEvent,
   LeaferGraphConnectionPortState,
   LeaferGraphNodeExecutionEvent,
@@ -317,6 +320,11 @@ export class LeaferGraph {
     return this.apiHost.getGraphExecutionState();
   }
 
+  /** 读取当前最小交互活跃态快照。 */
+  getInteractionActivityState(): LeaferGraphInteractionActivityState {
+    return this.apiHost.getInteractionActivityState();
+  }
+
   /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
   canResizeNode(nodeId: string): boolean {
     return this.apiHost.canResizeNode(nodeId);
@@ -384,6 +392,13 @@ export class LeaferGraph {
     listener: (event: RuntimeFeedbackEvent) => void
   ): () => void {
     return this.apiHost.subscribeRuntimeFeedback(listener);
+  }
+
+  /** 订阅交互活跃态变化。 */
+  subscribeInteractionActivity(
+    listener: (state: LeaferGraphInteractionActivityState) => void
+  ): () => void {
+    return this.apiHost.subscribeInteractionActivity(listener);
   }
 
   /** 把外部 runtime feedback 投影回当前图运行时。 */

@@ -11,6 +11,7 @@ import {
   createNodeResizeOperation,
   ensureNodeCreateInputId
 } from "./graph_operation_utils";
+import { sanitizePersistedNodeFlags } from "./node_flag_utils";
 import {
   copyNodesToClipboardPayload,
   createClipboardLinkSnapshotsFromPayload,
@@ -149,7 +150,7 @@ export function createNodeInputFromSnapshot(
       outputs: snapshot.outputs,
       widgets: snapshot.widgets,
       data: snapshot.data,
-      flags: snapshot.flags
+      flags: sanitizePersistedNodeFlags(snapshot.flags)
     } satisfies LeaferGraphCreateNodeInput),
     x,
     y
@@ -228,8 +229,7 @@ function hydrateNodeCreateInput(
       nextInput.widgets !== undefined
         ? structuredClone(nextInput.widgets)
         : structuredClone(definition.widgets ?? []),
-    flags:
-      nextInput.flags !== undefined ? structuredClone(nextInput.flags) : {}
+    flags: sanitizePersistedNodeFlags(nextInput.flags) ?? {}
   };
 }
 
@@ -487,7 +487,7 @@ function createPendingNodeSnapshot(
       width: normalizedInput.width ?? 240,
       height: normalizedInput.height ?? 140
     },
-    flags: structuredClone(normalizedInput.flags ?? {}),
+    flags: sanitizePersistedNodeFlags(normalizedInput.flags) ?? {},
     properties: structuredClone(normalizedInput.properties ?? {}),
     propertySpecs: structuredClone(normalizedInput.propertySpecs ?? []),
     inputs: structuredClone(

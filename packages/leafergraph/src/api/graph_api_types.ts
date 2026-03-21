@@ -327,6 +327,33 @@ export interface LeaferGraphGraphExecutionState {
 }
 
 /**
+ * 主包对外暴露的最小交互活跃模式。
+ *
+ * @remarks
+ * editor 只需要知道“当前是否存在会被整图 restore 打断的交互”，
+ * 不需要感知拖拽节点集合或内部指针引用。
+ */
+export type LeaferGraphInteractionActivityMode =
+  | "idle"
+  | "node-drag"
+  | "node-resize"
+  | "link-connect";
+
+/**
+ * 当前交互活跃态快照。
+ *
+ * @remarks
+ * 这份快照专门服务 editor 的 authority 文档投影保护链，
+ * 保持只读、最小且稳定。
+ */
+export interface LeaferGraphInteractionActivityState {
+  /** 当前是否存在会被整图 restore 打断的活跃交互。 */
+  active: boolean;
+  /** 当前活跃交互模式；空闲时固定为 `idle`。 */
+  mode: LeaferGraphInteractionActivityMode;
+}
+
+/**
  * 图级执行事件类型。
  */
 export type LeaferGraphGraphExecutionEventType =

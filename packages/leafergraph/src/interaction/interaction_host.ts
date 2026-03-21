@@ -8,6 +8,7 @@
 import type { Group } from "leafer-ui";
 import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
 import type {
+  LeaferGraphInteractionActivityState,
   LeaferGraphConnectionPortState,
   LeaferGraphInteractionCommitEvent
 } from "../api/graph_api_types";
@@ -113,6 +114,13 @@ export class LeaferGraphInteractionHost<
   private dragState: GraphDragState | null = null;
   private resizeState: GraphResizeState | null = null;
   private connectionState: GraphConnectionState | null = null;
+  private interactionActivityState: LeaferGraphInteractionActivityState = {
+    active: false,
+    mode: "idle"
+  };
+  private readonly interactionActivityListeners = new Set<
+    (state: LeaferGraphInteractionActivityState) => void
+  >();
 
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
     if (this.connectionState) {
@@ -232,6 +240,8 @@ export class LeaferGraphInteractionHost<
       this.options.container.style.cursor = "";
     }
 
+    this.syncInteractionActivityState();
+
     if (resizeNodeId) {
       this.options.runtime.syncNodeResizeHandleVisibility(resizeNodeId);
     }
@@ -322,6 +332,7 @@ export class LeaferGraphInteractionHost<
       const point = this.options.runtime.getPagePointFromGraphEvent(event);
       const size = this.options.runtime.resolveNodeSize(nodeId);
       if (!size) {
+        this.syncInteractionActivityState();
         return;
       }
       this.resizeState = {
@@ -331,6 +342,7 @@ export class LeaferGraphInteractionHost<
         startPageX: point.x,
         startPageY: point.y
       };
+      this.syncInteractionActivityState();
       this.options.runtime.syncNodeResizeHandleVisibility(nodeId);
       this.options.container.style.cursor = "nwse-resize";
     });
@@ -375,6 +387,7 @@ export class LeaferGraphInteractionHost<
         event.stop?.();
         this.dragState = null;
         this.resizeState = null;
+        this.syncInteractionActivityState();
         this.options.container.style.cursor = "";
         const beforeCollapsed = Boolean(state.state.flags.collapsed);
         const afterCollapsed = !beforeCollapsed;
@@ -417,6 +430,7 @@ export class LeaferGraphInteractionHost<
     }
 
     if (cleared) {
+      this.syncInteractionActivityState();
       this.options.container.style.cursor = "";
     }
   }
@@ -426,12 +440,30 @@ export class LeaferGraphInteractionHost<
     this.dragState = null;
     this.resizeState = null;
     this.clearConnectionState();
+    this.syncInteractionActivityState();
     this.options.container.style.cursor = "";
   }
 
   /** 判断某个节点当前是否处于 resize 拖拽态。 */
   isResizingNode(nodeId: string): boolean {
     return this.resizeState?.nodeId === nodeId;
+  }
+
+  /** 读取当前最小交互活跃态快照。 */
+  getInteractionActivityState(): LeaferGraphInteractionActivityState {
+    return { ...this.interactionActivityState };
+  }
+
+  /** 订阅交互活跃态变化。 */
+  subscribeInteractionActivity(
+    listener: (state: LeaferGraphInteractionActivityState) => void
+  ): () => void {
+    this.interactionActivityListeners.add(listener);
+    listener(this.getInteractionActivityState());
+
+    return () => {
+      this.interactionActivityListeners.delete(listener);
+    };
   }
 
   /** 卸载窗口级事件监听并清理交互态。 */
@@ -476,6 +508,7 @@ export class LeaferGraphInteractionHost<
         };
       })
     };
+    this.syncInteractionActivityState();
     this.options.runtime.syncNodeResizeHandleVisibility(nodeId);
     this.options.container.style.cursor = "grabbing";
   }
@@ -500,6 +533,7 @@ export class LeaferGraphInteractionHost<
       originSlot: originPort.slot,
       hoveredTarget: null
     };
+    this.syncInteractionActivityState();
 
     this.options.runtime.setConnectionSourcePort(originPort);
     this.options.runtime.setConnectionCandidatePort(null);
@@ -614,6 +648,40 @@ export class LeaferGraphInteractionHost<
     this.options.runtime.setConnectionSourcePort(null);
     this.options.runtime.setConnectionCandidatePort(null);
     this.options.runtime.clearConnectionPreview();
+    this.syncInteractionActivityState();
+  }
+
+  /** 根据当前内部状态同步对外可见的交互活跃态。 */
+  private syncInteractionActivityState(): void {
+    let mode: LeaferGraphInteractionActivityState["mode"] = "idle";
+    if (this.connectionState) {
+      mode = "link-connect";
+    } else if (this.resizeState) {
+      mode = "node-resize";
+    } else if (this.dragState) {
+      mode = "node-drag";
+    }
+
+    const nextState: LeaferGraphInteractionActivityState = {
+      active: mode !== "idle",
+      mode
+    };
+    if (
+      this.interactionActivityState.active === nextState.active &&
+      this.interactionActivityState.mode === nextState.mode
+    ) {
+      return;
+    }
+
+    this.interactionActivityState = nextState;
+    if (!this.interactionActivityListeners.size) {
+      return;
+    }
+
+    const snapshot = this.getInteractionActivityState();
+    for (const listener of this.interactionActivityListeners) {
+      listener(snapshot);
+    }
   }
 
   /**

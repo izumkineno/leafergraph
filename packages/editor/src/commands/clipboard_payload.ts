@@ -11,6 +11,7 @@ import {
   ensureLinkCreateInputId,
   ensureNodeCreateInputId
 } from "./graph_operation_utils";
+import { sanitizePersistedNodeFlags } from "./node_flag_utils";
 import type { EditorGraphDocumentSession } from "../session/graph_document_session";
 
 export interface LeaferGraphClipboardPayload {
@@ -109,7 +110,7 @@ function createNodeInputFromPayloadNode(
     outputs: snapshot.outputs,
     widgets: snapshot.widgets,
     data: snapshot.data,
-    flags: snapshot.flags
+    flags: sanitizePersistedNodeFlags(snapshot.flags)
   } satisfies LeaferGraphCreateNodeInput);
 }
 
@@ -127,7 +128,7 @@ function createPendingNodeSnapshot(
       width: normalizedInput.width ?? 240,
       height: normalizedInput.height ?? 140
     },
-    flags: structuredClone(normalizedInput.flags ?? {}),
+    flags: sanitizePersistedNodeFlags(normalizedInput.flags) ?? {},
     properties: structuredClone(normalizedInput.properties ?? {}),
     propertySpecs: structuredClone(normalizedInput.propertySpecs ?? []),
     inputs: structuredClone(
