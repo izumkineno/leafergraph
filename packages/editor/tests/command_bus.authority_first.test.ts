@@ -12,6 +12,8 @@ import { createRemoteGraphDocumentSession } from "../src/session/graph_document_
 import type { EditorNodeSelectionController } from "../src/state/selection";
 
 type TestNodeSnapshot = NonNullable<LeaferGraph["getNodeSnapshot"]>;
+const TEST_PENDING_NODE_TYPE = "test/pending-node";
+const TEST_PENDING_NODE_TITLE = "Pending Test Node";
 
 function createNodeSnapshot(
   nodeId: string,
@@ -26,7 +28,7 @@ function createNodeSnapshot(
 ): TestNodeSnapshot {
   return {
     id: nodeId,
-    type: options.type ?? "demo.pending",
+    type: options.type ?? TEST_PENDING_NODE_TYPE,
     title: options.title ?? nodeId,
     layout: {
       x: options.x ?? 0,
@@ -142,8 +144,8 @@ function createGraphStub(options?: {
     listNodes() {
       return [
         {
-          type: "demo.pending",
-          title: "Pending Demo Node",
+          type: TEST_PENDING_NODE_TYPE,
+          title: TEST_PENDING_NODE_TITLE,
           size: [320, 180],
           properties: [
             {
@@ -242,7 +244,7 @@ function createCommandBusForPendingAuthority(options?: {
     selection,
     bindNode: () => {},
     unbindNode: () => {},
-    quickCreateNodeType: "demo.pending",
+    quickCreateNodeType: TEST_PENDING_NODE_TYPE,
     isRuntimeReady: () => true,
     resolveLastPointerPagePoint: () => ({
       x: 120,
@@ -276,8 +278,8 @@ describe("EditorCommandBus authority-first", () => {
     expect(execution.operations?.[0]).toMatchObject({
       type: "node.create",
       input: {
-        type: "demo.pending",
-        title: "Pending Demo Node",
+        type: TEST_PENDING_NODE_TYPE,
+        title: TEST_PENDING_NODE_TITLE,
         x: 120,
         y: 160,
         width: 320,
@@ -434,7 +436,7 @@ describe("EditorCommandBus authority-first", () => {
 
     const execution = commandBus.execute({
       type: "canvas.create-node-from-workspace",
-      nodeType: "demo.pending",
+      nodeType: TEST_PENDING_NODE_TYPE,
       placement: "last-pointer"
     });
 

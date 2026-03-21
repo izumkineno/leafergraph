@@ -40,6 +40,7 @@ import {
   EDITOR_BUNDLE_SLOTS,
   ensureEditorBundleRuntimeGlobals,
   findEditorBundleRecord,
+  loadEditorFrontendBundleSource,
   loadEditorBundleSource,
   removeEditorBundleRecord,
   resolveEditorBundleRuntimeSetup,
@@ -879,11 +880,7 @@ export function EditorProvider({
             bundle.bundleId
           );
           try {
-            const manifest = await loadEditorBundleSource(
-              bundle.slot,
-              bundle.sourceCode,
-              `${packageRecord.packageId}/${bundle.fileName}`
-            );
+            const manifest = await loadEditorFrontendBundleSource(bundle);
             nextRemoteRecords.push(
               createLoadedBundleRecordState({
                 slot: bundle.slot,

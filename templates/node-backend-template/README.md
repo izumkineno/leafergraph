@@ -79,5 +79,6 @@ http://localhost:5501/authority-node-host-demo.html
 联调语义固定：
 
 - authority 文档以后端当前状态为准。
-- 后端会通过 `authority.event -> frontendBundles.sync` 推送前端 bundle 源码，editor 自动注册。
+- 后端会通过 `authority.event -> frontendBundles.sync` 推送结构化前端 bundle 内容，editor 自动注册。
+- `node/demo` 默认优先走 JSON 资产直推；只有 `widget` 或必须执行前端逻辑的 bundle 才继续走脚本。
 - `graph.play / graph.step / graph.stop` 均由本模板 runtime 执行。

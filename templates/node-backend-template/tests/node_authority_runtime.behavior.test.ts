@@ -100,13 +100,67 @@ function createGeneratedNodeOperation(): AuthorityGraphOperation {
   return {
     type: "node.create",
     input: {
-      type: "demo.pending",
+      type: "test/generated-node",
       x: 48,
       y: 72
     },
     operationId: `authority-generated-node-${Date.now()}`,
     timestamp: Date.now(),
     source: "editor.test"
+  };
+}
+
+function createSampleAuthorityDocument(): GraphDocument {
+  return {
+    documentId: "node-authority-doc",
+    revision: "1",
+    appKind: "node-backend-demo",
+    nodes: [
+      {
+        id: "node-1",
+        type: "test/source-node",
+        title: "Node 1",
+        layout: {
+          x: 0,
+          y: 0,
+          width: 240,
+          height: 140
+        },
+        flags: {},
+        properties: {},
+        propertySpecs: [],
+        inputs: [],
+        outputs: [{ name: "Output", type: "event" }],
+        widgets: [],
+        data: {}
+      },
+      {
+        id: "node-2",
+        type: "test/target-node",
+        title: "Node 2",
+        layout: {
+          x: 320,
+          y: 0,
+          width: 240,
+          height: 140
+        },
+        flags: {},
+        properties: {},
+        propertySpecs: [],
+        inputs: [{ name: "Input", type: "event" }],
+        outputs: [],
+        widgets: [],
+        data: {}
+      }
+    ],
+    links: [
+      {
+        id: "link-1",
+        source: { nodeId: "node-1", slot: 0 },
+        target: { nodeId: "node-2", slot: 0 }
+      }
+    ],
+    meta: {}
   };
 }
 
@@ -340,7 +394,7 @@ describe("node authority runtime behavior", () => {
     );
   });
 
-  test("默认文档应提供基础双节点链", () => {
+  test("默认文档应为空 authority 文档", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
     });
@@ -348,29 +402,62 @@ describe("node authority runtime behavior", () => {
     expect(runtime.getDocument()).toMatchObject({
       documentId: "node-authority-doc",
       revision: "1",
-      nodes: [
-        {
-          id: "node-1",
-          outputs: [{ name: "Output", type: "event" }]
-        },
-        {
-          id: "node-2",
-          inputs: [{ name: "Input", type: "event" }]
-        }
-      ],
-      links: [
-        {
-          id: "link-1",
-          source: { nodeId: "node-1", slot: 0 },
-          target: { nodeId: "node-2", slot: 0 }
-        }
-      ]
+      nodes: [],
+      links: []
+    });
+  });
+
+  test("默认前端 bundle 快照应返回结构化 node-json 与 demo-json", () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test"
+    });
+
+    const snapshot = runtime.getFrontendBundlesSnapshot();
+    const timerPackage = snapshot.packages?.find(
+      (entry) => entry.packageId === "@template/timer-node-package"
+    );
+    const timerNodeBundle = timerPackage?.bundles.find(
+      (bundle) => bundle.bundleId === "@template/timer-node-package/node"
+    );
+    const timerDemoBundle = timerPackage?.bundles.find(
+      (bundle) => bundle.bundleId === "@template/timer-node-package/demo"
+    );
+
+    expect(snapshot.type).toBe("frontendBundles.sync");
+    expect(snapshot.mode).toBe("full");
+    expect(timerPackage?.version).toBe("0.1.0");
+    expect(timerNodeBundle).toMatchObject({
+      format: "node-json",
+      slot: "node",
+      fileName: "node.bundle.json",
+      quickCreateNodeType: "system/timer"
+    });
+    expect(
+      timerNodeBundle && "definition" in timerNodeBundle
+        ? timerNodeBundle.definition
+        : null
+    ).toMatchObject({
+      type: "system/timer",
+      title: "Timer"
+    });
+    expect(timerDemoBundle).toMatchObject({
+      format: "demo-json",
+      slot: "demo",
+      fileName: "demo.bundle.json"
+    });
+    expect(
+      timerDemoBundle && "document" in timerDemoBundle
+        ? timerDemoBundle.document
+        : null
+    ).toMatchObject({
+      documentId: "timer-package-demo-doc"
     });
   });
 
   test("no-op 的 update / move / resize 不应推进 revision", () => {
     const runtime = createNodeAuthorityRuntime({
-      authorityName: "behavior-test"
+      authorityName: "behavior-test",
+      initialDocument: createSampleAuthorityDocument()
     });
 
     const updateResult = runtime.submitOperation(createNoopUpdateOperation());
@@ -400,7 +487,8 @@ describe("node authority runtime behavior", () => {
 
   test("非法 link.create / link.reconnect 应返回明确拒绝原因", () => {
     const runtime = createNodeAuthorityRuntime({
-      authorityName: "behavior-test"
+      authorityName: "behavior-test",
+      initialDocument: createSampleAuthorityDocument()
     });
 
     const createResult = runtime.submitOperation(createInvalidLinkCreateOperation());
@@ -424,7 +512,8 @@ describe("node authority runtime behavior", () => {
 
   test("link.remove 后应向两端节点补发 connections 状态反馈", () => {
     const runtime = createNodeAuthorityRuntime({
-      authorityName: "behavior-test"
+      authorityName: "behavior-test",
+      initialDocument: createSampleAuthorityDocument()
     });
     const events: AuthorityRuntimeFeedbackEvent[] = [];
     const dispose = runtime.subscribe((event) => {
@@ -626,12 +715,13 @@ describe("node authority runtime behavior", () => {
 
   test("node.play 应继续允许从普通节点直接调试起跑", () => {
     const runtime = createNodeAuthorityRuntime({
-      authorityName: "behavior-test"
+      authorityName: "behavior-test",
+      initialDocument: createTemplateExecutionAuthorityDocument()
     });
 
     const result = runtime.controlRuntime({
       type: "node.play",
-      nodeId: "node-1"
+      nodeId: "template-execute-source"
     });
 
     expect(result).toMatchObject({
@@ -642,16 +732,16 @@ describe("node authority runtime behavior", () => {
       revision: "2",
       nodes: expect.arrayContaining([
         expect.objectContaining({
-          id: "node-1",
+          id: "template-execute-source",
           properties: expect.objectContaining({
-            runCount: 1,
+            count: 1,
             status: "RUN 1"
           })
         }),
         expect.objectContaining({
-          id: "node-2",
+          id: "template-execute-display",
           properties: expect.objectContaining({
-            status: "VALUE OBJECT"
+            status: "VALUE 1"
           })
         })
       ])

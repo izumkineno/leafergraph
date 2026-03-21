@@ -3,6 +3,7 @@ import type {
   GraphOperation,
   RuntimeFeedbackEvent
 } from "leafergraph";
+import type { EditorFrontendBundleSource } from "../loader/types";
 import type {
   EditorRemoteAuthorityClient,
   EditorRemoteAuthorityConnectionStatus,
@@ -89,18 +90,11 @@ export interface EditorRemoteAuthorityRuntimeFeedbackTransportEvent {
   event: RuntimeFeedbackEvent;
 }
 
-/** authority 推送前端 bundle 源码时，单个 bundle 的最小描述。 */
-export interface EditorRemoteAuthorityFrontendBundleSource {
-  bundleId: string;
-  slot: "demo" | "node" | "widget";
-  fileName: string;
-  sourceCode: string;
-  enabled: boolean;
-  requires?: string[];
-  sha256: string;
-}
+/** authority 推送给 editor 的结构化前端 bundle。 */
+export type EditorRemoteAuthorityFrontendBundleSource =
+  EditorFrontendBundleSource;
 
-/** authority 推送前端 bundle 源码时，单个节点包的最小描述。 */
+/** authority 推送给 editor 的单个前端 bundle 内容。 */
 export interface EditorRemoteAuthorityFrontendBundlePackage {
   packageId: string;
   version: string;

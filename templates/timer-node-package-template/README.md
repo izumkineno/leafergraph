@@ -6,7 +6,7 @@
 - Node 后端执行器
 - Python 后端执行器
 
-收口到同一个包目录里，由后端在运行时加载并推送前端源码给 editor 自动注册。
+收口到同一个包目录里，由后端在运行时加载并把结构化前端 bundle 内容推给 editor 自动注册。
 
 ## 目录结构
 
@@ -17,8 +17,8 @@ templates/timer-node-package-template/
     timer/
       package.manifest.json
       frontend/
-        node.iife.js
-        demo.iife.js
+        node.bundle.json
+        demo.bundle.json
       backend/
         node/
           executors.cjs
@@ -31,7 +31,7 @@ templates/timer-node-package-template/
 ### 需要改
 
 - `package.manifest.json` 的 `packageId/version/nodeTypes/frontendBundles`。
-- `frontend/*.iife.js` 内的节点定义、demo 文档与显示文案。
+- `frontend/*.bundle.json` 里的节点定义、demo 文档与显示文案。
 - `backend/node/executors.cjs` 与 `backend/python/executors.py` 的业务执行语义。
 - 如果节点带有可编辑运行配置，前后端执行器也要一起维护这套配置的读写约定。
 
@@ -46,6 +46,28 @@ templates/timer-node-package-template/
 - manifest 基本结构：`packageId/version/frontendBundles/backend/nodeTypes`。
 - bundle 槽位语义：`demo/node/widget`。
 - 后端推送事件的基本形状：`frontendBundles.sync`。
+
+## 前端 bundle 格式
+
+当前模板固定采用三类前端内容格式：
+
+- `node-json`
+  - 只承载声明式 `NodeDefinition`
+  - 适合像 `system/timer` 这样没有前端执行代码、只需要注册节点定义的场景
+- `demo-json`
+  - 只承载正式 `GraphDocument`
+  - 适合作为后端推给 editor 的可切换 demo 图
+- `script`
+  - 只留给 `widget` 或必须执行前端逻辑的 bundle
+  - 如果要做自定义 renderer、复杂交互、安装时副作用，才退回这一类
+
+当前 `timer` 模板里：
+
+- `frontend/node.bundle.json` 使用 `node-json`
+- `frontend/demo.bundle.json` 使用 `demo-json`
+- 暂时没有 `widget` 脚本 bundle
+
+也就是说，这份模板现在把“声明式节点定义”和“demo 文档”都收口成 JSON，后端解析后会直接通过 `frontendBundles.sync` 推送结构化内容给 editor，不再依赖 `node/demo` IIFE 自注册。
 
 ## 节点开发约定
 
@@ -113,3 +135,27 @@ Node / Python 执行器现在已经按下面的顺序解析 timer 配置：
 - `immediate` 缺省视为 `true`
 
 如果你把这个模板扩成新的节点包，建议把这类“前后端必须完全一致”的执行语义也写进各自 README，而不是只留在实现里。
+
+### 5. `node-json` 只放静态定义，不放生命周期函数
+
+`node-json` 现在只允许声明式字段，例如：
+
+- `type`
+- `title`
+- `category`
+- `description`
+- `properties`
+- `widgets`
+- `inputs`
+- `outputs`
+- `size`
+- `resize`
+
+不要把这些函数型字段塞进 JSON：
+
+- `onExecute`
+- `onAction`
+- `onCreate`
+- 其它需要前端执行代码的生命周期
+
+如果节点前端能力真的依赖这些逻辑，就应该把该 bundle 改成 `script`，而不是继续往 `node-json` 里塞不可执行内容。

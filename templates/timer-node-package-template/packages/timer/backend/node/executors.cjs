@@ -46,15 +46,6 @@ function formatAuthorityRuntimeValue(value) {
   return "OBJECT";
 }
 
-function resolveNodeTitleBase(title, fallback) {
-  const safeTitle = typeof title === "string" ? title.trim() : "";
-  if (!safeTitle) {
-    return fallback;
-  }
-
-  return safeTitle.replace(/\s+(?:#?\d+|EMPTY|NULL|TRUE|FALSE|OBJECT)$/u, "");
-}
-
 function resolveTimerIntervalMs(value) {
   const nextValue = Number(value);
   if (!Number.isFinite(nextValue) || nextValue <= 0) {
@@ -213,51 +204,11 @@ function executeDisplayNode(node, context) {
   };
 }
 
-function executePendingNode(node, context) {
-  const properties = ensureNodeProperties(node);
-  const nextRunCount = Number.isFinite(Number(properties.runCount))
-    ? Number(properties.runCount) + 1
-    : 1;
-  const inputValue = resolveFirstDefinedInputValue(context.inputValues);
-  const displayValue = formatAuthorityRuntimeValue(inputValue);
-  properties.runCount = nextRunCount;
-  properties.status =
-    inputValue === undefined ? `RUN ${nextRunCount}` : `VALUE ${displayValue}`;
-  if (inputValue !== undefined) {
-    properties.lastValue = clone(inputValue);
-  }
-  node.title =
-    inputValue === undefined
-      ? `${resolveNodeTitleBase(node.title, node.id)} ${nextRunCount}`
-      : `${resolveNodeTitleBase(node.title, node.id)} ${displayValue}`;
-
-  return {
-    documentChanged: true,
-    outputPayloads:
-      (node.outputs?.length ?? 0) > 0
-        ? [
-            {
-              slot: 0,
-              payload:
-                inputValue === undefined
-                  ? {
-                      authority: context.authorityName,
-                      source: context.source,
-                      runCount: nextRunCount
-                    }
-                  : clone(inputValue)
-            }
-          ]
-        : []
-  };
-}
-
 function createExecutors() {
   return {
     "system/timer": executeTimerNode,
     "template/execute-counter": executeCounterNode,
-    "template/execute-display": executeDisplayNode,
-    "demo.pending": executePendingNode
+    "template/execute-display": executeDisplayNode
   };
 }
 

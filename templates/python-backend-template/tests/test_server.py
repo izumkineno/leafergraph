@@ -27,6 +27,42 @@ def test_server_should_expose_health_and_websocket_contract() -> None:
             assert initial_event["event"]["type"] == "frontendBundles.sync"
             assert initial_event["event"]["event"]["type"] == "frontendBundles.sync"
             assert initial_event["event"]["event"]["mode"] == "full"
+            timer_package = next(
+                (
+                    package
+                    for package in initial_event["event"]["event"].get("packages", [])
+                    if package.get("packageId") == "@template/timer-node-package"
+                ),
+                None,
+            )
+            assert timer_package is not None
+            timer_node_bundle = next(
+                (
+                    bundle
+                    for bundle in timer_package["bundles"]
+                    if bundle.get("bundleId") == "@template/timer-node-package/node"
+                ),
+                None,
+            )
+            timer_demo_bundle = next(
+                (
+                    bundle
+                    for bundle in timer_package["bundles"]
+                    if bundle.get("bundleId") == "@template/timer-node-package/demo"
+                ),
+                None,
+            )
+            assert timer_node_bundle is not None
+            assert timer_demo_bundle is not None
+            assert timer_node_bundle["format"] == "node-json"
+            assert timer_node_bundle["fileName"] == "node.bundle.json"
+            assert timer_node_bundle["definition"]["type"] == "system/timer"
+            assert timer_demo_bundle["format"] == "demo-json"
+            assert timer_demo_bundle["fileName"] == "demo.bundle.json"
+            assert (
+                timer_demo_bundle["document"]["documentId"]
+                == "timer-package-demo-doc"
+            )
 
             websocket.send_text(
                 json.dumps(

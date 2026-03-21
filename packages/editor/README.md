@@ -120,9 +120,10 @@ bundle manifest 解析、依赖检查、运行时 setup、持久化读写（Inde
 
 补充边界（容易混淆）：
 
-- `src/demo` 负责“给 editor 前端注入 bootstrap 配置”，例如 `preloadedBundles`、authority adapter、host demo URL。
+- `src/demo` 负责“给 editor 前端注入 bootstrap 配置”，例如 authority adapter、host demo URL。
 - `src/demo` 不负责启动或实现 Node/Python 后端；后端由 `templates/*-backend-template` 独立启动。
-- `node/widget/demo bundle` 的装载发生在 editor 前端（`main.tsx -> shell/provider.tsx -> loader/runtime.ts`），不是后端服务在装载。
+- 本地手工导入 bundle 时，`node/demo` 现在支持直接读取 JSON 资产，`widget` 仍走脚本。
+- 远端 authority 推来的 `node/demo` bundle 会走结构化注册，不再要求后端把它们包装成 IIFE 源码。
 
 ### `src/app`
 
@@ -281,17 +282,24 @@ bundle manifest 解析、依赖检查、运行时 setup、持久化读写（Inde
 - `authority-python-host-demo.html`：Python authority host demo。
 - `authority-host-demo.html`：浏览器内 demo authority host。
 
-## 常见问题：后端是否负责加载 node/widget bundle？
+## 常见问题：后端是否负责加载 node/widget/demo bundle？
 
-不是。当前链路是“前端加载 bundle，后端提供 authority 文档与运行控制”：
+现在分成两条链路：
 
-1. `src/demo/websocket_host_demo_bootstrap.ts` 在 host demo 场景按参数生成 `preloadedBundles`（如 `widget.iife.js`、`node.iife.js`、`demo.iife.js`）。
-2. `src/app/editor_app_bootstrap.ts` 解析 `window.LeaferGraphEditorAppBootstrap`，把 `preloadedBundles` 交给主入口。
-3. `src/main.tsx` 创建 controller 时透传 `preloadedBundles`。
-4. `src/shell/provider.tsx` 读取这些 bundle，`fetch` 源码后调用 `loadEditorBundleSource(...)` 完成装载与激活。
+1. 本地手工导入
+   - 用户通过文件选择器选中 bundle 文件。
+   - `src/shell/provider.tsx` 读取文件内容并调用 `loadEditorBundleSource(...)`。
+   - `node/demo` 可直接导入 JSON，`widget` 继续按脚本执行。
+2. 远端 authority 推送
+   - Node/Python 后端扫描节点包目录。
+   - 后端通过 `authority.event -> frontendBundles.sync` 推送结构化 bundle 内容。
+   - `src/shell/provider.tsx` 调用 `loadEditorFrontendBundleSource(...)` 自动注册远端 bundle。
 
-authority（Node/Python）侧仅通过 `WS /authority` 与 editor 同步文档/操作/运行态，不参与前端 bundle 文件加载。  
-对 WebSocket host demo，`bundleProjectionMode` 默认是 `skip`，因此文档事实源以远端 authority 为准。
+也就是说：
+
+- authority 现在会参与“远端 bundle 内容分发”
+- 但 editor 仍然是最终注册方
+- 对 WebSocket host demo，`bundleProjectionMode` 默认是 `skip`，文档事实源仍以远端 authority 为准
 
 ## 常见改动落点
 

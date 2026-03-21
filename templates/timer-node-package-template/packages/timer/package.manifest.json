@@ -4,21 +4,26 @@
   "frontendBundles": [
     {
       "bundleId": "@template/timer-node-package/node",
+      "name": "Timer Node Bundle",
       "slot": "node",
-      "fileName": "node.iife.js",
-      "entry": "frontend/node.iife.js",
+      "format": "node-json",
+      "fileName": "node.bundle.json",
+      "entry": "frontend/node.bundle.json",
       "enabled": true,
       "requires": [],
-      "sha256": "2b1458d81387331309bd60d822b83b866b86830276ae948025ae0779baa0a046"
+      "quickCreateNodeType": "system/timer",
+      "sha256": "4e6edb20aa5623636e27709b711e7c40f69e1e0815203f5afcb562bb67b0552d"
     },
     {
       "bundleId": "@template/timer-node-package/demo",
+      "name": "Timer Demo Bundle",
       "slot": "demo",
-      "fileName": "demo.iife.js",
-      "entry": "frontend/demo.iife.js",
+      "format": "demo-json",
+      "fileName": "demo.bundle.json",
+      "entry": "frontend/demo.bundle.json",
       "enabled": true,
       "requires": ["@template/timer-node-package/node"],
-      "sha256": "e260eb7e3c6d43e13fc5dcd762a9fa37e0b7ebce350dc1951c81c2f957465c91"
+      "sha256": "c6fe5109ff8bf1e49eea247a9b641d36a70099a46c2dbeb39effa403ae65c040"
     }
   ],
   "backend": {
@@ -34,7 +39,6 @@
   "nodeTypes": [
     "system/timer",
     "template/execute-counter",
-    "template/execute-display",
-    "demo.pending"
+    "template/execute-display"
   ]
 }

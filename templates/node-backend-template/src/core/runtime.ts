@@ -11,6 +11,7 @@ import type {
   GraphDocument,
   GraphLink,
   GraphLinkEndpoint,
+  NodeDefinition,
   NodeSerializeResult,
   NodeSlotSpec
 } from "@leafergraph/node";
@@ -42,12 +43,15 @@ export interface CreateNodeAuthorityRuntimeOptions {
 
 interface AuthorityNodePackageManifestFrontendBundle {
   bundleId: string;
+  name: string;
   slot: "demo" | "node" | "widget";
+  format: "script" | "node-json" | "demo-json";
   fileName: string;
   entry: string;
   enabled?: boolean;
   requires?: string[];
   sha256?: string;
+  quickCreateNodeType?: string;
 }
 
 interface AuthorityNodePackageManifest {
@@ -246,6 +250,114 @@ function resolveNonEmptyText(value: unknown, fieldName: string): string {
   return text;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+const DECLARATIVE_NODE_DEFINITION_LIFECYCLE_KEYS = [
+  "onCreate",
+  "onConfigure",
+  "onSerialize",
+  "onExecute",
+  "onPropertyChanged",
+  "onInputAdded",
+  "onOutputAdded",
+  "onConnectionsChange",
+  "onAction",
+  "onTrigger"
+] as const;
+
+function resolveFrontendBundleFormat(
+  manifestBundle: AuthorityNodePackageManifestFrontendBundle,
+  packageId: string,
+  bundleId: string,
+  slot: AuthorityFrontendBundleSource["slot"]
+): AuthorityFrontendBundleSource["format"] {
+  const format = resolveNonEmptyText(
+    manifestBundle.format,
+    "frontendBundles[].format"
+  ) as AuthorityFrontendBundleSource["format"];
+  if (format !== "script" && format !== "node-json" && format !== "demo-json") {
+    throw new Error(
+      `节点包 ${packageId} 的 bundle ${bundleId} 使用了非法 format: ${format}`
+    );
+  }
+
+  if (slot === "demo" && format !== "demo-json") {
+    throw new Error(`节点包 ${packageId} 的 demo bundle 必须使用 demo-json`);
+  }
+
+  if (slot === "widget" && format !== "script") {
+    throw new Error(`节点包 ${packageId} 的 widget bundle 只能使用 script`);
+  }
+
+  if (slot === "node" && format === "demo-json") {
+    throw new Error(`节点包 ${packageId} 的 node bundle 不能使用 demo-json`);
+  }
+
+  return format;
+}
+
+function requireNodeDefinition(
+  value: unknown,
+  sourceLabel: string
+): NodeDefinition {
+  if (!isRecord(value)) {
+    throw new Error(`${sourceLabel} 缺少合法的节点定义对象`);
+  }
+
+  const type = resolveNonEmptyText(value.type, "definition.type");
+  for (const key of DECLARATIVE_NODE_DEFINITION_LIFECYCLE_KEYS) {
+    if (key in value) {
+      throw new Error(`${sourceLabel} 只能声明静态 NodeDefinition，不能包含 ${key}`);
+    }
+  }
+
+  return clone({
+    ...value,
+    type
+  }) as NodeDefinition;
+}
+
+function requireFrontendBundleDocument(
+  value: unknown,
+  sourceLabel: string
+): GraphDocument {
+  if (!isRecord(value)) {
+    throw new Error(`${sourceLabel} 缺少合法的 GraphDocument`);
+  }
+
+  const nodes = value.nodes;
+  const links = value.links;
+  if (!Array.isArray(nodes) || !Array.isArray(links)) {
+    throw new Error(`${sourceLabel} 必须包含 nodes 和 links 数组`);
+  }
+
+  return clone({
+    documentId:
+      typeof value.documentId === "string" && value.documentId.trim().length > 0
+        ? value.documentId.trim()
+        : "bundle-document",
+    revision:
+      typeof value.revision === "number" || typeof value.revision === "string"
+        ? value.revision
+        : 0,
+    appKind:
+      typeof value.appKind === "string" && value.appKind.trim().length > 0
+        ? value.appKind.trim()
+        : "leafergraph-local",
+    nodes,
+    links,
+    meta: isRecord(value.meta) ? value.meta : undefined,
+    capabilityProfile: isRecord(value.capabilityProfile)
+      ? value.capabilityProfile
+      : undefined,
+    adapterBinding: isRecord(value.adapterBinding)
+      ? value.adapterBinding
+      : undefined
+  }) as GraphDocument;
+}
+
 function resolveManifestFilePath(
   packageDirectory: string
 ): string {
@@ -295,6 +407,7 @@ function resolvePackageFrontendBundles(input: {
 
   for (const manifestBundle of input.manifestBundles) {
     const bundleId = resolveNonEmptyText(manifestBundle.bundleId, "frontendBundles[].bundleId");
+    const name = resolveNonEmptyText(manifestBundle.name, "frontendBundles[].name");
     const slot = resolveNonEmptyText(
       manifestBundle.slot,
       "frontendBundles[].slot"
@@ -304,6 +417,12 @@ function resolvePackageFrontendBundles(input: {
         `节点包 ${input.packageId} 的 bundle ${bundleId} 使用了非法 slot: ${slot}`
       );
     }
+    const format = resolveFrontendBundleFormat(
+      manifestBundle,
+      input.packageId,
+      bundleId,
+      slot
+    );
 
     const entry = resolveNonEmptyText(manifestBundle.entry, "frontendBundles[].entry");
     const filePath = resolve(input.packageDirectory, entry);
@@ -311,8 +430,8 @@ function resolvePackageFrontendBundles(input: {
       throw new Error(`节点包 ${input.packageId} 缺少前端 bundle 文件：${entry}`);
     }
 
-    const sourceCode = readFileSync(filePath, "utf8");
-    const hash = createHash("sha256").update(sourceCode).digest("hex");
+    const fileText = readFileSync(filePath, "utf8");
+    const hash = createHash("sha256").update(fileText).digest("hex");
     const expectedHash =
       typeof manifestBundle.sha256 === "string"
         ? manifestBundle.sha256.trim().toLowerCase()
@@ -322,25 +441,69 @@ function resolvePackageFrontendBundles(input: {
         `节点包 ${input.packageId} 的前端 bundle 校验失败：${entry}`
       );
     }
+    const fileName =
+      (typeof manifestBundle.fileName === "string" &&
+      manifestBundle.fileName.trim().length > 0
+        ? manifestBundle.fileName.trim()
+        : entry.split(/[\\/]/u).at(-1)) ??
+      `${slot}.bundle`;
+    const requires =
+      Array.isArray(manifestBundle.requires) &&
+      manifestBundle.requires.length > 0
+        ? manifestBundle.requires.map((item) =>
+            resolveNonEmptyText(item, "frontendBundles[].requires[]")
+          )
+        : undefined;
+    const baseBundle = {
+      bundleId,
+      name,
+      slot,
+      format,
+      fileName,
+      version: input.version,
+      enabled: manifestBundle.enabled !== false,
+      requires,
+      sha256: hash
+    } as const;
+
+    if (format === "script") {
+      bundles.push({
+        ...baseBundle,
+        format,
+        sourceCode: fileText,
+        quickCreateNodeType:
+          typeof manifestBundle.quickCreateNodeType === "string" &&
+          manifestBundle.quickCreateNodeType.trim().length > 0
+            ? manifestBundle.quickCreateNodeType.trim()
+            : undefined
+      });
+      continue;
+    }
+
+    if (format === "node-json") {
+      bundles.push({
+        ...baseBundle,
+        format,
+        definition: requireNodeDefinition(
+          JSON.parse(fileText) as unknown,
+          `${input.packageId}/${entry}`
+        ),
+        quickCreateNodeType:
+          typeof manifestBundle.quickCreateNodeType === "string" &&
+          manifestBundle.quickCreateNodeType.trim().length > 0
+            ? manifestBundle.quickCreateNodeType.trim()
+            : undefined
+      });
+      continue;
+    }
 
     bundles.push({
-      bundleId,
-      slot,
-      fileName:
-        (typeof manifestBundle.fileName === "string" &&
-        manifestBundle.fileName.trim().length > 0
-          ? manifestBundle.fileName.trim()
-          : entry.split(/[\\/]/u).at(-1)) ?? `${slot}.bundle.js`,
-      sourceCode,
-      enabled: manifestBundle.enabled !== false,
-      requires:
-        Array.isArray(manifestBundle.requires) &&
-        manifestBundle.requires.length > 0
-          ? manifestBundle.requires.map((item) =>
-              resolveNonEmptyText(item, "frontendBundles[].requires[]")
-            )
-          : undefined,
-      sha256: hash
+      ...baseBundle,
+      format,
+      document: requireFrontendBundleDocument(
+        JSON.parse(fileText) as unknown,
+        `${input.packageId}/${entry}`
+      )
     });
   }
 
@@ -424,41 +587,8 @@ function createDefaultAuthorityDocument(): GraphDocument {
     documentId: "node-authority-doc",
     revision: "1",
     appKind: "node-backend-demo",
-    nodes: [
-      {
-        id: "node-1",
-        type: "demo.pending",
-        title: "Node 1",
-        layout: { x: 0, y: 0, width: 240, height: 140 },
-        flags: {},
-        properties: {},
-        propertySpecs: [],
-        inputs: [],
-        outputs: [{ name: "Output", type: "event" }],
-        widgets: [],
-        data: {}
-      },
-      {
-        id: "node-2",
-        type: "demo.pending",
-        title: "Node 2",
-        layout: { x: 320, y: 0, width: 240, height: 140 },
-        flags: {},
-        properties: {},
-        propertySpecs: [],
-        inputs: [{ name: "Input", type: "event" }],
-        outputs: [],
-        widgets: [],
-        data: {}
-      }
-    ],
-    links: [
-      {
-        id: "link-1",
-        source: { nodeId: "node-1", slot: 0 },
-        target: { nodeId: "node-2", slot: 0 }
-      }
-    ],
+    nodes: [],
+    links: [],
     meta: {}
   };
 }

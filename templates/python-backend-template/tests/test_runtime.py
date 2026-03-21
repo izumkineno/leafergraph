@@ -15,7 +15,7 @@ def create_sample_authority_document() -> dict:
         "nodes": [
             {
                 "id": "node-1",
-                "type": "demo.pending",
+                "type": "test/source-node",
                 "title": "Node 1",
                 "layout": {"x": 0, "y": 0, "width": 240, "height": 140},
                 "flags": {},
@@ -28,7 +28,7 @@ def create_sample_authority_document() -> dict:
             },
             {
                 "id": "node-2",
-                "type": "demo.pending",
+                "type": "test/target-node",
                 "title": "Node 2",
                 "layout": {"x": 320, "y": 0, "width": 240, "height": 140},
                 "flags": {},
@@ -275,48 +275,58 @@ def create_timer_authority_document(
     }
 
 
-def test_default_authority_document_should_provide_basic_demo_chain() -> None:
+def test_default_authority_document_should_be_empty() -> None:
     runtime = create_python_authority_runtime(authority_name="behavior-test")
 
     document = runtime.get_document()
 
     assert document["documentId"] == "node-authority-doc"
     assert document["revision"] == "1"
-    assert document["nodes"] == [
-        {
-            "id": "node-1",
-            "type": "demo.pending",
-            "title": "Node 1",
-            "layout": {"x": 0, "y": 0, "width": 240, "height": 140},
-            "flags": {},
-            "properties": {},
-            "propertySpecs": [],
-            "inputs": [],
-            "outputs": [{"name": "Output", "type": "event"}],
-            "widgets": [],
-            "data": {},
-        },
-        {
-            "id": "node-2",
-            "type": "demo.pending",
-            "title": "Node 2",
-            "layout": {"x": 320, "y": 0, "width": 240, "height": 140},
-            "flags": {},
-            "properties": {},
-            "propertySpecs": [],
-            "inputs": [{"name": "Input", "type": "event"}],
-            "outputs": [],
-            "widgets": [],
-            "data": {},
-        },
-    ]
-    assert document["links"] == [
-        {
-            "id": "link-1",
-            "source": {"nodeId": "node-1", "slot": 0},
-            "target": {"nodeId": "node-2", "slot": 0},
-        }
-    ]
+    assert document["nodes"] == []
+    assert document["links"] == []
+
+
+def test_frontend_bundle_snapshot_should_expose_structured_node_and_demo_json() -> None:
+    runtime = create_python_authority_runtime(authority_name="behavior-test")
+
+    snapshot = runtime.get_frontend_bundles_snapshot()
+    timer_package = next(
+        (
+            package
+            for package in snapshot.get("packages", [])
+            if package.get("packageId") == "@template/timer-node-package"
+        ),
+        None,
+    )
+    assert snapshot["type"] == "frontendBundles.sync"
+    assert snapshot["mode"] == "full"
+    assert timer_package is not None
+
+    timer_node_bundle = next(
+        (
+            bundle
+            for bundle in timer_package["bundles"]
+            if bundle.get("bundleId") == "@template/timer-node-package/node"
+        ),
+        None,
+    )
+    timer_demo_bundle = next(
+        (
+            bundle
+            for bundle in timer_package["bundles"]
+            if bundle.get("bundleId") == "@template/timer-node-package/demo"
+        ),
+        None,
+    )
+    assert timer_node_bundle is not None
+    assert timer_demo_bundle is not None
+    assert timer_node_bundle["format"] == "node-json"
+    assert timer_node_bundle["fileName"] == "node.bundle.json"
+    assert timer_node_bundle["quickCreateNodeType"] == "system/timer"
+    assert timer_node_bundle["definition"]["type"] == "system/timer"
+    assert timer_demo_bundle["format"] == "demo-json"
+    assert timer_demo_bundle["fileName"] == "demo.bundle.json"
+    assert timer_demo_bundle["document"]["documentId"] == "timer-package-demo-doc"
 
 
 def test_graph_step_should_require_on_play_entry() -> None:
@@ -351,19 +361,28 @@ def test_graph_play_should_require_on_play_entry() -> None:
 
 
 def test_node_play_should_still_allow_direct_debug_start_without_on_play() -> None:
-    runtime = create_python_authority_runtime(authority_name="behavior-test")
+    runtime = create_python_authority_runtime(
+        authority_name="behavior-test",
+        initial_document=create_template_execution_authority_document(),
+    )
 
-    result = runtime.control_runtime({"type": "node.play", "nodeId": "node-1"})
+    result = runtime.control_runtime(
+        {"type": "node.play", "nodeId": "template-execute-source"}
+    )
 
     assert result["accepted"] is True
     assert result["changed"] is True
     current_document = runtime.get_document()
     assert current_document["revision"] == "2"
-    source_node = next(node for node in current_document["nodes"] if node["id"] == "node-1")
-    target_node = next(node for node in current_document["nodes"] if node["id"] == "node-2")
-    assert source_node["properties"]["runCount"] == 1
+    source_node = next(
+        node for node in current_document["nodes"] if node["id"] == "template-execute-source"
+    )
+    target_node = next(
+        node for node in current_document["nodes"] if node["id"] == "template-execute-display"
+    )
+    assert source_node["properties"]["count"] == 1
     assert source_node["properties"]["status"] == "RUN 1"
-    assert target_node["properties"]["status"] == "VALUE OBJECT"
+    assert target_node["properties"]["status"] == "VALUE 1"
 
 
 def test_noop_update_move_resize_should_not_advance_revision() -> None:

@@ -92,6 +92,96 @@ def resolve_non_empty_text(value: Any, field_name: str) -> str:
     return text
 
 
+DECLARATIVE_NODE_DEFINITION_LIFECYCLE_KEYS = (
+    "onCreate",
+    "onConfigure",
+    "onSerialize",
+    "onExecute",
+    "onPropertyChanged",
+    "onInputAdded",
+    "onOutputAdded",
+    "onConnectionsChange",
+    "onAction",
+    "onTrigger",
+)
+
+
+def resolve_frontend_bundle_format(
+    manifest_bundle: dict[str, Any],
+    package_id: str,
+    bundle_id: str,
+    slot: str,
+) -> str:
+    format_value = resolve_non_empty_text(
+        manifest_bundle.get("format"), "frontendBundles[].format"
+    )
+    if format_value not in {"script", "node-json", "demo-json"}:
+        raise ValueError(
+            f"节点包 {package_id} 的 bundle {bundle_id} 使用了非法 format: {format_value}"
+        )
+    if slot == "demo" and format_value != "demo-json":
+        raise ValueError(f"节点包 {package_id} 的 demo bundle 必须使用 demo-json")
+    if slot == "widget" and format_value != "script":
+        raise ValueError(f"节点包 {package_id} 的 widget bundle 只能使用 script")
+    if slot == "node" and format_value == "demo-json":
+        raise ValueError(f"节点包 {package_id} 的 node bundle 不能使用 demo-json")
+    return format_value
+
+
+def require_node_definition(value: Any, source_label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{source_label} 缺少合法的节点定义对象")
+    node_type = resolve_non_empty_text(value.get("type"), "definition.type")
+    for key in DECLARATIVE_NODE_DEFINITION_LIFECYCLE_KEYS:
+        if key in value:
+            raise ValueError(f"{source_label} 只能声明静态 NodeDefinition，不能包含 {key}")
+    definition = clone_value(value)
+    definition["type"] = node_type
+    return definition
+
+
+def require_frontend_bundle_document(value: Any, source_label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{source_label} 缺少合法的 GraphDocument")
+    nodes = value.get("nodes")
+    links = value.get("links")
+    if not isinstance(nodes, list) or not isinstance(links, list):
+        raise ValueError(f"{source_label} 必须包含 nodes 和 links 数组")
+    return clone_value(
+        {
+            "documentId": (
+                value.get("documentId").strip()
+                if isinstance(value.get("documentId"), str)
+                and value.get("documentId").strip()
+                else "bundle-document"
+            ),
+            "revision": (
+                value.get("revision")
+                if isinstance(value.get("revision"), (int, float, str))
+                and not isinstance(value.get("revision"), bool)
+                else 0
+            ),
+            "appKind": (
+                value.get("appKind").strip()
+                if isinstance(value.get("appKind"), str)
+                and value.get("appKind").strip()
+                else "leafergraph-local"
+            ),
+            "nodes": nodes,
+            "links": links,
+            "meta": clone_value(value.get("meta"))
+            if isinstance(value.get("meta"), dict)
+            else None,
+            "capabilityProfile": clone_value(value.get("capabilityProfile"))
+            if isinstance(value.get("capabilityProfile"), dict)
+            else None,
+            "adapterBinding": clone_value(value.get("adapterBinding"))
+            if isinstance(value.get("adapterBinding"), dict)
+            else None,
+        }
+    )
+
+
 def resolve_manifest_file_path(package_directory: Path) -> Path:
     return package_directory / "package.manifest.json"
 
@@ -128,6 +218,7 @@ def resolve_package_frontend_bundles(
     *,
     package_directory: Path,
     package_id: str,
+    version: str,
     manifest_bundles: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     bundles: list[dict[str, Any]] = []
@@ -137,16 +228,22 @@ def resolve_package_frontend_bundles(
         bundle_id = resolve_non_empty_text(
             manifest_bundle.get("bundleId"), "frontendBundles[].bundleId"
         )
+        name = resolve_non_empty_text(
+            manifest_bundle.get("name"), "frontendBundles[].name"
+        )
         slot = resolve_non_empty_text(manifest_bundle.get("slot"), "frontendBundles[].slot")
         if slot not in {"demo", "node", "widget"}:
             raise ValueError(f"节点包 {package_id} 的 bundle {bundle_id} 使用了非法 slot: {slot}")
+        format_value = resolve_frontend_bundle_format(
+            manifest_bundle, package_id, bundle_id, slot
+        )
 
         entry = resolve_non_empty_text(manifest_bundle.get("entry"), "frontendBundles[].entry")
         file_path = (package_directory / entry).resolve()
         if not file_path.exists():
             raise ValueError(f"节点包 {package_id} 缺少前端 bundle 文件：{entry}")
-        source_code = file_path.read_text(encoding="utf-8")
-        hash_hex = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
+        file_text = file_path.read_text(encoding="utf-8")
+        hash_hex = hashlib.sha256(file_text.encode("utf-8")).hexdigest()
         expected_hash = (
             manifest_bundle.get("sha256").strip().lower()
             if isinstance(manifest_bundle.get("sha256"), str)
@@ -172,15 +269,53 @@ def resolve_package_frontend_bundles(
             and manifest_bundle.get("fileName").strip()
             else file_path.name
         )
+        base_bundle = {
+            "bundleId": bundle_id,
+            "name": name,
+            "slot": slot,
+            "format": format_value,
+            "fileName": file_name,
+            "version": version,
+            "enabled": manifest_bundle.get("enabled") is not False,
+            "requires": requires,
+            "sha256": hash_hex,
+        }
+        if format_value == "script":
+            bundles.append(
+                {
+                    **base_bundle,
+                    "sourceCode": file_text,
+                    "quickCreateNodeType": (
+                        manifest_bundle.get("quickCreateNodeType").strip()
+                        if isinstance(manifest_bundle.get("quickCreateNodeType"), str)
+                        and manifest_bundle.get("quickCreateNodeType").strip()
+                        else None
+                    ),
+                }
+            )
+            continue
+        if format_value == "node-json":
+            bundles.append(
+                {
+                    **base_bundle,
+                    "definition": require_node_definition(
+                        json.loads(file_text), f"{package_id}/{entry}"
+                    ),
+                    "quickCreateNodeType": (
+                        manifest_bundle.get("quickCreateNodeType").strip()
+                        if isinstance(manifest_bundle.get("quickCreateNodeType"), str)
+                        and manifest_bundle.get("quickCreateNodeType").strip()
+                        else None
+                    ),
+                }
+            )
+            continue
         bundles.append(
             {
-                "bundleId": bundle_id,
-                "slot": slot,
-                "fileName": file_name,
-                "sourceCode": source_code,
-                "enabled": manifest_bundle.get("enabled") is not False,
-                "requires": requires,
-                "sha256": hash_hex,
+                **base_bundle,
+                "document": require_frontend_bundle_document(
+                    json.loads(file_text), f"{package_id}/{entry}"
+                ),
             }
         )
 
@@ -251,6 +386,7 @@ def load_python_package_from_directory(package_directory: Path) -> LoadedPythonN
     frontend_bundles = resolve_package_frontend_bundles(
         package_directory=package_directory,
         package_id=manifest["packageId"],
+        version=manifest["version"],
         manifest_bundles=manifest["frontendBundles"],
     )
 
@@ -272,41 +408,8 @@ def create_default_authority_document() -> dict[str, Any]:
         "documentId": "node-authority-doc",
         "revision": "1",
         "appKind": "node-backend-demo",
-        "nodes": [
-            {
-                "id": "node-1",
-                "type": "demo.pending",
-                "title": "Node 1",
-                "layout": {"x": 0, "y": 0, "width": 240, "height": 140},
-                "flags": {},
-                "properties": {},
-                "propertySpecs": [],
-                "inputs": [],
-                "outputs": [{"name": "Output", "type": "event"}],
-                "widgets": [],
-                "data": {},
-            },
-            {
-                "id": "node-2",
-                "type": "demo.pending",
-                "title": "Node 2",
-                "layout": {"x": 320, "y": 0, "width": 240, "height": 140},
-                "flags": {},
-                "properties": {},
-                "propertySpecs": [],
-                "inputs": [{"name": "Input", "type": "event"}],
-                "outputs": [],
-                "widgets": [],
-                "data": {},
-            },
-        ],
-        "links": [
-            {
-                "id": "link-1",
-                "source": {"nodeId": "node-1", "slot": 0},
-                "target": {"nodeId": "node-2", "slot": 0},
-            }
-        ],
+        "nodes": [],
+        "links": [],
         "meta": {},
     }
 

@@ -1,8 +1,10 @@
 import * as LeaferGraphRuntime from "leafergraph";
 import type { GraphDocument, LeaferGraphNodePlugin } from "leafergraph";
+import type { NodeDefinition } from "@leafergraph/node";
 
 import type {
   EditorBundleCatalogState,
+  EditorFrontendBundleSource,
   EditorBundleManifest,
   EditorBundleRecordState,
   EditorBundleRequirement,
@@ -260,6 +262,59 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+const DECLARATIVE_NODE_DEFINITION_LIFECYCLE_KEYS = [
+  "onCreate",
+  "onConfigure",
+  "onSerialize",
+  "onExecute",
+  "onPropertyChanged",
+  "onInputAdded",
+  "onOutputAdded",
+  "onConnectionsChange",
+  "onAction",
+  "onTrigger"
+] as const;
+
+function stripBundleFileExtension(fileName: string): string {
+  const lastSegment = fileName.split(/[\\/]/u).at(-1) ?? fileName;
+  return lastSegment.replace(/\.[^.]+$/u, "");
+}
+
+function requireNodeDefinition(
+  value: unknown,
+  sourceLabel = "node bundle"
+): NodeDefinition {
+  if (!isRecord(value)) {
+    throw new Error(`${sourceLabel} 缺少合法的节点定义对象`);
+  }
+
+  const type = requireNonEmptyText(value.type, "definition.type");
+  for (const key of DECLARATIVE_NODE_DEFINITION_LIFECYCLE_KEYS) {
+    if (key in value) {
+      throw new Error(
+        `${sourceLabel} 只能声明静态 NodeDefinition，不能包含 ${key}`
+      );
+    }
+  }
+
+  return structuredClone({
+    ...value,
+    type
+  }) as NodeDefinition;
+}
+
+function createPluginFromNodeDefinition(options: {
+  bundleId: string;
+  definition: NodeDefinition;
+}): LeaferGraphNodePlugin {
+  return {
+    name: `${options.bundleId}/plugin`,
+    install(ctx) {
+      ctx.registerNode(options.definition, { overwrite: true });
+    }
+  };
+}
+
 /** 校验插件对象的最小形态。 */
 function requirePlugin(value: unknown): LeaferGraphNodePlugin {
   if (!isRecord(value)) {
@@ -343,6 +398,101 @@ function requireGraphDocument(value: unknown): GraphDocument {
   }) as GraphDocument;
 }
 
+function createNodeJsonBundleManifest(options: {
+  bundleId: string;
+  name: string;
+  version?: string;
+  requires?: EditorBundleRequirement[];
+  definition: NodeDefinition;
+  quickCreateNodeType?: string;
+}): EditorPluginBundleManifest {
+  return {
+    id: options.bundleId,
+    name: options.name,
+    kind: "node",
+    version: options.version,
+    requires: options.requires,
+    plugin: createPluginFromNodeDefinition({
+      bundleId: options.bundleId,
+      definition: options.definition
+    }),
+    quickCreateNodeType:
+      normalizeQuickCreateNodeType(options.quickCreateNodeType) ??
+      options.definition.type
+  };
+}
+
+function createDemoJsonBundleManifest(options: {
+  bundleId: string;
+  name: string;
+  version?: string;
+  requires?: EditorBundleRequirement[];
+  document: GraphDocument;
+}): EditorBundleManifest {
+  return {
+    id: options.bundleId,
+    name: options.name,
+    kind: "demo",
+    version: options.version,
+    requires: options.requires,
+    document: requireGraphDocument(options.document)
+  };
+}
+
+function createLocalJsonBundleManifest(
+  slot: EditorBundleSlot,
+  value: unknown,
+  sourceLabel: string
+): EditorBundleManifest {
+  const baseName = stripBundleFileExtension(sourceLabel || `${slot}.bundle`);
+
+  if (slot === "demo") {
+    const document = requireGraphDocument(value);
+    const bundleId =
+      (typeof document.documentId === "string" && document.documentId.trim()) ||
+      baseName ||
+      "demo-bundle";
+    return createDemoJsonBundleManifest({
+      bundleId,
+      name: bundleId,
+      document
+    });
+  }
+
+  if (slot === "node") {
+    const definition = requireNodeDefinition(value, sourceLabel);
+    return createNodeJsonBundleManifest({
+      bundleId: definition.type,
+      name:
+        (typeof definition.title === "string" && definition.title.trim()) ||
+        definition.type,
+      definition
+    });
+  }
+
+  throw new Error("当前只有 node / demo 支持 JSON bundle");
+}
+
+function tryLoadLocalJsonBundleManifest(
+  slot: EditorBundleSlot,
+  sourceText: string,
+  sourceLabel: string
+): EditorBundleManifest | null {
+  if (slot === "widget") {
+    return null;
+  }
+
+  try {
+    return createLocalJsonBundleManifest(
+      slot,
+      JSON.parse(sourceText) as unknown,
+      sourceLabel
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 把未知 manifest 归一化成 editor 可消费的正式结构。
  * 归一化后会立即冻结“这次加载到底是什么”，避免后续状态计算还要处理脏数据。
@@ -424,10 +574,10 @@ export function ensureEditorBundleRuntimeGlobals(): void {
 }
 
 /**
- * 读取一个本地 JS 文件，并按 IIFE bundle 协议完成注入。
+ * 执行一个脚本型 bundle，并按 IIFE bundle 协议完成注入。
  * 成功后返回已归一化的 manifest；失败时不会污染现有槽位状态。
  */
-export async function loadEditorBundleSource(
+async function loadEditorBundleScriptSource(
   slot: EditorBundleSlot,
   sourceCode: string,
   sourceLabel = "inline bundle"
@@ -502,6 +652,120 @@ export async function loadEditorBundleSource(
   } finally {
     cleanup();
   }
+}
+
+/**
+ * 从 authority 结构化前端 bundle 直接生成 editor manifest。
+ *
+ * @remarks
+ * - `node-json` / `demo-json` 不再执行脚本，直接走结构化注册。
+ * - `script` 仍走现有 IIFE 执行链，作为 widget 或复杂前端逻辑的兜底格式。
+ */
+export async function loadEditorFrontendBundleSource(
+  bundle: EditorFrontendBundleSource
+): Promise<EditorBundleManifest> {
+  switch (bundle.format) {
+    case "node-json":
+      if (bundle.slot !== "node") {
+        throw new Error("node-json 只能用于 node bundle");
+      }
+      return createNodeJsonBundleManifest({
+        bundleId: bundle.bundleId,
+        name: bundle.name,
+        version: bundle.version,
+        requires: bundle.requires,
+        definition: requireNodeDefinition(
+          bundle.definition,
+          `${bundle.bundleId} 节点定义`
+        ),
+        quickCreateNodeType: bundle.quickCreateNodeType
+      });
+    case "demo-json":
+      if (bundle.slot !== "demo") {
+        throw new Error("demo-json 只能用于 demo bundle");
+      }
+      return createDemoJsonBundleManifest({
+        bundleId: bundle.bundleId,
+        name: bundle.name,
+        version: bundle.version,
+        requires: bundle.requires,
+        document: bundle.document
+      });
+    case "script": {
+      const manifest = await loadEditorBundleScriptSource(
+        bundle.slot,
+        bundle.sourceCode,
+        `${bundle.bundleId}/${bundle.fileName}`
+      );
+
+      if (bundle.slot === "demo") {
+        if (manifest.kind !== "demo") {
+          throw new Error("script bundle 没有返回 demo manifest");
+        }
+
+        return {
+          id: bundle.bundleId,
+          name: bundle.name,
+          kind: "demo",
+          version: bundle.version ?? manifest.version,
+          requires: bundle.requires,
+          document: manifest.document
+        };
+      }
+
+      if (manifest.kind === "demo") {
+        throw new Error("script bundle 没有返回 node/widget manifest");
+      }
+
+      return {
+        id: bundle.bundleId,
+        name: bundle.name,
+        kind: bundle.slot,
+        version: bundle.version ?? manifest.version,
+        requires: bundle.requires,
+        plugin: manifest.plugin,
+        quickCreateNodeType:
+          normalizeQuickCreateNodeType(bundle.quickCreateNodeType) ??
+          manifest.quickCreateNodeType
+      };
+    }
+  }
+}
+
+/**
+ * 读取一个本地 bundle 文本内容。
+ *
+ * @remarks
+ * - `node` / `demo` 优先识别声明式 JSON
+ * - 其它情况回退到脚本型 IIFE bundle
+ */
+export async function loadEditorBundleSource(
+  slot: EditorBundleSlot,
+  sourceCode: string,
+  sourceLabel = "inline bundle"
+): Promise<EditorBundleManifest> {
+  const normalizedSourceLabel = sourceLabel.trim() || `inline-${slot}.bundle`;
+  const shouldForceJson =
+    slot !== "widget" && normalizedSourceLabel.toLowerCase().endsWith(".json");
+
+  if (shouldForceJson) {
+    return createLocalJsonBundleManifest(
+      slot,
+      JSON.parse(sourceCode) as unknown,
+      normalizedSourceLabel
+    );
+  }
+
+  const jsonManifest = tryLoadLocalJsonBundleManifest(
+    slot,
+    sourceCode,
+    normalizedSourceLabel
+  );
+  if (jsonManifest) {
+    return jsonManifest;
+  }
+
+  return loadEditorBundleScriptSource(slot, sourceCode, normalizedSourceLabel);
 }
 
 /**

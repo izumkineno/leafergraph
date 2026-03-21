@@ -38,18 +38,6 @@ def format_authority_runtime_value(value: Any) -> str:
     return "OBJECT"
 
 
-def resolve_node_title_base(title: Any, fallback: str) -> str:
-    safe_title = title.strip() if isinstance(title, str) else ""
-    if not safe_title:
-        return fallback
-    for suffix in ("EMPTY", "NULL", "TRUE", "FALSE", "OBJECT"):
-        if safe_title.endswith(f" {suffix}"):
-            return safe_title[: -len(suffix) - 1]
-    if safe_title.rsplit(" ", 1)[-1].isdigit():
-        return safe_title.rsplit(" ", 1)[0]
-    return safe_title
-
-
 def resolve_timer_interval_ms(value: Any) -> int:
     try:
         next_value = float(value)
@@ -196,50 +184,9 @@ def execute_display_node(node: dict[str, Any], context: dict[str, Any]) -> dict[
     return {"documentChanged": True, "outputPayloads": []}
 
 
-def execute_pending_node(node: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    properties = ensure_node_properties(node)
-    previous_run_count = properties.get("runCount", 0)
-    next_run_count = (
-        previous_run_count + 1
-        if isinstance(previous_run_count, (int, float)) and not isinstance(previous_run_count, bool)
-        else 1
-    )
-    input_value = resolve_first_defined_input_value(context["inputValues"])
-    display_value = format_authority_runtime_value(input_value)
-    properties["runCount"] = next_run_count
-    properties["status"] = (
-        f"RUN {next_run_count}" if input_value is None else f"VALUE {display_value}"
-    )
-    if input_value is not None:
-        properties["lastValue"] = clone_value(input_value)
-    node["title"] = (
-        f"{resolve_node_title_base(node.get('title'), node['id'])} {next_run_count}"
-        if input_value is None
-        else f"{resolve_node_title_base(node.get('title'), node['id'])} {display_value}"
-    )
-    output_payloads: list[dict[str, Any]] = []
-    if len(node.get("outputs", [])) > 0:
-        output_payloads.append(
-            {
-                "slot": 0,
-                "payload": (
-                    {
-                        "authority": context["authorityName"],
-                        "source": context["source"],
-                        "runCount": next_run_count,
-                    }
-                    if input_value is None
-                    else clone_value(input_value)
-                ),
-            }
-        )
-    return {"documentChanged": True, "outputPayloads": output_payloads}
-
-
 def create_executors() -> dict[str, Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]]:
     return {
         "system/timer": execute_timer_node,
         "template/execute-counter": execute_counter_node,
         "template/execute-display": execute_display_node,
-        "demo.pending": execute_pending_node,
     }

@@ -3,6 +3,31 @@ import { describe, expect, test } from "bun:test";
 import type { AuthorityGraphOperation } from "../src/index.js";
 import { createNodeAuthorityRuntime } from "../src/index.js";
 
+function createSampleAuthorityDocument() {
+  return {
+    documentId: "node-authority-doc",
+    revision: "1",
+    appKind: "node-backend-demo",
+    nodes: [
+      {
+        id: "node-1",
+        type: "test/source-node",
+        title: "Node 1",
+        layout: { x: 0, y: 0, width: 240, height: 140 },
+        flags: {},
+        properties: {},
+        propertySpecs: [],
+        inputs: [],
+        outputs: [{ name: "Output", type: "event" }],
+        widgets: [],
+        data: {}
+      }
+    ],
+    links: [],
+    meta: {}
+  };
+}
+
 function createUpdateFlagsOperation(): AuthorityGraphOperation {
   return {
     type: "node.update",
@@ -23,7 +48,7 @@ function createCreateCollapsedNodeOperation(): AuthorityGraphOperation {
     type: "node.create",
     input: {
       id: "collapsed-node",
-      type: "demo.pending",
+      type: "test/collapsed-node",
       x: 24,
       y: 36,
       flags: {
@@ -39,7 +64,8 @@ function createCreateCollapsedNodeOperation(): AuthorityGraphOperation {
 describe("node authority runtime flags", () => {
   test("应支持 node.update(flags) 与 node.create(flags)", () => {
     const runtime = createNodeAuthorityRuntime({
-      authorityName: "flags-test"
+      authorityName: "flags-test",
+      initialDocument: createSampleAuthorityDocument()
     });
 
     const updateResult = runtime.submitOperation(createUpdateFlagsOperation());

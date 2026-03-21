@@ -2,6 +2,7 @@ import type {
   GraphDocument,
   LeaferGraphNodePlugin
 } from "leafergraph";
+import type { NodeDefinition } from "@leafergraph/node";
 
 /** editor 当前支持的本地 bundle 槽位。 */
 export type EditorBundleSlot = "demo" | "node" | "widget";
@@ -46,6 +47,49 @@ export interface EditorPluginBundleManifest extends EditorBundleManifestBase {
 export type EditorBundleManifest =
   | EditorDemoBundleManifest
   | EditorPluginBundleManifest;
+
+/** authority / 本地 loader 当前支持的前端 bundle 内容格式。 */
+export type EditorFrontendBundleFormat = "script" | "node-json" | "demo-json";
+
+/** 结构化前端 bundle 的公共字段。 */
+export interface EditorFrontendBundleSourceBase {
+  bundleId: string;
+  name: string;
+  slot: EditorBundleSlot;
+  fileName: string;
+  version?: string;
+  enabled: boolean;
+  requires?: EditorBundleRequirement[];
+  sha256: string;
+}
+
+/** 仍需执行脚本的前端 bundle。 */
+export interface EditorScriptBundleSource extends EditorFrontendBundleSourceBase {
+  format: "script";
+  sourceCode: string;
+  quickCreateNodeType?: string;
+}
+
+/** 直接携带声明式节点定义的前端 bundle。 */
+export interface EditorNodeJsonBundleSource
+  extends EditorFrontendBundleSourceBase {
+  format: "node-json";
+  definition: NodeDefinition;
+  quickCreateNodeType?: string;
+}
+
+/** 直接携带正式图文档的前端 bundle。 */
+export interface EditorDemoJsonBundleSource
+  extends EditorFrontendBundleSourceBase {
+  format: "demo-json";
+  document: GraphDocument;
+}
+
+/** authority / 本地 loader 当前支持的全部结构化前端 bundle。 */
+export type EditorFrontendBundleSource =
+  | EditorScriptBundleSource
+  | EditorNodeJsonBundleSource
+  | EditorDemoJsonBundleSource;
 
 /** editor 内部单个 bundle 记录。 */
 export interface EditorBundleRecordState {

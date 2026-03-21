@@ -7,7 +7,7 @@ let currentDocument = {
   nodes: [
     {
       id: "node-1",
-      type: "demo.pending",
+      type: "test/remote-node",
       title: "Node 1",
       layout: {
         x: 0,
@@ -25,7 +25,7 @@ let currentDocument = {
     },
     {
       id: "node-2",
-      type: "demo.pending",
+      type: "test/remote-node",
       title: "Node 2",
       layout: {
         x: 320,

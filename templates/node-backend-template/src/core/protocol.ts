@@ -5,6 +5,7 @@ import type {
   GraphLink,
   GraphLinkEndpoint,
   NodeFlags,
+  NodeDefinition,
   NodePropertySpec,
   NodeSerializeResult,
   NodeSlotSpec
@@ -402,18 +403,51 @@ export interface AuthorityRuntimeFeedbackTransportEvent {
   event: AuthorityRuntimeFeedbackEvent;
 }
 
-/** 后端推送前端 bundle 源码时，单个 bundle 的最小描述。 */
-export interface AuthorityFrontendBundleSource {
+/** 后端当前支持的前端 bundle 内容格式。 */
+export type AuthorityFrontendBundleFormat = "script" | "node-json" | "demo-json";
+
+/** 后端推送前端 bundle 时，单个 bundle 的公共字段。 */
+export interface AuthorityFrontendBundleSourceBase {
   bundleId: string;
+  name: string;
   slot: "demo" | "node" | "widget";
   fileName: string;
-  sourceCode: string;
+  version?: string;
   enabled: boolean;
   requires?: string[];
   sha256: string;
 }
 
-/** 后端推送前端 bundle 源码时，单个节点包的最小描述。 */
+/** 仍需在前端执行脚本的 bundle。 */
+export interface AuthorityScriptFrontendBundleSource
+  extends AuthorityFrontendBundleSourceBase {
+  format: "script";
+  sourceCode: string;
+  quickCreateNodeType?: string;
+}
+
+/** 直接携带声明式节点定义的 node bundle。 */
+export interface AuthorityNodeJsonFrontendBundleSource
+  extends AuthorityFrontendBundleSourceBase {
+  format: "node-json";
+  definition: NodeDefinition;
+  quickCreateNodeType?: string;
+}
+
+/** 直接携带正式图文档的 demo bundle。 */
+export interface AuthorityDemoJsonFrontendBundleSource
+  extends AuthorityFrontendBundleSourceBase {
+  format: "demo-json";
+  document: GraphDocument;
+}
+
+/** 后端推送前端 bundle 内容时，单个 bundle 的最小描述。 */
+export type AuthorityFrontendBundleSource =
+  | AuthorityScriptFrontendBundleSource
+  | AuthorityNodeJsonFrontendBundleSource
+  | AuthorityDemoJsonFrontendBundleSource;
+
+/** 后端推送前端 bundle 内容时，单个节点包的最小描述。 */
 export interface AuthorityFrontendBundlePackage {
   packageId: string;
   version: string;

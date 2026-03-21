@@ -1,0 +1,62 @@
+{
+  "type": "system/timer",
+  "title": "Timer",
+  "category": "System",
+  "description": "图级定时触发节点（Start -> Tick）",
+  "properties": [
+    {
+      "name": "intervalMs",
+      "type": "number",
+      "default": 1000
+    },
+    {
+      "name": "immediate",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "name": "runCount",
+      "type": "number",
+      "default": 0
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "default": "READY"
+    }
+  ],
+  "widgets": [
+    {
+      "type": "input",
+      "name": "intervalMs",
+      "value": 1000,
+      "options": {
+        "label": "Interval (ms)",
+        "placeholder": "1000"
+      }
+    },
+    {
+      "type": "toggle",
+      "name": "immediate",
+      "value": true,
+      "options": {
+        "label": "Immediate",
+        "onText": "ON",
+        "offText": "WAIT"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "name": "Start",
+      "type": "event"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "Tick",
+      "type": "event",
+      "label": "Tick"
+    }
+  ]
+}

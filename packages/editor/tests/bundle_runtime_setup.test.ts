@@ -234,6 +234,149 @@ describe("bundle catalog helpers", () => {
   });
 });
 
+describe("bundle source loaders", () => {
+  test("应支持从本地 node JSON 直接生成节点 bundle manifest", async () => {
+    const manifest = await runtimeModule.loadEditorBundleSource(
+      "node",
+      JSON.stringify(
+        {
+          type: "system/timer",
+          title: "Timer",
+          inputs: [{ name: "Start", type: "event" }],
+          outputs: [{ name: "Tick", type: "event" }]
+        },
+        null,
+        2
+      ),
+      "node.bundle.json"
+    );
+
+    expect(manifest.kind).toBe("node");
+    if (manifest.kind !== "node") {
+      throw new Error("期望得到 node bundle manifest");
+    }
+
+    const registeredNodes: Array<{
+      definition: Record<string, unknown>;
+      overwrite: boolean;
+    }> = [];
+    (
+      manifest.plugin.install as (ctx: {
+        registerNode(
+          definition: Record<string, unknown>,
+          options?: { overwrite?: boolean }
+        ): void;
+      }) => void
+    )({
+      registerNode(definition, options) {
+        registeredNodes.push({
+          definition,
+          overwrite: options?.overwrite === true
+        });
+      }
+    });
+
+    expect(manifest.id).toBe("system/timer");
+    expect(manifest.name).toBe("Timer");
+    expect(manifest.quickCreateNodeType).toBe("system/timer");
+    expect(manifest.plugin.name).toBe("system/timer/plugin");
+    expect(registeredNodes).toHaveLength(1);
+    expect(registeredNodes[0]).toMatchObject({
+      overwrite: true,
+      definition: {
+        type: "system/timer",
+        title: "Timer"
+      }
+    });
+  });
+
+  test("应支持从本地 demo JSON 直接生成 demo bundle manifest", async () => {
+    const manifest = await runtimeModule.loadEditorBundleSource(
+      "demo",
+      JSON.stringify(
+        {
+          documentId: "timer-demo-document",
+          revision: 1,
+          appKind: "timer-demo",
+          nodes: [],
+          links: [],
+          meta: {
+            owner: "bundle-runtime-test"
+          }
+        },
+        null,
+        2
+      ),
+      "demo.bundle.json"
+    );
+
+    expect(manifest).toMatchObject({
+      id: "timer-demo-document",
+      name: "timer-demo-document",
+      kind: "demo"
+    });
+    if (manifest.kind !== "demo") {
+      throw new Error("期望得到 demo bundle manifest");
+    }
+    expect(manifest.document.meta).toEqual({
+      owner: "bundle-runtime-test"
+    });
+  });
+
+  test("应支持 authority 直推 node-json 与 demo-json bundle", async () => {
+    const nodeManifest = await runtimeModule.loadEditorFrontendBundleSource({
+      bundleId: "@test/timer/node",
+      name: "Timer Node Bundle",
+      slot: "node",
+      fileName: "node.bundle.json",
+      version: "0.1.0",
+      enabled: true,
+      requires: [],
+      sha256: "node-sha",
+      format: "node-json",
+      quickCreateNodeType: "system/timer",
+      definition: {
+        type: "system/timer",
+        title: "Timer",
+        inputs: [{ name: "Start", type: "event" }],
+        outputs: [{ name: "Tick", type: "event" }]
+      }
+    });
+    const demoManifest = await runtimeModule.loadEditorFrontendBundleSource({
+      bundleId: "@test/timer/demo",
+      name: "Timer Demo Bundle",
+      slot: "demo",
+      fileName: "demo.bundle.json",
+      version: "0.1.0",
+      enabled: true,
+      requires: ["@test/timer/node"],
+      sha256: "demo-sha",
+      format: "demo-json",
+      document: {
+        documentId: "timer-demo-document",
+        revision: 1,
+        appKind: "timer-demo",
+        nodes: [],
+        links: []
+      }
+    });
+
+    expect(nodeManifest).toMatchObject({
+      id: "@test/timer/node",
+      name: "Timer Node Bundle",
+      kind: "node",
+      quickCreateNodeType: "system/timer",
+      requires: []
+    });
+    expect(demoManifest).toMatchObject({
+      id: "@test/timer/demo",
+      name: "Timer Demo Bundle",
+      kind: "demo",
+      requires: ["@test/timer/node"]
+    });
+  });
+});
+
 describe("areEditorBundleDocumentsEquivalent", () => {
   test("应忽略 documentId 和 revision，只比较文档内容", () => {
     const left = createDocument("doc-a", 1);

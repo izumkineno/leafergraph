@@ -353,7 +353,26 @@ function createFrontendBundlePackage(
     packageId,
     version: "0.0.1",
     nodeTypes: ["system/timer"],
-    bundles: []
+    bundles: [
+      {
+        bundleId: `${packageId}/node`,
+        name: "Timer Node Bundle",
+        slot: "node",
+        fileName: "node.bundle.json",
+        version: "0.0.1",
+        enabled: true,
+        requires: [],
+        sha256: `${packageId}-node-sha`,
+        format: "node-json",
+        quickCreateNodeType: "system/timer",
+        definition: {
+          type: "system/timer",
+          title: "Timer",
+          inputs: [{ name: "Start", type: "event" }],
+          outputs: [{ name: "Tick", type: "event" }]
+        }
+      }
+    ]
   };
 }
 
@@ -382,6 +401,10 @@ describe("createTransportRemoteAuthorityClient", () => {
       "@test/p1"
     ]);
     expect(events[0]?.emittedAt).toBe(1001);
+    expect(events[0]?.packages?.[0]?.bundles[0]).toMatchObject({
+      format: "node-json",
+      bundleId: "@test/p1/node"
+    });
 
     dispose?.();
     client.dispose?.();

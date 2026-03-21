@@ -94,6 +94,60 @@ function createNodeRemoveOperation(): AuthorityGraphOperation {
   };
 }
 
+function createSampleAuthorityDocument(): GraphDocument {
+  return {
+    documentId: "node-authority-doc",
+    revision: "1",
+    appKind: "node-backend-demo",
+    nodes: [
+      {
+        id: "node-1",
+        type: "test/source-node",
+        title: "Node 1",
+        layout: {
+          x: 0,
+          y: 0,
+          width: 240,
+          height: 140
+        },
+        flags: {},
+        properties: {},
+        propertySpecs: [],
+        inputs: [],
+        outputs: [{ name: "Output", type: "event" }],
+        widgets: [],
+        data: {}
+      },
+      {
+        id: "node-2",
+        type: "test/target-node",
+        title: "Node 2",
+        layout: {
+          x: 320,
+          y: 0,
+          width: 240,
+          height: 140
+        },
+        flags: {},
+        properties: {},
+        propertySpecs: [],
+        inputs: [{ name: "Input", type: "event" }],
+        outputs: [],
+        widgets: [],
+        data: {}
+      }
+    ],
+    links: [
+      {
+        id: "link-1",
+        source: { nodeId: "node-1", slot: 0 },
+        target: { nodeId: "node-2", slot: 0 }
+      }
+    ],
+    meta: {}
+  };
+}
+
 afterEach(async () => {
   for (const server of authorityServers) {
     await server.close();
@@ -105,7 +159,8 @@ describe("node websocket authority server", () => {
   test("应提供 health、authority 文档确认与 runtime feedback", async () => {
     const server = await startNodeAuthorityServer({
       port: 0,
-      authorityName: "node-websocket-test"
+      authorityName: "node-websocket-test",
+      initialDocument: createSampleAuthorityDocument()
     });
     authorityServers.add(server);
 
@@ -130,7 +185,7 @@ describe("node websocket authority server", () => {
       response.json()
     );
     expect(connectedHealth.connectionCount).toBe(1);
-    await waitForEnvelope(
+    const frontendBundlesEnvelope = await waitForEnvelope(
       messages,
       (envelope): envelope is AuthorityEventEnvelope =>
         envelope.channel === "authority.event" &&
@@ -138,6 +193,39 @@ describe("node websocket authority server", () => {
         envelope.event.event.type === "frontendBundles.sync" &&
         envelope.event.event.mode === "full"
     );
+    const timerPackage = frontendBundlesEnvelope.event.event.packages?.find(
+      (entry) => entry.packageId === "@template/timer-node-package"
+    );
+    const timerNodeBundle = timerPackage?.bundles.find(
+      (bundle) => bundle.bundleId === "@template/timer-node-package/node"
+    );
+    const timerDemoBundle = timerPackage?.bundles.find(
+      (bundle) => bundle.bundleId === "@template/timer-node-package/demo"
+    );
+
+    expect(timerNodeBundle).toMatchObject({
+      format: "node-json",
+      fileName: "node.bundle.json",
+      quickCreateNodeType: "system/timer"
+    });
+    expect(
+      timerNodeBundle && "definition" in timerNodeBundle
+        ? timerNodeBundle.definition
+        : null
+    ).toMatchObject({
+      type: "system/timer"
+    });
+    expect(timerDemoBundle).toMatchObject({
+      format: "demo-json",
+      fileName: "demo.bundle.json"
+    });
+    expect(
+      timerDemoBundle && "document" in timerDemoBundle
+        ? timerDemoBundle.document
+        : null
+    ).toMatchObject({
+      documentId: "timer-package-demo-doc"
+    });
 
     socket.send(
       JSON.stringify(
