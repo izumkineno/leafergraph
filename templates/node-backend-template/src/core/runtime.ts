@@ -165,6 +165,11 @@ interface AuthorityExecutionMutationResult {
   }>;
 }
 
+interface ExecuteNodeChainResult {
+  changed: boolean;
+  additionalAdvancedNodeIds: string[];
+}
+
 interface AuthorityActiveGraphTimer {
   timerKey: string;
   runId: string;
@@ -178,6 +183,7 @@ interface AuthorityActiveGraphTimer {
 let graphRunSeed = 1;
 
 const SYSTEM_ON_PLAY_NODE_TYPE = "system/on-play";
+const SYSTEM_TIMER_NODE_TYPE = "system/timer";
 const SYSTEM_TIMER_DEFAULT_INTERVAL_MS = 1000;
 const DEFAULT_PACKAGE_SCAN_INTERVAL_MS = 1200;
 const NODE_EXECUTOR_FACTORY_EXPORT_NAME = "createExecutors";
@@ -1380,6 +1386,22 @@ export function createNodeAuthorityRuntime(
     };
   };
 
+  const emitAdditionalGraphExecutionAdvances = (
+    run: AuthorityGraphPlayRun,
+    nodeIds: readonly string[]
+  ): void => {
+    for (const nodeId of nodeIds) {
+      run.stepCount += 1;
+      updateRunningGraphExecutionState(run);
+      emitGraphExecution("advanced", {
+        runId: run.runId,
+        source: run.source,
+        nodeId,
+        timestamp: Date.now()
+      });
+    }
+  };
+
   const registerGraphTimer = (input: {
     nodeId: string;
     source: "graph-play" | "graph-step";
@@ -1441,7 +1463,7 @@ export function createNodeAuthorityRuntime(
     }, timer.intervalMs);
     activeGraphTimersByKey.set(timer.timerKey, timer);
 
-    const changed = executeNodeChain({
+    const executionResult = executeNodeChain({
       rootNodeId: timer.nodeId,
       source: timer.source,
       runId: timer.runId,
@@ -1452,7 +1474,7 @@ export function createNodeAuthorityRuntime(
       }
     });
 
-    if (!changed) {
+    if (!executionResult.changed) {
       stopGraphTimerByKey(timer.timerKey);
     } else if (activeGraphPlayRun?.runId === timer.runId) {
       activeGraphPlayRun.stepCount += 1;
@@ -1463,6 +1485,10 @@ export function createNodeAuthorityRuntime(
         nodeId: timer.nodeId,
         timestamp: Date.now()
       });
+      emitAdditionalGraphExecutionAdvances(
+        activeGraphPlayRun,
+        executionResult.additionalAdvancedNodeIds
+      );
     }
 
     if (
@@ -1474,18 +1500,22 @@ export function createNodeAuthorityRuntime(
     }
   };
 
-  const executeNodeChain = (input: ExecuteNodeChainOptions): boolean => {
+  const executeNodeChain = (input: ExecuteNodeChainOptions): ExecuteNodeChainResult => {
     const nextDocument = clone(currentDocument);
     const rootNode =
       nextDocument.nodes.find((node) => node.id === input.rootNodeId) ?? null;
     if (!rootNode) {
-      return false;
+      return {
+        changed: false,
+        additionalAdvancedNodeIds: []
+      };
     }
 
     const chainId = `${authorityName}:${input.source}:${rootNode.id}:${input.startedAt}`;
     const visited = new Set<string>();
     const inputValuesByNodeId = new Map<string, unknown[]>();
     const pendingRuntimeFeedbackEmits: Array<() => void> = [];
+    const additionalAdvancedNodeIds: string[] = [];
     let documentChanged = false;
     let sequence = 0;
 
@@ -1517,6 +1547,13 @@ export function createNodeAuthorityRuntime(
         timerRuntime: input.timerRuntime
       }, mergedExecutorsByNodeType);
       documentChanged = documentChanged || mutationResult.documentChanged;
+      if (
+        node.id !== rootNode.id &&
+        node.type === SYSTEM_TIMER_NODE_TYPE &&
+        mutationResult.outputPayloads.length > 0
+      ) {
+        additionalAdvancedNodeIds.push(node.id);
+      }
       pendingRuntimeFeedbackEmits.push(() => {
         emitNodeExecution(rootNode, node, {
           source: input.source,
@@ -1572,7 +1609,10 @@ export function createNodeAuthorityRuntime(
     for (const emit of pendingRuntimeFeedbackEmits) {
       emit();
     }
-    return true;
+    return {
+      changed: true,
+      additionalAdvancedNodeIds
+    };
   };
 
   const mergeStepInputValues = (
@@ -1810,7 +1850,7 @@ export function createNodeAuthorityRuntime(
         return;
       }
 
-      executeNodeChain({
+      const executionResult = executeNodeChain({
         rootNodeId,
         source: activeRun.source,
         runId: activeRun.runId,
@@ -1839,6 +1879,10 @@ export function createNodeAuthorityRuntime(
         nodeId: rootNodeId,
         timestamp
       });
+      emitAdditionalGraphExecutionAdvances(
+        activeRun,
+        executionResult.additionalAdvancedNodeIds
+      );
 
       if (activeRun.queue.length > 0) {
         scheduleNextGraphPlayRunTick();
@@ -2279,15 +2323,15 @@ export function createNodeAuthorityRuntime(
           }
 
           stopActiveGraphStepWithoutEvent();
-          const changed = executeNodeChain({
+          const executionResult = executeNodeChain({
             rootNodeId: request.nodeId,
             source: "node-play",
             startedAt: Date.now()
           });
           return createRuntimeControlResult({
-            accepted: changed,
-            changed,
-            reason: changed ? undefined : "节点不存在"
+            accepted: executionResult.changed,
+            changed: executionResult.changed,
+            reason: executionResult.changed ? undefined : "节点不存在"
           });
         }
         case "graph.play": {

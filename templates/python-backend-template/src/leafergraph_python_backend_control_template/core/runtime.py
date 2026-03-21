@@ -18,6 +18,7 @@ RuntimeFeedbackListener = Callable[[dict[str, Any]], None]
 FrontendBundlesListener = Callable[[dict[str, Any]], None]
 NodeExecutor = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
 SYSTEM_ON_PLAY_NODE_TYPE = "system/on-play"
+SYSTEM_TIMER_NODE_TYPE = "system/timer"
 SYSTEM_TIMER_DEFAULT_INTERVAL_MS = 1000
 DEFAULT_PACKAGE_SCAN_INTERVAL_MS = 1200
 PYTHON_EXECUTOR_FACTORY_NAME = "create_executors"
@@ -1299,7 +1300,7 @@ class PythonAuthorityRuntime:
                 )
 
             self._stop_active_graph_step_without_event()
-            changed = self._execute_node_chain(
+            execution_result = self._execute_node_chain(
                 {
                     "rootNodeId": request["nodeId"],
                     "source": "node-play",
@@ -1307,9 +1308,9 @@ class PythonAuthorityRuntime:
                 }
             )
             return self._create_runtime_control_result(
-                accepted=changed,
-                changed=changed,
-                reason=None if changed else "节点不存在",
+                accepted=bool(execution_result["changed"]),
+                changed=bool(execution_result["changed"]),
+                reason=None if execution_result["changed"] else "节点不存在",
             )
 
         if request_type == "graph.play":
@@ -1744,7 +1745,7 @@ class PythonAuthorityRuntime:
         )
         self._emit_node_state(node["id"], "execution", True)
 
-    def _execute_node_chain(self, input_value: dict[str, Any]) -> bool:
+    def _execute_node_chain(self, input_value: dict[str, Any]) -> dict[str, Any]:
         next_document = clone_value(self._current_document)
 
         def get_node(node_id: str) -> dict[str, Any] | None:
@@ -1755,7 +1756,7 @@ class PythonAuthorityRuntime:
 
         root_node = get_node(input_value["rootNodeId"])
         if not root_node:
-            return False
+            return {"changed": False, "additionalAdvancedNodeIds": []}
 
         chain_id = (
             f"{self.authority_name}:{input_value['source']}:{root_node['id']}:"
@@ -1764,6 +1765,7 @@ class PythonAuthorityRuntime:
         visited: set[str] = set()
         input_values_by_node_id: dict[str, list[Any]] = {}
         pending_emitters: list[Callable[[], None]] = []
+        additional_advanced_node_ids: list[str] = []
         document_changed = False
         sequence = 0
 
@@ -1792,6 +1794,12 @@ class PythonAuthorityRuntime:
                 timer_runtime=input_value.get("timerRuntime"),
             )
             document_changed = document_changed or mutation_result["documentChanged"]
+            if (
+                node["id"] != root_node["id"]
+                and node.get("type") == SYSTEM_TIMER_NODE_TYPE
+                and len(mutation_result["outputPayloads"]) > 0
+            ):
+                additional_advanced_node_ids.append(node["id"])
             pending_emitters.append(
                 lambda root_node=root_node, node=node, depth=depth, sequence=current_sequence, trigger=trigger: self._emit_node_execution(
                     root_node,
@@ -1843,7 +1851,10 @@ class PythonAuthorityRuntime:
 
         for emit in pending_emitters:
             emit()
-        return True
+        return {
+            "changed": True,
+            "additionalAdvancedNodeIds": additional_advanced_node_ids,
+        }
 
     def _merge_step_input_values(
         self, current_input_values: list[Any], next_input_values: list[Any]
@@ -2039,6 +2050,20 @@ class PythonAuthorityRuntime:
             "lastSource": run.source,
         }
 
+    def _emit_additional_graph_execution_advances(
+        self, run: GraphPlayRun, node_ids: list[str]
+    ) -> None:
+        for node_id in node_ids:
+            run.step_count += 1
+            self._update_running_graph_execution_state(run)
+            self._emit_graph_execution(
+                "advanced",
+                run_id=run.run_id,
+                source=run.source,
+                node_id=node_id,
+                timestamp=now_ms(),
+            )
+
     def _register_graph_timer(self, input_value: dict[str, Any]) -> None:
         run_id = input_value["runId"]
         node_id = input_value["nodeId"]
@@ -2099,7 +2124,7 @@ class PythonAuthorityRuntime:
         )
         self._active_graph_timers_by_key[timer_key] = timer
 
-        changed = self._execute_node_chain(
+        execution_result = self._execute_node_chain(
             {
                 "rootNodeId": timer["nodeId"],
                 "source": timer["source"],
@@ -2112,7 +2137,7 @@ class PythonAuthorityRuntime:
             }
         )
 
-        if not changed:
+        if not execution_result["changed"]:
             self._stop_graph_timer_by_key(timer_key)
         elif self._active_graph_play_run and self._active_graph_play_run.run_id == timer["runId"]:
             self._active_graph_play_run.step_count += 1
@@ -2123,6 +2148,10 @@ class PythonAuthorityRuntime:
                 source=timer["source"],
                 node_id=timer["nodeId"],
                 timestamp=now_ms(),
+            )
+            self._emit_additional_graph_execution_advances(
+                self._active_graph_play_run,
+                execution_result["additionalAdvancedNodeIds"],
             )
 
         if (
@@ -2161,7 +2190,7 @@ class PythonAuthorityRuntime:
                 self._update_running_graph_execution_state(run)
             return
 
-        self._execute_node_chain(
+        execution_result = self._execute_node_chain(
             {
                 "rootNodeId": root_node_id,
                 "source": run.source,
@@ -2189,6 +2218,10 @@ class PythonAuthorityRuntime:
             source=run.source,
             node_id=root_node_id,
             timestamp=timestamp,
+        )
+        self._emit_additional_graph_execution_advances(
+            run,
+            execution_result["additionalAdvancedNodeIds"],
         )
 
         if len(run.queue) > 0:

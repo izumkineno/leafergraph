@@ -976,6 +976,45 @@ describe("node authority runtime behavior", () => {
     expect(Number(timerNode?.properties?.runCount ?? 0)).toBeGreaterThanOrEqual(1);
   });
 
+  test("timer 运行期间不应插入 stopped，且 immediate 首拍应补发 timer advanced", async () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTimerAuthorityDocument({
+        immediate: true,
+        intervalMs: 100
+      })
+    });
+    const events: AuthorityRuntimeFeedbackEvent[] = [];
+    const dispose = runtime.subscribe((event) => {
+      events.push(event);
+    });
+
+    runtime.controlRuntime({
+      type: "graph.play"
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    runtime.controlRuntime({
+      type: "graph.stop"
+    });
+    dispose();
+
+    const graphExecutionEvents = events.filter(
+      (event): event is Extract<AuthorityRuntimeFeedbackEvent, { type: "graph.execution" }> =>
+        event.type === "graph.execution"
+    );
+    expect(
+      graphExecutionEvents
+        .slice(0, -1)
+        .some((event) => event.event.type === "stopped")
+    ).toBe(false);
+    expect(
+      graphExecutionEvents.some(
+        (event) =>
+          event.event.type === "advanced" && event.event.nodeId === "timer-node"
+      )
+    ).toBe(true);
+  });
+
   test("timer widget 值应优先覆盖 properties 配置", async () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test",

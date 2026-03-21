@@ -638,6 +638,37 @@ def test_graph_play_with_timer_should_keep_running_until_stop() -> None:
     assert int(timer_node["properties"].get("runCount", 0)) >= 1
 
 
+def test_timer_should_not_emit_mid_run_stopped_and_should_advance_timer_immediately() -> None:
+    runtime = create_python_authority_runtime(
+        authority_name="behavior-test",
+        initial_document=create_timer_authority_document(
+            immediate=True,
+            interval_ms=100,
+        ),
+    )
+    events: list[dict] = []
+    dispose = runtime.subscribe(events.append)
+
+    runtime.control_runtime({"type": "graph.play"})
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(asyncio.sleep(0.02))
+    runtime.control_runtime({"type": "graph.stop"})
+    dispose()
+
+    graph_execution_events = [
+        event for event in events if event["type"] == "graph.execution"
+    ]
+    assert not any(
+        event["event"]["type"] == "stopped"
+        for event in graph_execution_events[:-1]
+    )
+    assert any(
+        event["event"]["type"] == "advanced"
+        and event["event"].get("nodeId") == "timer-node"
+        for event in graph_execution_events
+    )
+
+
 def test_timer_widgets_should_override_property_config() -> None:
     runtime = create_python_authority_runtime(
         authority_name="behavior-test",
