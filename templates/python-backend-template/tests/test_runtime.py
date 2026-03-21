@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from leafergraph_python_backend_control_template.core.runtime import (
     create_python_authority_runtime,
 )
@@ -187,6 +189,86 @@ def create_template_execution_authority_document() -> dict:
                 "id": "template-link:execute-source->display",
                 "source": {"nodeId": "template-execute-source", "slot": 0},
                 "target": {"nodeId": "template-execute-display", "slot": 0},
+            },
+        ],
+        "meta": {},
+    }
+
+
+def create_timer_authority_document(
+    *,
+    immediate: bool = True,
+    interval_ms: int = 10,
+    widget_immediate: bool | None = None,
+    widget_interval_ms: int | None = None,
+) -> dict:
+    return {
+        "documentId": "timer-execution-doc",
+        "revision": "1",
+        "appKind": "node-backend-demo",
+        "nodes": [
+            {
+                "id": "timer-on-play",
+                "type": "system/on-play",
+                "title": "On Play",
+                "layout": {"x": 0, "y": 0, "width": 220, "height": 120},
+                "outputs": [{"name": "Event", "type": "event"}],
+            },
+            {
+                "id": "timer-node",
+                "type": "system/timer",
+                "title": "Timer",
+                "layout": {"x": 280, "y": 0, "width": 260, "height": 160},
+                "properties": {
+                    "intervalMs": interval_ms,
+                    "immediate": immediate,
+                    "runCount": 0,
+                    "status": "READY",
+                },
+                "inputs": [{"name": "Start", "type": "event"}],
+                "outputs": [{"name": "Tick", "type": "event"}],
+                "widgets": [
+                    {
+                        "type": "input",
+                        "name": "intervalMs",
+                        "value": widget_interval_ms
+                        if widget_interval_ms is not None
+                        else interval_ms,
+                        "options": {"label": "Interval (ms)"},
+                    },
+                    {
+                        "type": "toggle",
+                        "name": "immediate",
+                        "value": widget_immediate
+                        if widget_immediate is not None
+                        else immediate,
+                        "options": {"label": "Immediate"},
+                    },
+                ],
+            },
+            {
+                "id": "timer-display",
+                "type": "template/execute-display",
+                "title": "Display",
+                "layout": {"x": 600, "y": 0, "width": 288, "height": 184},
+                "properties": {
+                    "subtitle": "等待上游执行传播",
+                    "accent": "#0EA5E9",
+                    "status": "WAITING",
+                },
+                "inputs": [{"name": "Value", "type": "number"}],
+            },
+        ],
+        "links": [
+            {
+                "id": "timer-link:on-play->timer",
+                "source": {"nodeId": "timer-on-play", "slot": 0},
+                "target": {"nodeId": "timer-node", "slot": 0},
+            },
+            {
+                "id": "timer-link:timer->display",
+                "source": {"nodeId": "timer-node", "slot": 0},
+                "target": {"nodeId": "timer-display", "slot": 0},
             },
         ],
         "meta": {},
@@ -505,3 +587,127 @@ def test_graph_play_should_allow_stop_and_emit_stopped() -> None:
         "started",
         "stopped",
     ]
+
+
+def test_graph_play_with_timer_should_keep_running_until_stop() -> None:
+    runtime = create_python_authority_runtime(
+        authority_name="behavior-test",
+        initial_document=create_timer_authority_document(
+            immediate=False,
+            interval_ms=10,
+        ),
+    )
+
+    play_result = runtime.control_runtime({"type": "graph.play"})
+    assert play_result["accepted"] is True
+    assert play_result["changed"] is True
+    assert play_result["state"]["status"] == "running"
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(asyncio.sleep(0.06))
+
+    stop_result = runtime.control_runtime({"type": "graph.stop"})
+    assert stop_result["accepted"] is True
+    assert stop_result["changed"] is True
+    assert stop_result["state"]["status"] == "idle"
+
+    timer_node = next(
+        node
+        for node in runtime.get_document()["nodes"]
+        if node["id"] == "timer-node"
+    )
+    assert int(timer_node["properties"].get("runCount", 0)) >= 1
+
+
+def test_timer_widgets_should_override_property_config() -> None:
+    runtime = create_python_authority_runtime(
+        authority_name="behavior-test",
+        initial_document=create_timer_authority_document(
+            immediate=True,
+            interval_ms=1000,
+            widget_immediate=False,
+            widget_interval_ms=80,
+        ),
+    )
+
+    runtime.control_runtime({"type": "graph.play"})
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(asyncio.sleep(0.02))
+
+    waiting_node = next(
+        node
+        for node in runtime.get_document()["nodes"]
+        if node["id"] == "timer-node"
+    )
+    assert waiting_node["properties"]["intervalMs"] == 80
+    assert waiting_node["properties"]["immediate"] is False
+    assert waiting_node["properties"]["runCount"] == 0
+    assert waiting_node["properties"]["status"] == "WAIT 80ms"
+
+    loop.run_until_complete(asyncio.sleep(0.09))
+    runtime.control_runtime({"type": "graph.stop"})
+    timer_node = next(
+        node
+        for node in runtime.get_document()["nodes"]
+        if node["id"] == "timer-node"
+    )
+    assert int(timer_node["properties"].get("runCount", 0)) >= 1
+    assert next(
+        widget["value"]
+        for widget in timer_node["widgets"]
+        if widget["name"] == "intervalMs"
+    ) == 80
+    assert next(
+        widget["value"]
+        for widget in timer_node["widgets"]
+        if widget["name"] == "immediate"
+    ) is False
+
+
+def test_graph_step_with_timer_should_promote_to_running() -> None:
+    runtime = create_python_authority_runtime(
+        authority_name="behavior-test",
+        initial_document=create_timer_authority_document(
+            immediate=True,
+            interval_ms=10,
+        ),
+    )
+
+    first_step = runtime.control_runtime({"type": "graph.step"})
+    assert first_step["accepted"] is True
+    assert first_step["changed"] is True
+    assert first_step["state"]["status"] == "stepping"
+
+    second_step = runtime.control_runtime({"type": "graph.step"})
+    assert second_step["accepted"] is True
+    assert second_step["changed"] is True
+    assert second_step["state"]["status"] == "running"
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(asyncio.sleep(0.04))
+    stop_result = runtime.control_runtime({"type": "graph.stop"})
+    assert stop_result["accepted"] is True
+    assert stop_result["changed"] is True
+
+
+def test_node_play_timer_should_only_run_once() -> None:
+    runtime = create_python_authority_runtime(
+        authority_name="behavior-test",
+        initial_document=create_timer_authority_document(
+            immediate=True,
+            interval_ms=10,
+        ),
+    )
+
+    result = runtime.control_runtime({"type": "node.play", "nodeId": "timer-node"})
+    assert result["accepted"] is True
+    assert result["changed"] is True
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(asyncio.sleep(0.04))
+    timer_node = next(
+        node
+        for node in runtime.get_document()["nodes"]
+        if node["id"] == "timer-node"
+    )
+    assert int(timer_node["properties"].get("runCount", 0)) == 1

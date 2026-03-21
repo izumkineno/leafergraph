@@ -1,0 +1,92 @@
+(function () {
+  const bridge = globalThis.LeaferGraphEditorBundleBridge;
+  if (!bridge || typeof bridge.registerBundle !== "function") {
+    throw new Error("LeaferGraphEditorBundleBridge 不可用");
+  }
+
+  const document = {
+    documentId: "timer-package-demo-doc",
+    revision: 1,
+    appKind: "timer-package-demo",
+    nodes: [
+      {
+        id: "timer-demo-on-play",
+        type: "system/on-play",
+        title: "On Play",
+        layout: { x: 48, y: 96, width: 220, height: 120 },
+        outputs: [{ name: "Event", type: "event" }]
+      },
+      {
+        id: "timer-demo-node",
+        type: "system/timer",
+        title: "Timer",
+        layout: { x: 320, y: 80, width: 260, height: 180 },
+        properties: {
+          intervalMs: 1000,
+          immediate: true,
+          runCount: 0,
+          status: "READY"
+        },
+        widgets: [
+          {
+            type: "input",
+            name: "intervalMs",
+            value: 1000,
+            options: {
+              label: "Interval (ms)",
+              placeholder: "1000"
+            }
+          },
+          {
+            type: "toggle",
+            name: "immediate",
+            value: true,
+            options: {
+              label: "Immediate",
+              onText: "ON",
+              offText: "WAIT"
+            }
+          }
+        ],
+        inputs: [{ name: "Start", type: "event" }],
+        outputs: [{ name: "Tick", type: "event" }]
+      },
+      {
+        id: "timer-demo-display",
+        type: "template/execute-display",
+        title: "Display",
+        layout: { x: 656, y: 88, width: 288, height: 184 },
+        properties: {
+          subtitle: "等待上游执行传播",
+          status: "WAITING"
+        },
+        inputs: [{ name: "Value", type: "number" }]
+      }
+    ],
+    links: [
+      {
+        id: "timer-demo-link:on-play->timer",
+        source: { nodeId: "timer-demo-on-play", slot: 0 },
+        target: { nodeId: "timer-demo-node", slot: 0 }
+      },
+      {
+        id: "timer-demo-link:timer->display",
+        source: { nodeId: "timer-demo-node", slot: 0 },
+        target: { nodeId: "timer-demo-display", slot: 0 }
+      }
+    ],
+    meta: {
+      source: "timer-node-package-template"
+    }
+  };
+
+  bridge.registerBundle({
+    id: "@template/timer-node-package/demo",
+    name: "Timer Demo Bundle",
+    kind: "demo",
+    version: "0.1.0",
+    requires: ["@template/timer-node-package/node"],
+    document
+  });
+})();
+

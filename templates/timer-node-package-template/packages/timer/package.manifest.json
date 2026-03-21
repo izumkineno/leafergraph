@@ -1,0 +1,40 @@
+{
+  "packageId": "@template/timer-node-package",
+  "version": "0.1.0",
+  "frontendBundles": [
+    {
+      "bundleId": "@template/timer-node-package/node",
+      "slot": "node",
+      "fileName": "node.iife.js",
+      "entry": "frontend/node.iife.js",
+      "enabled": true,
+      "requires": [],
+      "sha256": "2b1458d81387331309bd60d822b83b866b86830276ae948025ae0779baa0a046"
+    },
+    {
+      "bundleId": "@template/timer-node-package/demo",
+      "slot": "demo",
+      "fileName": "demo.iife.js",
+      "entry": "frontend/demo.iife.js",
+      "enabled": true,
+      "requires": ["@template/timer-node-package/node"],
+      "sha256": "e260eb7e3c6d43e13fc5dcd762a9fa37e0b7ebce350dc1951c81c2f957465c91"
+    }
+  ],
+  "backend": {
+    "node": {
+      "entry": "backend/node/executors.cjs",
+      "exportName": "createExecutors"
+    },
+    "python": {
+      "entry": "backend/python/executors.py",
+      "factoryName": "create_executors"
+    }
+  },
+  "nodeTypes": [
+    "system/timer",
+    "template/execute-counter",
+    "template/execute-display",
+    "demo.pending"
+  ]
+}

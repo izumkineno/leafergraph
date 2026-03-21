@@ -24,6 +24,7 @@ import type {
   LeaferGraphWidgetEntry
 } from "../api/plugin";
 import { leaferGraphOnPlayNodeDefinition } from "../node/builtin/on_play_node";
+import { leaferGraphTimerNodeDefinition } from "../node/builtin/timer_node";
 import { BasicWidgetLibrary } from "../widgets/basic";
 import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
 
@@ -114,6 +115,7 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
     }
 
     this.registerNode(leaferGraphOnPlayNodeDefinition, { overwrite: true });
+    this.registerNode(leaferGraphTimerNodeDefinition, { overwrite: true });
     this.builtinNodesRegistered = true;
   }
 

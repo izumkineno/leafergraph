@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { resolve } from "node:path";
 
 import type { GraphDocument } from "@leafergraph/node";
 import type {
   AuthorityGraphOperation,
   AuthorityRuntimeFeedbackEvent
 } from "../src/index.js";
-import { createNodeAuthorityRuntime } from "../src/index.js";
+import {
+  createNodeAuthorityRuntime,
+  resolveDefaultNodeBackendPackageDir
+} from "../src/index.js";
 
 function createNoopUpdateOperation(): AuthorityGraphOperation {
   return {
@@ -211,7 +215,131 @@ function createTemplateExecutionAuthorityDocument(): GraphDocument {
   };
 }
 
+function createTimerAuthorityDocument(input?: {
+  immediate?: boolean;
+  intervalMs?: number;
+  widgetImmediate?: boolean;
+  widgetIntervalMs?: number;
+}): GraphDocument {
+  const intervalMs = input?.intervalMs ?? 10;
+  const immediate = input?.immediate ?? true;
+
+  return {
+    documentId: "timer-execution-doc",
+    revision: "1",
+    appKind: "node-backend-demo",
+    nodes: [
+      {
+        id: "timer-on-play",
+        type: "system/on-play",
+        title: "On Play",
+        layout: {
+          x: 0,
+          y: 0,
+          width: 220,
+          height: 120
+        },
+        outputs: [{ name: "Event", type: "event" }]
+      },
+      {
+        id: "timer-node",
+        type: "system/timer",
+        title: "Timer",
+        layout: {
+          x: 280,
+          y: 0,
+          width: 260,
+          height: 160
+        },
+        properties: {
+          intervalMs,
+          immediate,
+          runCount: 0,
+          status: "READY"
+        },
+        inputs: [{ name: "Start", type: "event" }],
+        outputs: [{ name: "Tick", type: "event" }],
+        widgets: [
+          {
+            type: "input",
+            name: "intervalMs",
+            value: input?.widgetIntervalMs ?? intervalMs,
+            options: {
+              label: "Interval (ms)"
+            }
+          },
+          {
+            type: "toggle",
+            name: "immediate",
+            value: input?.widgetImmediate ?? immediate,
+            options: {
+              label: "Immediate"
+            }
+          }
+        ]
+      },
+      {
+        id: "timer-display",
+        type: "template/execute-display",
+        title: "Display",
+        layout: {
+          x: 600,
+          y: 0,
+          width: 288,
+          height: 184
+        },
+        properties: {
+          subtitle: "等待上游执行传播",
+          accent: "#0EA5E9",
+          status: "WAITING"
+        },
+        inputs: [{ name: "Value", type: "number" }]
+      }
+    ],
+    links: [
+      {
+        id: "timer-link:on-play->timer",
+        source: {
+          nodeId: "timer-on-play",
+          slot: 0
+        },
+        target: {
+          nodeId: "timer-node",
+          slot: 0
+        }
+      },
+      {
+        id: "timer-link:timer->display",
+        source: {
+          nodeId: "timer-node",
+          slot: 0
+        },
+        target: {
+          nodeId: "timer-display",
+          slot: 0
+        }
+      }
+    ],
+    meta: {}
+  };
+}
+
 describe("node authority runtime behavior", () => {
+  test("默认节点包目录解析应同时兼容 src 与 dist 运行目录", () => {
+    const templateDir = resolve(import.meta.dir, "..");
+    const expectedPackageDir = resolve(
+      templateDir,
+      "../timer-node-package-template/packages"
+    );
+
+    expect(
+      resolveDefaultNodeBackendPackageDir(resolve(templateDir, "src/core"))
+    ).toBe(expectedPackageDir);
+    expect(resolveDefaultNodeBackendPackageDir(resolve(templateDir, "dist"))).toBe(
+      expectedPackageDir
+    );
+  });
+
   test("默认文档应提供基础双节点链", () => {
     const runtime = createNodeAuthorityRuntime({
       authorityName: "behavior-test"
@@ -717,5 +845,137 @@ describe("node authority runtime behavior", () => {
         .filter((event) => event.type === "graph.execution")
         .map((event) => event.event.type)
     ).toEqual(["started", "stopped"]);
+  });
+
+  test("graph.play 命中 timer 后应持续运行，直到 stop", async () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTimerAuthorityDocument({
+        immediate: false,
+        intervalMs: 10
+      })
+    });
+
+    const playResult = runtime.controlRuntime({
+      type: "graph.play"
+    });
+    expect(playResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "running"
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 55));
+
+    const stopResult = runtime.controlRuntime({
+      type: "graph.stop"
+    });
+    expect(stopResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle"
+      }
+    });
+
+    const timerNode = runtime
+      .getDocument()
+      .nodes.find((node) => node.id === "timer-node");
+    expect(Number(timerNode?.properties?.runCount ?? 0)).toBeGreaterThanOrEqual(1);
+  });
+
+  test("timer widget 值应优先覆盖 properties 配置", async () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTimerAuthorityDocument({
+        immediate: true,
+        intervalMs: 1000,
+        widgetImmediate: false,
+        widgetIntervalMs: 80
+      })
+    });
+
+    runtime.controlRuntime({
+      type: "graph.play"
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const waitingNode = runtime
+      .getDocument()
+      .nodes.find((node) => node.id === "timer-node");
+    expect(waitingNode?.properties?.intervalMs).toBe(80);
+    expect(waitingNode?.properties?.immediate).toBe(false);
+    expect(waitingNode?.properties?.runCount).toBe(0);
+    expect(waitingNode?.properties?.status).toBe("WAIT 80ms");
+
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    runtime.controlRuntime({
+      type: "graph.stop"
+    });
+
+    const timerNode = runtime
+      .getDocument()
+      .nodes.find((node) => node.id === "timer-node");
+    expect(Number(timerNode?.properties?.runCount ?? 0)).toBeGreaterThanOrEqual(1);
+    expect(timerNode?.widgets?.find((widget) => widget.name === "intervalMs")?.value).toBe(
+      80
+    );
+    expect(timerNode?.widgets?.find((widget) => widget.name === "immediate")?.value).toBe(
+      false
+    );
+  });
+
+  test("graph.step 命中 timer 后应升级为 running", async () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTimerAuthorityDocument({
+        immediate: true,
+        intervalMs: 10
+      })
+    });
+
+    const firstStep = runtime.controlRuntime({
+      type: "graph.step"
+    });
+    expect(firstStep.state.status).toBe("stepping");
+
+    const secondStep = runtime.controlRuntime({
+      type: "graph.step"
+    });
+    expect(secondStep.state.status).toBe("running");
+
+    await new Promise((resolve) => setTimeout(resolve, 35));
+    const stopResult = runtime.controlRuntime({
+      type: "graph.stop"
+    });
+    expect(stopResult.accepted).toBe(true);
+    expect(stopResult.changed).toBe(true);
+  });
+
+  test("node.play timer 只执行一次，不进入循环", async () => {
+    const runtime = createNodeAuthorityRuntime({
+      authorityName: "behavior-test",
+      initialDocument: createTimerAuthorityDocument({
+        immediate: true,
+        intervalMs: 10
+      })
+    });
+
+    const result = runtime.controlRuntime({
+      type: "node.play",
+      nodeId: "timer-node"
+    });
+    expect(result).toMatchObject({
+      accepted: true,
+      changed: true
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 35));
+    const timerNode = runtime
+      .getDocument()
+      .nodes.find((node) => node.id === "timer-node");
+    expect(Number(timerNode?.properties?.runCount ?? 0)).toBe(1);
   });
 });

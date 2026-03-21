@@ -44,6 +44,73 @@ function createDocumentUpdateOperation(): GraphOperation {
   };
 }
 
+function createTimerDemoDocument(input?: {
+  immediate?: boolean;
+  intervalMs?: number;
+}): GraphDocument {
+  return {
+    documentId: "timer-demo-doc",
+    revision: "1",
+    appKind: "demo-worker",
+    nodes: [
+      {
+        id: "demo-on-play",
+        type: "system/on-play",
+        title: "On Play",
+        layout: {
+          x: 0,
+          y: 0,
+          width: 220,
+          height: 120
+        },
+        outputs: [{ name: "Event", type: "event" }]
+      },
+      {
+        id: "demo-timer",
+        type: "system/timer",
+        title: "Timer",
+        layout: {
+          x: 280,
+          y: 0,
+          width: 260,
+          height: 160
+        },
+        properties: {
+          intervalMs: input?.intervalMs ?? 10,
+          immediate: input?.immediate ?? true
+        },
+        inputs: [{ name: "Start", type: "event" }],
+        outputs: [{ name: "Tick", type: "event" }]
+      },
+      {
+        id: "demo-display",
+        type: "demo.worker",
+        title: "Display",
+        layout: {
+          x: 600,
+          y: 0,
+          width: 240,
+          height: 140
+        },
+        inputs: [{ name: "Input", type: "event" }]
+      }
+    ],
+    links: [
+      {
+        id: "timer-link:on-play->timer",
+        source: { nodeId: "demo-on-play", slot: 0 },
+        target: { nodeId: "demo-timer", slot: 0 }
+      },
+      {
+        id: "timer-link:timer->display",
+        source: { nodeId: "demo-timer", slot: 0 },
+        target: { nodeId: "demo-display", slot: 0 }
+      }
+    ],
+    meta: {}
+  };
+}
+
 describe("createDemoRemoteAuthorityService", () => {
   test("应处理文档操作确认，并避免把普通文档更新误报为执行事件", async () => {
     const service = createDemoRemoteAuthorityService();
@@ -194,5 +261,60 @@ describe("createDemoRemoteAuthorityService", () => {
     ).toBe(true);
 
     disposeRuntimeFeedbackSubscription?.();
+  });
+
+  test("graph.play 命中 timer 后应持续推进，直到 stop", async () => {
+    const service = createDemoRemoteAuthorityService({
+      initialDocument: createTimerDemoDocument({
+        immediate: false,
+        intervalMs: 10
+      })
+    });
+
+    if (typeof service.controlRuntime !== "function") {
+      throw new Error("demo authority service 缺少 controlRuntime");
+    }
+
+    const playResult = await service.controlRuntime({
+      type: "graph.play"
+    });
+    expect(playResult.state.status).toBe("running");
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const stopResult = await service.controlRuntime({
+      type: "graph.stop"
+    });
+    expect(stopResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle"
+      }
+    });
+  });
+
+  test("graph.step 命中 timer 后应升级为 running", async () => {
+    const service = createDemoRemoteAuthorityService({
+      initialDocument: createTimerDemoDocument({
+        immediate: true,
+        intervalMs: 10
+      })
+    });
+
+    if (typeof service.controlRuntime !== "function") {
+      throw new Error("demo authority service 缺少 controlRuntime");
+    }
+
+    const firstStep = await service.controlRuntime({
+      type: "graph.step"
+    });
+    expect(firstStep.state.status).toBe("running");
+
+    await new Promise((resolve) => setTimeout(resolve, 35));
+    const stopResult = await service.controlRuntime({
+      type: "graph.stop"
+    });
+    expect(stopResult.accepted).toBe(true);
+    expect(stopResult.changed).toBe(true);
   });
 });

@@ -74,9 +74,11 @@ function createPendingSessionStub(): EditorGraphDocumentSession {
   };
 }
 
-function createConfirmedSessionStub(): EditorGraphDocumentSession {
+function createConfirmedSessionStub(
+  currentDocument: GraphDocument = createDocument()
+): EditorGraphDocumentSession {
   return {
-    currentDocument: createDocument(),
+    currentDocument,
     pendingOperationIds: [],
     submitOperationWithAuthority(operation: GraphOperation) {
       const applyResult: GraphOperationApplyResult = {
@@ -339,6 +341,137 @@ describe("graph interaction commit bridge", () => {
             value: "after"
           }
         ]
+      }
+    });
+  });
+
+  test("property-backed widget commit 应同时镜像回 properties", () => {
+    const bridge = createGraphInteractionCommitBridge({
+      session: createConfirmedSessionStub({
+        documentId: "interaction-bridge-doc",
+        revision: "1",
+        appKind: "test-app",
+        nodes: [
+          {
+            id: "timer-node",
+            type: "system/timer",
+            title: "Timer",
+            layout: {
+              x: 0,
+              y: 0,
+              width: 260,
+              height: 160
+            },
+            flags: {},
+            properties: {
+              intervalMs: 1000,
+              immediate: true,
+              runCount: 0,
+              status: "READY"
+            },
+            propertySpecs: [
+              { name: "intervalMs", type: "number", default: 1000 },
+              { name: "immediate", type: "boolean", default: true }
+            ],
+            inputs: [{ name: "Start", type: "event" }],
+            outputs: [{ name: "Tick", type: "event" }],
+            widgets: [
+              {
+                type: "input",
+                name: "intervalMs",
+                value: 1000
+              },
+              {
+                type: "toggle",
+                name: "immediate",
+                value: true
+              }
+            ],
+            data: {}
+          }
+        ],
+        links: [],
+        meta: {}
+      }),
+      rollbackToAuthorityDocument() {
+        throw new Error("不应触发回滚");
+      }
+    });
+
+    const execution = bridge.submit({
+      type: "node.widget.commit",
+      nodeId: "timer-node",
+      widgetIndex: 0,
+      beforeValue: 1000,
+      afterValue: 250,
+      beforeWidgets: [
+        {
+          type: "input",
+          name: "intervalMs",
+          value: 1000
+        },
+        {
+          type: "toggle",
+          name: "immediate",
+          value: true
+        }
+      ],
+      afterWidgets: [
+        {
+          type: "input",
+          name: "intervalMs",
+          value: 250
+        },
+        {
+          type: "toggle",
+          name: "immediate",
+          value: false
+        }
+      ]
+    } satisfies LeaferGraphInteractionCommitEvent);
+
+    expect(execution?.historyPayload).toEqual({
+      kind: "update-node",
+      nodeId: "timer-node",
+      beforeInput: {
+        widgets: [
+          {
+            type: "input",
+            name: "intervalMs",
+            value: 1000
+          },
+          {
+            type: "toggle",
+            name: "immediate",
+            value: true
+          }
+        ],
+        properties: {
+          intervalMs: 1000,
+          immediate: true,
+          runCount: 0,
+          status: "READY"
+        }
+      },
+      afterInput: {
+        widgets: [
+          {
+            type: "input",
+            name: "intervalMs",
+            value: 250
+          },
+          {
+            type: "toggle",
+            name: "immediate",
+            value: false
+          }
+        ],
+        properties: {
+          intervalMs: 250,
+          immediate: false,
+          runCount: 0,
+          status: "READY"
+        }
       }
     });
   });

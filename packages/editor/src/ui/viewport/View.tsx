@@ -74,6 +74,7 @@ import {
   type GraphViewportRuntimeFailureGroup,
   type GraphViewportRuntimeHistoryEntry
 } from "./runtime_collections";
+import { shouldIgnoreProjectedGraphExecutionFeedback } from "./graph_execution_feedback_guard";
 import { resolveGraphViewportRuntimeDetailLabel } from "./runtime_status";
 import {
   resolveRemoteRuntimeControlNotice,
@@ -608,6 +609,10 @@ export function GraphViewport({
     let latestExecution: EditorCommandExecution | null = null;
     let latestRuntimeExecution: LeaferGraphNodeExecutionEvent | null = null;
     let graphReady = false;
+    let isProjectingAuthorityDocument = false;
+    let isProjectingExternalRuntimeFeedback = false;
+    let latestRemoteGraphExecutionState: GraphViewportGraphExecutionSnapshot | null =
+      null;
     let pointerDownSequence = 0;
     let hitNodePointerDownSequence = -1;
     let pendingCanvasSelectionFrame = 0;
@@ -748,6 +753,7 @@ export function GraphViewport({
           }
 
           if (result.state) {
+            latestRemoteGraphExecutionState = structuredClone(result.state);
             syncGraphRuntimeControls(result.state);
           }
 
@@ -855,6 +861,22 @@ export function GraphViewport({
           return;
         }
         case "graph.execution": {
+          if (isProjectingExternalRuntimeFeedback) {
+            latestRemoteGraphExecutionState = structuredClone(feedback.event.state);
+          }
+
+          if (
+            shouldIgnoreProjectedGraphExecutionFeedback({
+              runtimeControlMode,
+              feedback,
+              isProjectingAuthorityDocument,
+              isExternalRuntimeFeedback: isProjectingExternalRuntimeFeedback,
+              latestRemoteGraphExecutionState
+            })
+          ) {
+            return;
+          }
+
           onRemoteRuntimeControlNoticeChange?.(null);
           syncGraphRuntimeControls(feedback.event.state);
           return;
@@ -892,7 +914,12 @@ export function GraphViewport({
           return;
         }
 
-        graph.projectRuntimeFeedback(feedback);
+        isProjectingExternalRuntimeFeedback = true;
+        try {
+          graph.projectRuntimeFeedback(feedback);
+        } finally {
+          isProjectingExternalRuntimeFeedback = false;
+        }
       }) ?? (() => {});
     const hideSelectionBox = (): void => {
       const selectionBox = selectionBoxRef.current;
@@ -1509,7 +1536,12 @@ export function GraphViewport({
         return;
       }
 
-      graph.replaceGraphDocument(document);
+      isProjectingAuthorityDocument = true;
+      try {
+        graph.replaceGraphDocument(document);
+      } finally {
+        isProjectingAuthorityDocument = false;
+      }
       syncNodeBindingsFromDocument(document);
       syncLinkBindingsFromDocument(document);
 

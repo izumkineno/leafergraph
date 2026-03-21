@@ -32,6 +32,7 @@ type GraphNodeSnapshot = GraphDocument["nodes"][number];
 type GraphLinkSnapshot = GraphDocument["links"][number];
 interface DemoGraphPlayRun {
   runId: string;
+  source: "graph-play" | "graph-step";
   startedAt: number;
   queue: string[];
   stepCount: number;
@@ -43,9 +44,34 @@ interface ExecuteNodeChainOptions {
   source: "node-play" | "graph-play" | "graph-step";
   runId?: string;
   startedAt: number;
+  timerRuntime?: DemoTimerRuntimeContext;
+}
+
+interface DemoTimerRuntimeContext {
+  registerTimer?: (input: {
+    nodeId: string;
+    source: "graph-play" | "graph-step";
+    runId: string;
+    startedAt: number;
+    intervalMs: number;
+    immediate: boolean;
+  }) => void;
+  timerTickNodeId?: string;
+}
+
+interface DemoActiveGraphTimer {
+  timerKey: string;
+  runId: string;
+  nodeId: string;
+  source: "graph-play" | "graph-step";
+  startedAt: number;
+  intervalMs: number;
+  handle: ReturnType<typeof setTimeout>;
 }
 
 let demoGraphRunSeed = 1;
+const SYSTEM_TIMER_NODE_TYPE = "system/timer";
+const SYSTEM_TIMER_DEFAULT_INTERVAL_MS = 1000;
 
 function createDefaultDemoDocument(): GraphDocument {
   return {
@@ -150,6 +176,23 @@ function createGraphRunId(source: "graph-play" | "graph-step"): string {
   return runId;
 }
 
+function resolveTimerIntervalMs(value: unknown): number {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue <= 0) {
+    return SYSTEM_TIMER_DEFAULT_INTERVAL_MS;
+  }
+
+  return Math.max(1, Math.floor(nextValue));
+}
+
+function resolveTimerImmediate(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  return true;
+}
+
 /**
  * 创建浏览器内可直接挂到 worker / iframe host 的 authority demo service。
  *
@@ -178,6 +221,8 @@ export function createDemoRemoteAuthorityService(
   );
   let graphExecutionState = createIdleGraphExecutionState();
   let activeGraphPlayRun: DemoGraphPlayRun | null = null;
+  const activeGraphTimersByKey = new Map<string, DemoActiveGraphTimer>();
+  let timerActivatedInCurrentGraphStepTick = false;
   let stepCursor = 0;
 
   const emitRuntimeFeedback = (event: RuntimeFeedbackEvent): void => {
@@ -204,11 +249,53 @@ export function createDemoRemoteAuthorityService(
   const hasLinkId = (linkId: string): boolean =>
     currentDocument.links.some((link) => link.id === linkId);
 
+  const createGraphTimerKey = (runId: string, nodeId: string): string =>
+    `${runId}::${nodeId}`;
+
+  const hasActiveGraphTimersForRun = (runId: string): boolean => {
+    for (const timer of activeGraphTimersByKey.values()) {
+      if (timer.runId === runId) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const stopGraphTimerByKey = (timerKey: string): void => {
+    const timer = activeGraphTimersByKey.get(timerKey);
+    if (!timer) {
+      return;
+    }
+
+    clearTimeout(timer.handle);
+    activeGraphTimersByKey.delete(timerKey);
+  };
+
+  const stopGraphTimersForRun = (runId: string): void => {
+    for (const [timerKey, timer] of activeGraphTimersByKey.entries()) {
+      if (timer.runId !== runId) {
+        continue;
+      }
+
+      clearTimeout(timer.handle);
+      activeGraphTimersByKey.delete(timerKey);
+    }
+  };
+
+  const stopAllGraphTimersWithoutEvent = (): void => {
+    for (const timer of activeGraphTimersByKey.values()) {
+      clearTimeout(timer.handle);
+    }
+    activeGraphTimersByKey.clear();
+  };
+
   const stopActiveGraphPlayWithoutEvent = (): void => {
     if (!activeGraphPlayRun) {
       return;
     }
 
+    stopGraphTimersForRun(activeGraphPlayRun.runId);
     if (activeGraphPlayRun.timer !== null) {
       clearTimeout(activeGraphPlayRun.timer);
     }
@@ -218,6 +305,7 @@ export function createDemoRemoteAuthorityService(
   const resetDocumentCaches = (): void => {
     generatedNodeSequence = 0;
     generatedLinkSequence = 0;
+    stopAllGraphTimersWithoutEvent();
     stopActiveGraphPlayWithoutEvent();
     nodeExecutionStateMap.clear();
     graphExecutionState = createIdleGraphExecutionState();
@@ -401,6 +489,96 @@ export function createDemoRemoteAuthorityService(
     return { accepted: true, endpoint: { nodeId, slot } };
   };
 
+  const updateRunningGraphExecutionState = (run: DemoGraphPlayRun): void => {
+    graphExecutionState = {
+      status: "running",
+      runId: run.runId,
+      queueSize: run.queue.length,
+      stepCount: run.stepCount,
+      startedAt: run.startedAt,
+      stoppedAt: undefined,
+      lastSource: run.source
+    };
+  };
+
+  const registerGraphTimer = (input: {
+    nodeId: string;
+    source: "graph-play" | "graph-step";
+    runId: string;
+    startedAt: number;
+    intervalMs: number;
+    immediate: boolean;
+  }): void => {
+    const hasActiveRun =
+      activeGraphPlayRun?.runId === input.runId || graphExecutionState.runId === input.runId;
+    if (!hasActiveRun) {
+      return;
+    }
+
+    const timerKey = createGraphTimerKey(input.runId, input.nodeId);
+    stopGraphTimerByKey(timerKey);
+    const intervalMs = resolveTimerIntervalMs(input.intervalMs);
+    const handle = setTimeout(() => {
+      handleActiveGraphTimerTick(timerKey);
+    }, intervalMs);
+
+    activeGraphTimersByKey.set(timerKey, {
+      timerKey,
+      runId: input.runId,
+      nodeId: input.nodeId,
+      source: input.source,
+      startedAt: input.startedAt,
+      intervalMs,
+      handle
+    });
+    timerActivatedInCurrentGraphStepTick = true;
+  };
+
+  const handleActiveGraphTimerTick = (timerKey: string): void => {
+    const timer = activeGraphTimersByKey.get(timerKey);
+    if (!timer) {
+      return;
+    }
+
+    const run = activeGraphPlayRun;
+    if (!run || run.runId !== timer.runId || run.source !== timer.source) {
+      stopGraphTimerByKey(timerKey);
+      return;
+    }
+
+    timer.handle = setTimeout(() => {
+      handleActiveGraphTimerTick(timerKey);
+    }, timer.intervalMs);
+    activeGraphTimersByKey.set(timerKey, timer);
+
+    const changed = executeNodeChain({
+      rootNodeId: timer.nodeId,
+      source: timer.source,
+      runId: timer.runId,
+      startedAt: timer.startedAt,
+      timerRuntime: {
+        registerTimer: registerGraphTimer,
+        timerTickNodeId: timer.nodeId
+      }
+    });
+
+    if (!changed) {
+      stopGraphTimerByKey(timerKey);
+      return;
+    }
+
+    if (activeGraphPlayRun?.runId === timer.runId) {
+      activeGraphPlayRun.stepCount += 1;
+      updateRunningGraphExecutionState(activeGraphPlayRun);
+      emitGraphExecution("advanced", {
+        runId: timer.runId,
+        source: timer.source,
+        nodeId: timer.nodeId,
+        timestamp: Date.now()
+      });
+    }
+  };
+
   const executeNodeChain = (input: ExecuteNodeChainOptions): boolean => {
     const rootNode = getNode(input.rootNodeId);
     if (!rootNode) {
@@ -438,6 +616,38 @@ export function createDemoRemoteAuthorityService(
         timestamp: Date.now()
       });
 
+      if (node.type === SYSTEM_TIMER_NODE_TYPE) {
+        const intervalMs = resolveTimerIntervalMs(node.properties?.intervalMs);
+        const immediate = resolveTimerImmediate(node.properties?.immediate);
+        const isGraphSource =
+          input.source === "graph-play" || input.source === "graph-step";
+        const canRegisterTimer =
+          isGraphSource &&
+          Boolean(input.runId) &&
+          Boolean(input.timerRuntime?.registerTimer);
+        const isPeriodicTick = input.timerRuntime?.timerTickNodeId === node.id;
+
+        if (canRegisterTimer) {
+          input.timerRuntime?.registerTimer?.({
+            nodeId: node.id,
+            source: input.source as "graph-play" | "graph-step",
+            runId: input.runId!,
+            startedAt: input.startedAt,
+            intervalMs,
+            immediate
+          });
+        }
+
+        const shouldPropagate =
+          input.source === "node-play" ||
+          isPeriodicTick ||
+          immediate ||
+          !canRegisterTimer;
+        if (!shouldPropagate) {
+          return;
+        }
+      }
+
       for (const link of currentDocument.links) {
         if (link.source.nodeId !== nodeId || !getNode(link.target.nodeId)) {
           continue;
@@ -460,6 +670,7 @@ export function createDemoRemoteAuthorityService(
       return;
     }
 
+    stopGraphTimersForRun(run.runId);
     if (run.timer !== null) {
       clearTimeout(run.timer);
     }
@@ -471,11 +682,11 @@ export function createDemoRemoteAuthorityService(
       stepCount: run.stepCount,
       startedAt: run.startedAt,
       stoppedAt: timestamp,
-      lastSource: "graph-play"
+      lastSource: run.source
     };
     emitGraphExecution(type, {
       runId: run.runId,
-      source: "graph-play",
+      source: run.source,
       timestamp
     });
   };
@@ -494,20 +705,28 @@ export function createDemoRemoteAuthorityService(
 
       const rootNodeId = activeRun.queue.shift();
       if (!rootNodeId) {
-        finalizeGraphPlayRun(activeRun, "drained");
+        if (!hasActiveGraphTimersForRun(activeRun.runId)) {
+          finalizeGraphPlayRun(activeRun, "drained");
+        } else {
+          updateRunningGraphExecutionState(activeRun);
+        }
         return;
       }
 
       executeNodeChain({
         rootNodeId,
-        source: "graph-play",
+        source: activeRun.source,
         runId: activeRun.runId,
-        startedAt: activeRun.startedAt
+        startedAt: activeRun.startedAt,
+        timerRuntime: {
+          registerTimer: registerGraphTimer
+        }
       });
       activeRun.stepCount += 1;
 
       const timestamp = Date.now();
-      const hasMore = activeRun.queue.length > 0;
+      const hasMore =
+        activeRun.queue.length > 0 || hasActiveGraphTimersForRun(activeRun.runId);
       graphExecutionState = {
         status: hasMore ? "running" : "idle",
         runId: hasMore ? activeRun.runId : undefined,
@@ -515,21 +734,23 @@ export function createDemoRemoteAuthorityService(
         stepCount: activeRun.stepCount,
         startedAt: activeRun.startedAt,
         stoppedAt: hasMore ? undefined : timestamp,
-        lastSource: "graph-play"
+        lastSource: activeRun.source
       };
       emitGraphExecution("advanced", {
         runId: activeRun.runId,
-        source: "graph-play",
+        source: activeRun.source,
         nodeId: rootNodeId,
         timestamp
       });
 
-      if (hasMore) {
+      if (activeRun.queue.length > 0) {
         scheduleNextGraphPlayRunTick();
         return;
       }
 
-      finalizeGraphPlayRun(activeRun, "drained");
+      if (!hasActiveGraphTimersForRun(activeRun.runId)) {
+        finalizeGraphPlayRun(activeRun, "drained");
+      }
     }, 0);
   };
 
@@ -954,6 +1175,7 @@ export function createDemoRemoteAuthorityService(
           const runId = createGraphRunId("graph-play");
           activeGraphPlayRun = {
             runId,
+            source: "graph-play",
             startedAt,
             queue,
             stepCount: 0,
@@ -1010,13 +1232,42 @@ export function createDemoRemoteAuthorityService(
             timestamp: startedAt
           });
 
+          timerActivatedInCurrentGraphStepTick = false;
           const changed = executeNodeChain({
             rootNodeId,
             source: "graph-step",
             runId,
-            startedAt
+            startedAt,
+            timerRuntime: {
+              registerTimer: registerGraphTimer
+            }
           });
           const timestamp = Date.now();
+          emitGraphExecution("advanced", {
+            runId,
+            source: "graph-step",
+            nodeId: rootNodeId,
+            timestamp
+          });
+
+          const promotedToRunning =
+            timerActivatedInCurrentGraphStepTick && hasActiveGraphTimersForRun(runId);
+          if (promotedToRunning) {
+            activeGraphPlayRun = {
+              runId,
+              source: "graph-step",
+              startedAt,
+              queue: [],
+              stepCount: changed ? 1 : 0,
+              timer: null
+            };
+            updateRunningGraphExecutionState(activeGraphPlayRun);
+            return createRuntimeControlResult({
+              changed,
+              reason: changed ? undefined : "节点不存在"
+            });
+          }
+
           graphExecutionState = {
             status: "idle",
             queueSize: 0,
@@ -1025,12 +1276,6 @@ export function createDemoRemoteAuthorityService(
             stoppedAt: timestamp,
             lastSource: "graph-step"
           };
-          emitGraphExecution("advanced", {
-            runId,
-            source: "graph-step",
-            nodeId: rootNodeId,
-            timestamp
-          });
           emitGraphExecution("drained", {
             runId,
             source: "graph-step",

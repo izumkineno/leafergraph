@@ -9,6 +9,7 @@ import {
   createNodeUpdateOperation,
   ensureLinkCreateInputId
 } from "../commands/graph_operation_utils";
+import { createWidgetCommitUpdateInputs } from "./widget_commit_update";
 import type {
   EditorCommandExecution,
   EditorCommandHistoryPayload,
@@ -271,11 +272,11 @@ export function createGraphInteractionCommitBridge(
           );
         }
         case "node.widget.commit": {
-          const beforeInput = cloneUpdateInput({
-            widgets: structuredClone(event.beforeWidgets)
-          });
-          const afterInput = cloneUpdateInput({
-            widgets: structuredClone(event.afterWidgets)
+          const { beforeInput, afterInput } = createWidgetCommitUpdateInputs({
+            document: options.session.currentDocument,
+            nodeId: event.nodeId,
+            beforeWidgets: event.beforeWidgets,
+            afterWidgets: event.afterWidgets
           });
           const submissions = [
             options.session.submitOperationWithAuthority(
