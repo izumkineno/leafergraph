@@ -14,8 +14,11 @@ import { createEditorRemoteAuthorityDemoWorkerSource } from "../src/demo/remote_
 import { attachMessagePortRemoteAuthorityBridgeHost } from "../src/session/message_port_remote_authority_bridge_host";
 import { createMessagePortRemoteAuthorityHost } from "../src/session/message_port_remote_authority_host";
 import { attachMessagePortRemoteAuthorityWorkerHost } from "../src/session/message_port_remote_authority_worker_host";
-import type {
+import {
+  createTransportRemoteAuthorityClient,
   EditorRemoteAuthorityDocumentClient,
+  EditorRemoteAuthorityFrontendBundlePackage,
+  EditorRemoteAuthorityFrontendBundlesSyncEvent,
   EditorRemoteAuthorityTransport,
   EditorRemoteAuthorityTransportEvent,
   EditorRemoteAuthorityTransportRequest,
@@ -277,6 +280,155 @@ function createConnectionStatusClientStub(options?: {
   };
 }
 
+function createFrontendBundleTransportStub() {
+  const listeners = new Set<
+    (event: EditorRemoteAuthorityTransportEvent) => void
+  >();
+  const queuedEventsOnGetDocument: EditorRemoteAuthorityFrontendBundlesSyncEvent[] =
+    [];
+
+  const transport: EditorRemoteAuthorityTransport = {
+    async request<TResponse extends EditorRemoteAuthorityTransportResponse>(
+      request: EditorRemoteAuthorityTransportRequest
+    ): Promise<TResponse> {
+      if (request.action === "getDocument") {
+        for (const event of queuedEventsOnGetDocument) {
+          emitFrontendBundlesSync(event);
+        }
+        queuedEventsOnGetDocument.length = 0;
+        return {
+          action: "getDocument",
+          document: createDocument("fb-1")
+        } as TResponse;
+      }
+      if (request.action === "submitOperation") {
+        return {
+          action: "submitOperation",
+          result: {
+            accepted: true,
+            changed: false,
+            revision: "fb-1"
+          }
+        } as TResponse;
+      }
+      return {
+        action: "replaceDocument",
+        document: structuredClone(request.document)
+      } as TResponse;
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    }
+  };
+
+  const emitFrontendBundlesSync = (
+    event: EditorRemoteAuthorityFrontendBundlesSyncEvent
+  ): void => {
+    for (const listener of listeners) {
+      listener({
+        type: "frontendBundles.sync",
+        event: structuredClone(event)
+      });
+    }
+  };
+
+  return {
+    transport,
+    emitFrontendBundlesSync,
+    queueFrontendBundlesSyncOnGetDocument(
+      event: EditorRemoteAuthorityFrontendBundlesSyncEvent
+    ): void {
+      queuedEventsOnGetDocument.push(structuredClone(event));
+    }
+  };
+}
+
+function createFrontendBundlePackage(
+  packageId: string
+): EditorRemoteAuthorityFrontendBundlePackage {
+  return {
+    packageId,
+    version: "0.0.1",
+    nodeTypes: ["system/timer"],
+    bundles: []
+  };
+}
+
+describe("createTransportRemoteAuthorityClient", () => {
+  test("晚订阅 frontendBundles 时应立即回放首次 full 快照", () => {
+    const harness = createFrontendBundleTransportStub();
+    const client = createTransportRemoteAuthorityClient({
+      transport: harness.transport
+    });
+
+    harness.emitFrontendBundlesSync({
+      type: "frontendBundles.sync",
+      mode: "full",
+      packages: [createFrontendBundlePackage("@test/p1")],
+      emittedAt: 1001
+    });
+
+    const events: EditorRemoteAuthorityFrontendBundlesSyncEvent[] = [];
+    const dispose = client.subscribeFrontendBundles?.((event) => {
+      events.push(event);
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.mode).toBe("full");
+    expect(events[0]?.packages?.map((bundlePackage) => bundlePackage.packageId)).toEqual([
+      "@test/p1"
+    ]);
+    expect(events[0]?.emittedAt).toBe(1001);
+
+    dispose?.();
+    client.dispose?.();
+  });
+
+  test("晚订阅 frontendBundles 时应收到重建后的当前 full 快照", () => {
+    const harness = createFrontendBundleTransportStub();
+    const client = createTransportRemoteAuthorityClient({
+      transport: harness.transport
+    });
+
+    harness.emitFrontendBundlesSync({
+      type: "frontendBundles.sync",
+      mode: "full",
+      packages: [createFrontendBundlePackage("@test/p1")],
+      emittedAt: 2001
+    });
+    harness.emitFrontendBundlesSync({
+      type: "frontendBundles.sync",
+      mode: "upsert",
+      packages: [createFrontendBundlePackage("@test/p2")],
+      emittedAt: 2002
+    });
+    harness.emitFrontendBundlesSync({
+      type: "frontendBundles.sync",
+      mode: "remove",
+      removedPackageIds: ["@test/p1"],
+      emittedAt: 2003
+    });
+
+    const events: EditorRemoteAuthorityFrontendBundlesSyncEvent[] = [];
+    const dispose = client.subscribeFrontendBundles?.((event) => {
+      events.push(event);
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.mode).toBe("full");
+    expect(events[0]?.packages?.map((bundlePackage) => bundlePackage.packageId)).toEqual([
+      "@test/p2"
+    ]);
+    expect(events[0]?.emittedAt).toBe(2003);
+
+    dispose?.();
+    client.dispose?.();
+  });
+});
+
 describe("createEditorRemoteAuthorityAppRuntime", () => {
   test("应装配 authority client、document、binding 和 feedback inlet", async () => {
     const source: EditorRemoteAuthorityAppSource = {
@@ -297,6 +449,75 @@ describe("createEditorRemoteAuthorityAppRuntime", () => {
     expect(typeof runtime.createDocumentSessionBinding).toBe("function");
     expect(runtime.runtimeFeedbackInlet).toBe(runtime.client);
 
+    runtime.dispose();
+  });
+
+  test("应把 frontendBundles.sync 透传给 runtime 订阅者", async () => {
+    const harness = createFrontendBundleTransportStub();
+    const source: EditorRemoteAuthorityAppSource = {
+      label: "Frontend Bundle Authority",
+      createTransport() {
+        return harness.transport;
+      }
+    };
+    const runtime = await createEditorRemoteAuthorityAppRuntime(source);
+    const events: EditorRemoteAuthorityFrontendBundlesSyncEvent[] = [];
+    const dispose = runtime.subscribeFrontendBundles?.((event) => {
+      events.push(event);
+    });
+
+    harness.emitFrontendBundlesSync({
+      type: "frontendBundles.sync",
+      mode: "upsert",
+      packages: [
+        {
+          packageId: "@test/p1",
+          version: "0.0.1",
+          nodeTypes: ["system/timer"],
+          bundles: []
+        }
+      ],
+      emittedAt: Date.now()
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.mode).toBe("upsert");
+    expect(events[0]?.packages?.[0]?.packageId).toBe("@test/p1");
+
+    dispose?.();
+    runtime.dispose();
+  });
+
+  test("runtime 创建阶段先收到 frontendBundles full 时，晚订阅者也应拿到快照", async () => {
+    const harness = createFrontendBundleTransportStub();
+    harness.queueFrontendBundlesSyncOnGetDocument({
+      type: "frontendBundles.sync",
+      mode: "full",
+      packages: [createFrontendBundlePackage("@test/p1")],
+      emittedAt: 3001
+    });
+
+    const source: EditorRemoteAuthorityAppSource = {
+      label: "Frontend Bundle Replay Authority",
+      createTransport() {
+        return harness.transport;
+      }
+    };
+
+    const runtime = await createEditorRemoteAuthorityAppRuntime(source);
+    const events: EditorRemoteAuthorityFrontendBundlesSyncEvent[] = [];
+    const dispose = runtime.subscribeFrontendBundles?.((event) => {
+      events.push(event);
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.mode).toBe("full");
+    expect(events[0]?.packages?.map((bundlePackage) => bundlePackage.packageId)).toEqual([
+      "@test/p1"
+    ]);
+    expect(events[0]?.emittedAt).toBe(3001);
+
+    dispose?.();
     runtime.dispose();
   });
 

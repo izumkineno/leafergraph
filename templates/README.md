@@ -10,6 +10,7 @@
 | `node-backend-template` | Node 后端控制与 authority 服务 | `5502` | `bun run --cwd templates/node-backend-template start` | `GET /health`、`WS /authority`、authority request/response/event |
 | `python-backend-template` | Python 后端控制与 authority 服务 | `5503` | `uv run --project templates/python-backend-template python -m leafergraph_python_backend_control_template.entry` | `GET /health`、`WS /authority`、authority request/response/event |
 | `node-widget-plugin-template` | 节点/Widget 外部插件 + browser bundle 分发 | 无固定端口 | `bun run --cwd templates/node-widget-plugin-template build` | bundle manifest（`kind/id/requires`）与 `registerBundle(...)` |
+| `timer-node-package-template` | 后端驱动注册的一体化节点包示例（frontend + node backend + python backend） | 无固定端口 | 作为目录模板被后端热加载 | 节点包 manifest、`frontendBundles.sync` 推送契约 |
 
 ## 角色边界（统一口径）
 
@@ -24,6 +25,7 @@
 - 构建脚本、测试覆盖范围、默认 demo 预置数据。
 - README 里的部署方式、环境准备、外部宿主接入示例。
 - 本地开发体验相关配置（如 dev 命令、日志详细度）。
+- 后端节点包目录（`LEAFERGRAPH_NODE_BACKEND_PACKAGE_DIR` / `LEAFERGRAPH_PYTHON_BACKEND_PACKAGE_DIR`）。
 
 ### 不要改
 

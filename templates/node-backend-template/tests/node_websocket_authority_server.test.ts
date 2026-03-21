@@ -130,6 +130,14 @@ describe("node websocket authority server", () => {
       response.json()
     );
     expect(connectedHealth.connectionCount).toBe(1);
+    await waitForEnvelope(
+      messages,
+      (envelope): envelope is AuthorityEventEnvelope =>
+        envelope.channel === "authority.event" &&
+        envelope.event.type === "frontendBundles.sync" &&
+        envelope.event.event.type === "frontendBundles.sync" &&
+        envelope.event.event.mode === "full"
+    );
 
     socket.send(
       JSON.stringify(

@@ -12,7 +12,7 @@
   "scripts": {
     "check": "tsc -p tsconfig.json --noEmit",
     "build": "bun build ./src/entry/server.ts --outfile ./dist/server.js --target node --format esm",
-    "start": "node ./dist/server.js",
+    "start": "bun run build && node ./dist/server.js",
     "dev": "bun run ./src/entry/server.ts",
     "test": "bun test ./tests"
   },

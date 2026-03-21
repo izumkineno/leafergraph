@@ -43,7 +43,10 @@ def create_authority_app(
     app = FastAPI()
     state = AuthorityServerState(
         runtime=runtime
-        or create_python_authority_runtime(authority_name=authority_name),
+        or create_python_authority_runtime(
+            authority_name=authority_name,
+            logger=logger,
+        ),
         logger=logger or print,
     )
     app.state.authority_server_state = state
@@ -81,6 +84,21 @@ def create_authority_app(
         dispose_runtime = state.runtime.subscribe(
             lambda event: outbound_queue.put_nowait(
                 create_event_envelope({"type": "runtimeFeedback", "event": event})
+            )
+        )
+        dispose_frontend_bundles = state.runtime.subscribe_frontend_bundles(
+            lambda event: outbound_queue.put_nowait(
+                create_event_envelope(
+                    {"type": "frontendBundles.sync", "event": event}
+                )
+            )
+        )
+        outbound_queue.put_nowait(
+            create_event_envelope(
+                {
+                    "type": "frontendBundles.sync",
+                    "event": state.runtime.get_frontend_bundles_snapshot(),
+                }
             )
         )
 
@@ -180,6 +198,7 @@ def create_authority_app(
         finally:
             dispose_document()
             dispose_runtime()
+            dispose_frontend_bundles()
             sender_task.cancel()
             state.connection_count = max(0, state.connection_count - 1)
             log_info(

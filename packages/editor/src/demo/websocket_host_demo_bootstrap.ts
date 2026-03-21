@@ -1,45 +1,14 @@
 import type {
-  EditorAppBootstrap,
-  EditorAppBootstrapPreloadedBundle
+  EditorAppBootstrap
 } from "../app/editor_app_bootstrap";
 import type { GraphViewportHostBridge } from "../ui/viewport";
 import type { EditorRemoteAuthorityHostAdapter } from "../backend/authority/remote_authority_host_adapter";
 import { createWebSocketRemoteAuthorityTransport } from "../session/websocket_remote_authority_transport";
 
-/** 通用 WebSocket host demo 可选预装的本地 test bundle 列表。 */
-export const WEBSOCKET_HOST_DEMO_TEST_BUNDLES: readonly EditorAppBootstrapPreloadedBundle[] =
-  [
-    {
-      slot: "widget",
-      url: "/__testbundles/widget.iife.js",
-      fileName: "widget.iife.js",
-      enabled: true
-    },
-    {
-      slot: "node",
-      url: "/__testbundles/node.iife.js",
-      fileName: "node.iife.js",
-      enabled: true
-    },
-    {
-      slot: "demo",
-      url: "/__testbundles/demo.iife.js",
-      fileName: "demo.iife.js",
-      enabled: true
-    },
-    {
-      slot: "demo",
-      url: "/__testbundles/demo-alt.iife.js",
-      fileName: "demo-alt.iife.js",
-      enabled: false
-    }
-  ] as const;
-
 export interface WebSocketHostDemoBootstrapOptions {
   authorityUrl?: string;
   authorityLabel?: string;
   authorityName?: string;
-  preloadTestBundles?: boolean;
   debugViewportBridgeLog?: boolean;
 }
 
@@ -49,7 +18,6 @@ export interface WebSocketHostDemoState<TMode extends string> {
   readonly authorityUrl: string;
   readonly authorityLabel: string;
   readonly authorityName: string;
-  readonly preloadTestBundles: boolean;
   readonly debugViewportBridgeLog: boolean;
 }
 
@@ -93,7 +61,6 @@ function normalizeWebSocketHostDemoBootstrapOptions(
       options.authorityName.trim().length > 0
         ? options.authorityName.trim()
         : config.defaultAuthorityName,
-    preloadTestBundles: options.preloadTestBundles === true,
     debugViewportBridgeLog: options.debugViewportBridgeLog === true
   };
 }
@@ -109,9 +76,6 @@ function readWebSocketHostDemoBootstrapOptions(
       authorityUrl: params.get("authorityUrl") ?? undefined,
       authorityLabel: params.get("authorityLabel") ?? undefined,
       authorityName: params.get("authorityName") ?? undefined,
-      preloadTestBundles:
-        params.get("preloadTestBundles") === "1" ||
-        params.get("preloadTestBundles") === "true",
       debugViewportBridgeLog:
         params.get("debugViewportBridge") === "1" ||
         params.get("debugViewportBridge") === "true"
@@ -309,7 +273,7 @@ export function createWebSocketHostDemoBootstrap<TMode extends string>(
   options: WebSocketHostDemoBootstrapOptions = {}
 ): Pick<
   EditorAppBootstrap,
-  "remoteAuthorityAdapter" | "remoteAuthorityHostAdapters" | "preloadedBundles"
+  "remoteAuthorityAdapter" | "remoteAuthorityHostAdapters"
 > {
   const resolvedOptions = normalizeWebSocketHostDemoBootstrapOptions(
     options,
@@ -322,12 +286,7 @@ export function createWebSocketHostDemoBootstrap<TMode extends string>(
       adapterId: config.adapterId,
       options: resolvedOptions
     },
-    remoteAuthorityHostAdapters: [adapter],
-    preloadedBundles: resolvedOptions.preloadTestBundles
-      ? WEBSOCKET_HOST_DEMO_TEST_BUNDLES.map((bundle) => ({
-          ...bundle
-        }))
-      : undefined
+    remoteAuthorityHostAdapters: [adapter]
   };
 }
 
@@ -345,7 +304,6 @@ export function installWebSocketHostDemoBootstrap<TMode extends string>(
     authorityUrl: authorityOptions.authorityUrl,
     authorityLabel: authorityOptions.authorityLabel,
     authorityName: authorityOptions.authorityName,
-    preloadTestBundles: authorityOptions.preloadTestBundles,
     debugViewportBridgeLog: authorityOptions.debugViewportBridgeLog
   };
 

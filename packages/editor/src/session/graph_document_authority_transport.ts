@@ -89,6 +89,40 @@ export interface EditorRemoteAuthorityRuntimeFeedbackTransportEvent {
   event: RuntimeFeedbackEvent;
 }
 
+/** authority 推送前端 bundle 源码时，单个 bundle 的最小描述。 */
+export interface EditorRemoteAuthorityFrontendBundleSource {
+  bundleId: string;
+  slot: "demo" | "node" | "widget";
+  fileName: string;
+  sourceCode: string;
+  enabled: boolean;
+  requires?: string[];
+  sha256: string;
+}
+
+/** authority 推送前端 bundle 源码时，单个节点包的最小描述。 */
+export interface EditorRemoteAuthorityFrontendBundlePackage {
+  packageId: string;
+  version: string;
+  nodeTypes: string[];
+  bundles: EditorRemoteAuthorityFrontendBundleSource[];
+}
+
+/** authority 推送前端 bundle 的同步事件。 */
+export interface EditorRemoteAuthorityFrontendBundlesSyncEvent {
+  type: "frontendBundles.sync";
+  mode: "full" | "upsert" | "remove";
+  packages?: EditorRemoteAuthorityFrontendBundlePackage[];
+  removedPackageIds?: string[];
+  emittedAt: number;
+}
+
+/** transport 层前端 bundle 同步事件。 */
+export interface EditorRemoteAuthorityFrontendBundlesSyncTransportEvent {
+  type: "frontendBundles.sync";
+  event: EditorRemoteAuthorityFrontendBundlesSyncEvent;
+}
+
 /** transport 层 authority 主动回推的整图快照事件。 */
 export interface EditorRemoteAuthorityDocumentTransportEvent {
   type: "document";
@@ -98,7 +132,8 @@ export interface EditorRemoteAuthorityDocumentTransportEvent {
 /** transport 当前允许上抛的最小事件集合。 */
 export type EditorRemoteAuthorityTransportEvent =
   | EditorRemoteAuthorityRuntimeFeedbackTransportEvent
-  | EditorRemoteAuthorityDocumentTransportEvent;
+  | EditorRemoteAuthorityDocumentTransportEvent
+  | EditorRemoteAuthorityFrontendBundlesSyncTransportEvent;
 
 /**
  * editor authority transport 抽象。
@@ -129,6 +164,9 @@ export interface EditorRemoteAuthorityDocumentClient
   extends Omit<EditorRemoteAuthorityClient, "subscribeDocument"> {
   getDocument(): Promise<GraphDocument>;
   subscribeDocument(listener: (document: GraphDocument) => void): () => void;
+  subscribeFrontendBundles?(
+    listener: (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
+  ): () => void;
 }
 
 function cloneGraphDocument(document: GraphDocument): GraphDocument {
@@ -175,6 +213,63 @@ function cloneRuntimeFeedbackEvent(
   return structuredClone(event);
 }
 
+function cloneFrontendBundlesSyncEvent(
+  event: EditorRemoteAuthorityFrontendBundlesSyncEvent
+): EditorRemoteAuthorityFrontendBundlesSyncEvent {
+  return structuredClone(event);
+}
+
+function cloneFrontendBundlePackage(
+  bundlePackage: EditorRemoteAuthorityFrontendBundlePackage
+): EditorRemoteAuthorityFrontendBundlePackage {
+  return structuredClone(bundlePackage);
+}
+
+function applyFrontendBundlesSyncEventToCatalog(
+  catalog: Map<string, EditorRemoteAuthorityFrontendBundlePackage>,
+  event: EditorRemoteAuthorityFrontendBundlesSyncEvent
+): void {
+  switch (event.mode) {
+    case "full": {
+      catalog.clear();
+      for (const bundlePackage of event.packages ?? []) {
+        catalog.set(
+          bundlePackage.packageId,
+          cloneFrontendBundlePackage(bundlePackage)
+        );
+      }
+      return;
+    }
+    case "upsert": {
+      for (const bundlePackage of event.packages ?? []) {
+        catalog.set(
+          bundlePackage.packageId,
+          cloneFrontendBundlePackage(bundlePackage)
+        );
+      }
+      return;
+    }
+    case "remove": {
+      for (const packageId of event.removedPackageIds ?? []) {
+        catalog.delete(packageId);
+      }
+      return;
+    }
+  }
+}
+
+function createFrontendBundlesSnapshotEvent(options: {
+  catalog: ReadonlyMap<string, EditorRemoteAuthorityFrontendBundlePackage>;
+  emittedAt: number;
+}): EditorRemoteAuthorityFrontendBundlesSyncEvent {
+  return {
+    type: "frontendBundles.sync",
+    mode: "full",
+    packages: [...options.catalog.values()].map(cloneFrontendBundlePackage),
+    emittedAt: options.emittedAt
+  };
+}
+
 function hasConnectionStatusSource(
   transport: EditorRemoteAuthorityTransport
 ): transport is EditorRemoteAuthorityTransport & {
@@ -203,6 +298,15 @@ export function createTransportRemoteAuthorityClient(options: {
     (event: RuntimeFeedbackEvent) => void
   >();
   const documentListeners = new Set<(document: GraphDocument) => void>();
+  const frontendBundleListeners = new Set<
+    (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
+  >();
+  const frontendBundleCatalog = new Map<
+    string,
+    EditorRemoteAuthorityFrontendBundlePackage
+  >();
+  let hasFrontendBundleSnapshot = false;
+  let frontendBundleSnapshotEmittedAt = 0;
   const disposeTransportSubscription = options.transport.subscribe((event) => {
     if (event.type === "runtimeFeedback") {
       const feedback = cloneRuntimeFeedbackEvent(event.event);
@@ -216,6 +320,17 @@ export function createTransportRemoteAuthorityClient(options: {
       const document = cloneGraphDocument(event.document);
       for (const listener of documentListeners) {
         listener(document);
+      }
+      return;
+    }
+
+    if (event.type === "frontendBundles.sync") {
+      applyFrontendBundlesSyncEventToCatalog(frontendBundleCatalog, event.event);
+      hasFrontendBundleSnapshot = true;
+      frontendBundleSnapshotEmittedAt = event.event.emittedAt;
+      const snapshot = cloneFrontendBundlesSyncEvent(event.event);
+      for (const listener of frontendBundleListeners) {
+        listener(snapshot);
       }
     }
   });
@@ -290,6 +405,23 @@ export function createTransportRemoteAuthorityClient(options: {
       };
     },
 
+    subscribeFrontendBundles(
+      listener: (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
+    ): () => void {
+      frontendBundleListeners.add(listener);
+      if (hasFrontendBundleSnapshot) {
+        listener(
+          createFrontendBundlesSnapshotEvent({
+            catalog: frontendBundleCatalog,
+            emittedAt: frontendBundleSnapshotEmittedAt
+          })
+        );
+      }
+      return () => {
+        frontendBundleListeners.delete(listener);
+      };
+    },
+
     getConnectionStatus(): EditorRemoteAuthorityConnectionStatus {
       return hasConnectionStatusSource(options.transport)
         ? options.transport.getConnectionStatus()
@@ -311,6 +443,8 @@ export function createTransportRemoteAuthorityClient(options: {
       disposeTransportSubscription();
       runtimeFeedbackListeners.clear();
       documentListeners.clear();
+      frontendBundleListeners.clear();
+      frontendBundleCatalog.clear();
       options.transport.dispose?.();
     }
   };

@@ -109,12 +109,12 @@ describe("default entry onboarding helper", () => {
     });
   });
 
-  test("demo 快捷入口应固定指向 Node Authority 预载页面", () => {
+  test("demo 快捷入口应固定指向 Node/Python Authority 页面", () => {
     expect(DEFAULT_NODE_AUTHORITY_DEMO_URL).toBe(
-      "/authority-node-host-demo.html?preloadTestBundles=1"
+      "/authority-node-host-demo.html"
     );
     expect(DEFAULT_PYTHON_AUTHORITY_DEMO_URL).toBe(
-      "/authority-python-host-demo.html?preloadTestBundles=1"
+      "/authority-python-host-demo.html"
     );
   });
 });

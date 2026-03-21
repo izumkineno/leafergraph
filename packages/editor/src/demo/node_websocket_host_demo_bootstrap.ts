@@ -6,7 +6,6 @@ import {
   createWebSocketHostDemoRemoteAuthorityHostAdapter,
   installWebSocketHostDemoBootstrap,
   resolveWebSocketHostDemoHealthUrl,
-  WEBSOCKET_HOST_DEMO_TEST_BUNDLES,
   type WebSocketHostDemoBootstrapOptions,
   type WebSocketHostDemoConfig,
   type WebSocketHostDemoState
@@ -17,9 +16,6 @@ export const DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL =
   "http://localhost:5502";
 /** Node host demo 自定义 authority adapter 标识。 */
 export const NODE_WEBSOCKET_HOST_DEMO_ADAPTER_ID = "node-websocket-host-demo";
-/** Node host demo 可选预装的本地 test bundle 列表。 */
-export const NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES =
-  WEBSOCKET_HOST_DEMO_TEST_BUNDLES;
 
 export interface NodeWebSocketHostDemoBootstrapOptions
   extends WebSocketHostDemoBootstrapOptions {}
@@ -63,7 +59,7 @@ export function createNodeWebSocketHostDemoBootstrap(
   options: NodeWebSocketHostDemoBootstrapOptions = {}
 ): Pick<
   EditorAppBootstrap,
-  "remoteAuthorityAdapter" | "remoteAuthorityHostAdapters" | "preloadedBundles"
+  "remoteAuthorityAdapter" | "remoteAuthorityHostAdapters"
 > {
   return createWebSocketHostDemoBootstrap(
     NODE_WEBSOCKET_HOST_DEMO_CONFIG,

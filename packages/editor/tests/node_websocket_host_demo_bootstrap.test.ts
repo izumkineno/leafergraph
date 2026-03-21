@@ -7,7 +7,6 @@ import type { GraphViewportHostBridge } from "../src/ui/viewport";
 import { createEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/remote_authority_app_runtime";
 import {
   DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL,
-  NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES,
   NODE_WEBSOCKET_HOST_DEMO_ADAPTER_ID,
   installNodeWebSocketHostDemoBootstrap,
   resolveNodeWebSocketHealthUrl
@@ -42,7 +41,6 @@ interface NodeHostDemoBootstrapHost {
     authorityUrl: string;
     authorityLabel: string;
     authorityName: string;
-    preloadTestBundles: boolean;
     debugViewportBridgeLog: boolean;
   };
 }
@@ -133,7 +131,6 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
         authorityUrl: authorityOrigin,
         authorityLabel: "Node Host Demo",
         authorityName: "node-host-demo",
-        preloadTestBundles: false,
         debugViewportBridgeLog: false
       }
     });
@@ -168,7 +165,6 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
       authorityUrl: authorityOrigin,
       authorityLabel: "Node Host Demo",
       authorityName: "node-host-demo",
-      preloadTestBundles: false,
       debugViewportBridgeLog: false
     });
 
@@ -204,12 +200,11 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
       authorityUrl: DEFAULT_NODE_WEBSOCKET_AUTHORITY_URL,
       authorityLabel: "Node WebSocket Authority",
       authorityName: "node-websocket-host-demo",
-      preloadTestBundles: false,
       debugViewportBridgeLog: false
     });
   });
 
-  test("query 启用 preloadTestBundles 时应注入 test bundle 预装列表", () => {
+  test("query 包含 preloadTestBundles 时应忽略预装参数，仍以后端推送为准", () => {
     const host: NodeHostDemoBootstrapHost = {
       location: {
         search: "?preloadTestBundles=1"
@@ -218,20 +213,10 @@ describe("installNodeWebSocketHostDemoBootstrap", () => {
 
     installNodeWebSocketHostDemoBootstrap(host);
 
-    expect(host.LeaferGraphEditorAppBootstrap?.preloadedBundles).toEqual(
-      NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES
-    );
-    expect(host.LeaferGraphEditorNodeHostDemo?.preloadTestBundles).toBe(true);
+    expect(host.LeaferGraphEditorAppBootstrap?.preloadedBundles).toBeUndefined();
 
     const bootstrap = resolveEditorAppBootstrap(host);
-    expect(bootstrap.preloadedBundles).toEqual(
-      NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES
-    );
-    expect(
-      NODE_WEBSOCKET_HOST_DEMO_TEST_BUNDLES.filter(
-        (bundle) => bundle.slot === "demo"
-      ).map((bundle) => bundle.fileName)
-    ).toEqual(["demo.iife.js", "demo-alt.iife.js"]);
+    expect(bootstrap.preloadedBundles).toBeUndefined();
   });
 
   test("应把 authority health 地址收敛到稳定的 loopback /health", () => {

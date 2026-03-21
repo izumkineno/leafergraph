@@ -70,6 +70,7 @@ import type {
   EditorGraphDocumentResyncOptions,
   EditorGraphOperationAuthorityConfirmation
 } from "../session/graph_document_session";
+import type { EditorRemoteAuthorityFrontendBundlesSyncEvent } from "../session/graph_document_authority_transport";
 import {
   resolveRemoteAuthorityBundleProjection,
   shouldApplyRemoteAuthorityBundleProjection,
@@ -285,6 +286,18 @@ function createBundleLoadErrorRecord(
     loading: false,
     error: errorMessage
   };
+}
+
+function createRemoteBundleRecordKey(
+  ownerPackageId: string,
+  slot: EditorBundleSlot,
+  bundleId: string
+): string {
+  return `remote:${ownerPackageId}:${slot}:${bundleId}`;
+}
+
+function isRemoteBundleRecord(record: EditorBundleRecordState): boolean {
+  return record.source === "remote";
 }
 
 function isDemoBundleRecord(
@@ -796,6 +809,155 @@ export function EditorProvider({
   }, [remoteAuthorityRuntime, resyncAuthorityDocument, viewportHostBridge]);
 
   useEffect(() => {
+    if (!remoteAuthorityRuntime?.subscribeFrontendBundles) {
+      return;
+    }
+
+    let cancelled = false;
+    let consumeQueue = Promise.resolve();
+
+    const removeRemoteRecordsByPackageIds = (
+      catalog: EditorBundleCatalogState,
+      removedPackageIds: readonly string[]
+    ): EditorBundleCatalogState => {
+      if (removedPackageIds.length <= 0) {
+        return catalog;
+      }
+
+      const removedSet = new Set(removedPackageIds);
+      return {
+        ...catalog,
+        demo: catalog.demo.filter(
+          (record) =>
+            !(
+              isRemoteBundleRecord(record) &&
+              record.ownerPackageId &&
+              removedSet.has(record.ownerPackageId)
+            )
+        ),
+        node: catalog.node.filter(
+          (record) =>
+            !(
+              isRemoteBundleRecord(record) &&
+              record.ownerPackageId &&
+              removedSet.has(record.ownerPackageId)
+            )
+        ),
+        widget: catalog.widget.filter(
+          (record) =>
+            !(
+              isRemoteBundleRecord(record) &&
+              record.ownerPackageId &&
+              removedSet.has(record.ownerPackageId)
+            )
+        )
+      };
+    };
+
+    const handleFrontendBundlesSync = async (
+      event: EditorRemoteAuthorityFrontendBundlesSyncEvent
+    ): Promise<void> => {
+      if (event.mode === "remove") {
+        if (cancelled) {
+          return;
+        }
+        setBundleCatalog((current) =>
+          removeRemoteRecordsByPackageIds(
+            current,
+            event.removedPackageIds ?? []
+          )
+        );
+        return;
+      }
+
+      const nextRemoteRecords: EditorBundleRecordState[] = [];
+      for (const packageRecord of event.packages ?? []) {
+        for (const bundle of packageRecord.bundles) {
+          const bundleKey = createRemoteBundleRecordKey(
+            packageRecord.packageId,
+            bundle.slot,
+            bundle.bundleId
+          );
+          try {
+            const manifest = await loadEditorBundleSource(
+              bundle.slot,
+              bundle.sourceCode,
+              `${packageRecord.packageId}/${bundle.fileName}`
+            );
+            nextRemoteRecords.push(
+              createLoadedBundleRecordState({
+                slot: bundle.slot,
+                manifest,
+                fileName: bundle.fileName,
+                enabled: bundle.enabled,
+                persisted: false,
+                restoredFromPersistence: false,
+                savedAt: null,
+                source: "remote",
+                ownerPackageId: packageRecord.packageId,
+                bundleKey
+              })
+            );
+          } catch (error) {
+            nextRemoteRecords.push(
+              createBundleLoadErrorRecord(
+                createLoadingBundleRecordState(
+                  bundle.slot,
+                  bundle.fileName,
+                  "remote",
+                  bundleKey
+                ),
+                `后端推送 bundle 加载失败：${toErrorMessage(error)}`
+              )
+            );
+          }
+        }
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      setBundleCatalog((current) => {
+        let nextCatalog = current;
+        if (event.mode === "full") {
+          nextCatalog = {
+            ...current,
+            demo: current.demo.filter((record) => !isRemoteBundleRecord(record)),
+            node: current.node.filter((record) => !isRemoteBundleRecord(record)),
+            widget: current.widget.filter((record) => !isRemoteBundleRecord(record))
+          };
+        }
+
+        for (const record of nextRemoteRecords) {
+          nextCatalog = upsertEditorBundleRecord(nextCatalog, record);
+        }
+
+        return nextCatalog;
+      });
+    };
+
+    const disposeFrontendBundlesSubscription =
+      remoteAuthorityRuntime.subscribeFrontendBundles((event) => {
+        consumeQueue = consumeQueue
+          .then(() => handleFrontendBundlesSync(event))
+          .catch((error: unknown) => {
+            if (!cancelled) {
+              console.warn(
+                "authority frontend bundle 同步失败",
+                toErrorMessage(error)
+              );
+            }
+          });
+      });
+
+    return () => {
+      cancelled = true;
+      disposeFrontendBundlesSubscription();
+    };
+  }, [remoteAuthorityRuntime]);
+
+  useEffect(() => {
     ensureEditorBundleRuntimeGlobals();
 
     let cancelled = false;
@@ -1085,6 +1247,12 @@ export function EditorProvider({
   useEffect(() => {
     if (!remoteAuthorityRuntime) {
       setRemoteAuthorityRuntimeCheckpoint(null);
+      setBundleCatalog((current) => ({
+        ...current,
+        demo: current.demo.filter((record) => !isRemoteBundleRecord(record)),
+        node: current.node.filter((record) => !isRemoteBundleRecord(record)),
+        widget: current.widget.filter((record) => !isRemoteBundleRecord(record))
+      }));
     }
   }, [remoteAuthorityRuntime]);
 

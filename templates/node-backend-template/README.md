@@ -68,15 +68,16 @@ bun run start
 - `LEAFERGRAPH_NODE_BACKEND_HOST`
 - `LEAFERGRAPH_NODE_BACKEND_PORT`
 - `LEAFERGRAPH_NODE_BACKEND_NAME`
+- `LEAFERGRAPH_NODE_BACKEND_PACKAGE_DIR`（节点包目录，默认指向 `templates/timer-node-package-template/packages`）
 
 ## 联调
 
 ```text
-http://localhost:5501/authority-node-host-demo.html?preloadTestBundles=1
+http://localhost:5501/authority-node-host-demo.html
 ```
 
 联调语义固定：
 
 - authority 文档以后端当前状态为准。
-- `preloadTestBundles=1` 只预载前端 bundle，不回写后端文档。
+- 后端会通过 `authority.event -> frontendBundles.sync` 推送前端 bundle 源码，editor 自动注册。
 - `graph.play / graph.step / graph.stop` 均由本模板 runtime 执行。

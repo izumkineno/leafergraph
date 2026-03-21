@@ -22,6 +22,11 @@ def test_server_should_expose_health_and_websocket_contract() -> None:
 
         with client.websocket_connect("/authority") as websocket:
             assert client.get("/health").json()["connectionCount"] == 1
+            initial_event = json.loads(websocket.receive_text())
+            assert initial_event["channel"] == "authority.event"
+            assert initial_event["event"]["type"] == "frontendBundles.sync"
+            assert initial_event["event"]["event"]["type"] == "frontendBundles.sync"
+            assert initial_event["event"]["event"]["mode"] == "full"
 
             websocket.send_text(
                 json.dumps(

@@ -65,6 +65,7 @@ export function createInitialBundleCatalogState(): EditorBundleCatalogState {
 export function createLoadingBundleRecordState(
   slot: EditorBundleSlot,
   fileName: string,
+  source: EditorBundleRecordState["source"] = "local",
   bundleKey = `${slot}:__loading__:${Date.now()}:${Math.random()
     .toString(36)
     .slice(2, 8)}`
@@ -72,6 +73,7 @@ export function createLoadingBundleRecordState(
   return {
     slot,
     bundleKey,
+    source,
     manifest: null,
     fileName,
     enabled: false,
@@ -92,10 +94,18 @@ export function createLoadedBundleRecordState(options: {
   persisted: boolean;
   restoredFromPersistence: boolean;
   savedAt?: number | null;
+  source?: EditorBundleRecordState["source"];
+  ownerPackageId?: string;
+  bundleKey?: string;
 }): EditorBundleRecordState {
+  const source = options.source ?? "local";
   return {
     slot: options.slot,
-    bundleKey: createEditorBundleRecordKey(options.slot, options.manifest.id),
+    bundleKey:
+      options.bundleKey ??
+      createEditorBundleRecordKey(options.slot, options.manifest.id),
+    source,
+    ownerPackageId: options.ownerPackageId,
     manifest: options.manifest,
     fileName: options.fileName,
     enabled: options.enabled,

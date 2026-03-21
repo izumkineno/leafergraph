@@ -6,6 +6,7 @@ import {
 } from "../../session/graph_document_session_binding";
 import {
   createTransportRemoteAuthorityClient,
+  type EditorRemoteAuthorityFrontendBundlesSyncEvent,
   type EditorRemoteAuthorityDocumentClient,
   type EditorRemoteAuthorityTransport
 } from "../../session/graph_document_authority_transport";
@@ -203,6 +204,10 @@ export interface ResolvedEditorRemoteAuthorityAppRuntime {
   subscribeConnectionStatus(
     listener: (status: EditorRemoteAuthorityConnectionStatus) => void
   ): () => void;
+  /** 订阅 authority 推送的前端 bundle 同步事件。 */
+  subscribeFrontendBundles?(
+    listener: (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
+  ): () => void;
   /** 释放本次 authority runtime。 */
   dispose(): void;
 }
@@ -262,6 +267,16 @@ function hasConnectionStatusSubscribe(
     typeof client.getConnectionStatus === "function" &&
     typeof client.subscribeConnectionStatus === "function"
   );
+}
+
+function hasFrontendBundlesSubscribe(
+  client: EditorRemoteAuthorityDocumentClient
+): client is EditorRemoteAuthorityDocumentClient & {
+  subscribeFrontendBundles(
+    listener: (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
+  ): () => void;
+} {
+  return typeof client.subscribeFrontendBundles === "function";
 }
 
 async function resolveAuthorityService(
@@ -527,6 +542,15 @@ export async function createEditorRemoteAuthorityAppRuntime(
         }
 
         return client.subscribeConnectionStatus(listener);
+      },
+      subscribeFrontendBundles(
+        listener: (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
+      ): () => void {
+        if (!hasFrontendBundlesSubscribe(client)) {
+          return () => {};
+        }
+
+        return client.subscribeFrontendBundles(listener);
       },
       dispose(): void {
         client.dispose?.();

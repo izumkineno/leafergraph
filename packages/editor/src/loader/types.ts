@@ -51,6 +51,8 @@ export type EditorBundleManifest =
 export interface EditorBundleRecordState {
   slot: EditorBundleSlot;
   bundleKey: string;
+  source: "local" | "remote";
+  ownerPackageId?: string;
   manifest: EditorBundleManifest | null;
   fileName: string | null;
   enabled: boolean;

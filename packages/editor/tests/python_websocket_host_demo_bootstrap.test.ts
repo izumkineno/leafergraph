@@ -9,7 +9,6 @@ import { createEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/
 import {
   DEFAULT_PYTHON_WEBSOCKET_AUTHORITY_URL,
   PYTHON_WEBSOCKET_HOST_DEMO_ADAPTER_ID,
-  PYTHON_WEBSOCKET_HOST_DEMO_TEST_BUNDLES,
   installPythonWebSocketHostDemoBootstrap,
   resolvePythonWebSocketHealthUrl
 } from "../src/demo/python_websocket_host_demo_bootstrap";
@@ -43,7 +42,6 @@ interface PythonHostDemoBootstrapHost {
     authorityUrl: string;
     authorityLabel: string;
     authorityName: string;
-    preloadTestBundles: boolean;
     debugViewportBridgeLog: boolean;
   };
 }
@@ -259,7 +257,6 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
         authorityUrl: server.authorityOrigin,
         authorityLabel: "Python Host Demo",
         authorityName: "python-host-demo",
-        preloadTestBundles: false,
         debugViewportBridgeLog: false
       }
     });
@@ -296,7 +293,6 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
       authorityUrl: server.authorityOrigin,
       authorityLabel: "Python Host Demo",
       authorityName: "python-host-demo",
-      preloadTestBundles: false,
       debugViewportBridgeLog: false
     });
 
@@ -345,12 +341,11 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
       authorityUrl: DEFAULT_PYTHON_WEBSOCKET_AUTHORITY_URL,
       authorityLabel: "Python FastAPI Authority",
       authorityName: "python-websocket-host-demo",
-      preloadTestBundles: false,
       debugViewportBridgeLog: false
     });
   });
 
-  test("query 启用 preloadTestBundles 时应注入 test bundle 预装列表", () => {
+  test("query 包含 preloadTestBundles 时应忽略预装参数，仍以后端推送为准", () => {
     const host: PythonHostDemoBootstrapHost = {
       location: {
         search: "?preloadTestBundles=1"
@@ -359,15 +354,10 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
 
     installPythonWebSocketHostDemoBootstrap(host);
 
-    expect(host.LeaferGraphEditorAppBootstrap?.preloadedBundles).toEqual(
-      PYTHON_WEBSOCKET_HOST_DEMO_TEST_BUNDLES
-    );
-    expect(host.LeaferGraphEditorPythonHostDemo?.preloadTestBundles).toBe(true);
+    expect(host.LeaferGraphEditorAppBootstrap?.preloadedBundles).toBeUndefined();
 
     const bootstrap = resolveEditorAppBootstrap(host);
-    expect(bootstrap.preloadedBundles).toEqual(
-      PYTHON_WEBSOCKET_HOST_DEMO_TEST_BUNDLES
-    );
+    expect(bootstrap.preloadedBundles).toBeUndefined();
   });
 
   test("应把 Python authority health 地址收敛到稳定的 loopback /health", () => {

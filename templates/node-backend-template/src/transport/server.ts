@@ -26,7 +26,7 @@ export interface StartNodeAuthorityServerOptions
   /** 可选 authority 协议适配器。 */
   protocolAdapter?: AuthorityProtocolAdapter;
   /** 可选最小日志器。 */
-  logger?: Pick<Console, "info">;
+  logger?: Pick<Console, "info" | "warn" | "error">;
 }
 
 /** Node authority server 的最小健康快照。 */
@@ -82,7 +82,9 @@ export async function startNodeAuthorityServer(
     options.runtime ??
     createNodeAuthorityRuntime({
       initialDocument: options.initialDocument,
-      authorityName: options.authorityName
+      authorityName: options.authorityName,
+      packageDir: options.packageDir,
+      logger: options.logger
     });
   const protocolAdapter =
     options.protocolAdapter ?? DEFAULT_AUTHORITY_PROTOCOL_ADAPTER;
@@ -144,6 +146,20 @@ export async function startNodeAuthorityServer(
         });
       sendEnvelope(socket, envelope);
     });
+    const disposeFrontendBundlesSubscription = runtime.subscribeFrontendBundles(
+      (event) => {
+        const envelope = protocolAdapter.createEventEnvelope({
+          type: "frontendBundles.sync",
+          event
+        });
+        sendEnvelope(socket, envelope);
+      }
+    );
+    const initialFrontendBundlesEnvelope = protocolAdapter.createEventEnvelope({
+      type: "frontendBundles.sync",
+      event: runtime.getFrontendBundlesSnapshot()
+    });
+    sendEnvelope(socket, initialFrontendBundlesEnvelope);
 
     socket.on("message", (rawData: RawData) => {
       const payload = rawData.toString();
@@ -248,6 +264,7 @@ export async function startNodeAuthorityServer(
     socket.on("close", () => {
       disposeDocumentSubscription();
       disposeRuntimeSubscription();
+      disposeFrontendBundlesSubscription();
       sockets.delete(socket);
       logger.info(
         "[node-authority]",
@@ -258,6 +275,7 @@ export async function startNodeAuthorityServer(
     socket.on("error", () => {
       disposeDocumentSubscription();
       disposeRuntimeSubscription();
+      disposeFrontendBundlesSubscription();
       sockets.delete(socket);
       logger.info(
         "[node-authority]",

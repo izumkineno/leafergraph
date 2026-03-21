@@ -402,6 +402,40 @@ export interface AuthorityRuntimeFeedbackTransportEvent {
   event: AuthorityRuntimeFeedbackEvent;
 }
 
+/** 后端推送前端 bundle 源码时，单个 bundle 的最小描述。 */
+export interface AuthorityFrontendBundleSource {
+  bundleId: string;
+  slot: "demo" | "node" | "widget";
+  fileName: string;
+  sourceCode: string;
+  enabled: boolean;
+  requires?: string[];
+  sha256: string;
+}
+
+/** 后端推送前端 bundle 源码时，单个节点包的最小描述。 */
+export interface AuthorityFrontendBundlePackage {
+  packageId: string;
+  version: string;
+  nodeTypes: string[];
+  bundles: AuthorityFrontendBundleSource[];
+}
+
+/** 后端推送前端 bundle 的同步事件。 */
+export interface AuthorityFrontendBundlesSyncEvent {
+  type: "frontendBundles.sync";
+  mode: "full" | "upsert" | "remove";
+  packages?: AuthorityFrontendBundlePackage[];
+  removedPackageIds?: string[];
+  emittedAt: number;
+}
+
+/** authority transport 前端 bundle 同步事件。 */
+export interface AuthorityFrontendBundlesSyncTransportEvent {
+  type: "frontendBundles.sync";
+  event: AuthorityFrontendBundlesSyncEvent;
+}
+
 /** authority transport 主动回推整图快照事件。 */
 export interface AuthorityDocumentTransportEvent {
   type: "document";
@@ -411,7 +445,8 @@ export interface AuthorityDocumentTransportEvent {
 /** authority transport 当前支持的最小事件集合。 */
 export type AuthorityTransportEvent =
   | AuthorityRuntimeFeedbackTransportEvent
-  | AuthorityDocumentTransportEvent;
+  | AuthorityDocumentTransportEvent
+  | AuthorityFrontendBundlesSyncTransportEvent;
 
 /** authority 请求 envelope。 */
 export interface AuthorityRequestEnvelope {

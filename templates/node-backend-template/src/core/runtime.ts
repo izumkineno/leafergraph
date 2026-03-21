@@ -1,4 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
+import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
+import { dirname, isAbsolute, resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync, watch } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import type {
   AdapterBinding,
@@ -21,6 +26,9 @@ import type {
   AuthorityOperationResult,
   AuthorityRuntimeControlRequest,
   AuthorityRuntimeControlResult,
+  AuthorityFrontendBundlePackage,
+  AuthorityFrontendBundleSource,
+  AuthorityFrontendBundlesSyncEvent,
   AuthorityRuntimeFeedbackEvent,
   AuthorityUpdateDocumentInput
 } from "./protocol.js";
@@ -28,6 +36,43 @@ import type {
 export interface CreateNodeAuthorityRuntimeOptions {
   initialDocument?: GraphDocument;
   authorityName?: string;
+  packageDir?: string;
+  logger?: Pick<Console, "info" | "warn" | "error">;
+}
+
+interface AuthorityNodePackageManifestFrontendBundle {
+  bundleId: string;
+  slot: "demo" | "node" | "widget";
+  fileName: string;
+  entry: string;
+  enabled?: boolean;
+  requires?: string[];
+  sha256?: string;
+}
+
+interface AuthorityNodePackageManifest {
+  packageId: string;
+  version: string;
+  frontendBundles: AuthorityNodePackageManifestFrontendBundle[];
+  backend: {
+    node?: {
+      entry: string;
+      exportName?: string;
+    };
+  };
+  nodeTypes?: string[];
+}
+
+export type AuthorityNodeExecutor = (
+  node: NodeSerializeResult,
+  context: AuthorityExecutionMutationContext
+) => AuthorityExecutionMutationResult;
+
+interface LoadedAuthorityNodePackage {
+  packageId: string;
+  version: string;
+  executorsByNodeType: Record<string, AuthorityNodeExecutor>;
+  frontendPackage: AuthorityFrontendBundlePackage;
 }
 
 export interface NodeAuthorityRuntime {
@@ -39,10 +84,20 @@ export interface NodeAuthorityRuntime {
   replaceDocument(document: GraphDocument): GraphDocument;
   subscribeDocument(listener: (document: GraphDocument) => void): () => void;
   subscribe(listener: (event: AuthorityRuntimeFeedbackEvent) => void): () => void;
+  getFrontendBundlesSnapshot(): AuthorityFrontendBundlesSyncEvent;
+  subscribeFrontendBundles(
+    listener: (event: AuthorityFrontendBundlesSyncEvent) => void
+  ): () => void;
+  registerPackageExecutors(
+    packageId: string,
+    executorsByNodeType: Record<string, AuthorityNodeExecutor>
+  ): void;
+  unregisterPackageExecutors(packageId: string): void;
 }
 
 interface AuthorityGraphPlayRun {
   runId: string;
+  source: "graph-play" | "graph-step";
   startedAt: number;
   queue: string[];
   stepCount: number;
@@ -71,6 +126,19 @@ interface ExecuteNodeChainOptions {
   source: "node-play" | "graph-play" | "graph-step";
   runId?: string;
   startedAt: number;
+  timerRuntime?: AuthorityTimerRuntimeContext;
+}
+
+interface AuthorityTimerRuntimeContext {
+  registerTimer?: (input: {
+    nodeId: string;
+    source: "graph-play" | "graph-step";
+    runId: string;
+    startedAt: number;
+    intervalMs: number;
+    immediate: boolean;
+  }) => void;
+  timerTickNodeId?: string;
 }
 
 interface AuthorityExecutionMutationContext {
@@ -81,25 +149,274 @@ interface AuthorityExecutionMutationContext {
   startedAt: number;
   sequence: number;
   inputValues: readonly unknown[];
+  timerRuntime?: AuthorityTimerRuntimeContext;
 }
 
 interface AuthorityExecutionMutationResult {
   documentChanged: boolean;
+  timerActivated?: boolean;
   outputPayloads: Array<{
     slot: number;
     payload: unknown;
   }>;
 }
 
+interface AuthorityActiveGraphTimer {
+  timerKey: string;
+  runId: string;
+  nodeId: string;
+  source: "graph-play" | "graph-step";
+  startedAt: number;
+  intervalMs: number;
+  handle: ReturnType<typeof setTimeout>;
+}
+
 let graphRunSeed = 1;
 
 const SYSTEM_ON_PLAY_NODE_TYPE = "system/on-play";
-const TEMPLATE_EXECUTE_COUNTER_NODE_TYPE = "template/execute-counter";
-const TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE = "template/execute-display";
-const DEMO_PENDING_NODE_TYPE = "demo.pending";
+const SYSTEM_TIMER_DEFAULT_INTERVAL_MS = 1000;
+const DEFAULT_PACKAGE_SCAN_INTERVAL_MS = 1200;
+const NODE_EXECUTOR_FACTORY_EXPORT_NAME = "createExecutors";
+const runtimeDir = dirname(fileURLToPath(import.meta.url));
+const nodeModuleRequire = createRequire(import.meta.url);
 
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+function resolveTimerIntervalMs(value: unknown): number {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue <= 0) {
+    return SYSTEM_TIMER_DEFAULT_INTERVAL_MS;
+  }
+
+  return Math.max(1, Math.floor(nextValue));
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function resolveNodeBackendTemplateDirectory(runtimeDirectory: string): string {
+  const candidates = [
+    runtimeDirectory,
+    resolve(runtimeDirectory, ".."),
+    resolve(runtimeDirectory, "../.."),
+    resolve(runtimeDirectory, "../../..")
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(resolve(candidate, "package.json"))) {
+      return candidate;
+    }
+  }
+
+  return resolve(runtimeDirectory, "../..");
+}
+
+export function resolveDefaultNodeBackendPackageDir(
+  runtimeDirectory = runtimeDir
+): string {
+  return resolve(
+    resolveNodeBackendTemplateDirectory(runtimeDirectory),
+    "../timer-node-package-template/packages"
+  );
+}
+
+function resolveNodeBackendPackageDir(
+  inputDir: string | undefined
+): string {
+  const envDir = process.env.LEAFERGRAPH_NODE_BACKEND_PACKAGE_DIR?.trim();
+  const selected =
+    inputDir?.trim() || envDir || resolveDefaultNodeBackendPackageDir();
+
+  return isAbsolute(selected) ? selected : resolve(process.cwd(), selected);
+}
+
+function resolveNonEmptyText(value: unknown, fieldName: string): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) {
+    throw new Error(`节点包 manifest 缺少 ${fieldName}`);
+  }
+
+  return text;
+}
+
+function resolveManifestFilePath(
+  packageDirectory: string
+): string {
+  return resolve(packageDirectory, "package.manifest.json");
+}
+
+function parseNodePackageManifest(
+  manifestText: string
+): AuthorityNodePackageManifest {
+  const value = JSON.parse(manifestText) as unknown;
+  if (typeof value !== "object" || value === null) {
+    throw new Error("节点包 manifest 不是对象");
+  }
+
+  const record = value as Record<string, unknown>;
+  const packageId = resolveNonEmptyText(record.packageId, "packageId");
+  const version = resolveNonEmptyText(record.version, "version");
+  const frontendBundles = Array.isArray(record.frontendBundles)
+    ? record.frontendBundles
+    : [];
+  const backend =
+    typeof record.backend === "object" && record.backend !== null
+      ? (record.backend as AuthorityNodePackageManifest["backend"])
+      : {};
+  const nodeTypes = Array.isArray(record.nodeTypes)
+    ? record.nodeTypes
+        .map((item) => resolveNonEmptyText(item, "nodeTypes[]"))
+        .filter((item, index, items) => items.indexOf(item) === index)
+    : [];
+
+  return {
+    packageId,
+    version,
+    frontendBundles: frontendBundles as AuthorityNodePackageManifestFrontendBundle[],
+    backend,
+    nodeTypes
+  };
+}
+
+function resolvePackageFrontendBundles(input: {
+  packageDirectory: string;
+  packageId: string;
+  version: string;
+  manifestBundles: AuthorityNodePackageManifestFrontendBundle[];
+}): AuthorityFrontendBundleSource[] {
+  const bundles: AuthorityFrontendBundleSource[] = [];
+
+  for (const manifestBundle of input.manifestBundles) {
+    const bundleId = resolveNonEmptyText(manifestBundle.bundleId, "frontendBundles[].bundleId");
+    const slot = resolveNonEmptyText(
+      manifestBundle.slot,
+      "frontendBundles[].slot"
+    ) as AuthorityFrontendBundleSource["slot"];
+    if (slot !== "demo" && slot !== "node" && slot !== "widget") {
+      throw new Error(
+        `节点包 ${input.packageId} 的 bundle ${bundleId} 使用了非法 slot: ${slot}`
+      );
+    }
+
+    const entry = resolveNonEmptyText(manifestBundle.entry, "frontendBundles[].entry");
+    const filePath = resolve(input.packageDirectory, entry);
+    if (!existsSync(filePath)) {
+      throw new Error(`节点包 ${input.packageId} 缺少前端 bundle 文件：${entry}`);
+    }
+
+    const sourceCode = readFileSync(filePath, "utf8");
+    const hash = createHash("sha256").update(sourceCode).digest("hex");
+    const expectedHash =
+      typeof manifestBundle.sha256 === "string"
+        ? manifestBundle.sha256.trim().toLowerCase()
+        : "";
+    if (expectedHash && expectedHash !== hash) {
+      throw new Error(
+        `节点包 ${input.packageId} 的前端 bundle 校验失败：${entry}`
+      );
+    }
+
+    bundles.push({
+      bundleId,
+      slot,
+      fileName:
+        (typeof manifestBundle.fileName === "string" &&
+        manifestBundle.fileName.trim().length > 0
+          ? manifestBundle.fileName.trim()
+          : entry.split(/[\\/]/u).at(-1)) ?? `${slot}.bundle.js`,
+      sourceCode,
+      enabled: manifestBundle.enabled !== false,
+      requires:
+        Array.isArray(manifestBundle.requires) &&
+        manifestBundle.requires.length > 0
+          ? manifestBundle.requires.map((item) =>
+              resolveNonEmptyText(item, "frontendBundles[].requires[]")
+            )
+          : undefined,
+      sha256: hash
+    });
+  }
+
+  return bundles;
+}
+
+function loadNodeExecutorsFromPackage(input: {
+  packageDirectory: string;
+  packageId: string;
+  manifest: AuthorityNodePackageManifest;
+}): Record<string, AuthorityNodeExecutor> {
+  const backendNode = input.manifest.backend.node;
+  if (!backendNode) {
+    return {};
+  }
+
+  const entry = resolveNonEmptyText(backendNode.entry, "backend.node.entry");
+  const exportName =
+    typeof backendNode.exportName === "string" && backendNode.exportName.trim().length > 0
+      ? backendNode.exportName.trim()
+      : NODE_EXECUTOR_FACTORY_EXPORT_NAME;
+  const entryPath = resolve(input.packageDirectory, entry);
+  if (!existsSync(entryPath)) {
+    throw new Error(`节点包 ${input.packageId} 缺少后端执行器文件：${entry}`);
+  }
+
+  const resolvedPath = nodeModuleRequire.resolve(entryPath);
+  delete nodeModuleRequire.cache[resolvedPath];
+  const moduleValue = nodeModuleRequire(resolvedPath) as Record<string, unknown>;
+  const factory = moduleValue[exportName];
+
+  if (typeof factory !== "function") {
+    throw new Error(
+      `节点包 ${input.packageId} 的后端执行器导出 ${exportName} 不存在`
+    );
+  }
+
+  const executors = (factory as () => Record<string, AuthorityNodeExecutor>)();
+  if (!executors || typeof executors !== "object") {
+    throw new Error(`节点包 ${input.packageId} 的后端执行器导出无效`);
+  }
+
+  return executors;
+}
+
+function loadNodePackageFromDirectory(
+  packageDirectory: string
+): LoadedAuthorityNodePackage {
+  const manifestFilePath = resolveManifestFilePath(packageDirectory);
+  const manifest = parseNodePackageManifest(readFileSync(manifestFilePath, "utf8"));
+  const executorsByNodeType = loadNodeExecutorsFromPackage({
+    packageDirectory,
+    packageId: manifest.packageId,
+    manifest
+  });
+  const frontendBundles = resolvePackageFrontendBundles({
+    packageDirectory,
+    packageId: manifest.packageId,
+    version: manifest.version,
+    manifestBundles: manifest.frontendBundles
+  });
+
+  return {
+    packageId: manifest.packageId,
+    version: manifest.version,
+    executorsByNodeType,
+    frontendPackage: {
+      packageId: manifest.packageId,
+      version: manifest.version,
+      nodeTypes:
+        manifest.nodeTypes?.length
+          ? [...manifest.nodeTypes]
+          : Object.keys(executorsByNodeType),
+      bundles: frontendBundles
+    }
+  };
 }
 
 function createDefaultAuthorityDocument(): GraphDocument {
@@ -334,112 +651,46 @@ function resolveNodeTitleBase(
 
 function applyAuthorityExecutionMutation(
   node: NodeSerializeResult,
-  context: AuthorityExecutionMutationContext
+  context: AuthorityExecutionMutationContext,
+  executorsByNodeType: ReadonlyMap<string, AuthorityNodeExecutor>
 ): AuthorityExecutionMutationResult {
-  switch (node.type) {
-    case SYSTEM_ON_PLAY_NODE_TYPE:
-      return {
-        documentChanged: false,
-        outputPayloads: [
-          {
-            slot: 0,
-            payload: createAuthorityExecutionContextPayload(context)
-          }
-        ]
-      };
-    case TEMPLATE_EXECUTE_COUNTER_NODE_TYPE: {
-      const properties = ensureNodeProperties(node);
-      const previousCount = Number(properties.count ?? 0);
-      const nextCount = Number.isFinite(previousCount) ? previousCount + 1 : 1;
-      properties.count = nextCount;
-      properties.subtitle = "可从节点菜单起跑，也可接到 On Play 作为图级入口";
-      properties.status = `RUN ${nextCount}`;
-      node.title = `Counter ${nextCount}`;
-      return {
-        documentChanged: true,
-        outputPayloads: [
-          {
-            slot: 0,
-            payload: nextCount
-          }
-        ]
-      };
-    }
-    case TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE: {
-      const properties = ensureNodeProperties(node);
-      const inputValue = resolveFirstDefinedInputValue(context.inputValues);
-      const displayValue = formatAuthorityRuntimeValue(inputValue);
-      properties.lastValue =
-        inputValue === undefined ? undefined : clone(inputValue);
-      properties.subtitle = "显示上游通过正式连线传播过来的值";
-      properties.status = `VALUE ${displayValue}`;
-      node.title = `Display ${displayValue}`;
-      return {
-        documentChanged: true,
-        outputPayloads: []
-      };
-    }
-    case DEMO_PENDING_NODE_TYPE: {
-      const properties = ensureNodeProperties(node);
-      const nextRunCount =
-        Number.isFinite(Number(properties.runCount))
-          ? Number(properties.runCount) + 1
-          : 1;
-      const inputValue = resolveFirstDefinedInputValue(context.inputValues);
-      const displayValue = formatAuthorityRuntimeValue(inputValue);
-      properties.runCount = nextRunCount;
-      properties.status =
-        inputValue === undefined ? `RUN ${nextRunCount}` : `VALUE ${displayValue}`;
-      if (inputValue !== undefined) {
-        properties.lastValue = clone(inputValue);
-      }
-      node.title =
-        inputValue === undefined
-          ? `${resolveNodeTitleBase(node.title, node.id)} ${nextRunCount}`
-          : `${resolveNodeTitleBase(node.title, node.id)} ${displayValue}`;
-      return {
-        documentChanged: true,
-        outputPayloads:
-          (node.outputs?.length ?? 0) > 0
-            ? [
-                {
-                  slot: 0,
-                  payload:
-                    inputValue === undefined
-                      ? {
-                          authority: context.authorityName,
-                          source: context.source,
-                          runCount: nextRunCount
-                        }
-                      : clone(inputValue)
-                }
-              ]
-            : []
-      };
-    }
-    default: {
-      const inputValue = resolveFirstDefinedInputValue(context.inputValues);
-      if ((node.outputs?.length ?? 0) <= 0) {
-        return {
-          documentChanged: false,
-          outputPayloads: []
-        };
-      }
-
-      return {
-        documentChanged: false,
-        outputPayloads: [
-          {
-            slot: 0,
-            payload:
-              inputValue === undefined
-                ? createAuthorityExecutionContextPayload(context)
-                : clone(inputValue)
-          }
-        ]
-      };
-    }
+  if (node.type === SYSTEM_ON_PLAY_NODE_TYPE) {
+    return {
+      documentChanged: false,
+      outputPayloads: [
+        {
+          slot: 0,
+          payload: createAuthorityExecutionContextPayload(context)
+        }
+      ]
+    };
   }
+
+  const executor = executorsByNodeType.get(node.type);
+  if (executor) {
+    return executor(node, context);
+  }
+
+  const inputValue = resolveFirstDefinedInputValue(context.inputValues);
+  if ((node.outputs?.length ?? 0) <= 0) {
+    return {
+      documentChanged: false,
+      outputPayloads: []
+    };
+  }
+
+  return {
+    documentChanged: false,
+    outputPayloads: [
+      {
+        slot: 0,
+        payload:
+          inputValue === undefined
+            ? createAuthorityExecutionContextPayload(context)
+            : clone(inputValue)
+      }
+    ]
+  };
 }
 
 function createGraphRunId(source: "graph-play" | "graph-step"): string {
@@ -491,13 +742,64 @@ export function createNodeAuthorityRuntime(
   let graphExecutionState = createIdleGraphExecutionState();
   let activeGraphPlayRun: AuthorityGraphPlayRun | null = null;
   let activeGraphStepRun: AuthorityGraphStepRun | null = null;
+  const activeGraphTimersByKey = new Map<string, AuthorityActiveGraphTimer>();
+  let timerActivatedInCurrentGraphStepTick = false;
   let stepCursor = 0;
+  const logger = options.logger ?? console;
+  const packageDirectory = resolveNodeBackendPackageDir(options.packageDir);
+  const packageExecutorsById = new Map<
+    string,
+    Record<string, AuthorityNodeExecutor>
+  >();
+  const frontendPackagesById = new Map<string, AuthorityFrontendBundlePackage>();
+  const mergedExecutorsByNodeType = new Map<string, AuthorityNodeExecutor>();
+  const frontendBundleListeners = new Set<
+    (event: AuthorityFrontendBundlesSyncEvent) => void
+  >();
+  let packageWatchDisposer: (() => void) | null = null;
+  let packageReloadTimer: ReturnType<typeof setTimeout> | null = null;
 
   const emitRuntimeFeedback = (event: AuthorityRuntimeFeedbackEvent): void => {
     const snapshot = clone(event);
     for (const listener of runtimeFeedbackListeners) {
       listener(snapshot);
     }
+  };
+
+  const emitFrontendBundlesSync = (event: AuthorityFrontendBundlesSyncEvent): void => {
+    const snapshot = clone(event);
+    for (const listener of frontendBundleListeners) {
+      listener(snapshot);
+    }
+  };
+
+  const rebuildMergedExecutors = (): void => {
+    mergedExecutorsByNodeType.clear();
+    for (const executorsByNodeType of packageExecutorsById.values()) {
+      for (const [nodeType, executor] of Object.entries(executorsByNodeType)) {
+        mergedExecutorsByNodeType.set(nodeType, executor);
+      }
+    }
+  };
+
+  const getFrontendBundlesSnapshot = (): AuthorityFrontendBundlesSyncEvent => ({
+    type: "frontendBundles.sync",
+    mode: "full",
+    packages: Array.from(frontendPackagesById.values()).map((entry) => clone(entry)),
+    emittedAt: Date.now()
+  });
+
+  const registerPackageExecutors = (
+    packageId: string,
+    executorsByNodeType: Record<string, AuthorityNodeExecutor>
+  ): void => {
+    packageExecutorsById.set(packageId, executorsByNodeType);
+    rebuildMergedExecutors();
+  };
+
+  const unregisterPackageExecutors = (packageId: string): void => {
+    packageExecutorsById.delete(packageId);
+    rebuildMergedExecutors();
   };
 
   const emitDocument = (): void => {
@@ -548,11 +850,53 @@ export function createNodeAuthorityRuntime(
     emitDocument();
   };
 
+  const createGraphTimerKey = (runId: string, nodeId: string): string =>
+    `${runId}::${nodeId}`;
+
+  const hasActiveGraphTimersForRun = (runId: string): boolean => {
+    for (const timer of activeGraphTimersByKey.values()) {
+      if (timer.runId === runId) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const stopGraphTimerByKey = (timerKey: string): void => {
+    const timer = activeGraphTimersByKey.get(timerKey);
+    if (!timer) {
+      return;
+    }
+
+    clearTimeout(timer.handle);
+    activeGraphTimersByKey.delete(timerKey);
+  };
+
+  const stopGraphTimersForRun = (runId: string): void => {
+    for (const [timerKey, timer] of activeGraphTimersByKey.entries()) {
+      if (timer.runId !== runId) {
+        continue;
+      }
+
+      clearTimeout(timer.handle);
+      activeGraphTimersByKey.delete(timerKey);
+    }
+  };
+
+  const stopAllGraphTimersWithoutEvent = (): void => {
+    for (const timer of activeGraphTimersByKey.values()) {
+      clearTimeout(timer.handle);
+    }
+    activeGraphTimersByKey.clear();
+  };
+
   const stopActiveGraphPlayWithoutEvent = (): void => {
     if (!activeGraphPlayRun) {
       return;
     }
 
+    stopGraphTimersForRun(activeGraphPlayRun.runId);
     if (activeGraphPlayRun.timer !== null) {
       clearTimeout(activeGraphPlayRun.timer);
     }
@@ -560,17 +904,210 @@ export function createNodeAuthorityRuntime(
   };
 
   const stopActiveGraphStepWithoutEvent = (): void => {
+    if (activeGraphStepRun) {
+      stopGraphTimersForRun(activeGraphStepRun.runId);
+    }
     activeGraphStepRun = null;
   };
 
   const resetDocumentCaches = (): void => {
     generatedNodeSequence = 0;
     generatedLinkSequence = 0;
+    stopAllGraphTimersWithoutEvent();
     stopActiveGraphPlayWithoutEvent();
     stopActiveGraphStepWithoutEvent();
     nodeExecutionStateMap.clear();
     graphExecutionState = createIdleGraphExecutionState();
     stepCursor = 0;
+  };
+
+  const stopActiveRunsForPackageReload = (): void => {
+    if (activeGraphPlayRun) {
+      finalizeGraphPlayRun(activeGraphPlayRun, "stopped");
+      return;
+    }
+
+    if (activeGraphStepRun) {
+      finalizeGraphStepRun(activeGraphStepRun, "stopped");
+    }
+  };
+
+  const applyLoadedPackages = (
+    loadedPackages: LoadedAuthorityNodePackage[]
+  ): void => {
+    const previousPackageIds = new Set(frontendPackagesById.keys());
+    const nextPackageIds = new Set<string>();
+    const upsertPackages: AuthorityFrontendBundlePackage[] = [];
+    const removedPackageIds: string[] = [];
+
+    stopActiveRunsForPackageReload();
+
+    for (const loadedPackage of loadedPackages) {
+      nextPackageIds.add(loadedPackage.packageId);
+      registerPackageExecutors(
+        loadedPackage.packageId,
+        loadedPackage.executorsByNodeType
+      );
+      frontendPackagesById.set(loadedPackage.packageId, loadedPackage.frontendPackage);
+      upsertPackages.push(clone(loadedPackage.frontendPackage));
+      previousPackageIds.delete(loadedPackage.packageId);
+    }
+
+    for (const removedPackageId of previousPackageIds) {
+      unregisterPackageExecutors(removedPackageId);
+      frontendPackagesById.delete(removedPackageId);
+      removedPackageIds.push(removedPackageId);
+    }
+
+    if (upsertPackages.length > 0) {
+      emitFrontendBundlesSync({
+        type: "frontendBundles.sync",
+        mode: "upsert",
+        packages: upsertPackages,
+        emittedAt: Date.now()
+      });
+    }
+
+    if (removedPackageIds.length > 0) {
+      emitFrontendBundlesSync({
+        type: "frontendBundles.sync",
+        mode: "remove",
+        removedPackageIds,
+        emittedAt: Date.now()
+      });
+    }
+
+    if (upsertPackages.length === 0 && removedPackageIds.length === 0) {
+      emitFrontendBundlesSync(getFrontendBundlesSnapshot());
+    }
+  };
+
+  const reloadPackagesFromDirectory = (): void => {
+    if (!existsSync(packageDirectory)) {
+      if (frontendPackagesById.size > 0 || packageExecutorsById.size > 0) {
+        applyLoadedPackages([]);
+      }
+      logger.warn(
+        "[node-backend-template]",
+        `节点包目录不存在，跳过加载：${packageDirectory}`
+      );
+      return;
+    }
+
+    const directoryEntries = readdirSync(packageDirectory, {
+      withFileTypes: true
+    });
+    const existingPackagesById = new Map<string, LoadedAuthorityNodePackage>();
+
+    for (const [packageId, frontendPackage] of frontendPackagesById.entries()) {
+      existingPackagesById.set(packageId, {
+        packageId,
+        version: frontendPackage.version,
+        frontendPackage: clone(frontendPackage),
+        executorsByNodeType: {
+          ...(packageExecutorsById.get(packageId) ?? {})
+        }
+      });
+    }
+    const loadedPackagesById = new Map<string, LoadedAuthorityNodePackage>();
+
+    for (const entry of directoryEntries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const candidateDirectory = resolve(packageDirectory, entry.name);
+      const manifestFilePath = resolveManifestFilePath(candidateDirectory);
+      if (!existsSync(manifestFilePath)) {
+        continue;
+      }
+
+      let parsedManifestPackageId: string | null = null;
+      try {
+        const manifest = parseNodePackageManifest(
+          readFileSync(manifestFilePath, "utf8")
+        );
+        parsedManifestPackageId = manifest.packageId;
+      } catch {
+        // ignore manifest parse failure here; loadNodePackageFromDirectory will report.
+      }
+
+      try {
+        const loadedPackage = loadNodePackageFromDirectory(candidateDirectory);
+        loadedPackagesById.set(loadedPackage.packageId, loadedPackage);
+      } catch (error) {
+        logger.error(
+          "[node-backend-template]",
+          `节点包加载失败（${candidateDirectory}）：${toErrorMessage(error)}`
+        );
+
+        if (
+          parsedManifestPackageId &&
+          existingPackagesById.has(parsedManifestPackageId)
+        ) {
+          loadedPackagesById.set(
+            parsedManifestPackageId,
+            existingPackagesById.get(parsedManifestPackageId)!
+          );
+          logger.warn(
+            "[node-backend-template]",
+            `节点包 ${parsedManifestPackageId} 保留旧版本，等待下次热更新重试`
+          );
+        }
+      }
+    }
+
+    const loadedPackages = Array.from(loadedPackagesById.values()).sort((left, right) =>
+      left.packageId.localeCompare(right.packageId)
+    );
+    applyLoadedPackages(loadedPackages);
+  };
+
+  const schedulePackageReload = (): void => {
+    if (packageReloadTimer !== null) {
+      clearTimeout(packageReloadTimer);
+    }
+
+    packageReloadTimer = setTimeout(() => {
+      packageReloadTimer = null;
+      reloadPackagesFromDirectory();
+    }, DEFAULT_PACKAGE_SCAN_INTERVAL_MS);
+  };
+
+  const startPackageDirectoryWatcher = (): void => {
+    if (packageWatchDisposer) {
+      return;
+    }
+
+    if (!existsSync(packageDirectory)) {
+      return;
+    }
+
+    let packageWatcher:
+      | ReturnType<typeof watch>
+      | null = null;
+    try {
+      packageWatcher = watch(
+        packageDirectory,
+        { recursive: true },
+        () => {
+          schedulePackageReload();
+        }
+      );
+    } catch {
+      packageWatcher = watch(
+        packageDirectory,
+        () => {
+          schedulePackageReload();
+        }
+      );
+    }
+
+    packageWatchDisposer = () => {
+      packageWatcher?.close();
+      packageWatcher = null;
+      packageWatchDisposer = null;
+    };
   };
 
   const emitNodeState = (
@@ -699,6 +1236,114 @@ export function createNodeAuthorityRuntime(
     emitNodeState(node.id, "execution", true);
   };
 
+  const updateRunningGraphExecutionState = (
+    run: AuthorityGraphPlayRun
+  ): void => {
+    graphExecutionState = {
+      status: "running",
+      runId: run.runId,
+      queueSize: run.queue.length,
+      stepCount: run.stepCount,
+      startedAt: run.startedAt,
+      stoppedAt: undefined,
+      lastSource: run.source
+    };
+  };
+
+  const registerGraphTimer = (input: {
+    nodeId: string;
+    source: "graph-play" | "graph-step";
+    runId: string;
+    startedAt: number;
+    intervalMs: number;
+    immediate: boolean;
+  }): void => {
+    const activeRun =
+      activeGraphPlayRun?.runId === input.runId
+        ? activeGraphPlayRun
+        : activeGraphStepRun?.runId === input.runId
+          ? {
+              runId: activeGraphStepRun.runId,
+              source: "graph-step" as const,
+              startedAt: activeGraphStepRun.startedAt,
+              queue: [],
+              stepCount: activeGraphStepRun.stepCount,
+              timer: null
+            }
+          : null;
+    if (!activeRun) {
+      return;
+    }
+
+    const timerKey = createGraphTimerKey(input.runId, input.nodeId);
+    stopGraphTimerByKey(timerKey);
+    const intervalMs = resolveTimerIntervalMs(input.intervalMs);
+    const handle = setTimeout(() => {
+      handleActiveGraphTimerTick(timerKey);
+    }, intervalMs);
+
+    activeGraphTimersByKey.set(timerKey, {
+      timerKey,
+      runId: input.runId,
+      nodeId: input.nodeId,
+      source: input.source,
+      startedAt: input.startedAt,
+      intervalMs,
+      handle
+    });
+    timerActivatedInCurrentGraphStepTick = true;
+  };
+
+  const handleActiveGraphTimerTick = (timerKey: string): void => {
+    const timer = activeGraphTimersByKey.get(timerKey);
+    if (!timer) {
+      return;
+    }
+
+    const run = activeGraphPlayRun;
+    if (!run || run.runId !== timer.runId || run.source !== timer.source) {
+      stopGraphTimerByKey(timer.timerKey);
+      return;
+    }
+
+    timer.handle = setTimeout(() => {
+      handleActiveGraphTimerTick(timer.timerKey);
+    }, timer.intervalMs);
+    activeGraphTimersByKey.set(timer.timerKey, timer);
+
+    const changed = executeNodeChain({
+      rootNodeId: timer.nodeId,
+      source: timer.source,
+      runId: timer.runId,
+      startedAt: timer.startedAt,
+      timerRuntime: {
+        registerTimer: registerGraphTimer,
+        timerTickNodeId: timer.nodeId
+      }
+    });
+
+    if (!changed) {
+      stopGraphTimerByKey(timer.timerKey);
+    } else if (activeGraphPlayRun?.runId === timer.runId) {
+      activeGraphPlayRun.stepCount += 1;
+      updateRunningGraphExecutionState(activeGraphPlayRun);
+      emitGraphExecution("advanced", {
+        runId: timer.runId,
+        source: timer.source,
+        nodeId: timer.nodeId,
+        timestamp: Date.now()
+      });
+    }
+
+    if (
+      activeGraphPlayRun?.runId === timer.runId &&
+      activeGraphPlayRun.queue.length <= 0 &&
+      !hasActiveGraphTimersForRun(timer.runId)
+    ) {
+      finalizeGraphPlayRun(activeGraphPlayRun, "drained");
+    }
+  };
+
   const executeNodeChain = (input: ExecuteNodeChainOptions): boolean => {
     const nextDocument = clone(currentDocument);
     const rootNode =
@@ -738,8 +1383,9 @@ export function createNodeAuthorityRuntime(
         runId: input.runId,
         startedAt: input.startedAt,
         sequence: currentSequence,
-        inputValues: inputValuesByNodeId.get(nodeId) ?? []
-      });
+        inputValues: inputValuesByNodeId.get(nodeId) ?? [],
+        timerRuntime: input.timerRuntime
+      }, mergedExecutorsByNodeType);
       documentChanged = documentChanged || mutationResult.documentChanged;
       pendingRuntimeFeedbackEmits.push(() => {
         emitNodeExecution(rootNode, node, {
@@ -847,7 +1493,7 @@ export function createNodeAuthorityRuntime(
 
   const executeGraphStepRunTick = (
     run: AuthorityGraphStepRun
-  ): { changed: boolean; executedNodeId?: string } => {
+  ): { changed: boolean; executedNodeId?: string; timerActivated?: boolean } => {
     while (run.queue.length > 0) {
       const task = run.queue.shift();
       if (!task || run.visitedNodeIds.has(task.nodeId)) {
@@ -877,8 +1523,11 @@ export function createNodeAuthorityRuntime(
         runId: run.runId,
         startedAt: run.startedAt,
         sequence: currentSequence,
-        inputValues: task.inputValues
-      });
+        inputValues: task.inputValues,
+        timerRuntime: {
+          registerTimer: registerGraphTimer
+        }
+      }, mergedExecutorsByNodeType);
       const pendingRuntimeFeedbackEmits: Array<() => void> = [
         () => {
           emitNodeExecution(rootNode, node, {
@@ -946,7 +1595,8 @@ export function createNodeAuthorityRuntime(
       run.stepCount += 1;
       return {
         changed: true,
-        executedNodeId: node.id
+        executedNodeId: node.id,
+        timerActivated: Boolean(mutationResult.timerActivated)
       };
     }
 
@@ -961,6 +1611,7 @@ export function createNodeAuthorityRuntime(
       return;
     }
 
+    stopGraphTimersForRun(run.runId);
     if (run.timer !== null) {
       clearTimeout(run.timer);
     }
@@ -972,11 +1623,11 @@ export function createNodeAuthorityRuntime(
       stepCount: run.stepCount,
       startedAt: run.startedAt,
       stoppedAt: timestamp,
-      lastSource: "graph-play"
+      lastSource: run.source
     };
     emitGraphExecution(type, {
       runId: run.runId,
-      source: "graph-play",
+      source: run.source,
       timestamp
     });
   };
@@ -989,6 +1640,7 @@ export function createNodeAuthorityRuntime(
       return;
     }
 
+    stopGraphTimersForRun(run.runId);
     activeGraphStepRun = null;
     const timestamp = Date.now();
     graphExecutionState = {
@@ -1020,20 +1672,28 @@ export function createNodeAuthorityRuntime(
 
       const rootNodeId = activeRun.queue.shift();
       if (!rootNodeId) {
-        finalizeGraphPlayRun(activeRun, "drained");
+        if (!hasActiveGraphTimersForRun(activeRun.runId)) {
+          finalizeGraphPlayRun(activeRun, "drained");
+        } else {
+          updateRunningGraphExecutionState(activeRun);
+        }
         return;
       }
 
       executeNodeChain({
         rootNodeId,
-        source: "graph-play",
+        source: activeRun.source,
         runId: activeRun.runId,
-        startedAt: activeRun.startedAt
+        startedAt: activeRun.startedAt,
+        timerRuntime: {
+          registerTimer: registerGraphTimer
+        }
       });
       activeRun.stepCount += 1;
 
       const timestamp = Date.now();
-      const hasMore = activeRun.queue.length > 0;
+      const hasMore =
+        activeRun.queue.length > 0 || hasActiveGraphTimersForRun(activeRun.runId);
       graphExecutionState = {
         status: hasMore ? "running" : "idle",
         runId: hasMore ? activeRun.runId : undefined,
@@ -1041,21 +1701,23 @@ export function createNodeAuthorityRuntime(
         stepCount: activeRun.stepCount,
         startedAt: activeRun.startedAt,
         stoppedAt: hasMore ? undefined : timestamp,
-        lastSource: "graph-play"
+        lastSource: activeRun.source
       };
       emitGraphExecution("advanced", {
         runId: activeRun.runId,
-        source: "graph-play",
+        source: activeRun.source,
         nodeId: rootNodeId,
         timestamp
       });
 
-      if (hasMore) {
+      if (activeRun.queue.length > 0) {
         scheduleNextGraphPlayRunTick();
         return;
       }
 
-      finalizeGraphPlayRun(activeRun, "drained");
+      if (!hasActiveGraphTimersForRun(activeRun.runId)) {
+        finalizeGraphPlayRun(activeRun, "drained");
+      }
     }, 0);
   };
 
@@ -1076,6 +1738,9 @@ export function createNodeAuthorityRuntime(
     state: cloneGraphExecutionState(graphExecutionState),
     ...overrides
   });
+
+  reloadPackagesFromDirectory();
+  startPackageDirectoryWatcher();
 
   return {
     getDocument(): GraphDocument {
@@ -1512,6 +2177,7 @@ export function createNodeAuthorityRuntime(
           const runId = createGraphRunId("graph-play");
           activeGraphPlayRun = {
             runId,
+            source: "graph-play",
             startedAt,
             queue,
             stepCount: 0,
@@ -1590,8 +2256,51 @@ export function createNodeAuthorityRuntime(
             });
           }
 
+          timerActivatedInCurrentGraphStepTick = false;
           const executionResult = executeGraphStepRunTick(run);
           const timestamp = Date.now();
+          emitGraphExecution("advanced", {
+            runId: run.runId,
+            source: "graph-step",
+            nodeId: executionResult.executedNodeId,
+            timestamp
+          });
+
+          const promotedToRunning =
+            (timerActivatedInCurrentGraphStepTick ||
+              Boolean(executionResult.timerActivated)) &&
+            hasActiveGraphTimersForRun(run.runId);
+          if (promotedToRunning) {
+            while (run.queue.length > 0) {
+              const continuedResult = executeGraphStepRunTick(run);
+              if (!continuedResult.changed) {
+                break;
+              }
+
+              emitGraphExecution("advanced", {
+                runId: run.runId,
+                source: "graph-step",
+                nodeId: continuedResult.executedNodeId,
+                timestamp: Date.now()
+              });
+            }
+
+            activeGraphStepRun = null;
+            activeGraphPlayRun = {
+              runId: run.runId,
+              source: "graph-step",
+              startedAt: run.startedAt,
+              queue: [],
+              stepCount: run.stepCount,
+              timer: null
+            };
+            updateRunningGraphExecutionState(activeGraphPlayRun);
+            return createRuntimeControlResult({
+              changed: run.stepCount > 0,
+              reason: run.stepCount > 0 ? undefined : "节点不存在"
+            });
+          }
+
           const hasMore = run.queue.length > 0;
           graphExecutionState = {
             status: hasMore ? "stepping" : "idle",
@@ -1602,12 +2311,6 @@ export function createNodeAuthorityRuntime(
             stoppedAt: hasMore ? undefined : timestamp,
             lastSource: "graph-step"
           };
-          emitGraphExecution("advanced", {
-            runId: run.runId,
-            source: "graph-step",
-            nodeId: executionResult.executedNodeId,
-            timestamp
-          });
           if (!hasMore) {
             finalizeGraphStepRun(run, "drained");
           }
@@ -1656,6 +2359,30 @@ export function createNodeAuthorityRuntime(
       return () => {
         runtimeFeedbackListeners.delete(listener);
       };
+    },
+
+    getFrontendBundlesSnapshot(): AuthorityFrontendBundlesSyncEvent {
+      return getFrontendBundlesSnapshot();
+    },
+
+    subscribeFrontendBundles(
+      listener: (event: AuthorityFrontendBundlesSyncEvent) => void
+    ): () => void {
+      frontendBundleListeners.add(listener);
+      return () => {
+        frontendBundleListeners.delete(listener);
+      };
+    },
+
+    registerPackageExecutors(
+      packageId: string,
+      executorsByNodeType: Record<string, AuthorityNodeExecutor>
+    ): void {
+      registerPackageExecutors(packageId, executorsByNodeType);
+    },
+
+    unregisterPackageExecutors(packageId: string): void {
+      unregisterPackageExecutors(packageId);
     }
   };
 }

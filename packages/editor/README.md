@@ -246,7 +246,7 @@ bundle manifest 解析、依赖检查、运行时 setup、持久化读写（Inde
 - `remote_authority_demo_source.ts`：demo worker source 封装。
 - `remote_authority_demo_worker.ts`：浏览器内 authority worker。
 
-其中 `websocket_host_demo_bootstrap.ts` 的 `WEBSOCKET_HOST_DEMO_TEST_BUNDLES` 是 host demo 预载 bundle 列表来源（`preloadTestBundles=1` 时生效）。
+`websocket_host_demo_bootstrap.ts` 当前只负责 authority 连接 bootstrap；前端 bundle 默认改为以后端 `frontendBundles.sync` 推送为准。
 
 ### `src/app`（剩余过渡文件）
 

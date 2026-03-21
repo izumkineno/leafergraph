@@ -1,24 +1,35 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import importlib.util
+import json
+import os
 import re
 import time
 from copy import deepcopy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 
 DocumentListener = Callable[[dict[str, Any]], None]
 RuntimeFeedbackListener = Callable[[dict[str, Any]], None]
+FrontendBundlesListener = Callable[[dict[str, Any]], None]
+NodeExecutor = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
 SYSTEM_ON_PLAY_NODE_TYPE = "system/on-play"
-TEMPLATE_EXECUTE_COUNTER_NODE_TYPE = "template/execute-counter"
-TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE = "template/execute-display"
-DEMO_PENDING_NODE_TYPE = "demo.pending"
+SYSTEM_TIMER_DEFAULT_INTERVAL_MS = 1000
+DEFAULT_PACKAGE_SCAN_INTERVAL_MS = 1200
+PYTHON_EXECUTOR_FACTORY_NAME = "create_executors"
+DEFAULT_PYTHON_BACKEND_PACKAGE_DIR = (
+    Path(__file__).resolve().parents[4] / "timer-node-package-template" / "packages"
+)
 
 
 @dataclass
 class GraphPlayRun:
     run_id: str
+    source: str
     started_at: int
     queue: list[str]
     step_count: int
@@ -45,12 +56,215 @@ class GraphStepRun:
     step_count: int
 
 
+@dataclass
+class LoadedPythonNodePackage:
+    package_id: str
+    version: str
+    executors_by_node_type: dict[str, NodeExecutor]
+    frontend_package: dict[str, Any]
+
+
 def clone_value(value: Any) -> Any:
     return deepcopy(value)
 
 
 def now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def to_error_message(error: Exception | str | Any) -> str:
+    return str(error)
+
+
+def resolve_python_backend_package_dir(input_dir: str | None) -> Path:
+    env_dir = os.environ.get("LEAFERGRAPH_PYTHON_BACKEND_PACKAGE_DIR", "").strip()
+    selected_dir = (input_dir or "").strip() or env_dir or str(DEFAULT_PYTHON_BACKEND_PACKAGE_DIR)
+    selected_path = Path(selected_dir)
+    if selected_path.is_absolute():
+        return selected_path
+    return (Path.cwd() / selected_path).resolve()
+
+
+def resolve_non_empty_text(value: Any, field_name: str) -> str:
+    text = value.strip() if isinstance(value, str) else ""
+    if not text:
+        raise ValueError(f"节点包 manifest 缺少 {field_name}")
+    return text
+
+
+def resolve_manifest_file_path(package_directory: Path) -> Path:
+    return package_directory / "package.manifest.json"
+
+
+def parse_node_package_manifest(manifest_text: str) -> dict[str, Any]:
+    value = json.loads(manifest_text)
+    if not isinstance(value, dict):
+        raise ValueError("节点包 manifest 不是对象")
+
+    package_id = resolve_non_empty_text(value.get("packageId"), "packageId")
+    version = resolve_non_empty_text(value.get("version"), "version")
+    frontend_bundles = (
+        value.get("frontendBundles")
+        if isinstance(value.get("frontendBundles"), list)
+        else []
+    )
+    backend = value.get("backend") if isinstance(value.get("backend"), dict) else {}
+    node_types: list[str] = []
+    for item in value.get("nodeTypes") if isinstance(value.get("nodeTypes"), list) else []:
+        node_type = resolve_non_empty_text(item, "nodeTypes[]")
+        if node_type not in node_types:
+            node_types.append(node_type)
+
+    return {
+        "packageId": package_id,
+        "version": version,
+        "frontendBundles": frontend_bundles,
+        "backend": backend,
+        "nodeTypes": node_types,
+    }
+
+
+def resolve_package_frontend_bundles(
+    *,
+    package_directory: Path,
+    package_id: str,
+    manifest_bundles: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    bundles: list[dict[str, Any]] = []
+    for manifest_bundle in manifest_bundles:
+        if not isinstance(manifest_bundle, dict):
+            raise ValueError(f"节点包 {package_id} 的 frontendBundles[] 必须是对象")
+        bundle_id = resolve_non_empty_text(
+            manifest_bundle.get("bundleId"), "frontendBundles[].bundleId"
+        )
+        slot = resolve_non_empty_text(manifest_bundle.get("slot"), "frontendBundles[].slot")
+        if slot not in {"demo", "node", "widget"}:
+            raise ValueError(f"节点包 {package_id} 的 bundle {bundle_id} 使用了非法 slot: {slot}")
+
+        entry = resolve_non_empty_text(manifest_bundle.get("entry"), "frontendBundles[].entry")
+        file_path = (package_directory / entry).resolve()
+        if not file_path.exists():
+            raise ValueError(f"节点包 {package_id} 缺少前端 bundle 文件：{entry}")
+        source_code = file_path.read_text(encoding="utf-8")
+        hash_hex = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
+        expected_hash = (
+            manifest_bundle.get("sha256").strip().lower()
+            if isinstance(manifest_bundle.get("sha256"), str)
+            else ""
+        )
+        if expected_hash and expected_hash != hash_hex:
+            raise ValueError(f"节点包 {package_id} 的前端 bundle 校验失败：{entry}")
+
+        requires: list[str] | None = None
+        if isinstance(manifest_bundle.get("requires"), list):
+            normalized_requires: list[str] = []
+            for requirement in manifest_bundle["requires"]:
+                requirement_text = resolve_non_empty_text(
+                    requirement, "frontendBundles[].requires[]"
+                )
+                if requirement_text not in normalized_requires:
+                    normalized_requires.append(requirement_text)
+            requires = normalized_requires if normalized_requires else None
+
+        file_name = (
+            manifest_bundle.get("fileName").strip()
+            if isinstance(manifest_bundle.get("fileName"), str)
+            and manifest_bundle.get("fileName").strip()
+            else file_path.name
+        )
+        bundles.append(
+            {
+                "bundleId": bundle_id,
+                "slot": slot,
+                "fileName": file_name,
+                "sourceCode": source_code,
+                "enabled": manifest_bundle.get("enabled") is not False,
+                "requires": requires,
+                "sha256": hash_hex,
+            }
+        )
+
+    return bundles
+
+
+def _load_python_module_from_file(file_path: Path) -> dict[str, Any]:
+    module_name = f"leafergraph_pkg_{file_path.stem}_{int(time.time() * 1000)}"
+    spec = importlib.util.spec_from_file_location(module_name, str(file_path))
+    if not spec or not spec.loader:
+        raise ValueError(f"无法从 {file_path} 创建模块规范")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.__dict__
+
+
+def load_python_executors_from_package(
+    *,
+    package_directory: Path,
+    package_id: str,
+    manifest: dict[str, Any],
+) -> dict[str, NodeExecutor]:
+    backend = manifest.get("backend") if isinstance(manifest.get("backend"), dict) else {}
+    backend_python = backend.get("python") if isinstance(backend.get("python"), dict) else None
+    if backend_python is None:
+        return {}
+
+    entry = resolve_non_empty_text(backend_python.get("entry"), "backend.python.entry")
+    factory_name = (
+        backend_python.get("factoryName").strip()
+        if isinstance(backend_python.get("factoryName"), str)
+        and backend_python.get("factoryName").strip()
+        else PYTHON_EXECUTOR_FACTORY_NAME
+    )
+    entry_path = (package_directory / entry).resolve()
+    if not entry_path.exists():
+        raise ValueError(f"节点包 {package_id} 缺少 Python 执行器文件：{entry}")
+
+    module_values = _load_python_module_from_file(entry_path)
+    factory = module_values.get(factory_name)
+    if not callable(factory):
+        raise ValueError(f"节点包 {package_id} 的后端执行器导出 {factory_name} 不存在")
+
+    executors = factory()
+    if not isinstance(executors, dict):
+        raise ValueError(f"节点包 {package_id} 的后端执行器导出无效")
+
+    normalized_executors: dict[str, NodeExecutor] = {}
+    for node_type, executor in executors.items():
+        normalized_node_type = resolve_non_empty_text(node_type, "executorsByNodeType key")
+        if not callable(executor):
+            raise ValueError(
+                f"节点包 {package_id} 的执行器 {normalized_node_type} 不是函数"
+            )
+        normalized_executors[normalized_node_type] = executor
+
+    return normalized_executors
+
+
+def load_python_package_from_directory(package_directory: Path) -> LoadedPythonNodePackage:
+    manifest_file_path = resolve_manifest_file_path(package_directory)
+    manifest = parse_node_package_manifest(manifest_file_path.read_text(encoding="utf-8"))
+    executors_by_node_type = load_python_executors_from_package(
+        package_directory=package_directory,
+        package_id=manifest["packageId"],
+        manifest=manifest,
+    )
+    frontend_bundles = resolve_package_frontend_bundles(
+        package_directory=package_directory,
+        package_id=manifest["packageId"],
+        manifest_bundles=manifest["frontendBundles"],
+    )
+
+    return LoadedPythonNodePackage(
+        package_id=manifest["packageId"],
+        version=manifest["version"],
+        executors_by_node_type=executors_by_node_type,
+        frontend_package={
+            "packageId": manifest["packageId"],
+            "version": manifest["version"],
+            "nodeTypes": manifest["nodeTypes"] or list(executors_by_node_type.keys()),
+            "bundles": frontend_bundles,
+        },
+    )
 
 
 def create_default_authority_document() -> dict[str, Any]:
@@ -229,6 +443,24 @@ def resolve_node_title_base(title: Any, fallback: str) -> str:
     return re.sub(r"\s+(?:#?\d+|EMPTY|NULL|TRUE|FALSE|OBJECT)$", "", safe_title)
 
 
+def resolve_timer_interval_ms(value: Any) -> int:
+    try:
+        next_value = float(value)
+    except (TypeError, ValueError):
+        return SYSTEM_TIMER_DEFAULT_INTERVAL_MS
+
+    if next_value <= 0:
+        return SYSTEM_TIMER_DEFAULT_INTERVAL_MS
+
+    return max(1, int(next_value))
+
+
+def resolve_timer_immediate(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return True
+
+
 def apply_authority_execution_mutation(
     node: dict[str, Any],
     *,
@@ -239,6 +471,8 @@ def apply_authority_execution_mutation(
     started_at: int,
     sequence: int,
     input_values: list[Any],
+    executors_by_node_type: dict[str, NodeExecutor],
+    timer_runtime: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if node["type"] == SYSTEM_ON_PLAY_NODE_TYPE:
         return {
@@ -258,73 +492,33 @@ def apply_authority_execution_mutation(
             ],
         }
 
-    if node["type"] == TEMPLATE_EXECUTE_COUNTER_NODE_TYPE:
-        properties = ensure_node_properties(node)
-        previous_count = properties.get("count", 0)
-        next_count = previous_count + 1 if isinstance(previous_count, (int, float)) else 1
-        properties["count"] = next_count
-        properties["subtitle"] = "可从节点菜单起跑，也可接到 On Play 作为图级入口"
-        properties["status"] = f"RUN {next_count}"
-        node["title"] = f"Counter {next_count}"
-        return {
-            "documentChanged": True,
-            "outputPayloads": [{"slot": 0, "payload": next_count}],
-        }
-
-    if node["type"] == TEMPLATE_EXECUTE_DISPLAY_NODE_TYPE:
-        properties = ensure_node_properties(node)
-        input_value = resolve_first_defined_input_value(input_values)
-        display_value = format_authority_runtime_value(input_value)
-        properties["lastValue"] = clone_value(input_value)
-        properties["subtitle"] = "显示上游通过正式连线传播过来的值"
-        properties["status"] = f"VALUE {display_value}"
-        node["title"] = f"Display {display_value}"
-        return {
-            "documentChanged": True,
-            "outputPayloads": [],
-        }
-
-    if node["type"] == DEMO_PENDING_NODE_TYPE:
-        properties = ensure_node_properties(node)
-        previous_run_count = properties.get("runCount", 0)
-        next_run_count = (
-            previous_run_count + 1
-            if isinstance(previous_run_count, (int, float)) and not isinstance(previous_run_count, bool)
-            else 1
+    executor = executors_by_node_type.get(node["type"])
+    if callable(executor):
+        mutation_result = executor(
+            node,
+            {
+                "authorityName": authority_name,
+                "rootNodeId": root_node_id,
+                "source": source,
+                "runId": run_id,
+                "startedAt": started_at,
+                "sequence": sequence,
+                "inputValues": clone_value(input_values),
+                "timerRuntime": timer_runtime,
+                "now": now_ms,
+            },
         )
-        input_value = resolve_first_defined_input_value(input_values)
-        display_value = format_authority_runtime_value(input_value)
-        properties["runCount"] = next_run_count
-        properties["status"] = (
-            f"RUN {next_run_count}" if input_value is None else f"VALUE {display_value}"
-        )
-        if input_value is not None:
-            properties["lastValue"] = clone_value(input_value)
-        node["title"] = (
-            f"{resolve_node_title_base(node.get('title'), node['id'])} {next_run_count}"
-            if input_value is None
-            else f"{resolve_node_title_base(node.get('title'), node['id'])} {display_value}"
-        )
-        output_payloads: list[dict[str, Any]] = []
-        if len(node.get("outputs", [])) > 0:
-            output_payloads.append(
-                {
-                    "slot": 0,
-                    "payload": (
-                        {
-                            "authority": authority_name,
-                            "source": source,
-                            "runCount": next_run_count,
-                        }
-                        if input_value is None
-                        else clone_value(input_value)
-                    ),
-                }
+        if isinstance(mutation_result, dict):
+            output_payloads = (
+                mutation_result.get("outputPayloads")
+                if isinstance(mutation_result.get("outputPayloads"), list)
+                else []
             )
-        return {
-            "documentChanged": True,
-            "outputPayloads": output_payloads,
-        }
+            return {
+                "documentChanged": bool(mutation_result.get("documentChanged")),
+                "timerActivated": bool(mutation_result.get("timerActivated")),
+                "outputPayloads": output_payloads,
+            }
 
     if len(node.get("outputs", [])) <= 0:
         return {
@@ -361,10 +555,14 @@ class PythonAuthorityRuntime:
         *,
         initial_document: dict[str, Any] | None = None,
         authority_name: str = "python-authority",
+        package_dir: str | None = None,
+        logger: Any = None,
     ) -> None:
         self.authority_name = authority_name
+        self._logger = logger if logger is not None else print
         self._document_listeners: set[DocumentListener] = set()
         self._runtime_feedback_listeners: set[RuntimeFeedbackListener] = set()
+        self._frontend_bundle_listeners: set[FrontendBundlesListener] = set()
         self._node_execution_state_map: dict[str, dict[str, Any]] = {}
         self._generated_node_sequence = 0
         self._generated_link_sequence = 0
@@ -374,8 +572,18 @@ class PythonAuthorityRuntime:
         self._graph_execution_state = create_idle_graph_execution_state()
         self._active_graph_play_run: GraphPlayRun | None = None
         self._active_graph_step_run: GraphStepRun | None = None
+        self._active_graph_timers_by_key: dict[str, dict[str, Any]] = {}
+        self._timer_activated_in_current_graph_step_tick = False
         self._graph_run_seed = 1
         self._step_cursor = 0
+        self._package_directory = resolve_python_backend_package_dir(package_dir)
+        self._package_executors_by_id: dict[str, dict[str, NodeExecutor]] = {}
+        self._frontend_packages_by_id: dict[str, dict[str, Any]] = {}
+        self._merged_executors_by_node_type: dict[str, NodeExecutor] = {}
+        self._package_directory_signature: str | None = None
+        self._package_poll_handle: asyncio.Handle | None = None
+
+        self._reload_packages_from_directory(force=True)
 
     def get_document(self) -> dict[str, Any]:
         return clone_value(self._current_document)
@@ -395,6 +603,218 @@ class PythonAuthorityRuntime:
             self._runtime_feedback_listeners.discard(listener)
 
         return dispose
+
+    def get_frontend_bundles_snapshot(self) -> dict[str, Any]:
+        return {
+            "type": "frontendBundles.sync",
+            "mode": "full",
+            "packages": [clone_value(item) for item in self._frontend_packages_by_id.values()],
+            "emittedAt": now_ms(),
+        }
+
+    def subscribe_frontend_bundles(
+        self, listener: FrontendBundlesListener
+    ) -> Callable[[], None]:
+        self._frontend_bundle_listeners.add(listener)
+        self._ensure_package_polling()
+
+        def dispose() -> None:
+            self._frontend_bundle_listeners.discard(listener)
+
+        return dispose
+
+    def register_package_executors(
+        self, package_id: str, executors_by_node_type: dict[str, NodeExecutor]
+    ) -> None:
+        self._package_executors_by_id[package_id] = executors_by_node_type
+        self._rebuild_merged_executors()
+
+    def unregister_package_executors(self, package_id: str) -> None:
+        self._package_executors_by_id.pop(package_id, None)
+        self._rebuild_merged_executors()
+
+    def _log_info(self, *args: Any) -> None:
+        if hasattr(self._logger, "info"):
+            self._logger.info(*args)
+            return
+        self._logger(*args)
+
+    def _log_warn(self, *args: Any) -> None:
+        if hasattr(self._logger, "warn"):
+            self._logger.warn(*args)
+            return
+        if hasattr(self._logger, "warning"):
+            self._logger.warning(*args)
+            return
+        self._logger(*args)
+
+    def _log_error(self, *args: Any) -> None:
+        if hasattr(self._logger, "error"):
+            self._logger.error(*args)
+            return
+        self._logger(*args)
+
+    def _emit_frontend_bundles_sync(self, event: dict[str, Any]) -> None:
+        snapshot = clone_value(event)
+        for listener in list(self._frontend_bundle_listeners):
+            listener(snapshot)
+
+    def _rebuild_merged_executors(self) -> None:
+        self._merged_executors_by_node_type = {}
+        for executors_by_node_type in self._package_executors_by_id.values():
+            for node_type, executor in executors_by_node_type.items():
+                self._merged_executors_by_node_type[node_type] = executor
+
+    def _current_loaded_packages(self) -> dict[str, LoadedPythonNodePackage]:
+        loaded_packages: dict[str, LoadedPythonNodePackage] = {}
+        for package_id, frontend_package in self._frontend_packages_by_id.items():
+            loaded_packages[package_id] = LoadedPythonNodePackage(
+                package_id=package_id,
+                version=frontend_package.get("version", "0"),
+                frontend_package=clone_value(frontend_package),
+                executors_by_node_type={
+                    **self._package_executors_by_id.get(package_id, {})
+                },
+            )
+        return loaded_packages
+
+    def _compute_package_directory_signature(self) -> str | None:
+        if not self._package_directory.exists():
+            return None
+
+        parts: list[str] = []
+        for file_path in sorted(self._package_directory.rglob("*")):
+            if not file_path.is_file():
+                continue
+            try:
+                stat = file_path.stat()
+            except OSError:
+                continue
+            parts.append(
+                f"{file_path.relative_to(self._package_directory)}:{int(stat.st_mtime_ns)}:{stat.st_size}"
+            )
+        return "|".join(parts)
+
+    def _apply_loaded_packages(self, loaded_packages: list[LoadedPythonNodePackage]) -> None:
+        previous_package_ids = set(self._frontend_packages_by_id.keys())
+        upsert_packages: list[dict[str, Any]] = []
+        removed_package_ids: list[str] = []
+
+        self._stop_active_runs_for_package_reload()
+
+        for loaded_package in loaded_packages:
+            self.register_package_executors(
+                loaded_package.package_id, loaded_package.executors_by_node_type
+            )
+            self._frontend_packages_by_id[loaded_package.package_id] = clone_value(
+                loaded_package.frontend_package
+            )
+            upsert_packages.append(clone_value(loaded_package.frontend_package))
+            previous_package_ids.discard(loaded_package.package_id)
+
+        for package_id in previous_package_ids:
+            self.unregister_package_executors(package_id)
+            self._frontend_packages_by_id.pop(package_id, None)
+            removed_package_ids.append(package_id)
+
+        if upsert_packages:
+            self._emit_frontend_bundles_sync(
+                {
+                    "type": "frontendBundles.sync",
+                    "mode": "upsert",
+                    "packages": upsert_packages,
+                    "emittedAt": now_ms(),
+                }
+            )
+        if removed_package_ids:
+            self._emit_frontend_bundles_sync(
+                {
+                    "type": "frontendBundles.sync",
+                    "mode": "remove",
+                    "removedPackageIds": removed_package_ids,
+                    "emittedAt": now_ms(),
+                }
+            )
+        if not upsert_packages and not removed_package_ids:
+            self._emit_frontend_bundles_sync(self.get_frontend_bundles_snapshot())
+
+    def _stop_active_runs_for_package_reload(self) -> None:
+        if self._active_graph_play_run:
+            self._finalize_graph_play_run(self._active_graph_play_run, "stopped")
+            return
+        if self._active_graph_step_run:
+            self._finalize_graph_step_run(self._active_graph_step_run, "stopped")
+
+    def _reload_packages_from_directory(self, *, force: bool = False) -> None:
+        signature = self._compute_package_directory_signature()
+        if not force and signature == self._package_directory_signature:
+            return
+        self._package_directory_signature = signature
+
+        if not self._package_directory.exists():
+            if self._frontend_packages_by_id or self._package_executors_by_id:
+                self._apply_loaded_packages([])
+            self._log_warn(
+                "[python-backend-template]",
+                f"节点包目录不存在，跳过加载：{self._package_directory}",
+            )
+            return
+
+        existing_packages_by_id = self._current_loaded_packages()
+        loaded_packages_by_id: dict[str, LoadedPythonNodePackage] = {}
+        for entry in sorted(self._package_directory.iterdir(), key=lambda item: item.name):
+            if not entry.is_dir():
+                continue
+            manifest_file_path = resolve_manifest_file_path(entry)
+            if not manifest_file_path.exists():
+                continue
+
+            parsed_manifest_package_id: str | None = None
+            try:
+                parsed_manifest = parse_node_package_manifest(
+                    manifest_file_path.read_text(encoding="utf-8")
+                )
+                parsed_manifest_package_id = parsed_manifest["packageId"]
+            except Exception:
+                parsed_manifest_package_id = None
+
+            try:
+                loaded_package = load_python_package_from_directory(entry)
+                loaded_packages_by_id[loaded_package.package_id] = loaded_package
+            except Exception as error:
+                self._log_error(
+                    "[python-backend-template]",
+                    f"节点包加载失败（{entry}）：{to_error_message(error)}",
+                )
+                if (
+                    parsed_manifest_package_id
+                    and parsed_manifest_package_id in existing_packages_by_id
+                ):
+                    loaded_packages_by_id[parsed_manifest_package_id] = existing_packages_by_id[
+                        parsed_manifest_package_id
+                    ]
+                    self._log_warn(
+                        "[python-backend-template]",
+                        f"节点包 {parsed_manifest_package_id} 保留旧版本，等待下次热更新重试",
+                    )
+
+        loaded_packages = sorted(
+            loaded_packages_by_id.values(), key=lambda item: item.package_id
+        )
+        self._apply_loaded_packages(loaded_packages)
+
+    def _poll_packages(self) -> None:
+        self._package_poll_handle = None
+        self._reload_packages_from_directory()
+        self._ensure_package_polling()
+
+    def _ensure_package_polling(self) -> None:
+        if self._package_poll_handle is not None:
+            return
+        loop = self._resolve_event_loop()
+        self._package_poll_handle = loop.call_later(
+            DEFAULT_PACKAGE_SCAN_INTERVAL_MS / 1000, self._poll_packages
+        )
 
     def submit_operation(self, operation: dict[str, Any]) -> dict[str, Any]:
         self._stop_active_graph_step_without_event()
@@ -803,6 +1223,7 @@ class PythonAuthorityRuntime:
             loop = self._resolve_event_loop()
             self._active_graph_play_run = GraphPlayRun(
                 run_id=run_id,
+                source="graph-play",
                 started_at=started_at,
                 queue=queue,
                 step_count=0,
@@ -877,8 +1298,53 @@ class PythonAuthorityRuntime:
                     timestamp=started_at,
                 )
 
+            self._timer_activated_in_current_graph_step_tick = False
             execution_result = self._execute_graph_step_run_tick(run)
             timestamp = now_ms()
+            self._emit_graph_execution(
+                "advanced",
+                run_id=run.run_id,
+                source="graph-step",
+                node_id=execution_result.get("executedNodeId"),
+                timestamp=timestamp,
+            )
+
+            promoted_to_running = bool(
+                (
+                    self._timer_activated_in_current_graph_step_tick
+                    or execution_result.get("timerActivated")
+                )
+                and self._has_active_graph_timers_for_run(run.run_id)
+            )
+            if promoted_to_running:
+                while len(run.queue) > 0:
+                    continued_result = self._execute_graph_step_run_tick(run)
+                    if not continued_result.get("changed"):
+                        break
+                    self._emit_graph_execution(
+                        "advanced",
+                        run_id=run.run_id,
+                        source="graph-step",
+                        node_id=continued_result.get("executedNodeId"),
+                        timestamp=now_ms(),
+                    )
+
+                self._active_graph_step_run = None
+                loop = self._resolve_event_loop()
+                self._active_graph_play_run = GraphPlayRun(
+                    run_id=run.run_id,
+                    source="graph-step",
+                    started_at=run.started_at,
+                    queue=[],
+                    step_count=run.step_count,
+                    loop=loop,
+                )
+                self._update_running_graph_execution_state(self._active_graph_play_run)
+                return self._create_runtime_control_result(
+                    changed=run.step_count > 0,
+                    reason=None if run.step_count > 0 else "节点不存在",
+                )
+
             has_more = len(run.queue) > 0
             self._graph_execution_state = {
                 "status": "stepping" if has_more else "idle",
@@ -889,13 +1355,6 @@ class PythonAuthorityRuntime:
                 "stoppedAt": None if has_more else timestamp,
                 "lastSource": "graph-step",
             }
-            self._emit_graph_execution(
-                "advanced",
-                run_id=run.run_id,
-                source="graph-step",
-                node_id=execution_result.get("executedNodeId"),
-                timestamp=timestamp,
-            )
             if not has_more:
                 self._finalize_graph_step_run(run, "drained")
             return self._create_runtime_control_result(
@@ -1226,6 +1685,8 @@ class PythonAuthorityRuntime:
                 started_at=input_value["startedAt"],
                 sequence=current_sequence,
                 input_values=input_values_by_node_id.get(node_id, []),
+                executors_by_node_type=self._merged_executors_by_node_type,
+                timer_runtime=input_value.get("timerRuntime"),
             )
             document_changed = document_changed or mutation_result["documentChanged"]
             pending_emitters.append(
@@ -1360,6 +1821,8 @@ class PythonAuthorityRuntime:
                 started_at=run.started_at,
                 sequence=current_sequence,
                 input_values=task.input_values,
+                executors_by_node_type=self._merged_executors_by_node_type,
+                timer_runtime={"registerTimer": self._register_graph_timer},
             )
             pending_emitters: list[Callable[[], None]] = [
                 lambda root_node=root_node, node=node, depth=task.depth, sequence=current_sequence, trigger=task.trigger: self._emit_node_execution(
@@ -1426,9 +1889,146 @@ class PythonAuthorityRuntime:
             return {
                 "changed": True,
                 "executedNodeId": node["id"],
+                "timerActivated": bool(mutation_result.get("timerActivated")),
             }
 
         return {"changed": False}
+
+    def _create_graph_timer_key(self, run_id: str, node_id: str) -> str:
+        return f"{run_id}::{node_id}"
+
+    def _has_active_graph_timers_for_run(self, run_id: str) -> bool:
+        return any(
+            timer["runId"] == run_id for timer in self._active_graph_timers_by_key.values()
+        )
+
+    def _stop_graph_timer_by_key(self, timer_key: str) -> None:
+        timer = self._active_graph_timers_by_key.get(timer_key)
+        if not timer:
+            return
+
+        handle = timer.get("handle")
+        if handle is not None and not handle.cancelled():
+            handle.cancel()
+        self._active_graph_timers_by_key.pop(timer_key, None)
+
+    def _stop_graph_timers_for_run(self, run_id: str) -> None:
+        timer_keys = [
+            timer_key
+            for timer_key, timer in self._active_graph_timers_by_key.items()
+            if timer["runId"] == run_id
+        ]
+        for timer_key in timer_keys:
+            self._stop_graph_timer_by_key(timer_key)
+
+    def _stop_all_graph_timers_without_event(self) -> None:
+        for timer_key in list(self._active_graph_timers_by_key.keys()):
+            self._stop_graph_timer_by_key(timer_key)
+
+    def _update_running_graph_execution_state(self, run: GraphPlayRun) -> None:
+        self._graph_execution_state = {
+            "status": "running",
+            "runId": run.run_id,
+            "queueSize": len(run.queue),
+            "stepCount": run.step_count,
+            "startedAt": run.started_at,
+            "stoppedAt": None,
+            "lastSource": run.source,
+        }
+
+    def _register_graph_timer(self, input_value: dict[str, Any]) -> None:
+        run_id = input_value["runId"]
+        node_id = input_value["nodeId"]
+        source = input_value["source"]
+        started_at = input_value["startedAt"]
+        interval_ms = resolve_timer_interval_ms(input_value.get("intervalMs"))
+        has_active_run = bool(
+            (self._active_graph_play_run and self._active_graph_play_run.run_id == run_id)
+            or (self._active_graph_step_run and self._active_graph_step_run.run_id == run_id)
+        )
+        if not has_active_run:
+            return
+
+        timer_key = self._create_graph_timer_key(run_id, node_id)
+        self._stop_graph_timer_by_key(timer_key)
+
+        active_play_run = self._active_graph_play_run
+        loop = (
+            active_play_run.loop
+            if active_play_run and active_play_run.run_id == run_id
+            else self._resolve_event_loop()
+        )
+        handle = loop.call_later(
+            interval_ms / 1000,
+            self._handle_active_graph_timer_tick,
+            timer_key,
+        )
+        self._active_graph_timers_by_key[timer_key] = {
+            "timerKey": timer_key,
+            "runId": run_id,
+            "nodeId": node_id,
+            "source": source,
+            "startedAt": started_at,
+            "intervalMs": interval_ms,
+            "loop": loop,
+            "handle": handle,
+        }
+        self._timer_activated_in_current_graph_step_tick = True
+
+    def _handle_active_graph_timer_tick(self, timer_key: str) -> None:
+        timer = self._active_graph_timers_by_key.get(timer_key)
+        if not timer:
+            return
+
+        run = self._active_graph_play_run
+        if (
+            run is None
+            or run.run_id != timer["runId"]
+            or run.source != timer["source"]
+        ):
+            self._stop_graph_timer_by_key(timer_key)
+            return
+
+        timer["handle"] = timer["loop"].call_later(
+            timer["intervalMs"] / 1000,
+            self._handle_active_graph_timer_tick,
+            timer_key,
+        )
+        self._active_graph_timers_by_key[timer_key] = timer
+
+        changed = self._execute_node_chain(
+            {
+                "rootNodeId": timer["nodeId"],
+                "source": timer["source"],
+                "runId": timer["runId"],
+                "startedAt": timer["startedAt"],
+                "timerRuntime": {
+                    "registerTimer": self._register_graph_timer,
+                    "timerTickNodeId": timer["nodeId"],
+                },
+            }
+        )
+
+        if not changed:
+            self._stop_graph_timer_by_key(timer_key)
+        elif self._active_graph_play_run and self._active_graph_play_run.run_id == timer["runId"]:
+            self._active_graph_play_run.step_count += 1
+            self._update_running_graph_execution_state(self._active_graph_play_run)
+            self._emit_graph_execution(
+                "advanced",
+                run_id=timer["runId"],
+                source=timer["source"],
+                node_id=timer["nodeId"],
+                timestamp=now_ms(),
+            )
+
+        if (
+            self._active_graph_play_run
+            and self._active_graph_play_run.run_id == timer["runId"]
+            and len(self._active_graph_play_run.queue) <= 0
+            and not self._has_active_graph_timers_for_run(timer["runId"])
+        ):
+            self._finalize_graph_play_run(self._active_graph_play_run, "drained")
 
     def _collect_graph_entry_node_ids(self) -> list[str]:
         return [
@@ -1452,21 +2052,25 @@ class PythonAuthorityRuntime:
 
         root_node_id = run.queue.pop(0) if run.queue else None
         if not root_node_id:
-            self._finalize_graph_play_run(run, "drained")
+            if not self._has_active_graph_timers_for_run(run.run_id):
+                self._finalize_graph_play_run(run, "drained")
+            else:
+                self._update_running_graph_execution_state(run)
             return
 
         self._execute_node_chain(
             {
                 "rootNodeId": root_node_id,
-                "source": "graph-play",
+                "source": run.source,
                 "runId": run.run_id,
                 "startedAt": run.started_at,
+                "timerRuntime": {"registerTimer": self._register_graph_timer},
             }
         )
         run.step_count += 1
 
         timestamp = now_ms()
-        has_more = len(run.queue) > 0
+        has_more = len(run.queue) > 0 or self._has_active_graph_timers_for_run(run.run_id)
         self._graph_execution_state = {
             "status": "running" if has_more else "idle",
             "runId": run.run_id if has_more else None,
@@ -1474,26 +2078,28 @@ class PythonAuthorityRuntime:
             "stepCount": run.step_count,
             "startedAt": run.started_at,
             "stoppedAt": None if has_more else timestamp,
-            "lastSource": "graph-play",
+            "lastSource": run.source,
         }
         self._emit_graph_execution(
             "advanced",
             run_id=run.run_id,
-            source="graph-play",
+            source=run.source,
             node_id=root_node_id,
             timestamp=timestamp,
         )
 
-        if has_more:
+        if len(run.queue) > 0:
             self._schedule_next_graph_play_run_tick()
             return
 
-        self._finalize_graph_play_run(run, "drained")
+        if not self._has_active_graph_timers_for_run(run.run_id):
+            self._finalize_graph_play_run(run, "drained")
 
     def _finalize_graph_play_run(self, run: GraphPlayRun, event_type: str) -> None:
         if not self._active_graph_play_run or self._active_graph_play_run.run_id != run.run_id:
             return
 
+        self._stop_graph_timers_for_run(run.run_id)
         if run.handle is not None and not run.handle.cancelled():
             run.handle.cancel()
         self._active_graph_play_run = None
@@ -1504,12 +2110,12 @@ class PythonAuthorityRuntime:
             "stepCount": run.step_count,
             "startedAt": run.started_at,
             "stoppedAt": timestamp,
-            "lastSource": "graph-play",
+            "lastSource": run.source,
         }
         self._emit_graph_execution(
             event_type,
             run_id=run.run_id,
-            source="graph-play",
+            source=run.source,
             timestamp=timestamp,
         )
 
@@ -1517,6 +2123,7 @@ class PythonAuthorityRuntime:
         if not self._active_graph_step_run or self._active_graph_step_run.run_id != run.run_id:
             return
 
+        self._stop_graph_timers_for_run(run.run_id)
         self._active_graph_step_run = None
         timestamp = now_ms()
         self._graph_execution_state = {
@@ -1539,16 +2146,20 @@ class PythonAuthorityRuntime:
         if not run:
             return
 
+        self._stop_graph_timers_for_run(run.run_id)
         if run.handle is not None and not run.handle.cancelled():
             run.handle.cancel()
         self._active_graph_play_run = None
 
     def _stop_active_graph_step_without_event(self) -> None:
+        if self._active_graph_step_run:
+            self._stop_graph_timers_for_run(self._active_graph_step_run.run_id)
         self._active_graph_step_run = None
 
     def _reset_document_caches(self) -> None:
         self._generated_node_sequence = 0
         self._generated_link_sequence = 0
+        self._stop_all_graph_timers_without_event()
         self._stop_active_graph_play_without_event()
         self._stop_active_graph_step_without_event()
         self._node_execution_state_map.clear()
@@ -1560,8 +2171,12 @@ def create_python_authority_runtime(
     *,
     initial_document: dict[str, Any] | None = None,
     authority_name: str = "python-authority",
+    package_dir: str | None = None,
+    logger: Any = None,
 ) -> PythonAuthorityRuntime:
     return PythonAuthorityRuntime(
         initial_document=initial_document,
         authority_name=authority_name,
+        package_dir=package_dir,
+        logger=logger,
     )
