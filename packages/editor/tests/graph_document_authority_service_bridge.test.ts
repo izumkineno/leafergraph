@@ -137,13 +137,10 @@ describe("graph document authority service bridge", () => {
       async request<TResponse extends EditorRemoteAuthorityTransportResponse>(
         request: EditorRemoteAuthorityTransportRequest
       ): Promise<TResponse> {
-        switch (request.action) {
-          case "getDocument":
-            return {
-              action: "getDocument",
-              document: structuredClone(currentDocument)
-            } as TResponse;
-          case "submitOperation":
+        switch (request.method) {
+          case "authority.getDocument":
+            return structuredClone(currentDocument) as TResponse;
+          case "authority.submitOperation":
             currentDocument = createDocument("4");
             queueMicrotask(() => {
               for (const listener of transportListeners) {
@@ -155,26 +152,34 @@ describe("graph document authority service bridge", () => {
                       nodeId: "node-a",
                       exists: true,
                       reason: "moved",
-                      timestamp: Date.now(),
+                      timestamp: Date.now()
                     }
                   }
                 });
               }
             });
             return {
-              action: "submitOperation",
-              result: {
-                accepted: true,
-                changed: true,
-                revision: currentDocument.revision,
-                document: structuredClone(currentDocument)
-              }
-            } as TResponse;
-          case "replaceDocument":
-            currentDocument = structuredClone(request.document);
-            return {
-              action: "replaceDocument",
+              accepted: true,
+              changed: true,
+              revision: currentDocument.revision,
               document: structuredClone(currentDocument)
+            } as TResponse;
+          case "authority.replaceDocument":
+            currentDocument = structuredClone(request.params.document);
+            return structuredClone(currentDocument) as TResponse;
+          case "authority.controlRuntime":
+            return {
+              accepted: false,
+              changed: false,
+              reason: "transport stub 不支持运行控制"
+            } as TResponse;
+          case "rpc.discover":
+            return {
+              openrpc: "1.3.2",
+              info: {
+                title: "Service Bridge Stub Authority",
+                version: "0.0.0"
+              }
             } as TResponse;
         }
       },

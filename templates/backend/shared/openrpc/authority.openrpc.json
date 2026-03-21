@@ -1,0 +1,158 @@
+{
+  "openrpc": "1.3.2",
+  "info": {
+    "title": "LeaferGraph Authority API",
+    "version": "0.1.0",
+    "description": "LeaferGraph authority protocol over JSON-RPC 2.0."
+  },
+  "servers": [
+    {
+      "name": "authority",
+      "url": "ws://127.0.0.1:5502/authority",
+      "summary": "Authority WebSocket endpoint"
+    }
+  ],
+  "methods": [
+    {
+      "name": "rpc.discover",
+      "summary": "Return the OpenRPC document for this authority.",
+      "params": [],
+      "result": {
+        "name": "openrpcDocument",
+        "schema": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "name": "authority.getDocument",
+      "summary": "Return the current authoritative graph document.",
+      "params": [],
+      "result": {
+        "name": "document",
+        "schema": {
+          "$ref": "./schemas/graph_document.schema.json"
+        }
+      }
+    },
+    {
+      "name": "authority.submitOperation",
+      "summary": "Submit a graph operation to authority.",
+      "params": [
+        {
+          "name": "operation",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/graph_operation.schema.json"
+          }
+        },
+        {
+          "name": "context",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/operation_context.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/operation_result.schema.json"
+        }
+      }
+    },
+    {
+      "name": "authority.replaceDocument",
+      "summary": "Replace the current authoritative graph document.",
+      "params": [
+        {
+          "name": "document",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/graph_document.schema.json"
+          }
+        },
+        {
+          "name": "context",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/replace_document_context.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "document",
+        "schema": {
+          "anyOf": [
+            {
+              "$ref": "./schemas/graph_document.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "authority.controlRuntime",
+      "summary": "Control the authority runtime.",
+      "params": [
+        {
+          "name": "request",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/runtime_control_request.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/runtime_control_result.schema.json"
+        }
+      }
+    }
+  ],
+  "x-notifications": [
+    {
+      "name": "authority.document",
+      "summary": "Push the latest authoritative graph document.",
+      "params": [
+        {
+          "name": "document",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/graph_document.schema.json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "authority.runtimeFeedback",
+      "summary": "Push runtime feedback from authority.",
+      "params": [
+        {
+          "name": "event",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/runtime_feedback_event.schema.json"
+          }
+        }
+      ]
+    },
+    {
+      "name": "authority.frontendBundlesSync",
+      "summary": "Push frontend bundle catalog changes.",
+      "params": [
+        {
+          "name": "event",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/frontend_bundles_sync_event.schema.json"
+          }
+        }
+      ]
+    }
+  ]
+}

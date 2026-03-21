@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "frontend_bundles_sync_event.schema.json",
+  "type": "object",
+  "required": [
+    "type",
+    "mode",
+    "emittedAt"
+  ],
+  "properties": {
+    "type": {
+      "const": "frontendBundles.sync"
+    },
+    "mode": {
+      "enum": [
+        "full",
+        "upsert",
+        "remove"
+      ]
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "removedPackageIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "emittedAt": {
+      "type": "number"
+    }
+  },
+  "additionalProperties": true
+}

@@ -9,7 +9,8 @@ const workspaceRoot = resolve(scriptsDir, "..");
 const templateDir = resolve(
   workspaceRoot,
   "templates",
-  "node-widget-plugin-template"
+  "misc",
+  "browser-node-widget-plugin-template"
 );
 const templateBrowserDistDir = resolve(templateDir, "dist", "browser");
 const editorTestBundleDir = resolve(

@@ -6,6 +6,7 @@ import type {
   RuntimeFeedbackEvent
 } from "leafergraph";
 import { createMessagePortRemoteAuthorityClient } from "../src/session/message_port_remote_authority_transport";
+import { createMessagePortRemoteAuthorityTransport } from "../src/session/message_port_remote_authority_transport";
 import { createMessagePortRemoteAuthorityHost } from "../src/session/message_port_remote_authority_host";
 import type { EditorRemoteAuthorityDocumentService } from "../src/session/graph_document_authority_service";
 
@@ -212,6 +213,43 @@ describe("createMessagePortRemoteAuthorityHost", () => {
     });
 
     client.dispose?.();
+    host.dispose();
+  });
+
+  test("应支持通过 MessagePort host 返回 rpc.discover 文档", async () => {
+    const channel = new MessageChannel();
+    const host = createMessagePortRemoteAuthorityHost({
+      port: channel.port2,
+      service: {
+        getDocument(): GraphDocument {
+          return createDocument("1");
+        },
+        submitOperation() {
+          return {
+            accepted: true,
+            changed: false,
+            revision: "1"
+          };
+        },
+        replaceDocument(document: GraphDocument): GraphDocument {
+          return structuredClone(document);
+        }
+      }
+    });
+    const transport = createMessagePortRemoteAuthorityTransport({
+      port: channel.port1
+    });
+
+    const discoverDocument = await transport.request({
+      method: "rpc.discover"
+    });
+
+    expect(discoverDocument).toMatchObject({
+      openrpc: "1.3.2",
+      methods: expect.any(Array)
+    });
+
+    transport.dispose?.();
     host.dispose();
   });
 });

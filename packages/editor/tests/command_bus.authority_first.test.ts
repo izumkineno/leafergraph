@@ -278,6 +278,7 @@ describe("EditorCommandBus authority-first", () => {
     expect(execution.operations?.[0]).toMatchObject({
       type: "node.create",
       input: {
+        id: expect.any(String),
         type: TEST_PENDING_NODE_TYPE,
         title: TEST_PENDING_NODE_TITLE,
         x: 120,
@@ -313,7 +314,7 @@ describe("EditorCommandBus authority-first", () => {
             value: 0.5
           }
         ],
-        flags: {}
+        data: {}
       }
     });
     expect(execution.historyPayload?.kind).toBe("create-nodes");

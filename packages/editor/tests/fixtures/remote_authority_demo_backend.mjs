@@ -1,4 +1,25 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import readline from "node:readline";
+import { fileURLToPath } from "node:url";
+
+const JSON_RPC_VERSION = "2.0";
+const JSON_RPC_ERROR_CODES = {
+  parseError: -32700,
+  invalidRequest: -32600,
+  methodNotFound: -32601,
+  invalidParams: -32602
+};
+const fixtureDir = dirname(fileURLToPath(import.meta.url));
+const openRpcDocument = JSON.parse(
+  readFileSync(
+    resolve(
+      fixtureDir,
+      "../../../../templates/backend/shared/openrpc/authority.openrpc.json"
+    ),
+    "utf8"
+  )
+);
 
 let currentDocument = {
   documentId: "demo-backend-doc",
@@ -80,39 +101,36 @@ function writeMessage(message) {
 
 function respondSuccess(requestId, response) {
   writeMessage({
-    channel: "authority.response",
-    requestId,
-    ok: true,
-    response
+    jsonrpc: JSON_RPC_VERSION,
+    id: requestId,
+    result: response
   });
 }
 
-function respondError(requestId, error) {
+function respondError(requestId, code, error) {
   writeMessage({
-    channel: "authority.response",
-    requestId,
-    ok: false,
-    error
+    jsonrpc: JSON_RPC_VERSION,
+    id: requestId,
+    error: {
+      code,
+      message: error
+    }
   });
 }
 
 function emitRuntimeFeedback(event) {
   writeMessage({
-    channel: "authority.event",
-    event: {
-      type: "runtimeFeedback",
-      event
-    }
+    jsonrpc: JSON_RPC_VERSION,
+    method: "authority.runtimeFeedback",
+    params: event
   });
 }
 
 function emitDocument(document) {
   writeMessage({
-    channel: "authority.event",
-    event: {
-      type: "document",
-      document: clone(document)
-    }
+    jsonrpc: JSON_RPC_VERSION,
+    method: "authority.document",
+    params: clone(document)
   });
 }
 
@@ -548,53 +566,78 @@ reader.on("line", (line) => {
     message = JSON.parse(line);
   } catch (error) {
     respondError(
-      "invalid-json",
+      null,
+      JSON_RPC_ERROR_CODES.parseError,
       error instanceof Error ? error.message : "无法解析请求消息"
     );
     return;
   }
 
-  const requestId =
-    typeof message?.requestId === "string" ? message.requestId : "unknown-request";
-  const request = message?.request;
-
   if (
-    message?.channel !== "authority.request" ||
-    !request ||
-    typeof request.action !== "string"
+    !message ||
+    message.jsonrpc !== JSON_RPC_VERSION ||
+    (typeof message.id !== "string" && typeof message.id !== "number") ||
+    typeof message.method !== "string"
   ) {
-    respondError(requestId, "未知 authority 请求");
+    respondError(null, JSON_RPC_ERROR_CODES.invalidRequest, "非法 JSON-RPC request");
     return;
   }
 
-  switch (request.action) {
-    case "getDocument":
-      respondSuccess(requestId, {
-        action: "getDocument",
-        document: clone(currentDocument)
-      });
+  const requestId = message.id;
+  const params =
+    typeof message.params === "object" && message.params !== null
+      ? message.params
+      : {};
+
+  switch (message.method) {
+    case "rpc.discover":
+      respondSuccess(requestId, clone(openRpcDocument));
       return;
-    case "replaceDocument":
-      currentDocument = clone(request.document);
+    case "authority.getDocument":
+      respondSuccess(requestId, clone(currentDocument));
+      return;
+    case "authority.replaceDocument":
+      if (!("document" in params)) {
+        respondError(
+          requestId,
+          JSON_RPC_ERROR_CODES.invalidParams,
+          "replaceDocument params 非法"
+        );
+        return;
+      }
+      currentDocument = clone(params.document);
       emitDocument(currentDocument);
-      respondSuccess(requestId, {
-        action: "replaceDocument",
-        document: clone(currentDocument)
-      });
+      respondSuccess(requestId, clone(currentDocument));
       return;
-    case "submitOperation": {
-      const result = applyOperation(request.operation);
+    case "authority.submitOperation": {
+      if (!("operation" in params)) {
+        respondError(
+          requestId,
+          JSON_RPC_ERROR_CODES.invalidParams,
+          "submitOperation params 非法"
+        );
+        return;
+      }
+      const result = applyOperation(params.operation);
       if (result.accepted && result.document) {
         emitDocument(result.document);
       }
-      respondSuccess(requestId, {
-        action: "submitOperation",
-        result
-      });
-      emitOperationFeedback(request.operation, requestId, result);
+      respondSuccess(requestId, result);
+      emitOperationFeedback(params.operation, requestId, result);
       return;
     }
+    case "authority.controlRuntime":
+      respondSuccess(requestId, {
+        accepted: false,
+        changed: false,
+        reason: "demo backend 不支持运行控制"
+      });
+      return;
     default:
-      respondError(requestId, `未知请求动作: ${request.action}`);
+      respondError(
+        requestId,
+        JSON_RPC_ERROR_CODES.methodNotFound,
+        `未知 method: ${message.method}`
+      );
   }
 });

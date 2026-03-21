@@ -1,0 +1,44 @@
+{
+  "packageId": "@template/timer-node-package",
+  "version": "0.1.0",
+  "frontendBundles": [
+    {
+      "bundleId": "@template/timer-node-package/node",
+      "name": "Timer Node Bundle",
+      "slot": "node",
+      "format": "node-json",
+      "fileName": "node.bundle.json",
+      "entry": "frontend/node.bundle.json",
+      "enabled": true,
+      "requires": [],
+      "quickCreateNodeType": "system/timer",
+      "sha256": "4e6edb20aa5623636e27709b711e7c40f69e1e0815203f5afcb562bb67b0552d"
+    },
+    {
+      "bundleId": "@template/timer-node-package/demo",
+      "name": "Timer Demo Bundle",
+      "slot": "demo",
+      "format": "demo-json",
+      "fileName": "demo.bundle.json",
+      "entry": "frontend/demo.bundle.json",
+      "enabled": true,
+      "requires": ["@template/timer-node-package/node"],
+      "sha256": "079dc4463a92f1e6af68c59ad094c918c6d81b438a4a337eb08d324bbec6893b"
+    }
+  ],
+  "backend": {
+    "node": {
+      "entry": "backend/node/executors.cjs",
+      "exportName": "createExecutors"
+    },
+    "python": {
+      "entry": "backend/python/executors.py",
+      "factoryName": "create_executors"
+    }
+  },
+  "nodeTypes": [
+    "system/timer",
+    "template/execute-counter",
+    "template/execute-display"
+  ]
+}

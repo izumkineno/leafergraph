@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_operation.schema.json",
+  "type": "object",
+  "required": [
+    "operationId",
+    "timestamp",
+    "source",
+    "type"
+  ],
+  "properties": {
+    "operationId": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "number"
+    },
+    "source": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "nodeId": {
+      "type": "string"
+    },
+    "linkId": {
+      "type": "string"
+    },
+    "input": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

@@ -14,75 +14,62 @@ import type {
   EditorRemoteAuthorityReplaceDocumentContext
 } from "./graph_document_authority_client";
 
-/** authority transport 当前支持的最小动作集合。 */
-export type EditorRemoteAuthorityTransportAction =
-  | "getDocument"
-  | "submitOperation"
-  | "replaceDocument"
-  | "controlRuntime";
+/** transport 层 `rpc.discover` 请求。 */
+export interface EditorRemoteAuthorityDiscoverRequest {
+  method: "rpc.discover";
+  params?: Record<string, never>;
+}
 
 /** transport 层获取整图快照请求。 */
 export interface EditorRemoteAuthorityGetDocumentRequest {
-  action: "getDocument";
+  method: "authority.getDocument";
+  params?: Record<string, never>;
 }
 
 /** transport 层提交操作请求。 */
 export interface EditorRemoteAuthoritySubmitOperationRequest {
-  action: "submitOperation";
-  operation: GraphOperation;
-  context: EditorRemoteAuthorityOperationContext;
+  method: "authority.submitOperation";
+  params: {
+    operation: GraphOperation;
+    context: EditorRemoteAuthorityOperationContext;
+  };
 }
 
 /** transport 层整图替换请求。 */
 export interface EditorRemoteAuthorityReplaceDocumentRequest {
-  action: "replaceDocument";
-  document: GraphDocument;
-  context: EditorRemoteAuthorityReplaceDocumentContext;
+  method: "authority.replaceDocument";
+  params: {
+    document: GraphDocument;
+    context: EditorRemoteAuthorityReplaceDocumentContext;
+  };
 }
 
 /** transport 层运行控制请求。 */
 export interface EditorRemoteAuthorityControlRuntimeRequest {
-  action: "controlRuntime";
-  request: EditorRemoteAuthorityRuntimeControlRequest;
+  method: "authority.controlRuntime";
+  params: {
+    request: EditorRemoteAuthorityRuntimeControlRequest;
+  };
 }
 
 /** transport 层最小请求联合。 */
 export type EditorRemoteAuthorityTransportRequest =
+  | EditorRemoteAuthorityDiscoverRequest
   | EditorRemoteAuthorityGetDocumentRequest
   | EditorRemoteAuthoritySubmitOperationRequest
   | EditorRemoteAuthorityReplaceDocumentRequest
   | EditorRemoteAuthorityControlRuntimeRequest;
 
-/** transport 层获取整图快照响应。 */
-export interface EditorRemoteAuthorityGetDocumentResponse {
-  action: "getDocument";
-  document: GraphDocument;
-}
-
-/** transport 层提交操作响应。 */
-export interface EditorRemoteAuthoritySubmitOperationResponse {
-  action: "submitOperation";
-  result: EditorRemoteAuthorityOperationResult;
-}
-
-/** transport 层整图替换响应。 */
-export interface EditorRemoteAuthorityReplaceDocumentResponse {
-  action: "replaceDocument";
-  document?: GraphDocument;
-}
-
-/** transport 层运行控制响应。 */
-export interface EditorRemoteAuthorityControlRuntimeResponse {
-  action: "controlRuntime";
-  result: EditorRemoteAuthorityRuntimeControlResult;
-}
+/** OpenRPC 文档结果。 */
+export type EditorRemoteAuthorityOpenRpcDocument = Record<string, unknown>;
 
 /** transport 层最小响应联合。 */
 export type EditorRemoteAuthorityTransportResponse =
-  | EditorRemoteAuthorityGetDocumentResponse
-  | EditorRemoteAuthoritySubmitOperationResponse
-  | EditorRemoteAuthorityReplaceDocumentResponse
-  | EditorRemoteAuthorityControlRuntimeResponse;
+  | EditorRemoteAuthorityOpenRpcDocument
+  | GraphDocument
+  | EditorRemoteAuthorityOperationResult
+  | EditorRemoteAuthorityRuntimeControlResult
+  | null;
 
 /** transport 层运行反馈事件。 */
 export interface EditorRemoteAuthorityRuntimeFeedbackTransportEvent {
@@ -331,11 +318,10 @@ export function createTransportRemoteAuthorityClient(options: {
 
   return {
     async getDocument(): Promise<GraphDocument> {
-      const response =
-        await options.transport.request<EditorRemoteAuthorityGetDocumentResponse>({
-          action: "getDocument"
-        });
-      return cloneGraphDocument(response.document);
+      const response = await options.transport.request<GraphDocument>({
+        method: "authority.getDocument"
+      });
+      return cloneGraphDocument(response);
     },
 
     async submitOperation(
@@ -343,12 +329,14 @@ export function createTransportRemoteAuthorityClient(options: {
       context: EditorRemoteAuthorityOperationContext
     ): Promise<EditorRemoteAuthorityOperationResult> {
       const response =
-        await options.transport.request<EditorRemoteAuthoritySubmitOperationResponse>({
-          action: "submitOperation",
-          operation: cloneOperation(operation),
-          context: cloneOperationContext(context)
+        await options.transport.request<EditorRemoteAuthorityOperationResult>({
+          method: "authority.submitOperation",
+          params: {
+            operation: cloneOperation(operation),
+            context: cloneOperationContext(context)
+          }
         });
-      return cloneOperationResult(response.result);
+      return cloneOperationResult(response);
     },
 
     async replaceDocument(
@@ -356,29 +344,29 @@ export function createTransportRemoteAuthorityClient(options: {
       context: EditorRemoteAuthorityReplaceDocumentContext
     ): Promise<GraphDocument | void> {
       const response =
-        await options.transport.request<EditorRemoteAuthorityReplaceDocumentResponse>(
-          {
-            action: "replaceDocument",
+        await options.transport.request<GraphDocument | null>({
+          method: "authority.replaceDocument",
+          params: {
             document: cloneGraphDocument(document),
             context: cloneReplaceDocumentContext(context)
           }
-        );
-      return response.document
-        ? cloneGraphDocument(response.document)
-        : undefined;
+        });
+      return response ? cloneGraphDocument(response) : undefined;
     },
 
     async controlRuntime(
       request: EditorRemoteAuthorityRuntimeControlRequest
     ): Promise<EditorRemoteAuthorityRuntimeControlResult> {
       const response =
-        await options.transport.request<EditorRemoteAuthorityControlRuntimeResponse>(
+        await options.transport.request<EditorRemoteAuthorityRuntimeControlResult>(
           {
-            action: "controlRuntime",
-            request: cloneRuntimeControlRequest(request)
+            method: "authority.controlRuntime",
+            params: {
+              request: cloneRuntimeControlRequest(request)
+            }
           }
         );
-      return cloneRuntimeControlResult(response.result);
+      return cloneRuntimeControlResult(response);
     },
 
     subscribe(listener: (event: RuntimeFeedbackEvent) => void): () => void {

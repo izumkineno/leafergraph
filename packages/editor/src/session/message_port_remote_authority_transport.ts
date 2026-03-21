@@ -8,7 +8,10 @@ import {
 } from "./graph_document_authority_transport";
 import type {
   EditorRemoteAuthorityInboundEnvelope,
+  EditorRemoteAuthorityFailureEnvelope,
   EditorRemoteAuthorityProtocolAdapter
+  ,
+  EditorRemoteAuthoritySuccessEnvelope
 } from "./graph_document_authority_protocol";
 import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
 
@@ -61,29 +64,34 @@ export function createMessagePortRemoteAuthorityTransport(
   const handleInboundEnvelope = (
     envelope: EditorRemoteAuthorityInboundEnvelope
   ): void => {
-    switch (envelope.channel) {
-      case "authority.event":
-        for (const listener of listeners) {
-          listener(structuredClone(envelope.event));
-        }
-        return;
-      case "authority.response": {
-        const pendingRequest = pendingRequests.get(envelope.requestId);
-        if (!pendingRequest) {
-          return;
-        }
-
-        pendingRequests.delete(envelope.requestId);
-        if (envelope.ok) {
-          pendingRequest.resolve(structuredClone(envelope.response));
-          return;
-        }
-
-        pendingRequest.reject(
-          new Error(envelope.error || "authority 请求失败")
-        );
+    if ("event" in envelope && envelope.event) {
+      for (const listener of listeners) {
+        listener(structuredClone(envelope.event));
       }
+      return;
     }
+
+    const responseEnvelope =
+      envelope as
+        | EditorRemoteAuthoritySuccessEnvelope
+        | EditorRemoteAuthorityFailureEnvelope;
+    const pendingRequest = pendingRequests.get(String(responseEnvelope.id));
+    if (!pendingRequest) {
+      return;
+    }
+
+    pendingRequests.delete(String(responseEnvelope.id));
+    if (responseEnvelope.ok) {
+      pendingRequest.resolve(structuredClone(responseEnvelope.result));
+      return;
+    }
+
+    pendingRequest.reject(
+      new Error(
+        ("error" in responseEnvelope && responseEnvelope.error.message) ||
+          "authority 请求失败"
+      )
+    );
   };
 
   const handleMessage = (event: MessageEvent<unknown>): void => {

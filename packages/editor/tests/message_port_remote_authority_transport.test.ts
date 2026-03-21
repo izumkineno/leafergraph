@@ -54,21 +54,23 @@ function createCustomProtocolAdapter(): EditorRemoteAuthorityProtocolAdapter {
       return {
         kind: "custom.response",
         id: requestId,
-        success: true,
-        payload: response
+        result: response
       } as never;
     },
 
-    createFailureEnvelope(requestId, error) {
+    createErrorEnvelope(requestId, code, message, data) {
       return {
         kind: "custom.response",
         id: requestId,
-        success: false,
-        error
+        error: {
+          code,
+          message,
+          data
+        }
       } as never;
     },
 
-    createEventEnvelope(event) {
+    createNotificationEnvelope(event) {
       return {
         kind: "custom.event",
         payload: event
@@ -86,8 +88,9 @@ function createCustomProtocolAdapter(): EditorRemoteAuthorityProtocolAdapter {
       }
 
       return {
-        channel: "authority.request",
-        requestId: record.id,
+        jsonrpc: "2.0",
+        id: record.id,
+        method: (record.payload as { method: string }).method,
         request: record.payload
       } as never;
     },
@@ -101,22 +104,23 @@ function createCustomProtocolAdapter(): EditorRemoteAuthorityProtocolAdapter {
       switch (record.kind) {
         case "custom.event":
           return {
-            channel: "authority.event",
+            jsonrpc: "2.0",
+            method: "custom.event",
             event: record.payload
           } as never;
         case "custom.response":
-          return record.success === true
+          return "error" in record
             ? ({
-                channel: "authority.response",
-                requestId: record.id,
-                ok: true,
-                response: record.payload
-              } as never)
-            : ({
-                channel: "authority.response",
-                requestId: record.id,
+                jsonrpc: "2.0",
+                id: record.id,
                 ok: false,
                 error: record.error
+              } as never)
+            : ({
+                jsonrpc: "2.0",
+                id: record.id,
+                ok: true,
+                result: record.result
               } as never);
         default:
           return null;
@@ -211,34 +215,35 @@ describe("createMessagePortRemoteAuthorityTransport", () => {
     });
 
     const documentResponse = await transport.request({
-      action: "getDocument"
+      method: "authority.getDocument"
     });
-    expect(documentResponse.action).toBe("getDocument");
-    expect(documentResponse.document.revision).toBe("1");
+    expect(documentResponse.revision).toBe("1");
 
     const submitResponse = await transport.request({
-      action: "submitOperation",
-      operation: createOperation("op-1"),
-      context: {
-        currentDocument: createDocument("1"),
-        pendingOperationIds: ["op-1"]
+      method: "authority.submitOperation",
+      params: {
+        operation: createOperation("op-1"),
+        context: {
+          currentDocument: createDocument("1"),
+          pendingOperationIds: ["op-1"]
+        }
       }
     });
-    expect(submitResponse.action).toBe("submitOperation");
-    expect(submitResponse.result.changed).toBe(true);
+    expect(submitResponse.changed).toBe(true);
 
     await flushMessages();
     expect(authorityEvents).toEqual(["document", "runtimeFeedback"]);
 
     const replaceResponse = await transport.request({
-      action: "replaceDocument",
-      document: createDocument("8"),
-      context: {
-        currentDocument: createDocument("2")
+      method: "authority.replaceDocument",
+      params: {
+        document: createDocument("8"),
+        context: {
+          currentDocument: createDocument("2")
+        }
       }
     });
-    expect(replaceResponse.action).toBe("replaceDocument");
-    expect(replaceResponse.document?.revision).toBe("8");
+    expect(replaceResponse?.revision).toBe("8");
     expect(authority.actions).toEqual([
       "getDocument",
       "submitOperation",
@@ -265,10 +270,9 @@ describe("createMessagePortRemoteAuthorityTransport", () => {
     });
 
     const documentResponse = await transport.request({
-      action: "getDocument"
+      method: "authority.getDocument"
     });
-    expect(documentResponse.action).toBe("getDocument");
-    expect(documentResponse.document.revision).toBe("11");
+    expect(documentResponse.revision).toBe("11");
 
     transport.dispose?.();
     host.dispose();

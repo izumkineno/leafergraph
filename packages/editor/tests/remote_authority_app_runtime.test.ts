@@ -196,25 +196,30 @@ function createTransportStub(options?: {
     async request<TResponse extends EditorRemoteAuthorityTransportResponse>(
       request: EditorRemoteAuthorityTransportRequest
     ): Promise<TResponse> {
-      switch (request.action) {
-        case "getDocument":
+      switch (request.method) {
+        case "authority.getDocument":
+          return structuredClone(document) as TResponse;
+        case "authority.submitOperation":
           return {
-            action: "getDocument",
-            document: structuredClone(document)
+            accepted: true,
+            changed: false,
+            revision: document.revision
           } as TResponse;
-        case "submitOperation":
+        case "authority.replaceDocument":
+          return structuredClone(request.params.document) as TResponse;
+        case "authority.controlRuntime":
           return {
-            action: "submitOperation",
-            result: {
-              accepted: true,
-              changed: false,
-              revision: document.revision
+            accepted: false,
+            changed: false,
+            reason: "stub transport 不支持运行控制"
+          } as TResponse;
+        case "rpc.discover":
+          return {
+            openrpc: "1.3.2",
+            info: {
+              title: "Stub Authority",
+              version: "0.0.0"
             }
-          } as TResponse;
-        case "replaceDocument":
-          return {
-            action: "replaceDocument",
-            document: structuredClone(request.document)
           } as TResponse;
       }
     },
@@ -291,29 +296,36 @@ function createFrontendBundleTransportStub() {
     async request<TResponse extends EditorRemoteAuthorityTransportResponse>(
       request: EditorRemoteAuthorityTransportRequest
     ): Promise<TResponse> {
-      if (request.action === "getDocument") {
+      if (request.method === "authority.getDocument") {
         for (const event of queuedEventsOnGetDocument) {
           emitFrontendBundlesSync(event);
         }
         queuedEventsOnGetDocument.length = 0;
+        return createDocument("fb-1") as TResponse;
+      }
+      if (request.method === "authority.submitOperation") {
         return {
-          action: "getDocument",
-          document: createDocument("fb-1")
+          accepted: true,
+          changed: false,
+          revision: "fb-1"
         } as TResponse;
       }
-      if (request.action === "submitOperation") {
+      if (request.method === "authority.replaceDocument") {
+        return structuredClone(request.params.document) as TResponse;
+      }
+      if (request.method === "authority.controlRuntime") {
         return {
-          action: "submitOperation",
-          result: {
-            accepted: true,
-            changed: false,
-            revision: "fb-1"
-          }
+          accepted: false,
+          changed: false,
+          reason: "frontend bundle stub 不支持运行控制"
         } as TResponse;
       }
       return {
-        action: "replaceDocument",
-        document: structuredClone(request.document)
+        openrpc: "1.3.2",
+        info: {
+          title: "Frontend Bundle Stub Authority",
+          version: "0.0.0"
+        }
       } as TResponse;
     },
     subscribe(listener) {

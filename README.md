@@ -8,14 +8,15 @@
 - `packages/editor`
   - 编辑器工程
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
-  - 当前通过本地 `dist/*.iife.js` bundle 动态加载 demo、node、widget
+  - 当前同时支持本地 bundle 加载与远端 authority 接线
 - `templates/`
   - 可直接复制出去的外部模板工程
   - 当前已提供：
-    - `templates/node-widget-plugin-template`
-    - `templates/node-backend-template`
+    - `templates/backend/nodejs-authority-template`
       - 当前仓库内 Node authority 后端的唯一实现来源
-    - `templates/python-backend-template`
+    - `templates/backend/python-authority-template`
+    - `templates/misc/browser-node-widget-plugin-template`
+    - `templates/misc/backend-node-package-template`
   - 模板职责矩阵见 `templates/README.md`
 
 ## 当前边界
@@ -26,7 +27,7 @@
   - 主包初始化只接受正式 `graph` 输入，不再提供 `nodes` 这类 demo 级入口
 - `packages/editor`
   - 承担 Sandbox、本地 bundle 装载面板和 editor 壳层行为
-  - editor 不再源码直连模板工程，而是通过文件选择器读取本地 IIFE 产物
+  - editor 不再源码直连模板工程，而是通过文件选择器读取本地 bundle，或通过 authority 消费远端推送
 
 ## 常用命令
 
@@ -52,6 +53,13 @@ bun run test:node-backend
 bun run start:python-backend
 bun run test:python-backend
 ```
+
+当前 authority 协议固定为：
+
+- `GET /health`
+- `WS /authority`
+- JSON-RPC 2.0
+- `rpc.discover` 返回共享 OpenRPC 文档
 
 ## 当前定位
 
@@ -96,13 +104,19 @@ editor 现在内建一个“本地 Bundle 加载面板”，按三类 bundle 分
 - `Node Bundles`
 - `Demo Bundles`
 
-加载方式不再依赖源码 alias，而是：
+本地加载方式不再依赖源码 alias，而是：
 
-1. 在模板工程里构建出 browser IIFE 文件
+1. 在模板工程里构建出 browser bundle 文件
 2. 在 editor 页面用文件选择器选择本地 `dist/browser/*.iife.js`
 3. editor 通过 `<script>` 注入这些文件
 4. bundle 顶层调用 `LeaferGraphEditorBundleBridge.registerBundle(...)`
 5. editor 再把已激活 bundle 组装成 `document + plugins`
+
+远端 authority 加载方式固定为：
+
+1. authority 返回正式 `GraphDocument`
+2. authority 通过 `authority.frontendBundlesSync` 推送结构化前端 bundle
+3. editor 根据 bundle `format` 分流注册 `node-json` / `demo-json` / `script`
 
 当前行为语义：
 
@@ -131,11 +145,11 @@ editor 现在内建一个“本地 Bundle 加载面板”，按三类 bundle 分
 bun run build:testbundles
 ```
 
-这条命令会先重建 `templates/node-widget-plugin-template/dist/browser/*`，再同步到 `packages/editor/public/__testbundles/`。
+这条命令会先重建 `templates/misc/browser-node-widget-plugin-template/dist/browser/*`，再同步到 `packages/editor/public/__testbundles/`。
 
 ## 模板工程产物
 
-`templates/node-widget-plugin-template` 当前会同时输出两条产物线：
+`templates/misc/browser-node-widget-plugin-template` 当前会同时输出两条产物线：
 
 - ESM 包产物
   - `dist/index.js`

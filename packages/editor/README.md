@@ -292,7 +292,7 @@ bundle manifest 解析、依赖检查、运行时 setup、持久化读写（Inde
    - `node/demo` 可直接导入 JSON，`widget` 继续按脚本执行。
 2. 远端 authority 推送
    - Node/Python 后端扫描节点包目录。
-   - 后端通过 `authority.event -> frontendBundles.sync` 推送结构化 bundle 内容。
+   - 后端通过 `authority.frontendBundlesSync` notification 推送结构化 bundle 内容。
    - `src/shell/provider.tsx` 调用 `loadEditorFrontendBundleSource(...)` 自动注册远端 bundle。
 
 也就是说：

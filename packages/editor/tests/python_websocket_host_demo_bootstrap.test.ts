@@ -189,7 +189,7 @@ async function startPythonAuthorityServer(): Promise<StartedPythonAuthorityServe
     [
       "run",
       "--project",
-      "templates/python-backend-template",
+      "templates/backend/python-authority-template",
       "python",
       "-m",
       "leafergraph_python_backend_control_template.entry"

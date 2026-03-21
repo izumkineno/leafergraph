@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_document.schema.json",
+  "type": "object",
+  "required": [
+    "documentId",
+    "revision",
+    "appKind",
+    "nodes",
+    "links"
+  ],
+  "properties": {
+    "documentId": {
+      "type": "string"
+    },
+    "revision": {
+      "type": [
+        "string",
+        "number"
+      ]
+    },
+    "appKind": {
+      "type": "string"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "meta": {
+      "type": "object"
+    },
+    "capabilityProfile": {
+      "type": "object"
+    },
+    "adapterBinding": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

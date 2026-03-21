@@ -53,7 +53,7 @@ class FakeWebSocket extends EventTarget {
 
 function createTransportRequest(): EditorRemoteAuthorityTransportRequest {
   return {
-    action: "getDocument"
+    method: "authority.getDocument"
   };
 }
 
@@ -71,21 +71,23 @@ function createCustomProtocolAdapter(): EditorRemoteAuthorityProtocolAdapter {
       return {
         kind: "custom.response",
         id: requestId,
-        success: true,
-        payload: response
+        result: response
       } as never;
     },
 
-    createFailureEnvelope(requestId, error) {
+    createErrorEnvelope(requestId, code, message, data) {
       return {
         kind: "custom.response",
         id: requestId,
-        success: false,
-        error
+        error: {
+          code,
+          message,
+          data
+        }
       } as never;
     },
 
-    createEventEnvelope(event) {
+    createNotificationEnvelope(event) {
       return {
         kind: "custom.event",
         payload: event
@@ -105,22 +107,23 @@ function createCustomProtocolAdapter(): EditorRemoteAuthorityProtocolAdapter {
       switch (record.kind) {
         case "custom.event":
           return {
-            channel: "authority.event",
+            jsonrpc: "2.0",
+            method: "custom.event",
             event: record.payload
           } as never;
         case "custom.response":
-          return record.success === true
+          return "error" in record
             ? ({
-                channel: "authority.response",
-                requestId: record.id,
-                ok: true,
-                response: record.payload
-              } as never)
-            : ({
-                channel: "authority.response",
-                requestId: record.id,
+                jsonrpc: "2.0",
+                id: record.id,
                 ok: false,
                 error: record.error
+              } as never)
+            : ({
+                jsonrpc: "2.0",
+                id: record.id,
+                ok: true,
+                result: record.result
               } as never);
         default:
           return null;
@@ -167,58 +170,13 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
         createTransportRequest()
       );
     const sentEnvelope = JSON.parse(socket.sentPayloads[0] ?? "{}") as {
-      requestId: string;
+      id: string;
     };
 
     socket.emitMessage({
-      channel: "authority.event",
-      event: {
-        type: "document",
-        document: {
-          documentId: "websocket-transport-doc",
-          revision: "1",
-          appKind: "transport-test",
-          nodes: [],
-          links: [],
-          meta: {}
-        }
-      }
-    });
-    socket.emitMessage({
-      channel: "authority.event",
-      event: {
-        type: "runtimeFeedback",
-        event: {
-          type: "node.state",
-          event: {
-            nodeId: "node-1",
-            exists: true,
-            reason: "updated",
-            timestamp: Date.now()
-          }
-        }
-      }
-    });
-    socket.emitMessage({
-      channel: "authority.response",
-      requestId: sentEnvelope.requestId,
-      ok: true,
-      response: {
-        action: "getDocument",
-        document: {
-          documentId: "websocket-transport-doc",
-          revision: "1",
-          appKind: "transport-test",
-          nodes: [],
-          links: [],
-          meta: {}
-        }
-      }
-    });
-
-    await expect(requestPromise).resolves.toEqual({
-      action: "getDocument",
-      document: {
+      jsonrpc: "2.0",
+      method: "authority.document",
+      params: {
         documentId: "websocket-transport-doc",
         revision: "1",
         appKind: "transport-test",
@@ -226,6 +184,40 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
         links: [],
         meta: {}
       }
+    });
+    socket.emitMessage({
+      jsonrpc: "2.0",
+      method: "authority.runtimeFeedback",
+      params: {
+        type: "node.state",
+        event: {
+          nodeId: "node-1",
+          exists: true,
+          reason: "updated",
+          timestamp: Date.now()
+        }
+      }
+    });
+    socket.emitMessage({
+      jsonrpc: "2.0",
+      id: sentEnvelope.id,
+      result: {
+        documentId: "websocket-transport-doc",
+        revision: "1",
+        appKind: "transport-test",
+        nodes: [],
+        links: [],
+        meta: {}
+      }
+    });
+
+    await expect(requestPromise).resolves.toEqual({
+      documentId: "websocket-transport-doc",
+      revision: "1",
+      appKind: "transport-test",
+      nodes: [],
+      links: [],
+      meta: {}
     });
     expect(authorityEvents).toEqual([
       {
@@ -318,23 +310,7 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
     socket.emitMessage({
       kind: "custom.response",
       id: sentEnvelope.id,
-      success: true,
-      payload: {
-        action: "getDocument",
-        document: {
-          documentId: "custom-protocol-doc",
-          revision: "1",
-          appKind: "transport-test",
-          nodes: [],
-          links: [],
-          meta: {}
-        }
-      }
-    });
-
-    await expect(requestPromise).resolves.toEqual({
-      action: "getDocument",
-      document: {
+      result: {
         documentId: "custom-protocol-doc",
         revision: "1",
         appKind: "transport-test",
@@ -342,6 +318,15 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
         links: [],
         meta: {}
       }
+    });
+
+    await expect(requestPromise).resolves.toEqual({
+      documentId: "custom-protocol-doc",
+      revision: "1",
+      appKind: "transport-test",
+      nodes: [],
+      links: [],
+      meta: {}
     });
 
     transport.dispose();
@@ -397,28 +382,12 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
         createTransportRequest()
       );
     const sentEnvelope = JSON.parse(socket2.sentPayloads[0] ?? "{}") as {
-      requestId: string;
+      id: string;
     };
     socket2.emitMessage({
-      channel: "authority.response",
-      requestId: sentEnvelope.requestId,
-      ok: true,
-      response: {
-        action: "getDocument",
-        document: {
-          documentId: "reconnected-doc",
-          revision: "2",
-          appKind: "transport-test",
-          nodes: [],
-          links: [],
-          meta: {}
-        }
-      }
-    });
-
-    await expect(requestPromise).resolves.toEqual({
-      action: "getDocument",
-      document: {
+      jsonrpc: "2.0",
+      id: sentEnvelope.id,
+      result: {
         documentId: "reconnected-doc",
         revision: "2",
         appKind: "transport-test",
@@ -426,6 +395,15 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
         links: [],
         meta: {}
       }
+    });
+
+    await expect(requestPromise).resolves.toEqual({
+      documentId: "reconnected-doc",
+      revision: "2",
+      appKind: "transport-test",
+      nodes: [],
+      links: [],
+      meta: {}
     });
 
     disposeConnectionStatusSubscription();

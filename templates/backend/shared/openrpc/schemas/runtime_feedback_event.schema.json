@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_feedback_event.schema.json",
+  "type": "object",
+  "required": [
+    "type",
+    "event"
+  ],
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "event": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

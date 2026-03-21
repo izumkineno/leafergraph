@@ -1,0 +1,28 @@
+{
+  "name": "@template/nodejs-authority-template",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/server.js",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "check": "tsc -p tsconfig.json --noEmit",
+    "build": "bun build ./src/entry/server.ts --outfile ./dist/server.js --target node --format esm",
+    "start": "bun run build && node ./dist/server.js",
+    "dev": "bun run ./src/entry/server.ts",
+    "test": "bun test ./tests"
+  },
+  "dependencies": {
+    "@leafergraph/node": "file:../../packages/node",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.4.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "~5.9.3"
+  }
+}

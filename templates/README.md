@@ -1,42 +1,77 @@
-# Templates 总览（角色化）
+# Templates 总览
 
-`templates/` 目录只放“可复制出去的模板工程”。  
-它们用于联调和二次开发参考，不是 workspace 的核心源码入口。
+`templates/` 只放可复制出去的模板工程与分类入口，不承载 workspace 核心源码。
+
+## 目录结构
+
+```text
+templates/
+  backend/
+    shared/
+      openrpc/
+        authority.openrpc.json
+        schemas/
+    nodejs-authority-template/
+    python-authority-template/
+  node/
+    README.md
+  widget/
+    README.md
+  misc/
+    browser-node-widget-plugin-template/
+    backend-node-package-template/
+```
 
 ## 模板矩阵
 
-| 模板 | 主要用途 | 默认端口 | 启动命令 | 对外契约 |
+| 路径 | 主要用途 | 默认端口 | 启动/构建命令 | 核心契约 |
 | --- | --- | --- | --- | --- |
-| `node-backend-template` | Node 后端控制与 authority 服务 | `5502` | `bun run --cwd templates/node-backend-template start` | `GET /health`、`WS /authority`、authority request/response/event |
-| `python-backend-template` | Python 后端控制与 authority 服务 | `5503` | `uv run --project templates/python-backend-template python -m leafergraph_python_backend_control_template.entry` | `GET /health`、`WS /authority`、authority request/response/event |
-| `node-widget-plugin-template` | 节点/Widget 外部插件 + browser bundle 分发 | 无固定端口 | `bun run --cwd templates/node-widget-plugin-template build` | bundle manifest（`kind/id/requires`）与 `registerBundle(...)` |
-| `timer-node-package-template` | 后端驱动注册的一体化节点包示例（frontend + node backend + python backend） | 无固定端口 | 作为目录模板被后端热加载 | 节点包 manifest、`frontendBundles.sync` 推送契约 |
+| `templates/backend/nodejs-authority-template` | Node authority 后端模板 | `5502` | `bun run --cwd templates/backend/nodejs-authority-template start` | `GET /health` + `WS /authority` + JSON-RPC 2.0 |
+| `templates/backend/python-authority-template` | Python authority 后端模板 | `5503` | `uv run --project templates/backend/python-authority-template python -m leafergraph_python_backend_control_template.entry` | `GET /health` + `WS /authority` + JSON-RPC 2.0 |
+| `templates/misc/browser-node-widget-plugin-template` | 浏览器侧 node/widget/demo 插件模板 | 无固定端口 | `bun run --cwd templates/misc/browser-node-widget-plugin-template build` | bundle manifest + `registerBundle(...)` |
+| `templates/misc/backend-node-package-template` | 后端驱动节点包模板 | 无固定端口 | 作为目录模板被 authority runtime 热加载 | package manifest + `authority.frontendBundlesSync` |
 
-## 角色边界（统一口径）
+## 固定决策
 
-### 需要改
+- authority 协议真源固定为 `templates/backend/shared/openrpc/authority.openrpc.json`。
+- `WS /authority` 固定走 JSON-RPC 2.0。
+- `rpc.discover` 固定返回完整 OpenRPC 文档本体。
+- `GET /health` 保持独立 HTTP 健康检查入口，不并入 JSON-RPC。
+- notification 固定使用 `authority.document`、`authority.runtimeFeedback`、`authority.frontendBundlesSync`。
 
-- 业务节点定义、业务 widget、业务 demo 文档。
-- 包名、命名空间、默认标题、日志前缀、默认 authority 名称。
-- 你的业务执行规则与运行反馈内容（在不改协议形状前提下）。
+## 分类边界
 
-### 按需改
+### `backend/`
 
-- 构建脚本、测试覆盖范围、默认 demo 预置数据。
-- README 里的部署方式、环境准备、外部宿主接入示例。
-- 本地开发体验相关配置（如 dev 命令、日志详细度）。
-- 后端节点包目录（`LEAFERGRAPH_NODE_BACKEND_PACKAGE_DIR` / `LEAFERGRAPH_PYTHON_BACKEND_PACKAGE_DIR`）。
+- 放 authority 后端模板和共享协议文档。
+- Node / Python 两端都必须对齐这份 OpenRPC 真源。
+- 这里是“后端协议与运行时模板”，不是节点/Widget 作者目录。
 
-### 不要改
+### `node/`
+
+- 放纯节点模板分类说明与未来节点作者入口。
+- 本轮先保留 README 作为正式分类占位，不强塞旧模板。
+
+### `widget/`
+
+- 放纯 Widget 模板分类说明与未来 Widget 作者入口。
+- 本轮先保留 README 作为正式分类占位，不强塞旧模板。
+
+### `misc/`
+
+- 放不属于“纯后端模板 / 纯节点模板 / 纯 Widget 模板”的混合型模板。
+- 当前包括：
+  - 浏览器插件模板
+  - 后端驱动节点包模板
+
+## 需要改
+
+- 业务节点、业务 widget、业务 demo、业务执行器。
+- 默认 authority 名称、日志前缀、示例文档内容。
+- 模板 README 里的业务接入说明。
+
+## 不要改
 
 - `GET /health` 与 `WS /authority` 的稳定路径语义。
-- authority envelope 基本通道（`authority.request/response/event`）与 action 结构。
-- editor bundle bridge 基础契约与 `demo/node/widget` 分包职责。
-
-## 命名约定（本轮重置）
-
-- 根脚本统一使用 `*backend*` 命名，不再使用 `*authority-demo*` 旧名。
-- 环境变量统一：
-  - Node：`LEAFERGRAPH_NODE_BACKEND_HOST|PORT|NAME`
-  - Python：`LEAFERGRAPH_PYTHON_BACKEND_HOST|PORT|NAME`
-- 旧 `*_AUTHORITY_*` 变量不再保留。
+- OpenRPC 真源路径与 JSON-RPC 2.0 基本约束。
+- `authority.document / authority.runtimeFeedback / authority.frontendBundlesSync` 这些正式 method 名。

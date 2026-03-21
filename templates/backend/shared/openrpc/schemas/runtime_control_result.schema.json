@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_control_result.schema.json",
+  "type": "object",
+  "required": [
+    "accepted",
+    "changed"
+  ],
+  "properties": {
+    "accepted": {
+      "type": "boolean"
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "state": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

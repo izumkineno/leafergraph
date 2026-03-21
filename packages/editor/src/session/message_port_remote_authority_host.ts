@@ -1,13 +1,11 @@
+import authorityOpenRpcDocument from "../../../../templates/backend/shared/openrpc/authority.openrpc.json";
 import type {
   EditorRemoteAuthorityProtocolAdapter,
   EditorRemoteAuthorityRequestInboundEnvelope
 } from "./graph_document_authority_protocol";
 import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
 import type {
-  EditorRemoteAuthorityGetDocumentResponse,
-  EditorRemoteAuthorityControlRuntimeResponse,
-  EditorRemoteAuthorityReplaceDocumentResponse,
-  EditorRemoteAuthoritySubmitOperationResponse
+  EditorRemoteAuthorityTransportResponse
 } from "./graph_document_authority_transport";
 import type { EditorRemoteAuthorityDocumentService } from "./graph_document_authority_service";
 
@@ -61,12 +59,8 @@ export function createMessagePortRemoteAuthorityHost(
   };
 
   const respondSuccess = (
-    requestId: string,
-    response:
-      | EditorRemoteAuthorityGetDocumentResponse
-      | EditorRemoteAuthorityControlRuntimeResponse
-      | EditorRemoteAuthoritySubmitOperationResponse
-      | EditorRemoteAuthorityReplaceDocumentResponse
+    requestId: string | number | null,
+    response: EditorRemoteAuthorityTransportResponse
   ): void => {
     postMessage(
       protocolAdapter.createSuccessEnvelope(
@@ -76,9 +70,12 @@ export function createMessagePortRemoteAuthorityHost(
     );
   };
 
-  const respondFailure = (requestId: string, error: unknown): void => {
+  const respondFailure = (
+    requestId: string | number | null,
+    error: unknown
+  ): void => {
     postMessage(
-      protocolAdapter.createFailureEnvelope(requestId, toErrorMessage(error))
+      protocolAdapter.createErrorEnvelope(requestId, -32603, toErrorMessage(error))
     );
   };
 
@@ -86,7 +83,7 @@ export function createMessagePortRemoteAuthorityHost(
     typeof options.service.subscribe === "function"
       ? options.service.subscribe((event) => {
           postMessage(
-            protocolAdapter.createEventEnvelope({
+            protocolAdapter.createNotificationEnvelope({
               type: "runtimeFeedback",
               event: structuredClone(event)
             })
@@ -97,7 +94,7 @@ export function createMessagePortRemoteAuthorityHost(
     typeof options.service.subscribeDocument === "function"
       ? options.service.subscribeDocument((document) => {
           postMessage(
-            protocolAdapter.createEventEnvelope({
+            protocolAdapter.createNotificationEnvelope({
               type: "document",
               document: structuredClone(document)
             })
@@ -108,60 +105,50 @@ export function createMessagePortRemoteAuthorityHost(
   const handleRequestEnvelope = async (
     envelope: EditorRemoteAuthorityRequestInboundEnvelope
   ): Promise<void> => {
-    const { requestId, request } = envelope;
+    const requestId = envelope.id;
+    const request = envelope.request!;
 
     try {
-      switch (request.action) {
-        case "getDocument": {
+      switch (request.method) {
+        case "authority.getDocument": {
           const document = await options.service.getDocument();
-          respondSuccess(requestId, {
-            action: "getDocument",
-            document: structuredClone(document)
-          });
+          respondSuccess(requestId, structuredClone(document));
           return;
         }
-        case "submitOperation": {
+        case "authority.submitOperation": {
           const result = await options.service.submitOperation(
-            structuredClone(request.operation),
-            structuredClone(request.context)
+            structuredClone(request.params.operation),
+            structuredClone(request.params.context)
           );
-          respondSuccess(requestId, {
-            action: "submitOperation",
-            result: structuredClone(result)
-          });
+          respondSuccess(requestId, structuredClone(result));
           return;
         }
-        case "replaceDocument": {
+        case "authority.replaceDocument": {
           const document = await options.service.replaceDocument(
-            structuredClone(request.document),
-            structuredClone(request.context)
+            structuredClone(request.params.document),
+            structuredClone(request.params.context)
           );
-          respondSuccess(requestId, {
-            action: "replaceDocument",
-            document: document ? structuredClone(document) : undefined
-          });
+          respondSuccess(requestId, document ? structuredClone(document) : null);
           return;
         }
-        case "controlRuntime": {
+        case "authority.controlRuntime": {
           if (typeof options.service.controlRuntime !== "function") {
             respondSuccess(requestId, {
-              action: "controlRuntime",
-              result: {
-                accepted: false,
-                changed: false,
-                reason: "authority 不支持运行控制"
-              }
+              accepted: false,
+              changed: false,
+              reason: "authority 不支持运行控制"
             });
             return;
           }
 
           const result = await options.service.controlRuntime(
-            structuredClone(request.request)
+            structuredClone(request.params.request)
           );
-          respondSuccess(requestId, {
-            action: "controlRuntime",
-            result: structuredClone(result)
-          });
+          respondSuccess(requestId, structuredClone(result));
+          return;
+        }
+        case "rpc.discover": {
+          respondSuccess(requestId, authorityOpenRpcDocument);
           return;
         }
       }

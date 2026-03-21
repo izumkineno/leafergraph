@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "replace_document_context.schema.json",
+  "type": "object",
+  "required": [
+    "currentDocument"
+  ],
+  "properties": {
+    "currentDocument": {
+      "$ref": "./graph_document.schema.json"
+    }
+  },
+  "additionalProperties": false
+}
