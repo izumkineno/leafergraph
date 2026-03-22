@@ -1,5 +1,7 @@
 import type {
+  ApplyGraphDocumentDiffResult,
   AdapterBinding,
+  GraphDocumentDiff,
   CapabilityProfile,
   GraphDocument,
   GraphLink,
@@ -8,12 +10,16 @@ import type {
   LeaferGraph,
   LeaferGraphUpdateDocumentInput
 } from "leafergraph";
+import { applyGraphDocumentDiffToDocument } from "leafergraph";
 import type {
   EditorRemoteAuthorityClient,
   EditorRemoteAuthorityOperationResult
 } from "./graph_document_authority_client";
 
 type GraphDocumentListener = (document: GraphDocument) => void;
+type GraphProjectionListener = (
+  event: EditorGraphDocumentProjectionEvent
+) => void;
 type GraphPendingOperationIdsListener = (
   pendingOperationIds: readonly string[]
 ) => void;
@@ -63,6 +69,19 @@ export interface EditorGraphOperationSubmission {
   confirmation: Promise<EditorGraphOperationAuthorityConfirmation>;
 }
 
+/** session 内部投影事件：full 用于整图恢复，diff 用于局部投影。 */
+export type EditorGraphDocumentProjectionEvent =
+  | {
+      type: "full";
+      document: GraphDocument;
+    }
+  | {
+      type: "diff";
+      document: GraphDocument;
+      diff: GraphDocumentDiff;
+      applyResult: ApplyGraphDocumentDiffResult;
+    };
+
 /** editor 当前阶段的最小 document session。 */
 export interface EditorGraphDocumentSession {
   /** 当前缓存的正式文档快照。 */
@@ -95,6 +114,10 @@ export interface EditorGraphDocumentSession {
   ): () => void;
   /** 订阅当前文档快照变化。 */
   subscribe(listener: GraphDocumentListener): () => void;
+  /** 订阅供 viewport 使用的内部文档投影事件。 */
+  subscribeProjection?(
+    listener: GraphProjectionListener
+  ): () => void;
   /** 释放 session 内部持有的订阅资源。 */
   dispose?(): void;
 }
@@ -159,6 +182,7 @@ export function createLoopbackGraphDocumentSession(
   options: CreateLoopbackGraphDocumentSessionOptions
 ): EditorGraphDocumentSession {
   const listeners = new Set<GraphDocumentListener>();
+  const projectionListeners = new Set<GraphProjectionListener>();
   const confirmationListeners = new Set<GraphOperationConfirmationListener>();
   const pendingListeners = new Set<GraphPendingOperationIdsListener>();
   let currentDocument = cloneGraphDocument(options.document);
@@ -174,13 +198,41 @@ export function createLoopbackGraphDocumentSession(
     }
   };
 
-  const commitDocument = (nextDocument: GraphDocument): GraphDocument => {
+  const emitProjection = (event: EditorGraphDocumentProjectionEvent): void => {
+    if (!projectionListeners.size) {
+      return;
+    }
+
+    const snapshot =
+      event.type === "full"
+        ? {
+            type: "full" as const,
+            document: cloneGraphDocument(event.document)
+          }
+        : {
+            type: "diff" as const,
+            document: cloneGraphDocument(event.document),
+            diff: structuredClone(event.diff),
+            applyResult: structuredClone(event.applyResult)
+          };
+    for (const listener of projectionListeners) {
+      listener(snapshot);
+    }
+  };
+
+  const commitDocument = (
+    nextDocument: GraphDocument,
+    projectionEvent: EditorGraphDocumentProjectionEvent | null = null
+  ): GraphDocument => {
     if (nextDocument === currentDocument) {
       return currentDocument;
     }
 
     currentDocument = nextDocument;
     emit();
+    if (projectionEvent) {
+      emitProjection(projectionEvent);
+    }
     return currentDocument;
   };
 
@@ -191,7 +243,11 @@ export function createLoopbackGraphDocumentSession(
       return currentDocument;
     }
 
-    return commitDocument(createDocumentWithNextRevision(nextDocument));
+    const revisedDocument = createDocumentWithNextRevision(nextDocument);
+    return commitDocument(revisedDocument, {
+      type: "full",
+      document: revisedDocument
+    });
   };
 
   const createAuthorityConfirmation = (
@@ -289,7 +345,10 @@ export function createLoopbackGraphDocumentSession(
     replaceDocument(document: GraphDocument): void {
       const nextDocument = cloneGraphDocument(document);
       options.graph.replaceGraphDocument(nextDocument);
-      commitDocument(nextDocument);
+      commitDocument(nextDocument, {
+        type: "full",
+        document: nextDocument
+      });
     },
 
     subscribeOperationConfirmation(
@@ -318,6 +377,18 @@ export function createLoopbackGraphDocumentSession(
       return () => {
         listeners.delete(listener);
       };
+    },
+
+    subscribeProjection(listener: GraphProjectionListener): () => void {
+      projectionListeners.add(listener);
+      listener({
+        type: "full",
+        document: cloneGraphDocument(currentDocument)
+      });
+
+      return () => {
+        projectionListeners.delete(listener);
+      };
     }
   };
 }
@@ -333,6 +404,7 @@ export function createMockRemoteGraphDocumentSession(
   options: CreateMockRemoteGraphDocumentSessionOptions
 ): EditorGraphDocumentSession {
   const listeners = new Set<GraphDocumentListener>();
+  const projectionListeners = new Set<GraphProjectionListener>();
   const confirmationListeners = new Set<GraphOperationConfirmationListener>();
   const pendingListeners = new Set<GraphPendingOperationIdsListener>();
   const pendingOperations = new Map<string, MockRemotePendingOperationEntry>();
@@ -354,6 +426,28 @@ export function createMockRemoteGraphDocumentSession(
 
     const snapshot = cloneGraphDocument(currentDocument);
     for (const listener of listeners) {
+      listener(snapshot);
+    }
+  };
+
+  const emitProjection = (event: EditorGraphDocumentProjectionEvent): void => {
+    if (!projectionListeners.size) {
+      return;
+    }
+
+    const snapshot =
+      event.type === "full"
+        ? {
+            type: "full" as const,
+            document: cloneGraphDocument(event.document)
+          }
+        : {
+            type: "diff" as const,
+            document: cloneGraphDocument(event.document),
+            diff: structuredClone(event.diff),
+            applyResult: structuredClone(event.applyResult)
+          };
+    for (const listener of projectionListeners) {
       listener(snapshot);
     }
   };
@@ -381,13 +475,19 @@ export function createMockRemoteGraphDocumentSession(
     }
   };
 
-  const commitDocument = (nextDocument: GraphDocument): GraphDocument => {
+  const commitDocument = (
+    nextDocument: GraphDocument,
+    projectionEvent: EditorGraphDocumentProjectionEvent | null = null
+  ): GraphDocument => {
     if (nextDocument === currentDocument) {
       return currentDocument;
     }
 
     currentDocument = nextDocument;
     emitDocument();
+    if (projectionEvent) {
+      emitProjection(projectionEvent);
+    }
     return currentDocument;
   };
 
@@ -398,7 +498,11 @@ export function createMockRemoteGraphDocumentSession(
       return currentDocument;
     }
 
-    return commitDocument(createDocumentWithNextRevision(nextDocument));
+    const revisedDocument = createDocumentWithNextRevision(nextDocument);
+    return commitDocument(revisedDocument, {
+      type: "full",
+      document: revisedDocument
+    });
   };
 
   const resolveRejectedReason = (operation: GraphOperation): string | null => {
@@ -609,7 +713,10 @@ export function createMockRemoteGraphDocumentSession(
 
       const nextDocument = cloneGraphDocument(document);
       options.graph.replaceGraphDocument(nextDocument);
-      commitDocument(nextDocument);
+      commitDocument(nextDocument, {
+        type: "full",
+        document: nextDocument
+      });
     },
 
     subscribeOperationConfirmation(
@@ -638,6 +745,18 @@ export function createMockRemoteGraphDocumentSession(
       return () => {
         listeners.delete(listener);
       };
+    },
+
+    subscribeProjection(listener: GraphProjectionListener): () => void {
+      projectionListeners.add(listener);
+      listener({
+        type: "full",
+        document: cloneGraphDocument(currentDocument)
+      });
+
+      return () => {
+        projectionListeners.delete(listener);
+      };
     }
   };
 }
@@ -653,6 +772,7 @@ export function createRemoteGraphDocumentSession(
   options: CreateRemoteGraphDocumentSessionOptions
 ): EditorGraphDocumentSession {
   const listeners = new Set<GraphDocumentListener>();
+  const projectionListeners = new Set<GraphProjectionListener>();
   const confirmationListeners = new Set<GraphOperationConfirmationListener>();
   const pendingListeners = new Set<GraphPendingOperationIdsListener>();
   const pendingOperations = new Map<
@@ -666,6 +786,46 @@ export function createRemoteGraphDocumentSession(
   >();
   let currentDocument = cloneGraphDocument(options.document);
   let pendingResyncPromise: Promise<GraphDocument> | null = null;
+  const appliedAuthorityRevisionKeys = new Set<string>();
+  const appliedAuthorityRevisionOrder: string[] = [];
+
+  const createAuthorityRevisionKey = (
+    documentId: GraphDocument["documentId"],
+    revision: GraphDocument["revision"]
+  ): string => JSON.stringify([documentId, String(revision)]);
+
+  const rememberAppliedAuthorityRevision = (
+    documentId: GraphDocument["documentId"],
+    revision: GraphDocument["revision"]
+  ): void => {
+    const revisionKey = createAuthorityRevisionKey(documentId, revision);
+    if (appliedAuthorityRevisionKeys.has(revisionKey)) {
+      return;
+    }
+
+    appliedAuthorityRevisionKeys.add(revisionKey);
+    appliedAuthorityRevisionOrder.push(revisionKey);
+
+    while (appliedAuthorityRevisionOrder.length > 64) {
+      const expiredRevisionKey = appliedAuthorityRevisionOrder.shift();
+      if (expiredRevisionKey) {
+        appliedAuthorityRevisionKeys.delete(expiredRevisionKey);
+      }
+    }
+  };
+
+  const hasAppliedAuthorityRevision = (
+    documentId: GraphDocument["documentId"],
+    revision: GraphDocument["revision"]
+  ): boolean =>
+    appliedAuthorityRevisionKeys.has(
+      createAuthorityRevisionKey(documentId, revision)
+    );
+
+  rememberAppliedAuthorityRevision(
+    currentDocument.documentId,
+    currentDocument.revision
+  );
 
   const emitDocument = (): void => {
     if (!listeners.size) {
@@ -674,6 +834,28 @@ export function createRemoteGraphDocumentSession(
 
     const snapshot = cloneGraphDocument(currentDocument);
     for (const listener of listeners) {
+      listener(snapshot);
+    }
+  };
+
+  const emitProjection = (event: EditorGraphDocumentProjectionEvent): void => {
+    if (!projectionListeners.size) {
+      return;
+    }
+
+    const snapshot =
+      event.type === "full"
+        ? {
+            type: "full" as const,
+            document: cloneGraphDocument(event.document)
+          }
+        : {
+            type: "diff" as const,
+            document: cloneGraphDocument(event.document),
+            diff: structuredClone(event.diff),
+            applyResult: structuredClone(event.applyResult)
+          };
+    for (const listener of projectionListeners) {
       listener(snapshot);
     }
   };
@@ -701,32 +883,58 @@ export function createRemoteGraphDocumentSession(
     }
   };
 
-  const commitDocument = (nextDocument: GraphDocument): GraphDocument => {
+  const commitDocument = (
+    nextDocument: GraphDocument,
+    projectionEvent: EditorGraphDocumentProjectionEvent | null = null
+  ): GraphDocument => {
     if (nextDocument === currentDocument) {
       return currentDocument;
     }
 
     currentDocument = nextDocument;
     emitDocument();
+    if (projectionEvent) {
+      emitProjection(projectionEvent);
+    }
     return currentDocument;
   };
 
-  const commitAuthorityDocument = (nextDocument: GraphDocument): GraphDocument => {
+  const commitAuthorityDocument = (
+    nextDocument: GraphDocument,
+    projectionEvent: EditorGraphDocumentProjectionEvent | null = null
+  ): GraphDocument => {
     if (
       nextDocument.documentId === currentDocument.documentId &&
       nextDocument.revision === currentDocument.revision
     ) {
+      rememberAppliedAuthorityRevision(
+        nextDocument.documentId,
+        nextDocument.revision
+      );
       return currentDocument;
     }
 
-    return commitDocument(nextDocument);
+    const committedDocument = commitDocument(nextDocument, projectionEvent);
+    rememberAppliedAuthorityRevision(
+      committedDocument.documentId,
+      committedDocument.revision
+    );
+    return committedDocument;
   };
+
+  const commitAuthorityFullDocument = (
+    nextDocument: GraphDocument
+  ): GraphDocument =>
+    commitAuthorityDocument(nextDocument, {
+      type: "full",
+      document: nextDocument
+    });
 
   const commitResponseDocument = (
     response: EditorRemoteAuthorityOperationResult
   ): void => {
     if (response.document) {
-      commitAuthorityDocument(cloneGraphDocument(response.document));
+      commitAuthorityFullDocument(cloneGraphDocument(response.document));
       return;
     }
 
@@ -801,7 +1009,8 @@ export function createRemoteGraphDocumentSession(
     const nextPendingResyncPromise = options.client
       .getDocument()
       .then((document: GraphDocument) => {
-        commitAuthorityDocument(cloneGraphDocument(document));
+        const nextDocument = cloneGraphDocument(document);
+        commitAuthorityFullDocument(nextDocument);
         return cloneGraphDocument(currentDocument);
       })
       .finally(() => {
@@ -815,7 +1024,50 @@ export function createRemoteGraphDocumentSession(
   const disposeDocumentSubscription =
     typeof options.client.subscribeDocument === "function"
       ? options.client.subscribeDocument((document) => {
-          commitAuthorityDocument(cloneGraphDocument(document));
+          const nextDocument = cloneGraphDocument(document);
+          commitAuthorityFullDocument(nextDocument);
+        })
+      : () => {};
+
+  const createIgnoredAuthorityDocumentDiffResult =
+    (): ApplyGraphDocumentDiffResult => ({
+      success: true,
+      requiresFullReplace: false,
+      document: cloneGraphDocument(currentDocument),
+      affectedNodeIds: [],
+      affectedLinkIds: []
+    });
+
+  const applyAuthorityDocumentDiff = (
+    diff: GraphDocumentDiff
+  ): ApplyGraphDocumentDiffResult => {
+    if (hasAppliedAuthorityRevision(diff.documentId, diff.revision)) {
+      return createIgnoredAuthorityDocumentDiffResult();
+    }
+
+    const applyResult = applyGraphDocumentDiffToDocument(currentDocument, diff);
+    if (!applyResult.success || applyResult.requiresFullReplace) {
+      void resyncAuthorityDocument({
+        invalidatePending: false
+      }).catch(() => {
+        // diff 已失配时，先尽力回拉 full snapshot；失败则保留当前会话快照。
+      });
+      return applyResult;
+    }
+
+    const nextDocument = cloneGraphDocument(applyResult.document);
+    commitAuthorityDocument(nextDocument, {
+      type: "diff",
+      document: nextDocument,
+      diff,
+      applyResult
+    });
+    return applyResult;
+  };
+  const disposeDocumentDiffSubscription =
+    typeof options.client.subscribeDocumentDiff === "function"
+      ? options.client.subscribeDocumentDiff((diff) => {
+          applyAuthorityDocumentDiff(structuredClone(diff));
         })
       : () => {};
 
@@ -970,7 +1222,10 @@ export function createRemoteGraphDocumentSession(
 
       const previousDocument = cloneGraphDocument(currentDocument);
       const nextDocument = cloneGraphDocument(document);
-      commitDocument(nextDocument);
+      commitDocument(nextDocument, {
+        type: "full",
+        document: nextDocument
+      });
 
       if (!options.client.replaceDocument) {
         return;
@@ -982,7 +1237,7 @@ export function createRemoteGraphDocumentSession(
         })
         .then((authorityDocument) => {
           if (authorityDocument) {
-            commitAuthorityDocument(cloneGraphDocument(authorityDocument));
+            commitAuthorityFullDocument(cloneGraphDocument(authorityDocument));
           }
         })
         .catch(() => {
@@ -1022,8 +1277,21 @@ export function createRemoteGraphDocumentSession(
       };
     },
 
+    subscribeProjection(listener: GraphProjectionListener): () => void {
+      projectionListeners.add(listener);
+      listener({
+        type: "full",
+        document: cloneGraphDocument(currentDocument)
+      });
+
+      return () => {
+        projectionListeners.delete(listener);
+      };
+    },
+
     dispose(): void {
       disposeDocumentSubscription();
+      disposeDocumentDiffSubscription();
     }
   };
 }

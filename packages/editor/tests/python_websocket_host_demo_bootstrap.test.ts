@@ -1,3 +1,5 @@
+import "./helpers/install_test_host_polyfills";
+
 import { afterEach, describe, expect, test } from "bun:test";
 import { createServer } from "node:net";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
@@ -6,6 +8,8 @@ import type { GraphDocument } from "leafergraph";
 import { resolveEditorAppBootstrap } from "../src/app/editor_app_bootstrap";
 import type { GraphViewportHostBridge } from "../src/ui/viewport";
 import { createEditorRemoteAuthorityAppRuntime } from "../src/backend/authority/remote_authority_app_runtime";
+import type { EditorRemoteAuthorityClient } from "../src/session/graph_document_authority_client";
+import { createRemoteGraphDocumentSession } from "../src/session/graph_document_session";
 import {
   DEFAULT_PYTHON_WEBSOCKET_AUTHORITY_URL,
   PYTHON_WEBSOCKET_HOST_DEMO_ADAPTER_ID,
@@ -165,6 +169,17 @@ function createRemoteTimerTestDocument(): GraphDocument {
         target: { nodeId: "timer-display", slot: 0 }
       }
     ],
+    meta: {}
+  };
+}
+
+function createRemoteBatchCommitTestDocument(): GraphDocument {
+  return {
+    documentId: "python-openrpc-batch-doc",
+    revision: "1",
+    appKind: "python-openrpc-batch-test",
+    nodes: [],
+    links: [],
     meta: {}
   };
 }
@@ -624,6 +639,166 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
       authorityName: "python-websocket-host-demo",
       debugViewportBridgeLog: false
     });
+  });
+
+  test("批量 submitOperation 不应触发 remote session full resync，且最终后端文档应完整落地", async () => {
+    const server = await startPythonAuthorityServer();
+    const host: PythonHostDemoBootstrapHost = {
+      location: {
+        search: `?authorityUrl=${encodeURIComponent(server.authorityOrigin)}`
+      }
+    };
+
+    installPythonWebSocketHostDemoBootstrap(host);
+    const bootstrap = resolveEditorAppBootstrap(host);
+    const source = bootstrap.remoteAuthoritySource;
+    if (!source) {
+      throw new Error("未解析到 Python host demo authority source");
+    }
+
+    const runtime = await createEditorRemoteAuthorityAppRuntime(source);
+    if (typeof runtime.client.replaceDocument !== "function") {
+      throw new Error("remote authority client 缺少 replaceDocument");
+    }
+
+    await runtime.client.replaceDocument(createRemoteBatchCommitTestDocument(), {
+      currentDocument: runtime.document
+    });
+    const initialDocument = await runtime.client.getDocument();
+    let resyncGetDocumentCount = 0;
+    const sessionClient: EditorRemoteAuthorityClient = {
+      getDocument: async () => {
+        resyncGetDocumentCount += 1;
+        return runtime.client.getDocument();
+      },
+      submitOperation: runtime.client.submitOperation.bind(runtime.client),
+      replaceDocument: runtime.client.replaceDocument.bind(runtime.client),
+      subscribeDocument:
+        typeof runtime.client.subscribeDocument === "function"
+          ? runtime.client.subscribeDocument.bind(runtime.client)
+          : undefined,
+      subscribeDocumentDiff:
+        typeof runtime.client.subscribeDocumentDiff === "function"
+          ? runtime.client.subscribeDocumentDiff.bind(runtime.client)
+          : undefined
+    };
+    const session = createRemoteGraphDocumentSession({
+      document: initialDocument,
+      client: sessionClient
+    });
+    const projectedRevisions: string[] = [];
+    const projectedSnapshots: GraphDocument[] = [];
+    const disposeProjectionSubscription = session.subscribeProjection?.(
+      (projection) => {
+        projectedRevisions.push(String(projection.document.revision));
+        projectedSnapshots.push(structuredClone(projection.document));
+      }
+    );
+
+    const submissions = [
+      session.submitOperationWithAuthority({
+        type: "node.create",
+        operationId: "batch-node-a",
+        timestamp: Date.now(),
+        source: "editor.test",
+        input: {
+          id: "batch-node-a",
+          type: "demo/node",
+          title: "Batch Node A",
+          x: 80,
+          y: 120,
+          width: 240,
+          height: 140
+        }
+      }),
+      session.submitOperationWithAuthority({
+        type: "node.create",
+        operationId: "batch-node-b",
+        timestamp: Date.now() + 1,
+        source: "editor.test",
+        input: {
+          id: "batch-node-b",
+          type: "demo/node",
+          title: "Batch Node B",
+          x: 360,
+          y: 120,
+          width: 240,
+          height: 140
+        }
+      }),
+      session.submitOperationWithAuthority({
+        type: "link.create",
+        operationId: "batch-link-a-b",
+        timestamp: Date.now() + 2,
+        source: "editor.test",
+        input: {
+          id: "batch-link-a-b",
+          source: {
+            nodeId: "batch-node-a",
+            slot: 0
+          },
+          target: {
+            nodeId: "batch-node-b",
+            slot: 0
+          }
+        }
+      })
+    ];
+
+    expect(session.pendingOperationIds).toHaveLength(3);
+
+    const confirmations = await Promise.all(
+      submissions.map((submission) => submission.confirmation)
+    );
+    await Promise.resolve();
+
+    expect(confirmations).toEqual([
+      expect.objectContaining({
+        operationId: "batch-node-a",
+        accepted: true,
+        changed: true
+      }),
+      expect.objectContaining({
+        operationId: "batch-node-b",
+        accepted: true,
+        changed: true
+      }),
+      expect.objectContaining({
+        operationId: "batch-link-a-b",
+        accepted: true,
+        changed: true
+      })
+    ]);
+    expect(session.pendingOperationIds).toHaveLength(0);
+    expect(resyncGetDocumentCount).toBe(0);
+    expect(session.currentDocument.nodes.map((node) => node.id)).toEqual([
+      "batch-node-a",
+      "batch-node-b"
+    ]);
+    expect(session.currentDocument.links.map((link) => link.id)).toEqual([
+      "batch-link-a-b"
+    ]);
+    expect(projectedRevisions).toEqual(["1", "2", "3", "4"]);
+    expect(projectedSnapshots.at(-1)?.nodes.map((node) => node.id)).toEqual([
+      "batch-node-a",
+      "batch-node-b"
+    ]);
+    expect(projectedSnapshots.at(-1)?.links.map((link) => link.id)).toEqual([
+      "batch-link-a-b"
+    ]);
+
+    const finalDocument = await runtime.client.getDocument();
+    expect(finalDocument.nodes.map((node) => node.id)).toEqual([
+      "batch-node-a",
+      "batch-node-b"
+    ]);
+    expect(finalDocument.links.map((link) => link.id)).toEqual([
+      "batch-link-a-b"
+    ]);
+
+    disposeProjectionSubscription?.();
+    session.dispose?.();
+    runtime.dispose();
   });
 
   test("query 包含 preloadTestBundles 时应忽略预装参数，仍以后端推送为准", () => {

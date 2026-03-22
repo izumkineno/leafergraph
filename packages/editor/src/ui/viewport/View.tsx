@@ -40,6 +40,7 @@ import {
   type EditorGraphDocumentSessionBindingFactory
 } from "../../session/graph_document_session_binding";
 import type {
+  EditorGraphDocumentProjectionEvent,
   EditorGraphDocumentResyncOptions,
   EditorGraphOperationAuthorityConfirmation,
   EditorGraphOperationSubmission
@@ -641,7 +642,7 @@ export function GraphViewport({
     let reconnectState: GraphViewportReconnectState | null = null;
     let latestGraphInteractionActivityState =
       graph.getInteractionActivityState?.() ?? createIdleInteractionActivityState();
-    let pendingAuthorityDocument: GraphDocument | null = null;
+    let pendingAuthorityProjection: EditorGraphDocumentProjectionEvent | null = null;
     let latestPendingOperationCount = documentSession.pendingOperationIds.length;
     let pendingAuthorityProjectionFlushFrame = 0;
     const boundNodeIds = new Set<string>();
@@ -1568,13 +1569,13 @@ export function GraphViewport({
         hasPendingMarqueeSelection: Boolean(pendingMarqueeSelection),
         hasActiveMarqueeSelection: Boolean(activeMarqueeSelection),
         hasReconnectState: Boolean(reconnectState),
-        hasPendingAuthorityDocument: Boolean(pendingAuthorityDocument),
+        hasPendingAuthorityDocument: Boolean(pendingAuthorityProjection),
         pendingOperationCount: latestPendingOperationCount
       });
     const schedulePendingAuthorityDocumentProjectionFlush = (): void => {
       if (
         disposed ||
-        !pendingAuthorityDocument ||
+        !pendingAuthorityProjection ||
         !canFlushPendingAuthorityDocumentProjection()
       ) {
         return;
@@ -1588,18 +1589,18 @@ export function GraphViewport({
         pendingAuthorityProjectionFlushFrame = 0;
         if (
           disposed ||
-          !pendingAuthorityDocument ||
+          !pendingAuthorityProjection ||
           !canFlushPendingAuthorityDocumentProjection()
         ) {
           return;
         }
 
-        const nextDocument = pendingAuthorityDocument;
-        pendingAuthorityDocument = null;
-        applyProjectedAuthorityDocument(nextDocument);
+        const nextProjection = pendingAuthorityProjection;
+        pendingAuthorityProjection = null;
+        applyProjectedAuthorityProjection(nextProjection);
       });
     };
-    const applyProjectedAuthorityDocument = (document: GraphDocument): void => {
+    const applyProjectedAuthorityFullDocument = (document: GraphDocument): void => {
       projectedDocument = document;
       setWorkspaceDocument(document);
       if (!graphReady || disposed) {
@@ -1628,30 +1629,83 @@ export function GraphViewport({
       syncInfoPanelState();
       syncEditorToolbarControls();
     };
+    const applyProjectedAuthorityDocumentDiff = (
+      projection: Extract<EditorGraphDocumentProjectionEvent, { type: "diff" }>
+    ): void => {
+      const { document, diff } = projection;
+      projectedDocument = document;
+      setWorkspaceDocument(document);
+      if (!graphReady || disposed) {
+        return;
+      }
+
+      hasPendingProjectedGraphExecutionReset =
+        runtimeControlMode === "remote" &&
+        hasActiveRemoteGraphExecutionState(latestRemoteGraphExecutionState);
+      isProjectingAuthorityDocument = true;
+      try {
+        const applyResult = graph.applyGraphDocumentDiff(diff, document);
+        if (!applyResult.success || applyResult.requiresFullReplace) {
+          graph.replaceGraphDocument(document);
+        }
+      } finally {
+        isProjectingAuthorityDocument = false;
+      }
+      syncNodeBindingsFromDocument(document);
+      syncLinkBindingsFromDocument(document);
+
+      const nextSelectedNodeIds = selection.selectedNodeIds.filter((nodeId) =>
+        document.nodes.some((node) => node.id === nodeId)
+      );
+      if (nextSelectedNodeIds.length !== selection.selectedNodeIds.length) {
+        selection.setMany(nextSelectedNodeIds);
+      }
+
+      syncInfoPanelState();
+      syncEditorToolbarControls();
+    };
+    const applyProjectedAuthorityProjection = (
+      projection: EditorGraphDocumentProjectionEvent
+    ): void => {
+      if (projection.type === "diff") {
+        applyProjectedAuthorityDocumentDiff(projection);
+        return;
+      }
+
+      applyProjectedAuthorityFullDocument(projection.document);
+    };
     const syncAuthoritativeDocumentProjection = (
       document: GraphDocument
+    ): void => {
+      syncAuthoritativeProjectionEvent({
+        type: "full",
+        document
+      });
+    };
+    const syncAuthoritativeProjectionEvent = (
+      projection: EditorGraphDocumentProjectionEvent
     ): void => {
       if (disposed) {
         return;
       }
 
       if (!graphReady) {
-        projectedDocument = document;
-        setWorkspaceDocument(document);
+        projectedDocument = projection.document;
+        setWorkspaceDocument(projection.document);
         return;
       }
 
       if (
         hasActiveAuthorityProjectionInteraction() ||
-        (pendingAuthorityDocument &&
+        (pendingAuthorityProjection &&
           !canFlushPendingAuthorityDocumentProjection())
       ) {
-        pendingAuthorityDocument = document;
+        pendingAuthorityProjection = projection;
         return;
       }
 
-      pendingAuthorityDocument = null;
-      applyProjectedAuthorityDocument(document);
+      pendingAuthorityProjection = null;
+      applyProjectedAuthorityProjection(projection);
     };
     const collectCurrentLinks = (): GraphLink[] => {
       const linkMap = new Map<string, GraphLink>();
@@ -1694,6 +1748,17 @@ export function GraphViewport({
         syncLinkContextMenus();
       });
     };
+    const disposeAuthorityProjectionSubscription =
+      documentSessionBinding.projectsSessionDocument &&
+      typeof documentSession.subscribeProjection === "function"
+        ? documentSession.subscribeProjection((projection) => {
+            if (disposed) {
+              return;
+            }
+
+            syncAuthoritativeProjectionEvent(projection);
+          })
+        : () => {};
     const disposeDocumentProjectionSubscription = documentSession.subscribe(
       (document) => {
         if (disposed) {
@@ -1701,7 +1766,9 @@ export function GraphViewport({
         }
 
         if (documentSessionBinding.projectsSessionDocument) {
-          syncAuthoritativeDocumentProjection(document);
+          if (typeof documentSession.subscribeProjection !== "function") {
+            syncAuthoritativeDocumentProjection(document);
+          }
           return;
         }
 
@@ -2505,6 +2572,7 @@ export function GraphViewport({
       commandHistory.clear();
       disposeLocalRuntimeFeedbackSubscription();
       disposeExternalRuntimeFeedbackSubscription();
+      disposeAuthorityProjectionSubscription();
       disposeDocumentProjectionSubscription();
       disposeInteractionActivitySubscription();
       disposePendingProjectionSubscription();

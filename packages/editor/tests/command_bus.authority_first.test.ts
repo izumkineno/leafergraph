@@ -1,3 +1,5 @@
+import "./helpers/install_test_host_polyfills";
+
 import { describe, expect, test } from "bun:test";
 
 import type {
@@ -446,6 +448,81 @@ describe("EditorCommandBus authority-first", () => {
     expect(execution.authority.status).toBe("pending");
     expect(execution.documentRecorded).toBe(false);
     expect(execution.operations?.[0]?.type).toBe("node.create");
+    expect(execution.historyPayload?.kind).toBe("create-nodes");
+  });
+
+  test("clipboard.paste 在 remote-client 下应把整组 node/link create 一起挂到 pending", () => {
+    const selection = createSelectionStub(["node-1", "node-2"]);
+    const commandBus = createCommandBusForPendingAuthority({
+      selection
+    });
+
+    const copyExecution = commandBus.execute({
+      type: "selection.copy"
+    });
+    expect(copyExecution.success).toBe(true);
+
+    const execution = commandBus.execute({
+      type: "clipboard.paste",
+      point: {
+        x: 520,
+        y: 320
+      }
+    });
+
+    expect(execution.success).toBe(true);
+    expect(execution.changed).toBe(true);
+    expect(execution.authority.status).toBe("pending");
+    expect(execution.authority.pendingOperationIds).toHaveLength(3);
+    expect(execution.operations?.map((operation) => operation.type)).toEqual([
+      "node.create",
+      "node.create",
+      "link.create"
+    ]);
+    expect(
+      execution.authority.pendingOperationIds?.filter((operationId) =>
+        operationId.includes("node.create")
+      )
+    ).toHaveLength(2);
+    expect(
+      execution.authority.pendingOperationIds?.filter((operationId) =>
+        operationId.includes("link.create")
+      )
+    ).toHaveLength(1);
+    expect(execution.documentRecorded).toBe(false);
+    expect(execution.historyPayload?.kind).toBe("create-nodes");
+  });
+
+  test("selection.duplicate 在 remote-client 下应把整组选区创建挂到 pending", () => {
+    const selection = createSelectionStub(["node-1", "node-2"]);
+    const commandBus = createCommandBusForPendingAuthority({
+      selection
+    });
+
+    const execution = commandBus.execute({
+      type: "selection.duplicate"
+    });
+
+    expect(execution.success).toBe(true);
+    expect(execution.changed).toBe(true);
+    expect(execution.authority.status).toBe("pending");
+    expect(execution.authority.pendingOperationIds).toHaveLength(3);
+    expect(execution.operations?.map((operation) => operation.type)).toEqual([
+      "node.create",
+      "node.create",
+      "link.create"
+    ]);
+    expect(
+      execution.authority.pendingOperationIds?.filter((operationId) =>
+        operationId.includes("node.create")
+      )
+    ).toHaveLength(2);
+    expect(
+      execution.authority.pendingOperationIds?.filter((operationId) =>
+        operationId.includes("link.create")
+      )
+    ).toHaveLength(1);
+    expect(execution.documentRecorded).toBe(false);
     expect(execution.historyPayload?.kind).toBe("create-nodes");
   });
 });

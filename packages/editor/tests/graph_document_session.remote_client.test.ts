@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type {
   GraphDocument,
+  GraphDocumentDiff,
   GraphOperation,
   LeaferGraph
 } from "leafergraph";
@@ -162,6 +163,133 @@ describe("createRemoteGraphDocumentSession", () => {
     expect(session.currentDocument.revision).toBe("3");
     expect(session.currentDocument.nodes).toHaveLength(0);
     expect(revisions).toEqual(["1", "3"]);
+
+    session.dispose?.();
+  });
+
+  test("应消费 authority 主动回推的 document diff，并发出 diff projection", async () => {
+    const initialDocument = createTestDocument();
+    let emitDocumentDiff: ((diff: GraphDocumentDiff) => void) | null = null;
+    const authorityClient: EditorRemoteAuthorityClient = {
+      async submitOperation() {
+        return {
+          accepted: true,
+          changed: false,
+          revision: "1"
+        };
+      },
+      subscribeDocumentDiff(listener) {
+        emitDocumentDiff = listener;
+        return () => {
+          emitDocumentDiff = null;
+        };
+      }
+    };
+    const session = createRemoteGraphDocumentSession({
+      document: initialDocument,
+      client: authorityClient
+    });
+    const projectionTypes: string[] = [];
+    session.subscribeProjection?.((projection) => {
+      projectionTypes.push(projection.type);
+    });
+
+    emitDocumentDiff?.({
+      documentId: "remote-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 1,
+      operations: [
+        {
+          type: "node.move",
+          nodeId: "node-1",
+          input: {
+            x: 24,
+            y: 36
+          },
+          operationId: "diff-node-move",
+          timestamp: 1,
+          source: "authority.documentDiff"
+        }
+      ],
+      fieldChanges: [
+        {
+          type: "node.title.set",
+          nodeId: "node-1",
+          value: "Node 1 Updated"
+        }
+      ]
+    });
+    await Promise.resolve();
+
+    expect(session.currentDocument.revision).toBe("2");
+    expect(session.currentDocument.nodes[0]?.title).toBe("Node 1 Updated");
+    expect(session.currentDocument.nodes[0]?.layout).toMatchObject({
+      x: 24,
+      y: 36
+    });
+    expect(projectionTypes).toEqual(["full", "diff"]);
+
+    session.dispose?.();
+  });
+
+  test("document diff 的 baseRevision 不匹配时应触发 resync，而不是脏应用", async () => {
+    const initialDocument = createTestDocument();
+    let emitDocumentDiff: ((diff: GraphDocumentDiff) => void) | null = null;
+    let getDocumentCount = 0;
+    const authorityClient: EditorRemoteAuthorityClient = {
+      async getDocument() {
+        getDocumentCount += 1;
+        return {
+          ...initialDocument,
+          revision: "5",
+          nodes: []
+        };
+      },
+      async submitOperation() {
+        return {
+          accepted: true,
+          changed: false,
+          revision: "1"
+        };
+      },
+      subscribeDocumentDiff(listener) {
+        emitDocumentDiff = listener;
+        return () => {
+          emitDocumentDiff = null;
+        };
+      }
+    };
+    const session = createRemoteGraphDocumentSession({
+      document: initialDocument,
+      client: authorityClient
+    });
+    const projectionTypes: string[] = [];
+    session.subscribeProjection?.((projection) => {
+      projectionTypes.push(projection.type);
+    });
+
+    emitDocumentDiff?.({
+      documentId: "remote-doc",
+      baseRevision: "0",
+      revision: "2",
+      emittedAt: 1,
+      operations: [],
+      fieldChanges: [
+        {
+          type: "node.title.set",
+          nodeId: "node-1",
+          value: "Should Not Apply"
+        }
+      ]
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getDocumentCount).toBe(1);
+    expect(session.currentDocument.revision).toBe("5");
+    expect(session.currentDocument.nodes).toHaveLength(0);
+    expect(projectionTypes).toEqual(["full", "full"]);
 
     session.dispose?.();
   });
