@@ -66,6 +66,109 @@ function createDocument(revision: string): GraphDocument {
   };
 }
 
+function createRemoteRuntimeTestDocument(): GraphDocument {
+  return {
+    documentId: "python-openrpc-runtime-doc",
+    revision: "1",
+    appKind: "python-openrpc-runtime-test",
+    nodes: [
+      {
+        id: "on-play",
+        type: "system/on-play",
+        title: "On Play",
+        layout: { x: 0, y: 0, width: 220, height: 120 },
+        outputs: [{ name: "Event", type: "event" }]
+      },
+      {
+        id: "counter",
+        type: "template/execute-counter",
+        title: "Counter",
+        layout: { x: 280, y: 0, width: 260, height: 160 },
+        properties: { count: 0, status: "READY" },
+        inputs: [{ name: "Start", type: "event" }],
+        outputs: [{ name: "Count", type: "number" }]
+      },
+      {
+        id: "display",
+        type: "template/execute-display",
+        title: "Display",
+        layout: { x: 600, y: 0, width: 260, height: 160 },
+        properties: { status: "WAITING" },
+        inputs: [{ name: "Value", type: "number" }]
+      }
+    ],
+    links: [
+      {
+        id: "link:on-play->counter",
+        source: { nodeId: "on-play", slot: 0 },
+        target: { nodeId: "counter", slot: 0 }
+      },
+      {
+        id: "link:counter->display",
+        source: { nodeId: "counter", slot: 0 },
+        target: { nodeId: "display", slot: 0 }
+      }
+    ],
+    meta: {}
+  };
+}
+
+function createRemoteTimerTestDocument(): GraphDocument {
+  return {
+    documentId: "python-openrpc-timer-doc",
+    revision: "1",
+    appKind: "python-openrpc-runtime-test",
+    nodes: [
+      {
+        id: "timer-on-play",
+        type: "system/on-play",
+        title: "On Play",
+        layout: { x: 0, y: 0, width: 220, height: 120 },
+        outputs: [{ name: "Event", type: "event" }]
+      },
+      {
+        id: "timer-node",
+        type: "system/timer",
+        title: "Timer",
+        layout: { x: 280, y: 0, width: 260, height: 180 },
+        properties: {
+          intervalMs: 40,
+          immediate: true,
+          runCount: 0,
+          status: "READY"
+        },
+        widgets: [
+          { type: "input", name: "intervalMs", value: 40 },
+          { type: "toggle", name: "immediate", value: true }
+        ],
+        inputs: [{ name: "Start", type: "event" }],
+        outputs: [{ name: "Tick", type: "event" }]
+      },
+      {
+        id: "timer-display",
+        type: "template/execute-display",
+        title: "Display",
+        layout: { x: 620, y: 0, width: 260, height: 160 },
+        properties: { status: "WAITING" },
+        inputs: [{ name: "Value", type: "event" }]
+      }
+    ],
+    links: [
+      {
+        id: "link:on-play->timer",
+        source: { nodeId: "timer-on-play", slot: 0 },
+        target: { nodeId: "timer-node", slot: 0 }
+      },
+      {
+        id: "link:timer->display",
+        source: { nodeId: "timer-node", slot: 0 },
+        target: { nodeId: "timer-display", slot: 0 }
+      }
+    ],
+    meta: {}
+  };
+}
+
 function createHostBridge(): GraphViewportHostBridge {
   const document = createDocument("3");
 
@@ -189,17 +292,17 @@ async function startPythonAuthorityServer(): Promise<StartedPythonAuthorityServe
     [
       "run",
       "--project",
-      "templates/backend/python-authority-template",
+      "templates/backend/python-openrpc-authority-template",
       "python",
       "-m",
-      "leafergraph_python_backend_control_template.entry"
+      "leafergraph_python_openrpc_authority_template.entry"
     ],
     {
       cwd: "E:\\Code\\Node_editor\\leafergraph",
       env: {
         ...process.env,
-        LEAFERGRAPH_PYTHON_BACKEND_HOST: "127.0.0.1",
-        LEAFERGRAPH_PYTHON_BACKEND_PORT: String(port)
+        LEAFERGRAPH_PYTHON_OPENRPC_BACKEND_HOST: "127.0.0.1",
+        LEAFERGRAPH_PYTHON_OPENRPC_BACKEND_PORT: String(port)
       },
       stdio: ["ignore", "pipe", "pipe"]
     }
@@ -273,9 +376,15 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
     }
 
     const runtime = await createEditorRemoteAuthorityAppRuntime(source);
+    const runtimeFeedbackEvents: unknown[] = [];
+    const disposeRuntimeFeedback =
+      runtime.runtimeFeedbackInlet?.subscribe((event) => {
+        runtimeFeedbackEvents.push(event);
+      }) ?? (() => {});
+
     expect(runtime.sourceLabel).toBe("Python Host Demo");
     expect(runtime.bundleProjectionMode).toBe("skip");
-    expect(runtime.document.documentId).toBe("node-authority-doc");
+    expect(runtime.document.documentId).toBe("python-openrpc-document");
     expect(runtime.getConnectionStatus()).toBe("connected");
     expect(
       await fetch(resolvePythonWebSocketHealthUrl(server.authorityOrigin)).then(
@@ -283,8 +392,9 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
       )
     ).toEqual({
       ok: true,
-      documentId: "node-authority-doc",
-      revision: "1",
+      authorityName: "python-openrpc-authority-template",
+      documentId: "python-openrpc-document",
+      revision: 0,
       connectionCount: 1
     });
     expect(host.LeaferGraphEditorPythonHostDemo).toEqual({
@@ -302,6 +412,177 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
     expect(host.LeaferGraphEditorPythonHostDemo?.bridge).toBe(bridge);
     expect(infoLogs).toEqual([]);
 
+    if (!runtime.runtimeController) {
+      throw new Error("未暴露 remote runtimeController");
+    }
+    if (typeof runtime.client.replaceDocument !== "function") {
+      throw new Error("remote authority client 缺少 replaceDocument");
+    }
+
+    await runtime.client.replaceDocument(createRemoteRuntimeTestDocument(), {
+      currentDocument: runtime.document
+    });
+    const stepResult = await runtime.runtimeController.controlRuntime({
+      type: "graph.step"
+    });
+    expect(stepResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle",
+        queueSize: 0,
+        stepCount: 1,
+        lastSource: "graph-step"
+      }
+    });
+
+    const waitForStepFeedbackStartedAt = Date.now();
+    while (Date.now() - waitForStepFeedbackStartedAt < 5000) {
+      if (
+        runtimeFeedbackEvents.some(
+          (event) =>
+            typeof event === "object" &&
+            event !== null &&
+            "type" in event &&
+            (event as { type: string }).type === "node.execution" &&
+            (event as { event: { nodeId?: string } }).event?.nodeId === "display"
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    expect(
+      runtimeFeedbackEvents.some(
+        (event) =>
+          typeof event === "object" &&
+          event !== null &&
+          "type" in event &&
+          (event as { type: string }).type === "node.state" &&
+          (event as { event: { nodeId?: string } }).event?.nodeId === "counter"
+      )
+    ).toBe(true);
+    expect(
+      runtimeFeedbackEvents.some(
+        (event) =>
+          typeof event === "object" &&
+          event !== null &&
+          "type" in event &&
+          (event as { type: string }).type === "link.propagation" &&
+          (event as { event: { linkId?: string } }).event?.linkId === "link:on-play->counter"
+      )
+    ).toBe(true);
+
+    runtimeFeedbackEvents.length = 0;
+    await runtime.client.replaceDocument(createRemoteTimerTestDocument(), {
+      currentDocument: await runtime.client.getDocument()
+    });
+    const playResult = await runtime.runtimeController.controlRuntime({
+      type: "graph.play"
+    });
+    expect(playResult.state?.status).toBe("running");
+
+    const waitForTimerFeedbackStartedAt = Date.now();
+    while (Date.now() - waitForTimerFeedbackStartedAt < 5000) {
+      if (
+        runtimeFeedbackEvents.some(
+          (event) =>
+            typeof event === "object" &&
+            event !== null &&
+            "type" in event &&
+            (event as { type: string }).type === "graph.execution" &&
+            (event as { event: { type?: string; nodeId?: string } }).event?.type === "advanced" &&
+            (event as { event: { nodeId?: string } }).event?.nodeId === "timer-node"
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    runtimeFeedbackEvents.length = 0;
+    const timerDocumentBeforeUpdate = await runtime.client.getDocument();
+    const timerNodeBeforeUpdate = timerDocumentBeforeUpdate.nodes.find(
+      (node) => node.id === "timer-node"
+    );
+    if (!timerNodeBeforeUpdate?.widgets) {
+      throw new Error("timer-node 缺少 widgets");
+    }
+
+    const widgetUpdateResult = await runtime.client.submitOperation(
+      {
+        operationId: "python-host-demo-widget-update",
+        timestamp: Date.now(),
+        source: "editor.test",
+        type: "node.update",
+        nodeId: "timer-node",
+        input: {
+          widgets: timerNodeBeforeUpdate.widgets.map((widget) => ({
+            ...widget,
+            value: widget.name === "intervalMs" ? 5 : false
+          })),
+          properties: {
+            ...(timerNodeBeforeUpdate.properties ?? {}),
+            intervalMs: 5,
+            immediate: false
+          }
+        }
+      },
+      {
+        currentDocument: timerDocumentBeforeUpdate,
+        pendingOperationIds: []
+      }
+    );
+    expect(widgetUpdateResult).toMatchObject({
+      accepted: true,
+      changed: true
+    });
+    expect(widgetUpdateResult.document).toBeUndefined();
+
+    const waitForPostUpdateFeedbackStartedAt = Date.now();
+    while (Date.now() - waitForPostUpdateFeedbackStartedAt < 5000) {
+      if (
+        runtimeFeedbackEvents.some(
+          (event) =>
+            typeof event === "object" &&
+            event !== null &&
+            "type" in event &&
+            (event as { type: string }).type === "graph.execution" &&
+            (event as { event: { type?: string; nodeId?: string } }).event?.type === "advanced" &&
+            (event as { event: { nodeId?: string } }).event?.nodeId === "timer-node"
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    const stopResult = await runtime.runtimeController.controlRuntime({
+      type: "graph.stop"
+    });
+    expect(stopResult).toMatchObject({
+      accepted: true,
+      changed: true,
+      state: {
+        status: "idle"
+      }
+    });
+
+    const finalDocument = await runtime.client.getDocument();
+    const finalTimerNode = finalDocument.nodes.find(
+      (node) => node.id === "timer-node"
+    );
+    expect(finalTimerNode?.properties).toMatchObject({
+      intervalMs: 5,
+      immediate: false
+    });
+    expect(
+      typeof finalTimerNode?.properties?.runCount === "number" &&
+        finalTimerNode.properties.runCount >= 1
+    ).toBe(true);
+
+    disposeRuntimeFeedback();
     runtime.dispose();
 
     const disconnectStartedAt = Date.now();
@@ -315,16 +596,16 @@ describe("installPythonWebSocketHostDemoBootstrap", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
-    expect(
-      await fetch(resolvePythonWebSocketHealthUrl(server.authorityOrigin)).then(
-        (response) => response.json()
-      )
-    ).toEqual({
+    const finalHealth = await fetch(
+      resolvePythonWebSocketHealthUrl(server.authorityOrigin)
+    ).then((response) => response.json());
+    expect(finalHealth).toMatchObject({
       ok: true,
-      documentId: "node-authority-doc",
-      revision: "1",
+      authorityName: "python-openrpc-authority-template",
+      documentId: "python-openrpc-timer-doc",
       connectionCount: 0
     });
+    expect(finalHealth.revision).toBeGreaterThanOrEqual(3);
   });
 
   test("未提供 query 时应使用与 Python server 默认监听一致的 authority 地址", () => {

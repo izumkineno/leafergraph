@@ -5,6 +5,7 @@ import type {
   GraphOperation,
   RuntimeFeedbackEvent
 } from "leafergraph";
+import authorityOpenRpcDocument from "../../../templates/backend/shared/openrpc/authority.openrpc.json";
 import { createMessagePortRemoteAuthorityClient } from "../src/session/message_port_remote_authority_transport";
 import { createMessagePortRemoteAuthorityTransport } from "../src/session/message_port_remote_authority_transport";
 import { createMessagePortRemoteAuthorityHost } from "../src/session/message_port_remote_authority_host";
@@ -244,10 +245,7 @@ describe("createMessagePortRemoteAuthorityHost", () => {
       method: "rpc.discover"
     });
 
-    expect(discoverDocument).toMatchObject({
-      openrpc: "1.3.2",
-      methods: expect.any(Array)
-    });
+    expect(discoverDocument).toEqual(authorityOpenRpcDocument);
 
     transport.dispose?.();
     host.dispose();
