@@ -8,6 +8,7 @@
 
 import type { App, Group } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
+import "@leafer-in/find";
 import "@leafer-in/flow";
 import "@leafer-in/resize";
 import "@leafer-in/state";
@@ -121,6 +122,15 @@ export type {
   LeaferGraphUpdateDocumentInput,
   LeaferGraphUpdateNodeInput
 } from "./api/graph_api_types";
+export type {
+  ApplyGraphDocumentDiffResult,
+  GraphDocumentDiff,
+  GraphDocumentFieldChange
+} from "./api/graph_document_diff";
+export {
+  applyGraphDocumentDiffToDocument,
+  createUpdateNodeInputFromNodeSnapshot
+} from "./api/graph_document_diff";
 export {
   createWidgetHitArea,
   createWidgetLabel,
@@ -143,6 +153,11 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetEntry
 } from "./api/plugin";
+import {
+  createUpdateNodeInputFromNodeSnapshot,
+  type ApplyGraphDocumentDiffResult,
+  type GraphDocumentDiff
+} from "./api/graph_document_diff";
 import type { LeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import { createLeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import {
@@ -170,6 +185,73 @@ import type {
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
 } from "./api/graph_api_types";
+
+interface LeaferGraphFindHost {
+  findId?(id: string): unknown;
+  findOne?(query: { id?: string }): unknown;
+}
+
+function findGraphicById(host: Group, id: string): unknown {
+  const findHost = host as Group & LeaferGraphFindHost;
+  return findHost.findId?.(id) ?? findHost.findOne?.({ id });
+}
+
+function findNodeSnapshotInDocument(
+  document: GraphDocument,
+  nodeId: string
+): NodeSerializeResult | undefined {
+  return document.nodes.find((node) => node.id === nodeId);
+}
+
+function createRefreshNodeInput(options: {
+  currentSnapshot?: NodeSerializeResult;
+  nextSnapshot: NodeSerializeResult;
+}): LeaferGraphUpdateNodeInput | null {
+  const input = createUpdateNodeInputFromNodeSnapshot(options.nextSnapshot);
+  const currentSnapshot = options.currentSnapshot;
+  if (!currentSnapshot) {
+    return input;
+  }
+
+  if (currentSnapshot.title !== undefined && options.nextSnapshot.title === undefined) {
+    return null;
+  }
+  if (
+    currentSnapshot.properties !== undefined &&
+    options.nextSnapshot.properties === undefined
+  ) {
+    input.properties = {};
+  }
+  if (
+    currentSnapshot.propertySpecs !== undefined &&
+    options.nextSnapshot.propertySpecs === undefined
+  ) {
+    input.propertySpecs = [];
+  }
+  if (currentSnapshot.inputs !== undefined && options.nextSnapshot.inputs === undefined) {
+    input.inputs = [];
+  }
+  if (
+    currentSnapshot.outputs !== undefined &&
+    options.nextSnapshot.outputs === undefined
+  ) {
+    input.outputs = [];
+  }
+  if (
+    currentSnapshot.widgets !== undefined &&
+    options.nextSnapshot.widgets === undefined
+  ) {
+    input.widgets = [];
+  }
+  if (currentSnapshot.data !== undefined && options.nextSnapshot.data === undefined) {
+    input.data = {};
+  }
+  if (currentSnapshot.flags !== undefined && options.nextSnapshot.flags === undefined) {
+    input.flags = {};
+  }
+
+  return input;
+}
 
 /**
  * LeaferGraph 主包运行时。
@@ -433,6 +515,228 @@ export class LeaferGraph {
     return this.apiHost.applyGraphOperation(operation);
   }
 
+  /**
+   * 按共享 diff 协议增量投影当前图文档。
+   *
+   * @remarks
+   * 这里把“session 已经合并出的 nextDocument”作为第二输入传进来，
+   * 避免主包在 scene 层再次自己推导文档真相。
+   */
+  applyGraphDocumentDiff(
+    diff: GraphDocumentDiff,
+    nextDocument: GraphDocument
+  ): ApplyGraphDocumentDiffResult {
+    if (
+      diff.documentId !== nextDocument.documentId ||
+      diff.revision !== nextDocument.revision
+    ) {
+      return {
+        success: false,
+        requiresFullReplace: true,
+        document: structuredClone(nextDocument),
+        affectedNodeIds: [],
+        affectedLinkIds: [],
+        reason: "diff 与 nextDocument 不一致，必须回退到整图替换"
+      };
+    }
+
+    const affectedNodeIds = new Set<string>();
+    const affectedLinkIds = new Set<string>();
+    const nodeIdsNeedingFullRefresh = new Set<string>();
+    const nodesWithNonFastFieldChanges = new Set(
+      diff.fieldChanges
+        .filter((fieldChange) => fieldChange.type !== "node.widget.value.set")
+        .map((fieldChange) => fieldChange.nodeId)
+    );
+
+    for (const operation of diff.operations) {
+      try {
+        switch (operation.type) {
+          case "document.update":
+            continue;
+          case "node.create": {
+            const nodeId = operation.input.id;
+            if (!nodeId || findGraphicById(this.nodeLayer, `node-${nodeId}`)) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: "node.create 无法安全增量投影"
+              });
+            }
+            this.createNode(operation.input);
+            affectedNodeIds.add(nodeId);
+            continue;
+          }
+          case "node.update": {
+            const snapshot = findNodeSnapshotInDocument(
+              nextDocument,
+              operation.nodeId
+            );
+            const currentSnapshot = this.getNodeSnapshot(operation.nodeId);
+            const refreshInput =
+              snapshot && currentSnapshot
+                ? createRefreshNodeInput({
+                    currentSnapshot,
+                    nextSnapshot: snapshot
+                  })
+                : null;
+            if (
+              !snapshot ||
+              !refreshInput ||
+              !findGraphicById(this.nodeLayer, `node-${operation.nodeId}`)
+            ) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: `node.update 目标节点缺失: ${operation.nodeId}`
+              });
+            }
+            if (!this.updateNode(operation.nodeId, refreshInput)) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: `node.update 投影失败: ${operation.nodeId}`
+              });
+            }
+            affectedNodeIds.add(operation.nodeId);
+            continue;
+          }
+          case "node.move":
+            if (
+              !findGraphicById(this.nodeLayer, `node-${operation.nodeId}`) ||
+              !this.moveNode(operation.nodeId, operation.input)
+            ) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: `node.move 投影失败: ${operation.nodeId}`
+              });
+            }
+            affectedNodeIds.add(operation.nodeId);
+            continue;
+          case "node.resize":
+            if (
+              !findGraphicById(this.nodeLayer, `node-${operation.nodeId}`) ||
+              !this.resizeNode(operation.nodeId, operation.input)
+            ) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: `node.resize 投影失败: ${operation.nodeId}`
+              });
+            }
+            affectedNodeIds.add(operation.nodeId);
+            continue;
+          case "node.remove":
+            if (
+              !findGraphicById(this.nodeLayer, `node-${operation.nodeId}`) ||
+              !this.removeNode(operation.nodeId)
+            ) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: `node.remove 投影失败: ${operation.nodeId}`
+              });
+            }
+            affectedNodeIds.add(operation.nodeId);
+            continue;
+          case "link.create": {
+            const linkId = operation.input.id;
+            if (!linkId || findGraphicById(this.linkLayer, `graph-link-${linkId}`)) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: "link.create 无法安全增量投影"
+              });
+            }
+            this.createLink(operation.input);
+            affectedNodeIds.add(operation.input.source.nodeId);
+            affectedNodeIds.add(operation.input.target.nodeId);
+            affectedLinkIds.add(linkId);
+            continue;
+          }
+          case "link.remove":
+            if (
+              !findGraphicById(this.linkLayer, `graph-link-${operation.linkId}`) ||
+              !this.removeLink(operation.linkId)
+            ) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: `link.remove 投影失败: ${operation.linkId}`
+              });
+            }
+            affectedLinkIds.add(operation.linkId);
+            continue;
+          case "link.reconnect": {
+            if (!findGraphicById(this.linkLayer, `graph-link-${operation.linkId}`)) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: `link.reconnect 目标连线缺失: ${operation.linkId}`
+              });
+            }
+            const result = this.applyGraphOperation(operation);
+            if (!result.accepted) {
+              return createDiffProjectionFallback(nextDocument, {
+                reason: result.reason ?? `link.reconnect 投影失败: ${operation.linkId}`
+              });
+            }
+            result.affectedNodeIds.forEach((nodeId) => affectedNodeIds.add(nodeId));
+            result.affectedLinkIds.forEach((linkId) => affectedLinkIds.add(linkId));
+            continue;
+          }
+        }
+      } catch (error) {
+        return createDiffProjectionFallback(nextDocument, {
+          reason:
+            error instanceof Error ? error.message : "diff 增量投影时发生未知异常"
+        });
+      }
+    }
+
+    for (const fieldChange of diff.fieldChanges) {
+      if (fieldChange.type === "node.widget.value.set") {
+        if (
+          !nodesWithNonFastFieldChanges.has(fieldChange.nodeId) &&
+          findGraphicById(
+            this.nodeLayer,
+            `widget-${fieldChange.nodeId}-${fieldChange.widgetIndex}`
+          )
+        ) {
+          this.setNodeWidgetValue(
+            fieldChange.nodeId,
+            fieldChange.widgetIndex,
+            fieldChange.value
+          );
+          affectedNodeIds.add(fieldChange.nodeId);
+          continue;
+        }
+      }
+
+      nodeIdsNeedingFullRefresh.add(fieldChange.nodeId);
+    }
+
+    for (const nodeId of nodeIdsNeedingFullRefresh) {
+      const snapshot = findNodeSnapshotInDocument(nextDocument, nodeId);
+      const currentSnapshot = this.getNodeSnapshot(nodeId);
+      const refreshInput =
+        snapshot && currentSnapshot
+          ? createRefreshNodeInput({
+              currentSnapshot,
+              nextSnapshot: snapshot
+            })
+          : null;
+      if (
+        !snapshot ||
+        !refreshInput ||
+        !findGraphicById(this.nodeLayer, `node-${nodeId}`)
+      ) {
+        return createDiffProjectionFallback(nextDocument, {
+          reason: `fieldChanges 无法安全刷新节点: ${nodeId}`
+        });
+      }
+
+      if (!this.updateNode(nodeId, refreshInput)) {
+        return createDiffProjectionFallback(nextDocument, {
+          reason: `fieldChanges 节点刷新失败: ${nodeId}`
+        });
+      }
+
+      affectedNodeIds.add(nodeId);
+    }
+
+    return {
+      success: true,
+      requiresFullReplace: false,
+      document: structuredClone(nextDocument),
+      affectedNodeIds: [...affectedNodeIds],
+      affectedLinkIds: [...affectedLinkIds]
+    };
+  }
+
   /** 解析某个节点方向和槽位对应的正式端口几何。 */
   resolveConnectionPort(
     nodeId: string,
@@ -553,6 +857,22 @@ export class LeaferGraph {
     this.apiHost.setNodeWidgetValue(nodeId, widgetIndex, newValue);
   }
 
+}
+
+function createDiffProjectionFallback(
+  document: GraphDocument,
+  options: {
+    reason: string;
+  }
+): ApplyGraphDocumentDiffResult {
+  return {
+    success: false,
+    requiresFullReplace: true,
+    document: structuredClone(document),
+    affectedNodeIds: [],
+    affectedLinkIds: [],
+    reason: options.reason
+  };
 }
 
 /** 创建 `LeaferGraph` 的便捷工厂函数。 */

@@ -191,6 +191,7 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     const targetSlot = this.options.normalizeSlotIndex(link.target.slot);
 
     const view = this.createLinkShape(source, target, sourceSlot, targetSlot);
+    view.id = `graph-link-${link.id}`;
     view.name = `graph-link-${link.id}`;
 
     return {

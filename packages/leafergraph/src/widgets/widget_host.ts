@@ -108,6 +108,7 @@ export class LeaferGraphWidgetHost {
 
       const { width, height } = layoutItem.bounds;
       const group = new Box({
+        id: `widget-${node.id}-${index}`,
         name: `widget-${node.id}-${index}`,
         width,
         height,

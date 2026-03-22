@@ -127,6 +127,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   const group = new Group({
     x,
     y,
+    id: `node-${nodeId}`,
     name: `node-${nodeId}`
   });
 
@@ -369,6 +370,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   }
 
   const widgetLayer = new Box({
+    id: `widgets-${nodeId}`,
     name: `widgets-${nodeId}`,
     x: shellLayout.widgetBounds.x,
     y: shellLayout.widgetBounds.y,

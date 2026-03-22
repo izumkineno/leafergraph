@@ -213,6 +213,7 @@ export class LeaferGraphNodeShellHost<
     const group = new Group({
       x: node.layout.x,
       y: node.layout.y,
+      id: `node-${node.id}`,
       name: `node-${node.id}`
     });
     const selectedRing = new Rect({
@@ -289,6 +290,7 @@ export class LeaferGraphNodeShellHost<
       hittable: false
     });
     const widgetLayer = new Box({
+      id: `widgets-${node.id}`,
       name: `widgets-${node.id}`,
       width: 0,
       height: 0,

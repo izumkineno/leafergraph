@@ -239,6 +239,19 @@
       ]
     },
     {
+      "name": "authority.documentDiff",
+      "summary": "Push an incremental diff for the authoritative graph document.",
+      "params": [
+        {
+          "name": "diff",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/graph_document_diff.schema.json"
+          }
+        }
+      ]
+    },
+    {
       "name": "authority.runtimeFeedback",
       "summary": "Push runtime feedback from authority.",
       "params": [

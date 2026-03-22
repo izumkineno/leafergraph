@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_document_field_change.schema.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.title.set"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "key",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.property.set"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "key"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.property.unset"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "key",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.data.set"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "key"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.data.unset"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "key",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.flag.set"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "key": {
+          "enum": [
+            "collapsed",
+            "pinned",
+            "disabled",
+            "selected"
+          ]
+        },
+        "value": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "widgetIndex",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.widget.value.set"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "widgetIndex": {
+          "type": "number"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "widgetIndex",
+        "widget"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.widget.replace"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "widgetIndex": {
+          "type": "number"
+        },
+        "widget": {
+          "$ref": "./graph_node_widget_spec.schema.json"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "type",
+        "nodeId",
+        "widgetIndex"
+      ],
+      "properties": {
+        "type": {
+          "const": "node.widget.remove"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "widgetIndex": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
