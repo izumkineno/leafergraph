@@ -47,8 +47,6 @@ packages/editor
 │  ├─ main.tsx                   # 浏览器启动入口（挂载 EditorShell）
 │  └─ styles.css                 # 官方样式聚合入口
 ├─ tests                         # editor 单元/集成测试
-├─ authority-host-demo.html      # 浏览器内 authority host demo 页面
-├─ authority-node-host-demo.html # Node WebSocket authority host demo 页面
 ├─ authority-python-host-demo.html # Python WebSocket authority host demo 页面
 ├─ index.html                    # 默认编辑器页面入口
 ├─ package.json                  # 包信息、scripts、exports
@@ -236,13 +234,9 @@ bundle manifest 解析、依赖检查、运行时 setup、持久化读写（Inde
 ### `src/demo`
 
 - `websocket_host_demo_bootstrap.ts`：WebSocket host demo 通用 bootstrap。
-- `node_websocket_host_demo_bootstrap.ts`：Node host demo 专用 bootstrap 封装。
 - `python_websocket_host_demo_bootstrap.ts`：Python host demo 专用 bootstrap 封装。
-- `node_websocket_host_demo_entry.ts`：Node host demo 页面入口。
 - `python_websocket_host_demo_entry.ts`：Python host demo 页面入口。
 - `preview_remote_authority_bootstrap.ts`：预览环境 authority bootstrap 注入。
-- `preview_remote_authority_host_demo_bootstrap.ts`：host demo authority 注入。
-- `preview_remote_authority_host_demo_entry.ts`：host demo 页面入口。
 - `remote_authority_demo_service.ts`：浏览器内 demo authority service。
 - `remote_authority_demo_source.ts`：demo worker source 封装。
 - `remote_authority_demo_worker.ts`：浏览器内 authority worker。
@@ -278,9 +272,7 @@ bundle manifest 解析、依赖检查、运行时 setup、持久化读写（Inde
 
 - `src/main.tsx`：默认编辑器装配入口。
 - `index.html`：默认入口页面。
-- `authority-node-host-demo.html`：Node authority host demo。
 - `authority-python-host-demo.html`：Python authority host demo。
-- `authority-host-demo.html`：浏览器内 demo authority host。
 
 ## 常见问题：后端是否负责加载 node/widget/demo bundle？
 

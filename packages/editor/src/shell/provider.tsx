@@ -20,7 +20,6 @@ import {
   type NodeLibraryPreviewRequest
 } from "../ui/node-library-preview/helpers";
 import {
-  DEFAULT_NODE_AUTHORITY_DEMO_URL,
   DEFAULT_PYTHON_AUTHORITY_DEMO_URL,
   resolveDefaultEntryOnboardingDocumentNodeCount,
   resolveDefaultEntryOnboardingState
@@ -453,7 +452,6 @@ interface EditorContextValue {
     successMessagePrefix?: string;
     errorPrefix?: string;
   }): Promise<GraphDocument>;
-  openNodeAuthorityDemo(): void;
   openPythonAuthorityDemo(): void;
   scrollToBundleGrid(): void;
   extensionsBundleGridRef: {
@@ -1788,13 +1786,6 @@ export function EditorProvider({
     },
     [closeOverlayPanes]
   );
-  const openNodeAuthorityDemo = useCallback((): void => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    window.location.assign(DEFAULT_NODE_AUTHORITY_DEMO_URL);
-  }, []);
   const openPythonAuthorityDemo = useCallback((): void => {
     if (typeof window === "undefined") {
       return;
@@ -2012,7 +2003,6 @@ export function EditorProvider({
       unloadBundleRecord: unloadBundle,
       activateDemoBundle,
       createNodeFromWorkspace: handleCreateNodeFromWorkspace,
-      openNodeAuthorityDemo,
       openPythonAuthorityDemo,
       reloadRemoteAuthority() {
         setRemoteAuthorityReloadKey((current) => current + 1);
@@ -2043,7 +2033,6 @@ export function EditorProvider({
       graphRuntimeControls,
       handleCreateNodeFromWorkspace,
       openLeftPane,
-      openNodeAuthorityDemo,
       openPythonAuthorityDemo,
       openRightPane,
       openRunConsoleDialog,
@@ -2089,7 +2078,6 @@ export function EditorProvider({
       setRemoteRuntimeControlNotice,
       setWorkspaceState,
       resyncAuthorityDocument,
-      openNodeAuthorityDemo,
       openPythonAuthorityDemo,
       scrollToBundleGrid,
       extensionsBundleGridRef
@@ -2107,7 +2095,6 @@ export function EditorProvider({
       handleViewportHostBridgeChange,
       activateDemoBundle,
       nodeLibraryHoverPreviewEnabled,
-      openNodeAuthorityDemo,
       openPythonAuthorityDemo,
       overlayPaneOpen,
       remoteAuthorityRuntime,
@@ -2196,20 +2183,13 @@ export function EditorProvider({
               </p>
               <p>
                 如果想马上看到完整节点库和示例链路，可以直接进入预载好的
-                Node / Python Authority Demo；如果想保持当前入口干净，也可以先去
+                Python Authority Demo；如果想保持当前入口干净，也可以先去
                 Extensions 手动加载本地 bundle。
               </p>
               <div class="workspace-stage__empty-actions">
                 <button
                   type="button"
                   class="workspace-primary-button"
-                  onClick={openNodeAuthorityDemo}
-                >
-                  打开 Node Authority Demo
-                </button>
-                <button
-                  type="button"
-                  class="workspace-secondary-button"
                   onClick={openPythonAuthorityDemo}
                 >
                   打开 Python Authority Demo
@@ -2473,7 +2453,6 @@ export function EditorProvider({
                     onOpenExtensions: () => {
                       openWorkspaceSettingsDialog("extensions");
                     },
-                    onOpenNodeAuthorityDemo: openNodeAuthorityDemo,
                     onOpenPythonAuthorityDemo: openPythonAuthorityDemo
                   }
                 : undefined
@@ -2573,20 +2552,13 @@ export function EditorProvider({
                   <h4>当前是干净入口</h4>
                   <p>
                     默认页不会自动预装 node/widget bundle。你可以直接打开预载好的
-                    Node / Python Authority Demo，或继续在下方手动加载本地 bundle。
+                    Python Authority Demo，或继续在下方手动加载本地 bundle。
                   </p>
                 </div>
                 <div class="dialog-actions">
                   <button
                     type="button"
                     class="workspace-primary-button"
-                    onClick={openNodeAuthorityDemo}
-                  >
-                    打开 Node Authority Demo
-                  </button>
-                  <button
-                    type="button"
-                    class="workspace-secondary-button"
                     onClick={openPythonAuthorityDemo}
                   >
                     打开 Python Authority Demo
@@ -3413,7 +3385,6 @@ export function EditorNodeLibrary() {
               onOpenExtensions: () => {
                 actions.openWorkspaceSettings("extensions");
               },
-              onOpenNodeAuthorityDemo: actions.openNodeAuthorityDemo,
               onOpenPythonAuthorityDemo: actions.openPythonAuthorityDemo
             }
           : undefined
@@ -3529,20 +3500,13 @@ export function EditorViewportPane() {
             </p>
             <p>
               如果想马上看到完整节点库和示例链路，可以直接进入预载好的
-              Node / Python Authority Demo；如果想保持当前入口干净，也可以先去
+              Python Authority Demo；如果想保持当前入口干净，也可以先去
               Extensions 手动加载本地 bundle。
             </p>
             <div class="workspace-stage__empty-actions">
               <button
                 type="button"
                 class="workspace-primary-button"
-                onClick={actions.openNodeAuthorityDemo}
-              >
-                打开 Node Authority Demo
-              </button>
-              <button
-                type="button"
-                class="workspace-secondary-button"
                 onClick={actions.openPythonAuthorityDemo}
               >
                 打开 Python Authority Demo
@@ -3716,20 +3680,13 @@ export function EditorWorkspaceSettingsDialog() {
                 <h4>当前是干净入口</h4>
                 <p>
                   默认页不会自动预装 node/widget bundle。你可以直接打开预载好的
-                  Node / Python Authority Demo，或继续在下方手动加载本地 bundle。
+                  Python Authority Demo，或继续在下方手动加载本地 bundle。
                 </p>
               </div>
               <div class="dialog-actions">
                 <button
                   type="button"
                   class="workspace-primary-button"
-                  onClick={actions.openNodeAuthorityDemo}
-                >
-                  打开 Node Authority Demo
-                </button>
-                <button
-                  type="button"
-                  class="workspace-secondary-button"
                   onClick={actions.openPythonAuthorityDemo}
                 >
                   打开 Python Authority Demo

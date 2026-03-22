@@ -163,11 +163,9 @@ bun run build:testbundles
 `packages/editor` 的生产构建现在会同时产出这些页面：
 
 - `dist/index.html`
-- `dist/authority-host-demo.html`
-- `dist/authority-node-host-demo.html`
 - `dist/authority-python-host-demo.html`
 
-这样用 `bun run preview:editor` 时，host demo 页面也会保留各自的 bootstrap 入口，不会再回退成通用 `index.html`。
+这样用 `bun run preview:editor` 时，Python authority host demo 页面会保留自己的 bootstrap 入口，不会回退成通用 `index.html`。
 
 ## GitHub Pages 托管
 

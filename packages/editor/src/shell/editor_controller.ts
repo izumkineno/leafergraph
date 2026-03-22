@@ -112,7 +112,6 @@ export interface EditorControllerActions {
   unloadBundleRecord(slot: EditorBundleSlot, bundleKey: string): void;
   activateDemoBundle(bundleKey: string): Promise<void>;
   createNodeFromWorkspace(nodeType: string): void;
-  openNodeAuthorityDemo(): void;
   openPythonAuthorityDemo(): void;
   reloadRemoteAuthority(): void;
   resyncRemoteAuthority(
@@ -206,7 +205,6 @@ function createNoopActions(): EditorControllerActions {
     unloadBundleRecord() {},
     async activateDemoBundle() {},
     createNodeFromWorkspace() {},
-    openNodeAuthorityDemo() {},
     openPythonAuthorityDemo() {},
     reloadRemoteAuthority() {},
     async resyncRemoteAuthority() {

@@ -85,19 +85,12 @@ export function EditorViewportConnected() {
               这里不会自动预加载 node/widget bundle，也不会直接切到 demo authority，所以你现在看到的是本地 loopback + 空工作区。
             </p>
             <p>
-              如果想马上看到完整节点库和示例链路，可以直接进入预载好的 Node / Python Authority Demo；如果想保持当前入口干净，也可以先去 Extensions 手动加载本地 bundle。
+              如果想马上看到完整节点库和示例链路，可以直接进入预载好的 Python Authority Demo；如果想保持当前入口干净，也可以先去 Extensions 手动加载本地 bundle。
             </p>
             <div class="workspace-stage__empty-actions">
               <button
                 type="button"
                 class="workspace-primary-button"
-                onClick={actions.openNodeAuthorityDemo}
-              >
-                打开 Node Authority Demo
-              </button>
-              <button
-                type="button"
-                class="workspace-secondary-button"
                 onClick={actions.openPythonAuthorityDemo}
               >
                 打开 Python Authority Demo

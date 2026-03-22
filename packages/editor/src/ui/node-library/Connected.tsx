@@ -23,7 +23,6 @@ export function EditorNodeLibraryConnected() {
               onOpenExtensions: () => {
                 actions.openWorkspaceSettings("extensions");
               },
-              onOpenNodeAuthorityDemo: actions.openNodeAuthorityDemo,
               onOpenPythonAuthorityDemo: actions.openPythonAuthorityDemo
             }
           : undefined

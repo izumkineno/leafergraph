@@ -41,7 +41,7 @@ def create_template_execution_document() -> dict:
     return {
         "documentId": "openrpc-runtime-doc",
         "revision": 1,
-        "appKind": "node-backend-demo",
+        "appKind": "python-openrpc-demo",
         "nodes": [
             {
                 "id": "on-play",
@@ -99,7 +99,7 @@ def create_timer_execution_document(
     return {
         "documentId": "openrpc-runtime-timer-doc",
         "revision": 1,
-        "appKind": "node-backend-demo",
+        "appKind": "python-openrpc-demo",
         "nodes": [
             {
                 "id": "timer-on-play",

@@ -9,12 +9,6 @@ const leafergraphEntry = fileURLToPath(
 
 const editorHtmlEntries = {
   index: fileURLToPath(new URL("./index.html", import.meta.url)),
-  authorityHostDemo: fileURLToPath(
-    new URL("./authority-host-demo.html", import.meta.url)
-  ),
-  authorityNodeHostDemo: fileURLToPath(
-    new URL("./authority-node-host-demo.html", import.meta.url)
-  ),
   authorityPythonHostDemo: fileURLToPath(
     new URL("./authority-python-host-demo.html", import.meta.url)
   )

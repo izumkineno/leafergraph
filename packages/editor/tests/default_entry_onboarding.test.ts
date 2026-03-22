@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  DEFAULT_NODE_AUTHORITY_DEMO_URL,
   DEFAULT_PYTHON_AUTHORITY_DEMO_URL,
   resolveDefaultEntryOnboardingDocumentNodeCount,
   resolveDefaultEntryOnboardingState
@@ -109,10 +108,7 @@ describe("default entry onboarding helper", () => {
     });
   });
 
-  test("demo 快捷入口应固定指向 Node/Python Authority 页面", () => {
-    expect(DEFAULT_NODE_AUTHORITY_DEMO_URL).toBe(
-      "/authority-node-host-demo.html"
-    );
+  test("demo 快捷入口应固定指向 Python Authority 页面", () => {
     expect(DEFAULT_PYTHON_AUTHORITY_DEMO_URL).toBe(
       "/authority-python-host-demo.html"
     );
