@@ -200,6 +200,30 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
     });
     socket.emitMessage({
       jsonrpc: "2.0",
+      method: "authority.documentDiff",
+      params: {
+        documentId: "websocket-transport-doc",
+        baseRevision: "1",
+        revision: "2",
+        emittedAt: 1,
+        operations: [
+          {
+            type: "node.move",
+            nodeId: "node-1",
+            input: {
+              x: 24,
+              y: 36
+            },
+            operationId: "diff-node-move",
+            timestamp: 1,
+            source: "authority.documentDiff"
+          }
+        ],
+        fieldChanges: []
+      }
+    });
+    socket.emitMessage({
+      jsonrpc: "2.0",
       id: sentEnvelope.id,
       result: {
         documentId: "websocket-transport-doc",
@@ -240,6 +264,29 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
             exists: true,
             reason: "updated"
           })
+        }
+      },
+      {
+        type: "documentDiff",
+        diff: {
+          documentId: "websocket-transport-doc",
+          baseRevision: "1",
+          revision: "2",
+          emittedAt: 1,
+          operations: [
+            {
+              type: "node.move",
+              nodeId: "node-1",
+              input: {
+                x: 24,
+                y: 36
+              },
+              operationId: "diff-node-move",
+              timestamp: 1,
+              source: "authority.documentDiff"
+            }
+          ],
+          fieldChanges: []
         }
       }
     ]);

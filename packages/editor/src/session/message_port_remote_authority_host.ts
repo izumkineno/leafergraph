@@ -101,6 +101,17 @@ export function createMessagePortRemoteAuthorityHost(
           );
         })
       : () => {};
+  const disposeDocumentDiffSubscription =
+    typeof options.service.subscribeDocumentDiff === "function"
+      ? options.service.subscribeDocumentDiff((diff) => {
+          postMessage(
+            protocolAdapter.createNotificationEnvelope({
+              type: "documentDiff",
+              diff: structuredClone(diff)
+            })
+          );
+        })
+      : () => {};
 
   const handleRequestEnvelope = async (
     envelope: EditorRemoteAuthorityRequestInboundEnvelope
@@ -182,6 +193,7 @@ export function createMessagePortRemoteAuthorityHost(
       );
       disposeRuntimeFeedbackSubscription();
       disposeDocumentSubscription();
+      disposeDocumentDiffSubscription();
 
       if (options.disposeServiceOnDispose !== false) {
         options.service.dispose?.();

@@ -67,12 +67,17 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
     async with run_live_server() as uri:
         bundle_events: list[dict[str, Any]] = []
         document_events: list[dict[str, Any]] = []
+        document_diff_events: list[dict[str, Any]] = []
         runtime_feedback_events: list[dict[str, Any]] = []
         bundle_ready = asyncio.Event()
         document_ready = asyncio.Event()
+        document_diff_ready = asyncio.Event()
         runtime_feedback_ready = asyncio.Event()
+        observer_document_diff_events: list[dict[str, Any]] = []
+        observer_document_diff_ready = asyncio.Event()
 
         client = AuthorityRpcClient(uri)
+        observer = AuthorityRpcClient(uri)
         client.on_frontend_bundles_sync(
             lambda payload: (
                 bundle_events.append(dump_value(payload)),
@@ -85,14 +90,27 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
                 document_ready.set(),
             )
         )
+        client.on_document_diff(
+            lambda payload: (
+                document_diff_events.append(dump_value(payload)),
+                document_diff_ready.set(),
+            )
+        )
         client.on_runtime_feedback(
             lambda payload: (
                 runtime_feedback_events.append(dump_value(payload)),
                 runtime_feedback_ready.set(),
             )
         )
+        observer.on_document_diff(
+            lambda payload: (
+                observer_document_diff_events.append(dump_value(payload)),
+                observer_document_diff_ready.set(),
+            )
+        )
 
         await client.connect()
+        await observer.connect()
         try:
             await asyncio.wait_for(bundle_ready.wait(), timeout=2)
             assert bundle_events[0]["mode"] == "full"
@@ -102,6 +120,7 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
             assert discover["openrpc"] == "1.3.2"
 
             original_document = dump_value(await client.get_document())
+            await observer.get_document()
             replaced_document = dump_value(
                 await client.replace_document(
                     AuthorityReplaceDocumentParams(
@@ -111,9 +130,21 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
                 )
             )
             assert replaced_document["appKind"] == "remote-demo"
+            assert document_diff_events == []
 
-            await asyncio.wait_for(document_ready.wait(), timeout=2)
-            assert document_events[-1]["appKind"] == "remote-demo"
+            await asyncio.wait_for(observer_document_diff_ready.wait(), timeout=2)
+            assert (
+                observer_document_diff_events[-1]["documentId"]
+                == original_document["documentId"]
+            )
+            assert (
+                observer_document_diff_events[-1]["baseRevision"]
+                == original_document["revision"]
+            )
+            assert any(
+                operation["type"] == "document.update"
+                for operation in observer_document_diff_events[-1]["operations"]
+            )
 
             latest_document = dump_value(await client.get_document())
             operation_result = dump_value(
@@ -143,6 +174,7 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
 
             latest_document = dump_value(await client.get_document())
             document_ready.clear()
+            document_diff_ready.clear()
             await client.replace_document(
                 AuthorityReplaceDocumentParams(
                     document=create_template_execution_document(),
@@ -150,6 +182,7 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
                 )
             )
             document_ready.clear()
+            document_diff_ready.clear()
 
             step_result = dump_value(
                 await client.control_runtime(
@@ -157,16 +190,19 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
                 )
             )
             await asyncio.wait_for(runtime_feedback_ready.wait(), timeout=2)
-            await asyncio.wait_for(document_ready.wait(), timeout=2)
+            await asyncio.wait_for(document_diff_ready.wait(), timeout=2)
 
             assert step_result["accepted"] is True
             assert step_result["changed"] is True
             assert step_result["state"]["status"] == "idle"
             assert step_result["state"]["stepCount"] == 1
+            stepped_document = dump_value(await client.get_document())
             assert any(
                 node["id"] == "counter" and node["title"] == "Counter 1"
-                for node in document_events[-1]["nodes"]
+                for node in stepped_document["nodes"]
             )
+            assert document_diff_events[-1]["revision"] == stepped_document["revision"]
+            assert document_diff_events[-1]["fieldChanges"]
             node_execution_events = [
                 event["event"]
                 for event in runtime_feedback_events
@@ -179,3 +215,4 @@ async def test_generated_client_round_trips_against_live_authority() -> None:
             )
         finally:
             await client.close()
+            await observer.close()

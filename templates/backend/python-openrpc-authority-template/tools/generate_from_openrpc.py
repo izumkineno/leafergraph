@@ -70,6 +70,14 @@ def notification_type_name(notification_name: str) -> str:
     return method_type_name(notification_name, "NotificationParams")
 
 
+def notification_handler_name(notification_name: str) -> str:
+    return snake_case(notification_name.split(".")[-1])
+
+
+def notification_listener_attr(notification_name: str) -> str:
+    return f"_{notification_handler_name(notification_name)}_listeners"
+
+
 def schema_key_from_path(path: Path) -> str:
     name = path.name
     if name.endswith(".schema.json"):
@@ -400,9 +408,14 @@ def generate_client_py(openrpc_document: dict[str, Any]) -> str:
             "        self._pending: dict[str, asyncio.Future[dict[str, Any]]] = {}",
             "        self._id_counter = count(1)",
             "        self._send_lock = asyncio.Lock()",
-            "        self._document_listeners: set[NotificationListener] = set()",
-            "        self._runtime_feedback_listeners: set[NotificationListener] = set()",
-            "        self._frontend_bundle_listeners: set[NotificationListener] = set()",
+        ]
+    )
+    for notification in openrpc_document["x-notifications"]:
+        lines.append(
+            f"        self.{notification_listener_attr(notification['name'])}: set[NotificationListener] = set()"
+        )
+    lines.extend(
+        [
             "",
             '    async def __aenter__(self) -> "AuthorityRpcClient":',
             "        await self.connect()",
@@ -431,18 +444,19 @@ def generate_client_py(openrpc_document: dict[str, Any]) -> str:
             "            except asyncio.CancelledError:",
             "                pass",
             "",
-            f"    def on_document(self, listener: Callable[[{notification_type_name('authority.document')}], Awaitable[None] | None]) -> Callable[[], None]:",
-            "        self._document_listeners.add(listener)",
-            "        return lambda: self._document_listeners.discard(listener)",
-            "",
-            f"    def on_runtime_feedback(self, listener: Callable[[{notification_type_name('authority.runtimeFeedback')}], Awaitable[None] | None]) -> Callable[[], None]:",
-            "        self._runtime_feedback_listeners.add(listener)",
-            "        return lambda: self._runtime_feedback_listeners.discard(listener)",
-            "",
-            f"    def on_frontend_bundles_sync(self, listener: Callable[[{notification_type_name('authority.frontendBundlesSync')}], Awaitable[None] | None]) -> Callable[[], None]:",
-            "        self._frontend_bundle_listeners.add(listener)",
-            "        return lambda: self._frontend_bundle_listeners.discard(listener)",
-            "",
+        ]
+    )
+    for notification in openrpc_document["x-notifications"]:
+        lines.extend(
+            [
+                f"    def on_{notification_handler_name(notification['name'])}(self, listener: Callable[[{notification_type_name(notification['name'])}], Awaitable[None] | None]) -> Callable[[], None]:",
+                f"        self.{notification_listener_attr(notification['name'])}.add(listener)",
+                f"        return lambda: self.{notification_listener_attr(notification['name'])}.discard(listener)",
+                "",
+            ]
+        )
+    lines.extend(
+        [
             "    async def _receiver_loop(self) -> None:",
             "        websocket = self._websocket",
             "        if websocket is None:",
@@ -466,17 +480,19 @@ def generate_client_py(openrpc_document: dict[str, Any]) -> str:
             "",
             "    async def _handle_notification(self, message: dict[str, Any]) -> None:",
             "        envelope = JsonRpcNotificationEnvelope.model_validate(message)",
-            f"        if envelope.method == {build_notification_constant_name('authority.document')}:",
-            "            validated = validate_notification_params(envelope.method, envelope.params)",
-            "            await self._emit(self._document_listeners, validated)",
-            "            return",
-            f"        if envelope.method == {build_notification_constant_name('authority.runtimeFeedback')}:",
-            "            validated = validate_notification_params(envelope.method, envelope.params)",
-            "            await self._emit(self._runtime_feedback_listeners, validated)",
-            "            return",
-            f"        if envelope.method == {build_notification_constant_name('authority.frontendBundlesSync')}:",
-            "            validated = validate_notification_params(envelope.method, envelope.params)",
-            "            await self._emit(self._frontend_bundle_listeners, validated)",
+        ]
+    )
+    for notification in openrpc_document["x-notifications"]:
+        lines.extend(
+            [
+                f"        if envelope.method == {build_notification_constant_name(notification['name'])}:",
+                "            validated = validate_notification_params(envelope.method, envelope.params)",
+                f"            await self._emit(self.{notification_listener_attr(notification['name'])}, validated)",
+                "            return",
+            ]
+        )
+    lines.extend(
+        [
             "",
             "    async def _emit(self, listeners: set[NotificationListener], payload: Any) -> None:",
             "        for listener in list(listeners):",

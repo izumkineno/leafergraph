@@ -148,6 +148,14 @@ export function createClientBackedRemoteAuthorityService(
       return options.client.subscribeDocument(listener);
     },
 
+    subscribeDocumentDiff(listener) {
+      if (typeof options.client.subscribeDocumentDiff !== "function") {
+        return () => {};
+      }
+
+      return options.client.subscribeDocumentDiff(listener);
+    },
+
     dispose(): void {
       if (options.disposeClientOnDispose !== false) {
         options.client.dispose?.();

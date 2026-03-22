@@ -40,6 +40,7 @@ from .._generated.models import (
 )
 from .._generated.notifications import (
     AUTHORITY_DOCUMENT_NOTIFICATION,
+    AUTHORITY_DOCUMENT_DIFF_NOTIFICATION,
     AUTHORITY_FRONTEND_BUNDLES_SYNC_NOTIFICATION,
     AUTHORITY_RUNTIME_FEEDBACK_NOTIFICATION,
 )
@@ -80,6 +81,13 @@ class AuthorityMethodResponse:
         return dump_method_result(self.method, self.value)
 
 
+@dataclass
+class DocumentPayloadEvent:
+    document: dict[str, Any]
+    origin_connection_id: str | None = None
+    response_document_delivered: bool = False
+
+
 class OpenRpcAuthorityService:
     def __init__(
         self,
@@ -100,6 +108,9 @@ class OpenRpcAuthorityService:
             frontend_bundles_provider or StaticFrontendBundleCatalogProvider()
         )
         self._document_listeners: set[Callable[[dict[str, Any]], None]] = set()
+        self._document_payload_listeners: set[
+            Callable[[DocumentPayloadEvent], None]
+        ] = set()
         self._pending_runtime_document: dict[str, Any] | None = None
         self.runtime_controller.replace_document(
             self.document_store.get_document(),
@@ -116,17 +127,41 @@ class OpenRpcAuthorityService:
         current_state = state or self.runtime_controller.get_state()
         return current_state.get("status") in {"running", "stepping"}
 
-    def _emit_document_notification(self, document: dict[str, Any]) -> None:
+    def _emit_document_notification(
+        self,
+        document: dict[str, Any],
+        *,
+        origin_connection_id: str | None = None,
+        response_document_delivered: bool = False,
+    ) -> None:
+        for listener in list(self._document_payload_listeners):
+            listener(
+                DocumentPayloadEvent(
+                    document=clone_document(document),
+                    origin_connection_id=origin_connection_id,
+                    response_document_delivered=response_document_delivered,
+                )
+            )
         if not self._document_listeners:
             return
         notification = self.create_document_notification(document)
         for listener in list(self._document_listeners):
             listener(notification)
 
-    def _flush_document_to_store(self, document: dict[str, Any]) -> dict[str, Any] | None:
+    def _flush_document_to_store(
+        self,
+        document: dict[str, Any],
+        *,
+        origin_connection_id: str | None = None,
+        response_document_delivered: bool = False,
+    ) -> dict[str, Any] | None:
         committed_document = self.document_store.replace_document(document)
         if committed_document is not None:
-            self._emit_document_notification(committed_document)
+            self._emit_document_notification(
+                committed_document,
+                origin_connection_id=origin_connection_id,
+                response_document_delivered=response_document_delivered,
+            )
         return committed_document
 
     def _cache_runtime_document(self, document: dict[str, Any]) -> None:
@@ -219,6 +254,8 @@ class OpenRpcAuthorityService:
         *,
         impact: str,
         notify_now: bool,
+        origin_connection_id: str | None = None,
+        response_document_delivered: bool = False,
     ) -> dict[str, Any] | None:
         committed_document = self.document_store.replace_document(document)
         if committed_document is None:
@@ -226,7 +263,11 @@ class OpenRpcAuthorityService:
         if impact == STRUCTURAL_DOCUMENT_UPDATE_IMPACT:
             self._pending_runtime_document = None
         if notify_now:
-            self._emit_document_notification(committed_document)
+            self._emit_document_notification(
+                committed_document,
+                origin_connection_id=origin_connection_id,
+                response_document_delivered=response_document_delivered,
+            )
         return committed_document
 
     def _ensure_params(self, method: str, params: Any) -> Any:
@@ -247,7 +288,13 @@ class OpenRpcAuthorityService:
             dump_notification_params(notification, validated),
         )
 
-    def handle_request(self, method: str, params: Any) -> AuthorityMethodResponse:
+    def handle_request(
+        self,
+        method: str,
+        params: Any,
+        *,
+        origin_connection_id: str | None = None,
+    ) -> AuthorityMethodResponse:
         if method == AUTHORITY_RPC_DISCOVER_METHOD:
             result = create_discover_result()
             return AuthorityMethodResponse(
@@ -278,10 +325,13 @@ class OpenRpcAuthorityService:
                 defer_notification = self._should_defer_live_safe_document_notification(
                     impact
                 )
+                response_document_delivered = not defer_notification
                 committed_document = self._commit_external_document(
                     outcome.next_document,
                     impact=impact,
                     notify_now=not defer_notification,
+                    origin_connection_id=origin_connection_id,
+                    response_document_delivered=response_document_delivered,
                 )
                 if committed_document is not None:
                     result["revision"] = committed_document["revision"]
@@ -290,7 +340,7 @@ class OpenRpcAuthorityService:
                         committed_document=committed_document,
                         impact=impact,
                     )
-                    if not defer_notification:
+                    if response_document_delivered:
                         result["document"] = committed_document
         elif method == AUTHORITY_REPLACE_DOCUMENT_METHOD:
             payload = validated_params.model_dump(mode="json", exclude_unset=True)
@@ -298,6 +348,8 @@ class OpenRpcAuthorityService:
                 payload["document"],
                 impact=STRUCTURAL_DOCUMENT_UPDATE_IMPACT,
                 notify_now=True,
+                origin_connection_id=origin_connection_id,
+                response_document_delivered=True,
             )
             if committed_document is not None:
                 self.runtime_controller.replace_document(
@@ -323,6 +375,12 @@ class OpenRpcAuthorityService:
             document,
         )
 
+    def create_document_diff_notification(self, diff: Any) -> dict[str, Any]:
+        return self._create_notification(
+            AUTHORITY_DOCUMENT_DIFF_NOTIFICATION,
+            diff,
+        )
+
     def create_runtime_feedback_notification(self, event: Any) -> dict[str, Any]:
         return self._create_notification(
             AUTHORITY_RUNTIME_FEEDBACK_NOTIFICATION,
@@ -343,6 +401,17 @@ class OpenRpcAuthorityService:
 
         def dispose() -> None:
             self._document_listeners.discard(listener)
+
+        return dispose
+
+    def subscribe_document_payload(
+        self,
+        listener: Callable[[DocumentPayloadEvent], None],
+    ) -> Callable[[], None]:
+        self._document_payload_listeners.add(listener)
+
+        def dispose() -> None:
+            self._document_payload_listeners.discard(listener)
 
         return dispose
 

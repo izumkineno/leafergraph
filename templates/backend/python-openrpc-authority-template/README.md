@@ -39,6 +39,78 @@ templates/backend/python-openrpc-authority-template/
   tests/
 ```
 
+## 架构概览
+
+```mermaid
+flowchart LR
+    subgraph contract_layer["共享协议真源"]
+        openrpc_doc["authority.openrpc.json"]
+        schema_dir["schemas/*.schema.json"]
+    end
+
+    subgraph codegen_layer["生成与启动引导"]
+        generator["tools/generate_from_openrpc.py"]
+        bootstrap["core/bootstrap.py<br/>ensure_generated()"]
+        generated["src/.../_generated/<br/>methods.py / notifications.py / models.py / client.py"]
+        protocol["core/protocol.py<br/>discover 文档读取与 authority 常量"]
+        schema_runtime["core/schema_runtime.py<br/>Schema 编译支撑"]
+    end
+
+    subgraph transport_layer["传输层"]
+        entry["entry.py"]
+        server["transport/server.py<br/>FastAPI + GET /health + WS /authority"]
+        jsonrpc["core/jsonrpc.py<br/>JSON-RPC envelope 与错误码"]
+    end
+
+    subgraph service_layer["服务编排层"]
+        service["core/service.py<br/>OpenRpcAuthorityService"]
+    end
+
+    subgraph domain_layer["核心能力层"]
+        store["core/document_store.py<br/>InMemoryDocumentStore"]
+        applier["core/operation_applier.py<br/>OpenRpcOperationApplier"]
+        runtime["core/runtime_controller.py<br/>InMemoryGraphRuntimeController"]
+        bundles["core/frontend_bundles.py<br/>StaticFrontendBundleCatalogProvider"]
+    end
+
+    subgraph clients["调用方"]
+        editor["Editor / Host Demo / WebSocket Client"]
+        generated_client["AuthorityRpcClient"]
+    end
+
+    openrpc_doc --> generator
+    schema_dir --> generator
+    schema_runtime --> generator
+    generator --> generated
+    openrpc_doc --> protocol
+    schema_dir --> protocol
+
+    entry --> bootstrap
+    bootstrap --> generated
+    bootstrap --> protocol
+    entry --> server
+
+    editor -->|HTTP| server
+    editor -->|WebSocket JSON-RPC| server
+    generated_client -->|typed client| server
+
+    server --> jsonrpc
+    server --> service
+
+    service --> generated
+    service --> protocol
+    service --> store
+    service --> applier
+    service --> runtime
+    service --> bundles
+
+    runtime -->|runtime feedback| service
+    runtime -->|runtime document changes| service
+    service -->|authority.document| editor
+    service -->|authority.runtimeFeedback| editor
+    service -->|authority.frontendBundlesSync| editor
+```
+
 ## 默认能力边界
 
 默认模板内建 4 个最小角色：

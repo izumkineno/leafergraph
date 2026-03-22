@@ -1,5 +1,6 @@
 import type {
   GraphDocument,
+  GraphDocumentDiff,
   GraphOperation,
   RuntimeFeedbackEvent
 } from "leafergraph";
@@ -110,10 +111,17 @@ export interface EditorRemoteAuthorityDocumentTransportEvent {
   document: GraphDocument;
 }
 
+/** transport 层 authority 主动回推的文档 diff 事件。 */
+export interface EditorRemoteAuthorityDocumentDiffTransportEvent {
+  type: "documentDiff";
+  diff: GraphDocumentDiff;
+}
+
 /** transport 当前允许上抛的最小事件集合。 */
 export type EditorRemoteAuthorityTransportEvent =
   | EditorRemoteAuthorityRuntimeFeedbackTransportEvent
   | EditorRemoteAuthorityDocumentTransportEvent
+  | EditorRemoteAuthorityDocumentDiffTransportEvent
   | EditorRemoteAuthorityFrontendBundlesSyncTransportEvent;
 
 /**
@@ -142,9 +150,13 @@ export interface EditorRemoteAuthorityTransport {
 
 /** 带整图拉取能力的 authority client。 */
 export interface EditorRemoteAuthorityDocumentClient
-  extends Omit<EditorRemoteAuthorityClient, "subscribeDocument"> {
+  extends Omit<
+    EditorRemoteAuthorityClient,
+    "subscribeDocument" | "subscribeDocumentDiff"
+  > {
   getDocument(): Promise<GraphDocument>;
   subscribeDocument(listener: (document: GraphDocument) => void): () => void;
+  subscribeDocumentDiff(listener: (diff: GraphDocumentDiff) => void): () => void;
   subscribeFrontendBundles?(
     listener: (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
   ): () => void;
@@ -152,6 +164,10 @@ export interface EditorRemoteAuthorityDocumentClient
 
 function cloneGraphDocument(document: GraphDocument): GraphDocument {
   return structuredClone(document);
+}
+
+function cloneGraphDocumentDiff(diff: GraphDocumentDiff): GraphDocumentDiff {
+  return structuredClone(diff);
 }
 
 function cloneOperation(operation: GraphOperation): GraphOperation {
@@ -279,6 +295,7 @@ export function createTransportRemoteAuthorityClient(options: {
     (event: RuntimeFeedbackEvent) => void
   >();
   const documentListeners = new Set<(document: GraphDocument) => void>();
+  const documentDiffListeners = new Set<(diff: GraphDocumentDiff) => void>();
   const frontendBundleListeners = new Set<
     (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
   >();
@@ -301,6 +318,14 @@ export function createTransportRemoteAuthorityClient(options: {
       const document = cloneGraphDocument(event.document);
       for (const listener of documentListeners) {
         listener(document);
+      }
+      return;
+    }
+
+    if (event.type === "documentDiff") {
+      const diff = cloneGraphDocumentDiff(event.diff);
+      for (const listener of documentDiffListeners) {
+        listener(diff);
       }
       return;
     }
@@ -387,6 +412,16 @@ export function createTransportRemoteAuthorityClient(options: {
       };
     },
 
+    subscribeDocumentDiff(
+      listener: (diff: GraphDocumentDiff) => void
+    ): () => void {
+      documentDiffListeners.add(listener);
+
+      return () => {
+        documentDiffListeners.delete(listener);
+      };
+    },
+
     subscribeFrontendBundles(
       listener: (event: EditorRemoteAuthorityFrontendBundlesSyncEvent) => void
     ): () => void {
@@ -425,6 +460,7 @@ export function createTransportRemoteAuthorityClient(options: {
       disposeTransportSubscription();
       runtimeFeedbackListeners.clear();
       documentListeners.clear();
+      documentDiffListeners.clear();
       frontendBundleListeners.clear();
       frontendBundleCatalog.clear();
       options.transport.dispose?.();

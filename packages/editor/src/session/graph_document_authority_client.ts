@@ -1,5 +1,6 @@
 import type {
   GraphDocument,
+  GraphDocumentDiff,
   GraphOperation,
   LeaferGraphGraphExecutionState
 } from "leafergraph";
@@ -34,6 +35,20 @@ export interface EditorRemoteAuthorityDocumentInlet {
    * - 未来重连 / resync 后的正式快照投影
    */
   subscribeDocument(listener: (document: GraphDocument) => void): () => void;
+}
+
+/** authority 客户端主动回推文档 diff 的最小输入通道。 */
+export interface EditorRemoteAuthorityDocumentDiffInlet {
+  /**
+   * 订阅 authority 主动回推的正式文档增量。
+   *
+   * @remarks
+   * 这条链只负责“已提交 authority 文档”的增量同步，
+   * 不承载 runtime feedback，也不替代 full snapshot / resync。
+   */
+  subscribeDocumentDiff(
+    listener: (diff: GraphDocumentDiff) => void
+  ): () => void;
 }
 
 /** authority 客户端提交操作时可见的最小上下文。 */
@@ -115,6 +130,7 @@ export interface EditorRemoteAuthorityReplaceDocumentContext {
 export interface EditorRemoteAuthorityClient
   extends Partial<EditorRuntimeFeedbackInlet>,
     Partial<EditorRemoteAuthorityDocumentInlet>,
+    Partial<EditorRemoteAuthorityDocumentDiffInlet>,
     Partial<EditorRemoteAuthorityConnectionStatusSource>,
     Partial<EditorRemoteAuthorityRuntimeController> {
   /**

@@ -5,6 +5,7 @@ import type {
 import type { EditorRuntimeFeedbackInlet } from "../runtime/runtime_feedback_inlet";
 import type {
   EditorRemoteAuthorityDocumentInlet,
+  EditorRemoteAuthorityDocumentDiffInlet,
   EditorRemoteAuthorityOperationContext,
   EditorRemoteAuthorityOperationResult,
   EditorRemoteAuthorityRuntimeControlRequest,
@@ -21,7 +22,8 @@ import type {
  */
 export interface EditorRemoteAuthorityDocumentService
   extends Partial<EditorRuntimeFeedbackInlet>,
-    Partial<EditorRemoteAuthorityDocumentInlet> {
+    Partial<EditorRemoteAuthorityDocumentInlet>,
+    Partial<EditorRemoteAuthorityDocumentDiffInlet> {
   /** 返回当前 authority 持有的正式图文档。 */
   getDocument(): GraphDocument | Promise<GraphDocument>;
   /** 提交一条图操作，并返回 authority 确认结果。 */

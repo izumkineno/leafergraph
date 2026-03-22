@@ -1,5 +1,6 @@
 import type {
   GraphDocument,
+  GraphDocumentDiff,
   RuntimeFeedbackEvent
 } from "leafergraph";
 import type {
@@ -36,6 +37,7 @@ export const EDITOR_REMOTE_AUTHORITY_METHODS = {
 /** editor 侧 authority notification 常量。 */
 export const EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS = {
   document: "authority.document",
+  documentDiff: "authority.documentDiff",
   runtimeFeedback: "authority.runtimeFeedback",
   frontendBundlesSync: "authority.frontendBundlesSync"
 } as const;
@@ -80,6 +82,7 @@ export interface EditorRemoteAuthorityEventEnvelope {
   jsonrpc: typeof EDITOR_REMOTE_AUTHORITY_JSON_RPC_VERSION;
   method:
     | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.document
+    | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.documentDiff
     | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.runtimeFeedback
     | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.frontendBundlesSync;
   params?: unknown;
@@ -247,6 +250,15 @@ function createNotificationEvent(
           document: structuredClone(value.params) as GraphDocument
         }
       };
+    case EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.documentDiff:
+      return {
+        jsonrpc: EDITOR_REMOTE_AUTHORITY_JSON_RPC_VERSION,
+        method: value.method,
+        event: {
+          type: "documentDiff",
+          diff: structuredClone(value.params) as GraphDocumentDiff
+        }
+      };
     case EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.runtimeFeedback:
       return {
         jsonrpc: EDITOR_REMOTE_AUTHORITY_JSON_RPC_VERSION,
@@ -302,11 +314,14 @@ function toNotificationMethod(
   event: EditorRemoteAuthorityTransportEvent
 ):
   | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.document
+  | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.documentDiff
   | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.runtimeFeedback
   | typeof EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.frontendBundlesSync {
   switch (event.type) {
     case "document":
       return EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.document;
+    case "documentDiff":
+      return EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.documentDiff;
     case "runtimeFeedback":
       return EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS.runtimeFeedback;
     case "frontendBundles.sync":
@@ -320,6 +335,8 @@ function toNotificationParams(
   switch (event.type) {
     case "document":
       return event.document;
+    case "documentDiff":
+      return event.diff;
     case "runtimeFeedback":
       return event.event;
     case "frontendBundles.sync":
