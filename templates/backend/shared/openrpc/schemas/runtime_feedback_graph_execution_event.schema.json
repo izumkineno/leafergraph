@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_feedback_graph_execution_event.schema.json",
+  "type": "object",
+  "required": [
+    "type",
+    "event"
+  ],
+  "properties": {
+    "type": {
+      "const": "graph.execution"
+    },
+    "event": {
+      "type": "object",
+      "required": [
+        "type",
+        "state",
+        "timestamp"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "started",
+            "advanced",
+            "drained",
+            "stopped"
+          ]
+        },
+        "state": {
+          "$ref": "./graph_execution_state.schema.json"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "graph-play",
+            "graph-step"
+          ]
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

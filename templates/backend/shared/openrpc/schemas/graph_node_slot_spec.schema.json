@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_node_slot_spec.schema.json",
+  "type": "object",
+  "required": [
+    "name"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "const": 0
+        }
+      ]
+    },
+    "label": {
+      "type": "string"
+    },
+    "optional": {
+      "type": "boolean"
+    },
+    "color": {
+      "type": "string"
+    },
+    "shape": {
+      "enum": [
+        "circle",
+        "box",
+        "arrow",
+        "grid"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

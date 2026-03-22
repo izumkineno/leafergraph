@@ -25,24 +25,25 @@
     "nodes": {
       "type": "array",
       "items": {
-        "type": "object"
+        "$ref": "./graph_node.schema.json"
       }
     },
     "links": {
       "type": "array",
       "items": {
-        "type": "object"
+        "$ref": "./graph_link.schema.json"
       }
     },
     "meta": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true
     },
     "capabilityProfile": {
-      "type": "object"
+      "$ref": "./capability_profile.schema.json"
     },
     "adapterBinding": {
-      "type": "object"
+      "$ref": "./adapter_binding.schema.json"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

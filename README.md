@@ -12,9 +12,10 @@
 - `templates/`
   - 可直接复制出去的外部模板工程
   - 当前已提供：
-    - `templates/backend/nodejs-authority-template`
-      - 当前仓库内 Node authority 后端的唯一实现来源
-    - `templates/backend/python-authority-template`
+    - `templates/backend/python-openrpc-authority-template`
+      - 当前仓库默认的 OpenRPC-first authority 后端模板
+    - `templates/backend/shared/openrpc`
+      - authority 协议真源与共享 schema
     - `templates/misc/browser-node-widget-plugin-template`
     - `templates/misc/backend-node-package-template`
   - 模板职责矩阵见 `templates/README.md`
@@ -36,22 +37,18 @@ bun install
 bun run dev:editor
 bun run dev:editor:lan
 bun run build:testbundles
-bun run dev:node-backend
-bun run start:node-backend
 bun run start:python-backend
+bun run start:python-openrpc-backend
 bun run build
 ```
 
 后端模板命令统一走 `backend` 命名；你可以在根目录直接运行：
 
 ```bash
-bun run check:node-backend
-bun run build:node-backend
-bun run dev:node-backend
-bun run start:node-backend
-bun run test:node-backend
 bun run start:python-backend
 bun run test:python-backend
+bun run start:python-openrpc-backend
+bun run test:python-openrpc-backend
 ```
 
 当前 authority 协议固定为：

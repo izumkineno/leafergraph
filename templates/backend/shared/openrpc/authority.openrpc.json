@@ -22,7 +22,29 @@
         "schema": {
           "type": "object"
         }
-      }
+      },
+      "errors": [
+        {
+          "code": -32700,
+          "message": "Parse error"
+        },
+        {
+          "code": -32600,
+          "message": "Invalid Request"
+        },
+        {
+          "code": -32601,
+          "message": "Method not found"
+        },
+        {
+          "code": -32602,
+          "message": "Invalid params"
+        },
+        {
+          "code": -32603,
+          "message": "Internal error"
+        }
+      ]
     },
     {
       "name": "authority.getDocument",
@@ -33,7 +55,29 @@
         "schema": {
           "$ref": "./schemas/graph_document.schema.json"
         }
-      }
+      },
+      "errors": [
+        {
+          "code": -32700,
+          "message": "Parse error"
+        },
+        {
+          "code": -32600,
+          "message": "Invalid Request"
+        },
+        {
+          "code": -32601,
+          "message": "Method not found"
+        },
+        {
+          "code": -32602,
+          "message": "Invalid params"
+        },
+        {
+          "code": -32603,
+          "message": "Internal error"
+        }
+      ]
     },
     {
       "name": "authority.submitOperation",
@@ -59,7 +103,29 @@
         "schema": {
           "$ref": "./schemas/operation_result.schema.json"
         }
-      }
+      },
+      "errors": [
+        {
+          "code": -32700,
+          "message": "Parse error"
+        },
+        {
+          "code": -32600,
+          "message": "Invalid Request"
+        },
+        {
+          "code": -32601,
+          "message": "Method not found"
+        },
+        {
+          "code": -32602,
+          "message": "Invalid params"
+        },
+        {
+          "code": -32603,
+          "message": "Internal error"
+        }
+      ]
     },
     {
       "name": "authority.replaceDocument",
@@ -92,7 +158,29 @@
             }
           ]
         }
-      }
+      },
+      "errors": [
+        {
+          "code": -32700,
+          "message": "Parse error"
+        },
+        {
+          "code": -32600,
+          "message": "Invalid Request"
+        },
+        {
+          "code": -32601,
+          "message": "Method not found"
+        },
+        {
+          "code": -32602,
+          "message": "Invalid params"
+        },
+        {
+          "code": -32603,
+          "message": "Internal error"
+        }
+      ]
     },
     {
       "name": "authority.controlRuntime",
@@ -111,7 +199,29 @@
         "schema": {
           "$ref": "./schemas/runtime_control_result.schema.json"
         }
-      }
+      },
+      "errors": [
+        {
+          "code": -32700,
+          "message": "Parse error"
+        },
+        {
+          "code": -32600,
+          "message": "Invalid Request"
+        },
+        {
+          "code": -32601,
+          "message": "Method not found"
+        },
+        {
+          "code": -32602,
+          "message": "Invalid params"
+        },
+        {
+          "code": -32603,
+          "message": "Internal error"
+        }
+      ]
     }
   ],
   "x-notifications": [

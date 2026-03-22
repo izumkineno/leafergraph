@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_node.schema.json",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "layout"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "layout": {
+      "$ref": "./graph_node_layout.schema.json"
+    },
+    "properties": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "propertySpecs": {
+      "type": "array",
+      "items": {
+        "$ref": "./graph_node_property_spec.schema.json"
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "./graph_node_slot_spec.schema.json"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "$ref": "./graph_node_slot_spec.schema.json"
+      }
+    },
+    "widgets": {
+      "type": "array",
+      "items": {
+        "$ref": "./graph_node_widget_spec.schema.json"
+      }
+    },
+    "flags": {
+      "$ref": "./graph_node_flags.schema.json"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

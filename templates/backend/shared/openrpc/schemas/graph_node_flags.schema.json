@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_node_flags.schema.json",
+  "type": "object",
+  "properties": {
+    "collapsed": {
+      "type": "boolean"
+    },
+    "pinned": {
+      "type": "boolean"
+    },
+    "disabled": {
+      "type": "boolean"
+    },
+    "selected": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

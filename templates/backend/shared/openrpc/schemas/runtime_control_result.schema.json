@@ -17,7 +17,7 @@
       "type": "string"
     },
     "state": {
-      "type": "object"
+      "$ref": "./graph_execution_state.schema.json"
     }
   },
   "additionalProperties": false

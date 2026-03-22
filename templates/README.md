@@ -11,8 +11,7 @@ templates/
       openrpc/
         authority.openrpc.json
         schemas/
-    nodejs-authority-template/
-    python-authority-template/
+    python-openrpc-authority-template/
   node/
     README.md
   widget/
@@ -26,14 +25,14 @@ templates/
 
 | 路径 | 主要用途 | 默认端口 | 启动/构建命令 | 核心契约 |
 | --- | --- | --- | --- | --- |
-| `templates/backend/nodejs-authority-template` | Node authority 后端模板 | `5502` | `bun run --cwd templates/backend/nodejs-authority-template start` | `GET /health` + `WS /authority` + JSON-RPC 2.0 |
-| `templates/backend/python-authority-template` | Python authority 后端模板 | `5503` | `uv run --project templates/backend/python-authority-template python -m leafergraph_python_backend_control_template.entry` | `GET /health` + `WS /authority` + JSON-RPC 2.0 |
+| `templates/backend/python-openrpc-authority-template` | 精简 OpenRPC-first Python authority 模板，默认只含 document authority 与最小可执行运行时 | `5503` | `uv run --project templates/backend/python-openrpc-authority-template python -m leafergraph_python_openrpc_authority_template.entry` | `GET /health` + `WS /authority` + JSON-RPC 2.0 + 按需生成的 `_generated/` models/client |
 | `templates/misc/browser-node-widget-plugin-template` | 浏览器侧 node/widget/demo 插件模板 | 无固定端口 | `bun run --cwd templates/misc/browser-node-widget-plugin-template build` | bundle manifest + `registerBundle(...)` |
 | `templates/misc/backend-node-package-template` | 后端驱动节点包模板 | 无固定端口 | 作为目录模板被 authority runtime 热加载 | package manifest + `authority.frontendBundlesSync` |
 
 ## 固定决策
 
 - authority 协议真源固定为 `templates/backend/shared/openrpc/authority.openrpc.json`。
+- 协议说明入口固定为 `templates/backend/shared/openrpc/README.md`。
 - `WS /authority` 固定走 JSON-RPC 2.0。
 - `rpc.discover` 固定返回完整 OpenRPC 文档本体。
 - `GET /health` 保持独立 HTTP 健康检查入口，不并入 JSON-RPC。
@@ -44,7 +43,9 @@ templates/
 ### `backend/`
 
 - 放 authority 后端模板和共享协议文档。
-- Node / Python 两端都必须对齐这份 OpenRPC 真源。
+- 当前仓库内默认的 authority 后端模板是 `python-openrpc-authority-template`。
+- 若需要 schema 驱动的 Python 入站校验与 generated client，优先使用 `python-openrpc-authority-template`。
+- 这份 OpenRPC 模板是精简版，重点是协议真源、类型生成和最小运行闭环。
 - 这里是“后端协议与运行时模板”，不是节点/Widget 作者目录。
 
 ### `node/`

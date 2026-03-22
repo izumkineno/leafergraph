@@ -21,7 +21,7 @@
     "packages": {
       "type": "array",
       "items": {
-        "type": "object"
+        "$ref": "./frontend_bundle_package.schema.json"
       }
     },
     "removedPackageIds": {
@@ -34,5 +34,41 @@
       "type": "number"
     }
   },
-  "additionalProperties": true
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "mode": {
+              "const": "full"
+            }
+          },
+          "required": [
+            "packages"
+          ]
+        },
+        {
+          "properties": {
+            "mode": {
+              "const": "upsert"
+            }
+          },
+          "required": [
+            "packages"
+          ]
+        },
+        {
+          "properties": {
+            "mode": {
+              "const": "remove"
+            }
+          },
+          "required": [
+            "removedPackageIds"
+          ]
+        }
+      ]
+    }
+  ],
+  "additionalProperties": false
 }

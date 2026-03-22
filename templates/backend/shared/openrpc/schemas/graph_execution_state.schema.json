@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_execution_state.schema.json",
+  "type": "object",
+  "required": [
+    "status",
+    "queueSize",
+    "stepCount"
+  ],
+  "properties": {
+    "status": {
+      "enum": [
+        "idle",
+        "running",
+        "stepping"
+      ]
+    },
+    "runId": {
+      "type": "string"
+    },
+    "queueSize": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "stepCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "startedAt": {
+      "type": "number"
+    },
+    "stoppedAt": {
+      "type": "number"
+    },
+    "lastSource": {
+      "enum": [
+        "graph-play",
+        "graph-step"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

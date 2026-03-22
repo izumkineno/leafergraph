@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_feedback_link_propagation_event.schema.json",
+  "type": "object",
+  "required": [
+    "type",
+    "event"
+  ],
+  "properties": {
+    "type": {
+      "const": "link.propagation"
+    },
+    "event": {
+      "type": "object",
+      "required": [
+        "linkId",
+        "chainId",
+        "sourceNodeId",
+        "sourceSlot",
+        "targetNodeId",
+        "targetSlot",
+        "timestamp"
+      ],
+      "properties": {
+        "linkId": {
+          "type": "string"
+        },
+        "chainId": {
+          "type": "string"
+        },
+        "sourceNodeId": {
+          "type": "string"
+        },
+        "sourceSlot": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "targetNodeId": {
+          "type": "string"
+        },
+        "targetSlot": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "payload": {},
+        "timestamp": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "graph_node_property_spec.schema.json",
+  "type": "object",
+  "required": [
+    "name"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "default": {},
+    "options": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "widget": {
+      "$ref": "./graph_node_widget_spec.schema.json"
+    }
+  },
+  "additionalProperties": false
+}

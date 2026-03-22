@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime_feedback_node_execution_event.schema.json",
+  "type": "object",
+  "required": [
+    "type",
+    "event"
+  ],
+  "properties": {
+    "type": {
+      "const": "node.execution"
+    },
+    "event": {
+      "type": "object",
+      "required": [
+        "chainId",
+        "rootNodeId",
+        "rootNodeType",
+        "rootNodeTitle",
+        "nodeId",
+        "nodeType",
+        "nodeTitle",
+        "depth",
+        "sequence",
+        "source",
+        "trigger",
+        "timestamp",
+        "executionContext",
+        "state"
+      ],
+      "properties": {
+        "chainId": {
+          "type": "string"
+        },
+        "rootNodeId": {
+          "type": "string"
+        },
+        "rootNodeType": {
+          "type": "string"
+        },
+        "rootNodeTitle": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "nodeType": {
+          "type": "string"
+        },
+        "nodeTitle": {
+          "type": "string"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "enum": [
+            "node-play",
+            "graph-play",
+            "graph-step"
+          ]
+        },
+        "trigger": {
+          "enum": [
+            "direct",
+            "propagated"
+          ]
+        },
+        "timestamp": {
+          "type": "number"
+        },
+        "executionContext": {
+          "type": "object",
+          "required": [
+            "source",
+            "entryNodeId",
+            "stepIndex",
+            "startedAt"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "node-play",
+                "graph-play",
+                "graph-step"
+              ]
+            },
+            "runId": {
+              "type": "string"
+            },
+            "entryNodeId": {
+              "type": "string"
+            },
+            "stepIndex": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "startedAt": {
+              "type": "number"
+            },
+            "payload": {}
+          },
+          "additionalProperties": false
+        },
+        "state": {
+          "type": "object",
+          "required": [
+            "status",
+            "runCount"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "idle",
+                "running",
+                "success",
+                "error"
+              ]
+            },
+            "runCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "lastExecutedAt": {
+              "type": "number"
+            },
+            "lastSucceededAt": {
+              "type": "number"
+            },
+            "lastFailedAt": {
+              "type": "number"
+            },
+            "lastErrorMessage": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
