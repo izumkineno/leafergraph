@@ -44,6 +44,20 @@ from .._generated.notifications import (
     AUTHORITY_RUNTIME_FEEDBACK_NOTIFICATION,
 )
 
+STRUCTURAL_OPERATION_TYPES = {
+    "node.create",
+    "node.remove",
+    "link.create",
+    "link.remove",
+    "link.reconnect",
+}
+LIVE_SAFE_OPERATION_TYPES = {
+    "document.update",
+    "node.move",
+    "node.resize",
+}
+LIVE_SAFE_NODE_UPDATE_FIELDS = {"title", "properties", "widgets", "data", "flags"}
+
 
 class AuthorityInvalidParamsError(ValueError):
     def __init__(self, method: str, error: ValidationError | str):
@@ -125,6 +139,11 @@ class OpenRpcAuthorityService:
         self._pending_runtime_document = None
         return self._flush_document_to_store(pending_document)
 
+    def _should_defer_live_safe_document_notification(self, impact: str) -> bool:
+        return (
+            impact == LIVE_SAFE_DOCUMENT_UPDATE_IMPACT and self._is_runtime_active_state()
+        )
+
     def _handle_runtime_document_change(self, document: dict[str, Any]) -> None:
         if self._is_runtime_active_state():
             self._cache_runtime_document(document)
@@ -147,16 +166,9 @@ class OpenRpcAuthorityService:
 
     def _classify_operation_impact(self, operation: dict[str, Any]) -> str:
         operation_type = operation["type"]
-        if operation_type in {
-            "replaceDocument",
-            "node.create",
-            "node.remove",
-            "link.create",
-            "link.remove",
-            "link.reconnect",
-        }:
+        if operation_type in STRUCTURAL_OPERATION_TYPES:
             return STRUCTURAL_DOCUMENT_UPDATE_IMPACT
-        if operation_type in {"document.update", "node.move", "node.resize"}:
+        if operation_type in LIVE_SAFE_OPERATION_TYPES:
             return LIVE_SAFE_DOCUMENT_UPDATE_IMPACT
         if operation_type != "node.update":
             return STRUCTURAL_DOCUMENT_UPDATE_IMPACT
@@ -166,7 +178,7 @@ class OpenRpcAuthorityService:
             return STRUCTURAL_DOCUMENT_UPDATE_IMPACT
         if {"id", "inputs", "outputs", "propertySpecs"} & set(payload.keys()):
             return STRUCTURAL_DOCUMENT_UPDATE_IMPACT
-        if set(payload.keys()) <= {"title", "properties", "widgets", "data", "flags"}:
+        if set(payload.keys()) <= LIVE_SAFE_NODE_UPDATE_FIELDS:
             return LIVE_SAFE_DOCUMENT_UPDATE_IMPACT
         return STRUCTURAL_DOCUMENT_UPDATE_IMPACT
 
@@ -228,6 +240,13 @@ class OpenRpcAuthorityService:
         except ValidationError as error:
             raise AuthorityInvalidParamsError(method, error) from error
 
+    def _create_notification(self, notification: str, params: Any) -> dict[str, Any]:
+        validated = validate_notification_params(notification, params)
+        return create_notification_envelope(
+            notification,
+            dump_notification_params(notification, validated),
+        )
+
     def handle_request(self, method: str, params: Any) -> AuthorityMethodResponse:
         if method == AUTHORITY_RPC_DISCOVER_METHOD:
             result = create_discover_result()
@@ -256,13 +275,13 @@ class OpenRpcAuthorityService:
                 result["reason"] = outcome.reason
             if outcome.changed and outcome.next_document is not None:
                 impact = self._classify_operation_impact(operation)
-                runtime_active = self._is_runtime_active_state()
+                defer_notification = self._should_defer_live_safe_document_notification(
+                    impact
+                )
                 committed_document = self._commit_external_document(
                     outcome.next_document,
                     impact=impact,
-                    notify_now=not (
-                        impact == LIVE_SAFE_DOCUMENT_UPDATE_IMPACT and runtime_active
-                    ),
+                    notify_now=not defer_notification,
                 )
                 if committed_document is not None:
                     result["revision"] = committed_document["revision"]
@@ -271,9 +290,7 @@ class OpenRpcAuthorityService:
                         committed_document=committed_document,
                         impact=impact,
                     )
-                    if not (
-                        impact == LIVE_SAFE_DOCUMENT_UPDATE_IMPACT and runtime_active
-                    ):
+                    if not defer_notification:
                         result["document"] = committed_document
         elif method == AUTHORITY_REPLACE_DOCUMENT_METHOD:
             payload = validated_params.model_dump(mode="json", exclude_unset=True)
@@ -301,39 +318,21 @@ class OpenRpcAuthorityService:
         )
 
     def create_document_notification(self, document: Any) -> dict[str, Any]:
-        validated = validate_notification_params(
+        return self._create_notification(
             AUTHORITY_DOCUMENT_NOTIFICATION,
             document,
         )
-        return create_notification_envelope(
-            AUTHORITY_DOCUMENT_NOTIFICATION,
-            dump_notification_params(AUTHORITY_DOCUMENT_NOTIFICATION, validated),
-        )
 
     def create_runtime_feedback_notification(self, event: Any) -> dict[str, Any]:
-        validated = validate_notification_params(
+        return self._create_notification(
             AUTHORITY_RUNTIME_FEEDBACK_NOTIFICATION,
             event,
-        )
-        return create_notification_envelope(
-            AUTHORITY_RUNTIME_FEEDBACK_NOTIFICATION,
-            dump_notification_params(
-                AUTHORITY_RUNTIME_FEEDBACK_NOTIFICATION,
-                validated,
-            ),
         )
 
     def create_frontend_bundles_sync_notification(self, event: Any) -> dict[str, Any]:
-        validated = validate_notification_params(
+        return self._create_notification(
             AUTHORITY_FRONTEND_BUNDLES_SYNC_NOTIFICATION,
             event,
-        )
-        return create_notification_envelope(
-            AUTHORITY_FRONTEND_BUNDLES_SYNC_NOTIFICATION,
-            dump_notification_params(
-                AUTHORITY_FRONTEND_BUNDLES_SYNC_NOTIFICATION,
-                validated,
-            ),
         )
 
     def subscribe_document(

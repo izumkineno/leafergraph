@@ -37,7 +37,7 @@ def _coerce_revision_number(value: Any) -> int:
     return 0
 
 
-def _normalize_document_for_compare(document: dict[str, Any]) -> dict[str, Any]:
+def normalize_document_for_compare(document: dict[str, Any]) -> dict[str, Any]:
     normalized = clone_document(document)
     normalized.pop("revision", None)
     return normalized
@@ -68,8 +68,8 @@ class InMemoryDocumentStore:
     def replace_document(self, document: dict[str, Any]) -> dict[str, Any] | None:
         next_document = clone_document(document)
         if (
-            _normalize_document_for_compare(self._document)
-            == _normalize_document_for_compare(next_document)
+            normalize_document_for_compare(self._document)
+            == normalize_document_for_compare(next_document)
         ):
             return None
         self._revision += 1

@@ -7,6 +7,12 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from .document_store import (
+    clone_document,
+    create_empty_graph_document,
+    normalize_document_for_compare,
+)
+
 DocumentListener = Callable[[dict[str, Any]], None]
 RuntimeFeedbackListener = Callable[[dict[str, Any]], None]
 NodeExecutor = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
@@ -23,26 +29,6 @@ RUNTIME_DOCUMENT_UPDATE_IMPACT = "runtime"
 
 def _clone_value(value: Any) -> Any:
     return deepcopy(value)
-
-
-def _clone_document(document: dict[str, Any]) -> dict[str, Any]:
-    return _clone_value(document)
-
-
-def _create_empty_graph_document() -> dict[str, Any]:
-    return {
-        "documentId": "python-openrpc-document",
-        "revision": 0,
-        "appKind": "leafergraph",
-        "nodes": [],
-        "links": [],
-    }
-
-
-def _normalize_document_for_compare(document: dict[str, Any]) -> dict[str, Any]:
-    normalized = _clone_document(document)
-    normalized.pop("revision", None)
-    return normalized
 
 
 def _now_ms() -> int:
@@ -298,7 +284,7 @@ class RuntimeController(Protocol):
 
 class NoopRuntimeController:
     def __init__(self) -> None:
-        self._document = _create_empty_graph_document()
+        self._document = create_empty_graph_document()
         self._state = _create_idle_graph_execution_state()
         self._listeners: set[RuntimeFeedbackListener] = set()
         self._document_listeners: set[DocumentListener] = set()
@@ -307,7 +293,7 @@ class NoopRuntimeController:
         return _clone_value(self._state)
 
     def get_document(self) -> dict[str, Any]:
-        return _clone_document(self._document)
+        return clone_document(self._document)
 
     def replace_document(
         self,
@@ -315,7 +301,7 @@ class NoopRuntimeController:
         *,
         impact: str = STRUCTURAL_DOCUMENT_UPDATE_IMPACT,
     ) -> None:
-        self._document = _clone_document(document)
+        self._document = clone_document(document)
 
     def control(
         self,
@@ -364,7 +350,7 @@ class InMemoryGraphRuntimeController:
         executors_by_node_type: dict[str, NodeExecutor] | None = None,
     ) -> None:
         self.authority_name = authority_name
-        self._document = _create_empty_graph_document()
+        self._document = create_empty_graph_document()
         self._graph_execution_state = _create_idle_graph_execution_state()
         self._node_execution_state_by_id: dict[str, dict[str, Any]] = {}
         self._runtime_feedback_listeners: set[RuntimeFeedbackListener] = set()
@@ -382,7 +368,7 @@ class InMemoryGraphRuntimeController:
         return _clone_value(self._graph_execution_state)
 
     def get_document(self) -> dict[str, Any]:
-        return _clone_document(self._document)
+        return clone_document(self._document)
 
     def replace_document(
         self,
@@ -390,8 +376,8 @@ class InMemoryGraphRuntimeController:
         *,
         impact: str = STRUCTURAL_DOCUMENT_UPDATE_IMPACT,
     ) -> None:
-        next_document = _clone_document(document)
-        if _normalize_document_for_compare(self._document) == _normalize_document_for_compare(
+        next_document = clone_document(document)
+        if normalize_document_for_compare(self._document) == normalize_document_for_compare(
             next_document
         ):
             self._document = next_document
@@ -726,9 +712,9 @@ class InMemoryGraphRuntimeController:
             listener(_clone_value(event))
 
     def _emit_document(self) -> None:
-        snapshot = _clone_document(self._document)
+        snapshot = clone_document(self._document)
         for listener in list(self._document_listeners):
-            listener(_clone_document(snapshot))
+            listener(clone_document(snapshot))
 
     def _emit_graph_execution(
         self,

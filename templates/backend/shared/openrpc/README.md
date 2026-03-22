@@ -2,6 +2,15 @@
 
 这份目录保存 LeaferGraph authority 通信的唯一协议真源。
 
+## 文档入口
+
+- `authority.openrpc.json`
+  正式 OpenRPC 文档本体。
+- `schemas/`
+  共享 JSON Schema 拆分目录。
+- `openrpc-adaptation-pitfalls.md`
+  适配这套 authority 协议时最容易踩雷的边界与建议做法。
+
 ## 它描述什么
 
 - `GET /health` 之外的 authority 正式 RPC 能力

@@ -74,6 +74,7 @@ templates/backend/python-openrpc-authority-template/
 - `rpc.discover`：返回共享 OpenRPC 文档
 - 共享真源：`templates/backend/shared/openrpc/authority.openrpc.json`
 - 协议说明：`templates/backend/shared/openrpc/README.md`
+- 适配踩雷清单：`templates/backend/shared/openrpc/openrpc-adaptation-pitfalls.md`
 
 固定 methods：
 
@@ -127,8 +128,8 @@ uv run python -m leafergraph_python_openrpc_authority_template.entry
 
 默认监听：
 
-- `http://127.0.0.1:5603/health`
-- `ws://127.0.0.1:5603/authority`
+- `http://127.0.0.1:5503/health`
+- `ws://127.0.0.1:5503/authority`
 
 环境变量：
 

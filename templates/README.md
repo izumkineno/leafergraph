@@ -33,6 +33,7 @@ templates/
 
 - authority 协议真源固定为 `templates/backend/shared/openrpc/authority.openrpc.json`。
 - 协议说明入口固定为 `templates/backend/shared/openrpc/README.md`。
+- OpenRPC 接入踩雷说明固定见 `templates/backend/shared/openrpc/openrpc-adaptation-pitfalls.md`。
 - `WS /authority` 固定走 JSON-RPC 2.0。
 - `rpc.discover` 固定返回完整 OpenRPC 文档本体。
 - `GET /health` 保持独立 HTTP 健康检查入口，不并入 JSON-RPC。

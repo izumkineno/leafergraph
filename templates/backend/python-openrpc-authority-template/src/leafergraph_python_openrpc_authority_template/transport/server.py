@@ -19,6 +19,18 @@ from ..core.jsonrpc import (
 )
 from ..core.protocol import DEFAULT_AUTHORITY_NAME
 from ..core.service import AuthorityInvalidParamsError, OpenRpcAuthorityService
+from ..core.protocol import (
+    AUTHORITY_HEALTH_PATH,
+    AUTHORITY_WS_PATH,
+    DEFAULT_AUTHORITY_HOST,
+    DEFAULT_AUTHORITY_PORT,
+    LEGACY_BACKEND_HOST_ENV,
+    LEGACY_BACKEND_NAME_ENV,
+    LEGACY_BACKEND_PORT_ENV,
+    OPENRPC_BACKEND_HOST_ENV,
+    OPENRPC_BACKEND_NAME_ENV,
+    OPENRPC_BACKEND_PORT_ENV,
+)
 
 ensure_generated()
 
@@ -28,6 +40,14 @@ from .._generated.methods import ALL_AUTHORITY_METHODS
 def _read_env_number(value: str | None, fallback: int) -> int:
     if not value:
         return fallback
+
+
+def _read_env_value(*names: str, fallback: str) -> str:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return fallback
     try:
         return int(value)
     except ValueError:
@@ -60,7 +80,7 @@ def create_authority_app(
             return
         state.logger(*args)
 
-    @app.get("/health")
+    @app.get(AUTHORITY_HEALTH_PATH)
     async def health() -> dict[str, Any]:
         document = state.service.document_store.get_document()
         return {
@@ -71,7 +91,7 @@ def create_authority_app(
             "connectionCount": state.connection_count,
         }
 
-    @app.websocket("/authority")
+    @app.websocket(AUTHORITY_WS_PATH)
     async def authority(websocket: WebSocket) -> None:
         await websocket.accept()
         state.connection_count += 1
@@ -194,30 +214,30 @@ def create_authority_app(
 
 
 def main() -> None:
-    host = (
-        os.environ.get("LEAFERGRAPH_PYTHON_OPENRPC_BACKEND_HOST")
-        or os.environ.get("LEAFERGRAPH_PYTHON_BACKEND_HOST")
-        or "127.0.0.1"
+    host = _read_env_value(
+        OPENRPC_BACKEND_HOST_ENV,
+        LEGACY_BACKEND_HOST_ENV,
+        fallback=DEFAULT_AUTHORITY_HOST,
     )
     port = _read_env_number(
-        os.environ.get("LEAFERGRAPH_PYTHON_OPENRPC_BACKEND_PORT")
-        or os.environ.get("LEAFERGRAPH_PYTHON_BACKEND_PORT"),
-        5503,
+        os.environ.get(OPENRPC_BACKEND_PORT_ENV)
+        or os.environ.get(LEGACY_BACKEND_PORT_ENV),
+        DEFAULT_AUTHORITY_PORT,
     )
-    authority_name = (
-        os.environ.get("LEAFERGRAPH_PYTHON_OPENRPC_BACKEND_NAME")
-        or os.environ.get("LEAFERGRAPH_PYTHON_BACKEND_NAME")
-        or DEFAULT_AUTHORITY_NAME
+    authority_name = _read_env_value(
+        OPENRPC_BACKEND_NAME_ENV,
+        LEGACY_BACKEND_NAME_ENV,
+        fallback=DEFAULT_AUTHORITY_NAME,
     )
     app = create_authority_app(authority_name=authority_name)
 
     print(
         "[python-openrpc-authority-template]",
-        f"authority server listening on ws://{host}:{port}/authority",
+        f"authority server listening on ws://{host}:{port}{AUTHORITY_WS_PATH}",
     )
     print(
         "[python-openrpc-authority-template]",
-        f"health endpoint available at http://{host}:{port}/health",
+        f"health endpoint available at http://{host}:{port}{AUTHORITY_HEALTH_PATH}",
     )
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
