@@ -30,6 +30,17 @@ import {
   type EditorTheme
 } from "../theme";
 import {
+  EDITOR_LEAFER_DEBUG_STORAGE_KEY,
+  applyLeaferDebugSettings,
+  createDefaultEditorLeaferDebugSettings,
+  formatEditorLeaferDebugTypeList,
+  mergeEditorLeaferDebugSettings,
+  parseEditorLeaferDebugTypeListInput,
+  resolveInitialEditorLeaferDebugSettings,
+  serializeEditorLeaferDebugSettings,
+  type EditorLeaferDebugSettings
+} from "../debug/leafer_debug";
+import {
   areEditorBundleDocumentsEquivalent,
   createInitialBundleCatalogState,
   createLoadedBundleRecordState,
@@ -372,6 +383,64 @@ function WorkspaceField({
   );
 }
 
+function EditorLeaferDebugTypeField({
+  label,
+  placeholder,
+  value,
+  onCommit
+}: {
+  label: string;
+  placeholder: string;
+  value: readonly string[];
+  onCommit(value: string[]): void;
+}) {
+  const serializedValue = useMemo(
+    () => formatEditorLeaferDebugTypeList(value),
+    [value]
+  );
+  const [draftValue, setDraftValue] = useState(serializedValue);
+
+  useEffect(() => {
+    setDraftValue(serializedValue);
+  }, [serializedValue]);
+
+  const commitDraftValue = useCallback(
+    (rawValue: string) => {
+      const nextValue = parseEditorLeaferDebugTypeListInput(rawValue);
+      setDraftValue(formatEditorLeaferDebugTypeList(nextValue));
+      onCommit(nextValue);
+    },
+    [onCommit]
+  );
+
+  return (
+    <label class="preference-card__field">
+      <span class="preference-card__field-label">{label}</span>
+      <input
+        type="text"
+        class="preference-card__field-input"
+        value={draftValue}
+        placeholder={placeholder}
+        onInput={(event) => {
+          setDraftValue(event.currentTarget.value);
+        }}
+        onBlur={(event) => {
+          commitDraftValue(event.currentTarget.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") {
+            return;
+          }
+
+          event.preventDefault();
+          commitDraftValue(event.currentTarget.value);
+          event.currentTarget.blur();
+        }}
+      />
+    </label>
+  );
+}
+
 function readNodeLibraryHoverPreviewCapabilities(): {
   supportsHover: boolean;
   hasFinePointer: boolean;
@@ -491,6 +560,10 @@ export function EditorProvider({
   const [theme, setTheme] = useState<EditorTheme>(() =>
     resolveInitialEditorTheme()
   );
+  const [leaferDebugSettings, setLeaferDebugSettings] =
+    useState<EditorLeaferDebugSettings>(() =>
+      resolveInitialEditorLeaferDebugSettings()
+    );
   const [workspaceAdaptiveMode, setWorkspaceAdaptiveMode] =
     useState<WorkspaceAdaptiveMode>(() =>
       resolveWorkspaceAdaptiveMode(
@@ -1156,6 +1229,18 @@ export function EditorProvider({
     document.documentElement.style.colorScheme = theme;
     window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    applyLeaferDebugSettings(leaferDebugSettings);
+    if (typeof window === "undefined" || !window.localStorage) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      EDITOR_LEAFER_DEBUG_STORAGE_KEY,
+      serializeEditorLeaferDebugSettings(leaferDebugSettings)
+    );
+  }, [leaferDebugSettings]);
 
   useEffect(() => {
     if (!remoteAuthoritySource) {
@@ -1903,6 +1988,7 @@ export function EditorProvider({
   const controllerState = useMemo<EditorControllerState>(
     () => ({
       theme,
+      leaferDebugSettings,
       workspaceAdaptiveMode,
       leftPaneOpen,
       rightPaneOpen,
@@ -1947,6 +2033,7 @@ export function EditorProvider({
       editorToolbarControls,
       graphRuntimeControls,
       isRemoteAuthorityEnabled,
+      leaferDebugSettings,
       leftPaneOpen,
       leftPanePresentation,
       nodeLibraryPreviewRequest,
@@ -1978,6 +2065,14 @@ export function EditorProvider({
       setTheme,
       toggleTheme() {
         setTheme((currentTheme) => toggleEditorTheme(currentTheme));
+      },
+      updateLeaferDebugSettings(patch) {
+        setLeaferDebugSettings((currentSettings) =>
+          mergeEditorLeaferDebugSettings(currentSettings, patch)
+        );
+      },
+      resetLeaferDebugSettings() {
+        setLeaferDebugSettings(createDefaultEditorLeaferDebugSettings());
       },
       setWorkspaceMenuOpen,
       openLeftPane,
@@ -2160,6 +2255,7 @@ export function EditorProvider({
         <GraphViewport
           document={effectiveDocument}
           plugins={runtimeSetup.plugins}
+          debugSettings={leaferDebugSettings}
           createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
           runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
           runtimeController={remoteAuthorityRuntime?.runtimeController}
@@ -2489,6 +2585,7 @@ export function EditorProvider({
           request={nodeLibraryPreviewRequest}
           theme={theme}
           plugins={runtimeSetup.plugins}
+          debugSettings={leaferDebugSettings}
         />
       ) : null}
 
@@ -3477,6 +3574,7 @@ export function EditorViewportPane() {
       <GraphViewport
         document={effectiveDocument}
         plugins={runtimeSetup.plugins}
+        debugSettings={state.leaferDebugSettings}
         createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
         runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
         runtimeController={remoteAuthorityRuntime?.runtimeController}
@@ -3576,6 +3674,7 @@ export function EditorWorkspace() {
           request={state.nodeLibraryPreviewRequest}
           theme={state.theme}
           plugins={runtimeSetup.plugins}
+          debugSettings={state.leaferDebugSettings}
         />
       ) : null}
     </>
@@ -3593,6 +3692,146 @@ export function EditorStatusbar() {
         </span>
       ))}
     </footer>
+  );
+}
+
+function EditorLeaferDebugPreferenceCard() {
+  const { state, actions } = useEditorContext();
+  const settings = state.leaferDebugSettings;
+
+  return (
+    <article class="preference-card">
+      <h4>Leafer 调试</h4>
+      <p>
+        直接映射 Leafer 的全局 Debug 开关，会同时影响当前 editor 页面中的主画布和节点预览。
+      </p>
+      <div class="preference-card__stack">
+        <div class="segmented-control" role="group" aria-label="Leafer 调试开关">
+          <button
+            type="button"
+            class="segmented-control__button"
+            data-active={settings.enabled ? "true" : "false"}
+            aria-pressed={settings.enabled ? "true" : "false"}
+            onClick={() => {
+              actions.updateLeaferDebugSettings({ enabled: true });
+            }}
+          >
+            开启调试
+          </button>
+          <button
+            type="button"
+            class="segmented-control__button"
+            data-active={!settings.enabled ? "true" : "false"}
+            aria-pressed={!settings.enabled ? "true" : "false"}
+            onClick={() => {
+              actions.updateLeaferDebugSettings({ enabled: false });
+            }}
+          >
+            关闭调试
+          </button>
+        </div>
+
+        <div class="segmented-control" role="group" aria-label="Leafer 调试选项">
+          <button
+            type="button"
+            class="segmented-control__button"
+            data-active={settings.showWarn ? "true" : "false"}
+            aria-pressed={settings.showWarn ? "true" : "false"}
+            onClick={() => {
+              actions.updateLeaferDebugSettings({
+                showWarn: !settings.showWarn
+              });
+            }}
+          >
+            显示警告
+          </button>
+          <button
+            type="button"
+            class="segmented-control__button"
+            data-active={settings.showRepaint ? "true" : "false"}
+            aria-pressed={settings.showRepaint ? "true" : "false"}
+            onClick={() => {
+              actions.updateLeaferDebugSettings({
+                showRepaint: !settings.showRepaint
+              });
+            }}
+          >
+            显示重绘区域
+          </button>
+        </div>
+
+        <div class="segmented-control" role="group" aria-label="Leafer 包围盒模式">
+          <button
+            type="button"
+            class="segmented-control__button"
+            data-active={settings.showBoundsMode === "off" ? "true" : "false"}
+            aria-pressed={settings.showBoundsMode === "off" ? "true" : "false"}
+            onClick={() => {
+              actions.updateLeaferDebugSettings({ showBoundsMode: "off" });
+            }}
+          >
+            关闭包围盒
+          </button>
+          <button
+            type="button"
+            class="segmented-control__button"
+            data-active={settings.showBoundsMode === "bounds" ? "true" : "false"}
+            aria-pressed={
+              settings.showBoundsMode === "bounds" ? "true" : "false"
+            }
+            onClick={() => {
+              actions.updateLeaferDebugSettings({ showBoundsMode: "bounds" });
+            }}
+          >
+            显示包围盒
+          </button>
+          <button
+            type="button"
+            class="segmented-control__button"
+            data-active={settings.showBoundsMode === "hit" ? "true" : "false"}
+            aria-pressed={settings.showBoundsMode === "hit" ? "true" : "false"}
+            onClick={() => {
+              actions.updateLeaferDebugSettings({ showBoundsMode: "hit" });
+            }}
+          >
+            显示 hit 区域
+          </button>
+        </div>
+
+        <EditorLeaferDebugTypeField
+          label="仅输出类型"
+          placeholder="例如：RunTime, Life"
+          value={settings.filter}
+          onCommit={(value) => {
+            actions.updateLeaferDebugSettings({ filter: value });
+          }}
+        />
+        <EditorLeaferDebugTypeField
+          label="排除类型"
+          placeholder="例如：Life"
+          value={settings.exclude}
+          onCommit={(value) => {
+            actions.updateLeaferDebugSettings({ exclude: value });
+          }}
+        />
+
+        <p class="preference-card__hint">
+          `filter / exclude` 使用逗号分隔，可填写官方或自定义调试类型。
+        </p>
+
+        <div class="dialog-actions">
+          <button
+            type="button"
+            class="workspace-secondary-button"
+            onClick={() => {
+              actions.resetLeaferDebugSettings();
+            }}
+          >
+            恢复默认调试设置
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -3997,8 +4236,9 @@ export function EditorWorkspaceSettingsDialog() {
                 >
                   {state.rightPaneOpen ? "收起检查器" : "展开检查器"}
                 </button>
-              </div>
-            </article>
+                </div>
+              </article>
+            <EditorLeaferDebugPreferenceCard />
           </div>
         </section>
       ) : null}

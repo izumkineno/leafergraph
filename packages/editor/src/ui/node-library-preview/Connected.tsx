@@ -17,6 +17,7 @@ export function EditorNodeLibraryPreviewConnected() {
       request={state.nodeLibraryPreviewRequest}
       theme={state.theme}
       plugins={runtimeSetup.plugins}
+      debugSettings={state.leaferDebugSettings}
     />
   );
 }

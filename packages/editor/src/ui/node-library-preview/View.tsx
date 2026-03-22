@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { LeaferGraphNodePlugin } from "leafergraph";
 import { createLeaferGraph, type LeaferGraph } from "leafergraph";
 
+import {
+  applyLeaferDebugSettings,
+  type EditorLeaferDebugSettings
+} from "../../debug/leafer_debug";
 import type { EditorTheme } from "../../theme";
 import {
   createNodeLibraryPreviewDocument,
@@ -16,6 +20,7 @@ export interface NodeLibraryHoverPreviewOverlayProps {
   request: NodeLibraryPreviewRequest;
   theme: EditorTheme;
   plugins: readonly LeaferGraphNodePlugin[];
+  debugSettings: EditorLeaferDebugSettings;
 }
 
 function applyNodeLibraryPreviewHostStyle(
@@ -63,7 +68,8 @@ function createViewportRect(): NodeLibraryPreviewAnchorRect {
 export function NodeLibraryHoverPreviewOverlay({
   request,
   theme,
-  plugins
+  plugins,
+  debugSettings
 }: NodeLibraryHoverPreviewOverlayProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<LeaferGraph | null>(null);
@@ -112,6 +118,7 @@ export function NodeLibraryHoverPreviewOverlay({
 
     let cancelled = false;
     let frameId = 0;
+    applyLeaferDebugSettings(debugSettings);
     const graph = createLeaferGraph(host, {
       document: previewDocument,
       plugins: [...plugins],
@@ -148,6 +155,10 @@ export function NodeLibraryHoverPreviewOverlay({
       graph.destroy();
     };
   }, [plugins]);
+
+  useEffect(() => {
+    applyLeaferDebugSettings(debugSettings);
+  }, [debugSettings]);
 
   useEffect(() => {
     const host = hostRef.current;

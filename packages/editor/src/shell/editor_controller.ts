@@ -13,11 +13,13 @@ import type { NodeLibraryPreviewRequest } from "../ui/node-library-preview/helpe
 import type { EditorRemoteAuthorityAppSource } from "../backend/authority/remote_authority_app_runtime";
 import type { GraphViewportRemoteRuntimeControlNotice } from "../ui/viewport/runtime_control_notice";
 import type { EditorTheme } from "../theme";
+import type { EditorLeaferDebugSettings } from "../debug/leafer_debug";
 import type {
   EditorBundleCatalogState,
   EditorBundleSlot
 } from "../loader/types";
 import { createInitialBundleCatalogState } from "../loader/runtime";
+import { createDefaultEditorLeaferDebugSettings } from "../debug/leafer_debug";
 import type { EditorRemoteAuthorityConnectionStatus } from "../session/graph_document_authority_client";
 import type {
   EditorGraphDocumentResyncOptions
@@ -55,6 +57,7 @@ export interface CreateEditorControllerOptions {
 
 export interface EditorControllerState {
   theme: EditorTheme;
+  leaferDebugSettings: EditorLeaferDebugSettings;
   workspaceAdaptiveMode: WorkspaceAdaptiveMode;
   leftPaneOpen: boolean;
   rightPaneOpen: boolean;
@@ -92,6 +95,10 @@ export interface EditorControllerState {
 export interface EditorControllerActions {
   setTheme(theme: EditorTheme): void;
   toggleTheme(): void;
+  updateLeaferDebugSettings(
+    patch: Partial<EditorLeaferDebugSettings>
+  ): void;
+  resetLeaferDebugSettings(): void;
   setWorkspaceMenuOpen(open: boolean): void;
   openLeftPane(): void;
   openRightPane(): void;
@@ -141,6 +148,7 @@ function createInitialEditorControllerState(
 ): EditorControllerState {
   return {
     theme: "dark",
+    leaferDebugSettings: createDefaultEditorLeaferDebugSettings(),
     workspaceAdaptiveMode: "wide-desktop",
     leftPaneOpen: true,
     rightPaneOpen: true,
@@ -185,6 +193,8 @@ function createNoopActions(): EditorControllerActions {
   return {
     setTheme() {},
     toggleTheme() {},
+    updateLeaferDebugSettings() {},
+    resetLeaferDebugSettings() {},
     setWorkspaceMenuOpen() {},
     openLeftPane() {},
     openRightPane() {},

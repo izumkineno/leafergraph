@@ -64,6 +64,7 @@ export function EditorViewportConnected() {
       <GraphViewport
         document={effectiveDocument}
         plugins={runtimeSetup.plugins}
+        debugSettings={state.leaferDebugSettings}
         createDocumentSessionBinding={effectiveCreateDocumentSessionBinding}
         runtimeFeedbackInlet={effectiveRuntimeFeedbackInlet}
         runtimeController={remoteAuthorityRuntime?.runtimeController}

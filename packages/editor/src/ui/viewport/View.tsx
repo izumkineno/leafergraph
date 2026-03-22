@@ -52,6 +52,10 @@ import {
   type EditorTheme
 } from "../../theme";
 import {
+  applyLeaferDebugSettings,
+  type EditorLeaferDebugSettings
+} from "../../debug/leafer_debug";
+import {
   bindLinkContextMenu,
   bindNodeContextMenu,
   createLinkMenuBindingKey,
@@ -92,6 +96,7 @@ export interface GraphViewportProps {
   document: GraphDocument;
   modules?: LeaferGraphOptions["modules"];
   plugins?: LeaferGraphOptions["plugins"];
+  debugSettings: EditorLeaferDebugSettings;
   createDocumentSessionBinding?: EditorGraphDocumentSessionBindingFactory;
   runtimeFeedbackInlet?: EditorRuntimeFeedbackInlet;
   runtimeController?: EditorRemoteAuthorityRuntimeController;
@@ -523,6 +528,7 @@ export function GraphViewport({
   document: documentData,
   modules,
   plugins,
+  debugSettings,
   createDocumentSessionBinding,
   runtimeFeedbackInlet,
   runtimeController,
@@ -583,6 +589,10 @@ export function GraphViewport({
   }, [theme]);
 
   useEffect(() => {
+    applyLeaferDebugSettings(debugSettings);
+  }, [debugSettings]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
@@ -593,6 +603,7 @@ export function GraphViewport({
     setRuntimeHistoryEntries([]);
     setGraphExecutionState(createIdleGraphExecutionState());
 
+    applyLeaferDebugSettings(debugSettings);
     const graph = createLeaferGraph(host, {
       document: documentData,
       modules,
