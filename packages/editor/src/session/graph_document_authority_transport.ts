@@ -4,7 +4,6 @@ import type {
   GraphOperation,
   RuntimeFeedbackEvent
 } from "leafergraph";
-import type { EditorFrontendBundleSource } from "../loader/types";
 import type {
   EditorRemoteAuthorityClient,
   EditorRemoteAuthorityConnectionStatus,
@@ -14,115 +13,31 @@ import type {
   EditorRemoteAuthorityRuntimeControlResult,
   EditorRemoteAuthorityReplaceDocumentContext
 } from "./graph_document_authority_client";
-
-/** transport 层 `rpc.discover` 请求。 */
-export interface EditorRemoteAuthorityDiscoverRequest {
-  method: "rpc.discover";
-  params?: Record<string, never>;
-}
-
-/** transport 层获取整图快照请求。 */
-export interface EditorRemoteAuthorityGetDocumentRequest {
-  method: "authority.getDocument";
-  params?: Record<string, never>;
-}
-
-/** transport 层提交操作请求。 */
-export interface EditorRemoteAuthoritySubmitOperationRequest {
-  method: "authority.submitOperation";
-  params: {
-    operation: GraphOperation;
-    context: EditorRemoteAuthorityOperationContext;
-  };
-}
-
-/** transport 层整图替换请求。 */
-export interface EditorRemoteAuthorityReplaceDocumentRequest {
-  method: "authority.replaceDocument";
-  params: {
-    document: GraphDocument;
-    context: EditorRemoteAuthorityReplaceDocumentContext;
-  };
-}
-
-/** transport 层运行控制请求。 */
-export interface EditorRemoteAuthorityControlRuntimeRequest {
-  method: "authority.controlRuntime";
-  params: {
-    request: EditorRemoteAuthorityRuntimeControlRequest;
-  };
-}
-
-/** transport 层最小请求联合。 */
-export type EditorRemoteAuthorityTransportRequest =
-  | EditorRemoteAuthorityDiscoverRequest
-  | EditorRemoteAuthorityGetDocumentRequest
-  | EditorRemoteAuthoritySubmitOperationRequest
-  | EditorRemoteAuthorityReplaceDocumentRequest
-  | EditorRemoteAuthorityControlRuntimeRequest;
-
-/** OpenRPC 文档结果。 */
-export type EditorRemoteAuthorityOpenRpcDocument = Record<string, unknown>;
-
-/** transport 层最小响应联合。 */
-export type EditorRemoteAuthorityTransportResponse =
-  | EditorRemoteAuthorityOpenRpcDocument
-  | GraphDocument
-  | EditorRemoteAuthorityOperationResult
-  | EditorRemoteAuthorityRuntimeControlResult
-  | null;
-
-/** transport 层运行反馈事件。 */
-export interface EditorRemoteAuthorityRuntimeFeedbackTransportEvent {
-  type: "runtimeFeedback";
-  event: RuntimeFeedbackEvent;
-}
-
-/** authority 推送给 editor 的结构化前端 bundle。 */
-export type EditorRemoteAuthorityFrontendBundleSource =
-  EditorFrontendBundleSource;
-
-/** authority 推送给 editor 的单个前端 bundle 内容。 */
-export interface EditorRemoteAuthorityFrontendBundlePackage {
-  packageId: string;
-  version: string;
-  nodeTypes: string[];
-  bundles: EditorRemoteAuthorityFrontendBundleSource[];
-}
-
-/** authority 推送前端 bundle 的同步事件。 */
-export interface EditorRemoteAuthorityFrontendBundlesSyncEvent {
-  type: "frontendBundles.sync";
-  mode: "full" | "upsert" | "remove";
-  packages?: EditorRemoteAuthorityFrontendBundlePackage[];
-  removedPackageIds?: string[];
-  emittedAt: number;
-}
-
-/** transport 层前端 bundle 同步事件。 */
-export interface EditorRemoteAuthorityFrontendBundlesSyncTransportEvent {
-  type: "frontendBundles.sync";
-  event: EditorRemoteAuthorityFrontendBundlesSyncEvent;
-}
-
-/** transport 层 authority 主动回推的整图快照事件。 */
-export interface EditorRemoteAuthorityDocumentTransportEvent {
-  type: "document";
-  document: GraphDocument;
-}
-
-/** transport 层 authority 主动回推的文档 diff 事件。 */
-export interface EditorRemoteAuthorityDocumentDiffTransportEvent {
-  type: "documentDiff";
-  diff: GraphDocumentDiff;
-}
-
-/** transport 当前允许上抛的最小事件集合。 */
-export type EditorRemoteAuthorityTransportEvent =
-  | EditorRemoteAuthorityRuntimeFeedbackTransportEvent
-  | EditorRemoteAuthorityDocumentTransportEvent
-  | EditorRemoteAuthorityDocumentDiffTransportEvent
-  | EditorRemoteAuthorityFrontendBundlesSyncTransportEvent;
+import type {
+  EditorRemoteAuthorityFrontendBundlePackage,
+  EditorRemoteAuthorityFrontendBundlesSyncEvent,
+  EditorRemoteAuthorityTransportEvent,
+  EditorRemoteAuthorityTransportRequest,
+  EditorRemoteAuthorityTransportResponse
+} from "./authority_openrpc/_generated/transport_types";
+export type {
+  EditorRemoteAuthorityControlRuntimeRequest,
+  EditorRemoteAuthorityDiscoverRequest,
+  EditorRemoteAuthorityDocumentDiffTransportEvent,
+  EditorRemoteAuthorityDocumentTransportEvent,
+  EditorRemoteAuthorityFrontendBundlePackage,
+  EditorRemoteAuthorityFrontendBundleSource,
+  EditorRemoteAuthorityFrontendBundlesSyncEvent,
+  EditorRemoteAuthorityFrontendBundlesSyncTransportEvent,
+  EditorRemoteAuthorityGetDocumentRequest,
+  EditorRemoteAuthorityOpenRpcDocument,
+  EditorRemoteAuthorityReplaceDocumentRequest,
+  EditorRemoteAuthorityRuntimeFeedbackTransportEvent,
+  EditorRemoteAuthoritySubmitOperationRequest,
+  EditorRemoteAuthorityTransportEvent,
+  EditorRemoteAuthorityTransportRequest,
+  EditorRemoteAuthorityTransportResponse
+} from "./authority_openrpc/_generated/transport_types";
 
 /**
  * editor authority transport 抽象。

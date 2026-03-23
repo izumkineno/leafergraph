@@ -1,10 +1,14 @@
-import authorityOpenRpcDocument from "../../../../templates/backend/shared/openrpc/authority.openrpc.json";
 import type {
   EditorRemoteAuthorityProtocolAdapter,
   EditorRemoteAuthorityRequestInboundEnvelope
-} from "./graph_document_authority_protocol";
-import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
+} from "./authority_openrpc";
+import {
+  authorityOpenRpcDocument,
+  DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER,
+  validateMethodResult
+} from "./authority_openrpc";
 import type {
+  EditorRemoteAuthorityTransportRequest,
   EditorRemoteAuthorityTransportResponse
 } from "./graph_document_authority_transport";
 import type { EditorRemoteAuthorityDocumentService } from "./graph_document_authority_service";
@@ -59,15 +63,12 @@ export function createMessagePortRemoteAuthorityHost(
   };
 
   const respondSuccess = (
+    method: EditorRemoteAuthorityTransportRequest["method"],
     requestId: string | number | null,
     response: EditorRemoteAuthorityTransportResponse
   ): void => {
-    postMessage(
-      protocolAdapter.createSuccessEnvelope(
-        requestId,
-        structuredClone(response)
-      )
-    );
+    const validatedResponse = validateMethodResult(method, response);
+    postMessage(protocolAdapter.createSuccessEnvelope(requestId, validatedResponse));
   };
 
   const respondFailure = (
@@ -123,7 +124,7 @@ export function createMessagePortRemoteAuthorityHost(
       switch (request.method) {
         case "authority.getDocument": {
           const document = await options.service.getDocument();
-          respondSuccess(requestId, structuredClone(document));
+          respondSuccess(request.method, requestId, structuredClone(document));
           return;
         }
         case "authority.submitOperation": {
@@ -131,7 +132,7 @@ export function createMessagePortRemoteAuthorityHost(
             structuredClone(request.params.operation),
             structuredClone(request.params.context)
           );
-          respondSuccess(requestId, structuredClone(result));
+          respondSuccess(request.method, requestId, structuredClone(result));
           return;
         }
         case "authority.replaceDocument": {
@@ -139,12 +140,16 @@ export function createMessagePortRemoteAuthorityHost(
             structuredClone(request.params.document),
             structuredClone(request.params.context)
           );
-          respondSuccess(requestId, document ? structuredClone(document) : null);
+          respondSuccess(
+            request.method,
+            requestId,
+            document ? structuredClone(document) : null
+          );
           return;
         }
         case "authority.controlRuntime": {
           if (typeof options.service.controlRuntime !== "function") {
-            respondSuccess(requestId, {
+            respondSuccess(request.method, requestId, {
               accepted: false,
               changed: false,
               reason: "authority 不支持运行控制"
@@ -155,11 +160,11 @@ export function createMessagePortRemoteAuthorityHost(
           const result = await options.service.controlRuntime(
             structuredClone(request.params.request)
           );
-          respondSuccess(requestId, structuredClone(result));
+          respondSuccess(request.method, requestId, structuredClone(result));
           return;
         }
         case "rpc.discover": {
-          respondSuccess(requestId, authorityOpenRpcDocument);
+          respondSuccess(request.method, requestId, authorityOpenRpcDocument);
           return;
         }
       }

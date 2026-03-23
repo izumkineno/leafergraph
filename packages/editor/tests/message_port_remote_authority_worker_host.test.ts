@@ -1,3 +1,4 @@
+import "./helpers/install_test_host_polyfills";
 import { describe, expect, test } from "bun:test";
 
 import type {
@@ -77,7 +78,7 @@ describe("attachMessagePortRemoteAuthorityWorkerHost", () => {
                 event: {
                   nodeId: "node-a",
                   exists: true,
-                  reason: "worker",
+                  reason: "execution",
                   timestamp: Date.now()
                 }
               });
@@ -99,6 +100,7 @@ describe("attachMessagePortRemoteAuthorityWorkerHost", () => {
           };
         }
       },
+      closePortOnDispose: true,
       disposeServiceOnDispose: false
     });
     const channel = new MessageChannel();
@@ -109,41 +111,46 @@ describe("attachMessagePortRemoteAuthorityWorkerHost", () => {
       [channel.port2]
     );
     const client = createMessagePortRemoteAuthorityClient({
-      port: channel.port1
+      port: channel.port1,
+      closePortOnDispose: true
     });
     const runtimeFeedbackEvents: RuntimeFeedbackEvent[] = [];
     const disposeRuntimeFeedbackSubscription = client.subscribe((event) => {
       runtimeFeedbackEvents.push(event);
     });
 
-    expect((await client.getDocument()).revision).toBe("1");
+    try {
+      expect((await client.getDocument()).revision).toBe("1");
 
-    await client.submitOperation(
-      {
-        type: "node.remove",
-        nodeId: "node-a",
-        operationId: "worker-op-1",
-        timestamp: Date.now(),
-        source: "worker.test"
-      },
-      {
-        currentDocument: createDocument("1"),
-        pendingOperationIds: []
-      }
-    );
+      await client.submitOperation(
+        {
+          type: "node.remove",
+          nodeId: "node-a",
+          operationId: "worker-op-1",
+          timestamp: Date.now(),
+          source: "worker.test"
+        },
+        {
+          currentDocument: createDocument("1"),
+          pendingOperationIds: []
+        }
+      );
 
-    await flushMessages();
-    expect(
-      runtimeFeedbackEvents.some(
-        (event) =>
-          event.type === "node.state" &&
-          event.event.reason === "worker"
-      )
-    ).toBe(true);
-
-    disposeRuntimeFeedbackSubscription();
-    client.dispose?.();
-    host.dispose();
+      await flushMessages();
+      expect(
+        runtimeFeedbackEvents.some(
+          (event) =>
+            event.type === "node.state" &&
+            event.event.reason === "execution"
+        )
+      ).toBe(true);
+    } finally {
+      disposeRuntimeFeedbackSubscription();
+      client.dispose?.();
+      host.dispose();
+      channel.port1.close();
+      channel.port2.close();
+    }
   });
 
   test("释放 worker host 时应顺带释放 authority service", () => {

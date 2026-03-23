@@ -4,7 +4,7 @@ import type {
   EditorRemoteAuthorityTransportRequest,
   EditorRemoteAuthorityTransportResponse
 } from "../src/session/graph_document_authority_transport";
-import type { EditorRemoteAuthorityProtocolAdapter } from "../src/session/graph_document_authority_protocol";
+import type { EditorRemoteAuthorityProtocolAdapter } from "../src/session/authority_openrpc";
 import { createWebSocketRemoteAuthorityTransport } from "../src/session/websocket_remote_authority_transport";
 
 class FakeWebSocket extends EventTarget {
@@ -375,6 +375,37 @@ describe("createWebSocketRemoteAuthorityTransport", () => {
       links: [],
       meta: {}
     });
+
+    transport.dispose();
+  });
+
+  test("success response result 与原始 method 不匹配时应拒绝请求", async () => {
+    const socket = new FakeWebSocket();
+    const transport = createWebSocketRemoteAuthorityTransport({
+      url: "ws://authority.test/invalid-result",
+      createWebSocket() {
+        return socket;
+      }
+    });
+
+    socket.emitOpen();
+    await transport.ready;
+
+    const requestPromise = transport.request(createTransportRequest());
+    const sentEnvelope = JSON.parse(socket.sentPayloads[0] ?? "{}") as {
+      id: string;
+    };
+    socket.emitMessage({
+      jsonrpc: "2.0",
+      id: sentEnvelope.id,
+      result: {
+        accepted: true,
+        changed: true,
+        revision: "1"
+      }
+    });
+
+    await expect(requestPromise).rejects.toThrow();
 
     transport.dispose();
   });

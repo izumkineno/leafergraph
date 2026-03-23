@@ -1,3 +1,4 @@
+import "./helpers/install_test_host_polyfills";
 import { afterEach, describe, expect, test } from "bun:test";
 import path from "node:path";
 

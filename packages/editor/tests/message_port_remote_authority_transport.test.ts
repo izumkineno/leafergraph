@@ -5,7 +5,7 @@ import type {
   GraphOperation,
   RuntimeFeedbackEvent
 } from "leafergraph";
-import type { EditorRemoteAuthorityProtocolAdapter } from "../src/session/graph_document_authority_protocol";
+import type { EditorRemoteAuthorityProtocolAdapter } from "../src/session/authority_openrpc";
 import {
   createMessagePortRemoteAuthorityClient,
   createMessagePortRemoteAuthorityTransport
@@ -276,6 +276,38 @@ describe("createMessagePortRemoteAuthorityTransport", () => {
 
     transport.dispose?.();
     host.dispose();
+  });
+
+  test("response result 与原始 method 不匹配时应拒绝请求", async () => {
+    const channel = new MessageChannel();
+    const transport = createMessagePortRemoteAuthorityTransport({
+      port: channel.port1
+    });
+
+    channel.port2.addEventListener("message", (event) => {
+      const requestEnvelope = event.data as {
+        id: string;
+      };
+      channel.port2.postMessage({
+        jsonrpc: "2.0",
+        id: requestEnvelope.id,
+        result: {
+          accepted: true,
+          changed: true,
+          revision: "1"
+        }
+      });
+    });
+    channel.port2.start();
+
+    await expect(
+      transport.request({
+        method: "authority.getDocument"
+      })
+    ).rejects.toThrow();
+
+    transport.dispose?.();
+    channel.port2.close();
   });
 });
 

@@ -9,13 +9,16 @@ import {
 import type {
   EditorRemoteAuthorityInboundEnvelope,
   EditorRemoteAuthorityFailureEnvelope,
-  EditorRemoteAuthorityProtocolAdapter
-  ,
+  EditorRemoteAuthorityProtocolAdapter,
   EditorRemoteAuthoritySuccessEnvelope
-} from "./graph_document_authority_protocol";
-import { DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER } from "./graph_document_authority_protocol";
+} from "./authority_openrpc";
+import {
+  DEFAULT_EDITOR_REMOTE_AUTHORITY_PROTOCOL_ADAPTER,
+  validateMethodResult
+} from "./authority_openrpc";
 
 interface PendingRequestEntry {
+  method: EditorRemoteAuthorityTransportRequest["method"];
   resolve: (response: EditorRemoteAuthorityTransportResponse) => void;
   reject: (error: Error) => void;
 }
@@ -82,8 +85,22 @@ export function createMessagePortRemoteAuthorityTransport(
 
     pendingRequests.delete(String(responseEnvelope.id));
     if (responseEnvelope.ok) {
-      pendingRequest.resolve(structuredClone(responseEnvelope.result));
-      return;
+      try {
+        pendingRequest.resolve(
+          validateMethodResult(
+            pendingRequest.method,
+            responseEnvelope.result
+          ) as EditorRemoteAuthorityTransportResponse
+        );
+        return;
+      } catch (error) {
+        pendingRequest.reject(
+          error instanceof Error
+            ? error
+            : new Error("authority 返回了无效结果")
+        );
+        return;
+      }
     }
 
     pendingRequest.reject(
@@ -125,6 +142,7 @@ export function createMessagePortRemoteAuthorityTransport(
 
       return new Promise<TResponse>((resolve, reject) => {
         pendingRequests.set(requestId, {
+          method: request.method,
           resolve: resolve as PendingRequestEntry["resolve"],
           reject
         });

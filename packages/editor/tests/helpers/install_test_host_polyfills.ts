@@ -1,4 +1,5 @@
 const host = globalThis as Record<string, unknown>;
+const localStorageState = new Map<string, string>();
 
 host.window ??= globalThis;
 host.CanvasRenderingContext2D ??= class {};
@@ -51,4 +52,56 @@ host.document ??= {
   defaultView: globalThis,
   addEventListener() {},
   removeEventListener() {}
+};
+host.localStorage ??= {
+  getItem(key: string) {
+    return localStorageState.has(key) ? localStorageState.get(key)! : null;
+  },
+  setItem(key: string, value: string) {
+    localStorageState.set(key, String(value));
+  },
+  removeItem(key: string) {
+    localStorageState.delete(key);
+  },
+  clear() {
+    localStorageState.clear();
+  },
+  key(index: number) {
+    return [...localStorageState.keys()][index] ?? null;
+  },
+  get length() {
+    return localStorageState.size;
+  }
+};
+host.matchMedia ??= ((query: string) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addListener() {},
+  removeListener() {},
+  addEventListener() {},
+  removeEventListener() {},
+  dispatchEvent() {
+    return false;
+  }
+})) as unknown;
+host.File ??= class File extends Blob {
+  readonly name: string;
+  readonly lastModified: number;
+
+  constructor(
+    bits: BlobPart[],
+    name: string,
+    options?: FilePropertyBag
+  ) {
+    super(bits, options);
+    this.name = name;
+    this.lastModified = options?.lastModified ?? Date.now();
+  }
+};
+host.DataTransfer ??= class DataTransfer {
+  readonly files: File[] = [];
+  readonly items = {
+    add: () => null
+  };
 };

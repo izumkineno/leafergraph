@@ -68,12 +68,10 @@ let currentDocument = {
       id: "link-1",
       source: {
         nodeId: "node-1",
-        direction: "output",
         slot: 0
       },
       target: {
         nodeId: "node-2",
-        direction: "input",
         slot: 0
       }
     }
