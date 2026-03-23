@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .conformance_support import load_json, load_manifest, resolve_conformance_path, shared_openrpc_root
+from .conformance_support import (
+    load_json,
+    load_manifest,
+    openrpc_root,
+    resolve_conformance_path,
+)
 
 
 def _request_method_name(path: Path) -> str | None:
@@ -57,7 +62,7 @@ def test_conformance_manifest_has_unique_ids_and_existing_fixtures() -> None:
 
 def test_conformance_manifest_methods_and_notifications_align_with_openrpc_document() -> None:
     manifest = load_manifest()
-    document = load_json(shared_openrpc_root() / "authority.openrpc.json")
+    document = load_json(openrpc_root() / "authority.openrpc.json")
     method_names = {method["name"] for method in document["methods"]}
     notification_names = {
         notification["name"] for notification in document["x-notifications"]

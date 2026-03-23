@@ -7,10 +7,6 @@
 ```text
 templates/
   backend/
-    shared/
-      openrpc/
-        authority.openrpc.json
-        schemas/
     python-openrpc-authority-template/
   node/
     README.md
@@ -31,23 +27,26 @@ templates/
 
 ## 固定决策
 
-- authority 协议真源固定为 `templates/backend/shared/openrpc/authority.openrpc.json`。
-- 协议说明入口固定为 `templates/backend/shared/openrpc/README.md`。
-- OpenRPC 接入踩雷说明固定见 `templates/backend/shared/openrpc/openrpc-adaptation-pitfalls.md`。
+- authority 协议真源固定为仓库根 `openrpc/authority.openrpc.json`。
+- 协议说明入口固定为 `openrpc/README.md`。
+- OpenRPC 接入踩雷说明固定见 `openrpc/openrpc-adaptation-pitfalls.md`。
+- 全仓统一环境变量固定为 `LEAFERGRAPH_OPENRPC_ROOT`，它必须指向包含 `authority.openrpc.json`、`schemas/`、`conformance/` 的目录根。
+- 若未设置 `LEAFERGRAPH_OPENRPC_ROOT`，所有消费者默认回退到仓库根 `openrpc/`。
 - `WS /authority` 固定走 JSON-RPC 2.0。
 - `rpc.discover` 固定返回完整 OpenRPC 文档本体。
 - `GET /health` 保持独立 HTTP 健康检查入口，不并入 JSON-RPC。
-- notification 固定使用 `authority.document`、`authority.runtimeFeedback`、`authority.frontendBundlesSync`。
+- notification 固定使用 `authority.document`、`authority.documentDiff`、`authority.runtimeFeedback`、`authority.frontendBundlesSync`。
 
 ## 分类边界
 
 ### `backend/`
 
-- 放 authority 后端模板和共享协议文档。
+- 放 authority 后端模板。
 - 当前仓库内默认的 authority 后端模板是 `python-openrpc-authority-template`。
 - 若需要 schema 驱动的 Python 入站校验与 generated client，优先使用 `python-openrpc-authority-template`。
 - 这份 OpenRPC 模板是精简版，重点是协议真源、类型生成和最小运行闭环。
-- 这里是“后端协议与运行时模板”，不是节点/Widget 作者目录。
+- 协议真源目录已上移到仓库根 `openrpc/`，这里不再承载协议真源镜像。
+- 这里是“后端运行时模板”，不是节点/Widget 作者目录。
 
 ### `node/`
 
@@ -75,5 +74,5 @@ templates/
 ## 不要改
 
 - `GET /health` 与 `WS /authority` 的稳定路径语义。
-- OpenRPC 真源路径与 JSON-RPC 2.0 基本约束。
-- `authority.document / authority.runtimeFeedback / authority.frontendBundlesSync` 这些正式 method 名。
+- 仓库根 `openrpc/` 与 `LEAFERGRAPH_OPENRPC_ROOT` 这套统一路径契约。
+- `authority.document / authority.documentDiff / authority.runtimeFeedback / authority.frontendBundlesSync` 这些正式 notification 名。

@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 
-import authorityOpenRpcDocument from "../../../templates/backend/shared/openrpc/authority.openrpc.json";
 import {
   EDITOR_REMOTE_AUTHORITY_METHODS,
   EDITOR_REMOTE_AUTHORITY_NOTIFICATIONS,
@@ -9,6 +8,12 @@ import {
   validateMethodResult,
   validateNotificationParams
 } from "../src/session/authority_openrpc";
+import { loadOpenRpcDocument } from "../tools/openrpc_paths";
+
+const authorityOpenRpcDocument = loadOpenRpcDocument<{
+  methods: Array<{ name: string }>;
+  "x-notifications": Array<{ name: string }>;
+}>();
 
 function toSortedList(values: Iterable<string>): string[] {
   return [...values].sort((left, right) => left.localeCompare(right));

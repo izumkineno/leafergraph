@@ -6,12 +6,10 @@ import sys
 from pathlib import Path
 from threading import Lock
 
+from .openrpc_paths import get_openrpc_path, get_schema_root, get_template_root
+
 _BOOTSTRAP_LOCK = Lock()
 _GENERATION_CHECKED = False
-
-
-def get_template_root() -> Path:
-    return Path(__file__).resolve().parents[3]
 
 
 def get_package_root() -> Path:
@@ -26,12 +24,8 @@ def get_generator_script_path() -> Path:
     return get_template_root() / "tools" / "generate_from_openrpc.py"
 
 
-def get_openrpc_path() -> Path:
-    return get_template_root().parent / "shared" / "openrpc" / "authority.openrpc.json"
-
-
 def _schema_paths() -> list[Path]:
-    schema_root = get_openrpc_path().parent / "schemas"
+    schema_root = get_schema_root()
     return sorted(schema_root.glob("*.json"))
 
 

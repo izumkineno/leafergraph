@@ -1,10 +1,10 @@
-# `shared/openrpc` 与 Python 后端调用链说明
+# `openrpc/` 与 Python 后端调用链说明
 
 这份文档面向需要接入、维护或审计 LeaferGraph authority 协议的工程师。
 
 它不讨论 editor UI 细节，也不把 Python 模板当成“黑盒服务”介绍，而是聚焦 3 件事：
 
-1. `templates/backend/shared/openrpc` 里什么是真源，什么是派生产物。
+1. 仓库根 `openrpc/` 里什么是真源，什么是派生产物。
 2. Python OpenRPC backend 怎样从共享 OpenRPC 文档生成并消费 typed 模型。
 3. 一个请求进入 `WS /authority` 后，如何流经 transport、service、runtime、document diff 与 notification 发射。
 
@@ -12,10 +12,10 @@
 
 ## OpenRPC 真源与目录骨架
 
-`templates/backend/shared/openrpc/` 是 authority 协议的唯一真源目录。
+仓库根 `openrpc/` 是 authority 协议的唯一真源目录。
 
 ```text
-templates/backend/shared/openrpc/
+openrpc/
 ├─ authority.openrpc.json                  # 正式 OpenRPC 文档本体，method / notification 真源
 ├─ schemas/                                # 被 OpenRPC 文档通过 $ref 引用的共享 JSON Schema
 │  ├─ graph_document.schema.json           # 权威图文档结构
@@ -27,8 +27,16 @@ templates/backend/shared/openrpc/
 │  └─ ...                                  # 其余复用子 schema
 ├─ README.md                               # 目录总入口与约束摘要
 ├─ openrpc-adaptation-pitfalls.md          # 适配踩雷清单与边界提醒
-└─ PYTHON_BACKEND_INTEGRATION.md           # 本文：shared/openrpc 与 Python 调用链详解
+└─ ...                                     # conformance、参考文档与配套说明
 ```
+
+当前路径契约固定为：
+
+- 正式真源目录：`openrpc/`
+- 环境变量覆盖：`LEAFERGRAPH_OPENRPC_ROOT`
+- 变量语义：必须指向包含 `authority.openrpc.json`、`schemas/`、`conformance/` 的目录根
+- 未设置时，Python 模板默认回退到仓库根 `openrpc/`
+- 当前不再支持旧 `templates/backend/shared/openrpc` 路径
 
 与之对应的 Python 消费端位于：
 
@@ -169,10 +177,10 @@ flowchart LR
 
 ### 从真源到 `_generated`
 
-Python 模板不是手写一套平行协议常量，而是显式依赖 `shared/openrpc`：
+Python 模板不是手写一套平行协议常量，而是显式依赖仓库根 `openrpc/` 与 `LEAFERGRAPH_OPENRPC_ROOT` 这套路径契约：
 
 1. `entry.py` 与包根 `__init__.py` 在启动时先执行 `ensure_generated()`。
-2. `core/bootstrap.py` 通过 `get_openrpc_path()` 指向 `templates/backend/shared/openrpc/authority.openrpc.json`。
+2. `core/bootstrap.py` 通过 `get_openrpc_path()` 读取 `authority.openrpc.json`；该路径先看 `LEAFERGRAPH_OPENRPC_ROOT`，未设置时回退到仓库根 `openrpc/authority.openrpc.json`。
 3. `compute_openrpc_fingerprint()` 把下面 3 类输入一起算指纹：
    - `authority.openrpc.json`
    - `schemas/*.json`
@@ -423,9 +431,9 @@ flowchart LR
 
 跨语言 conformance 资产位于：
 
-- `templates/backend/shared/openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
-- `templates/backend/shared/openrpc/conformance/manifest.json`
-- `templates/backend/shared/openrpc/conformance/fixtures/`
+- `openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
+- `openrpc/conformance/manifest.json`
+- `openrpc/conformance/fixtures/`
 
 Python 模板通过下面两个测试入口直接消费这套共享资产：
 
@@ -491,11 +499,11 @@ uv run pytest tests/test_conformance_runner.py
 
 ## 结论
 
-`templates/backend/shared/openrpc` 不是“给 discover 展示的静态文档目录”，而是 LeaferGraph authority 协议的唯一真源。Python OpenRPC backend 则是这份真源的一个严格消费者：
+仓库根 `openrpc/` 不是“给 discover 展示的静态文档目录”，而是 LeaferGraph authority 协议的唯一真源。Python OpenRPC backend 则是这份真源的一个严格消费者：
 
 - 启动时通过 `ensure_generated()` 追齐生成物。
 - 请求进入 `/authority` 后，通过 generated model 校验 params/result。
 - service 层把图文档、图操作、运行控制与通知发射统一收敛。
 - transport 层再把整图、增量 diff、runtime feedback 和 bundle snapshot 安全送到连接端。
 
-这就是为什么维护这套协议时，必须同时看 `shared/openrpc`、Python 实现、`_generated/` 和 tests，而不能只看其中任意一侧。
+这就是为什么维护这套协议时，必须同时看 `openrpc/`、Python 实现、`_generated/` 和 tests，而不能只看其中任意一侧。

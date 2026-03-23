@@ -1,6 +1,6 @@
 # Authority 协议 Apifox 测试手册
 
-这份手册面向需要在 Apifox 中手工联调 `shared/openrpc` 协议的工程师。
+这份手册面向需要在 Apifox 中手工联调 `openrpc/` 协议的工程师。
 
 它的目标不是替代 `authority.openrpc.json`，而是把当前 authority 协议翻译成“在 Apifox 中怎么建接口、怎么连 WebSocket、怎么发消息、怎么判断结果”的操作说明。
 
@@ -8,10 +8,17 @@
 
 ## 为什么这轮不是“OpenRPC 一键导入 Apifox”
 
-当前 `shared/openrpc` 的正式真源是：
+当前 `openrpc/` 的正式真源是：
 
 - `authority.openrpc.json`
 - `schemas/*.schema.json`
+
+当前目录位置与路径契约固定为：
+
+- 正式真源目录：`openrpc/`
+- 环境变量覆盖：`LEAFERGRAPH_OPENRPC_ROOT`
+- 未设置环境变量时，消费者默认回退到仓库根 `openrpc/`
+- 不再支持旧 `templates/backend/shared/openrpc` 路径
 
 但当前协议形态是 **`OpenRPC + JSON Schema + WebSocket JSON-RPC 2.0 + notifications`**，而不是传统 `OpenAPI HTTP REST`。
 
@@ -659,7 +666,7 @@ Apifox 官方资料参考：
   - [导入导出数据](https://docs.apifox.com/import-and-export)
   - [WebSocket 调试](https://docs.apifox.com/5220190m0)
 - 仓库事实源：
-  - `templates/backend/shared/openrpc/authority.openrpc.json`
+  - `openrpc/authority.openrpc.json`
   - `templates/backend/python-openrpc-authority-template/src/.../core/protocol.py`
   - `templates/backend/python-openrpc-authority-template/src/.../core/document_store.py`
   - `templates/backend/python-openrpc-authority-template/src/.../core/frontend_bundles.py`

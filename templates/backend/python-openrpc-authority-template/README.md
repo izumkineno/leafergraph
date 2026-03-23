@@ -144,11 +144,13 @@ flowchart LR
 - `GET /health`：健康检查
 - `WS /authority`：JSON-RPC 2.0 authority 通道
 - `rpc.discover`：返回共享 OpenRPC 文档
-- 共享真源：`templates/backend/shared/openrpc/authority.openrpc.json`
-- 协议说明：`templates/backend/shared/openrpc/README.md`
-- 跨语言 conformance：`templates/backend/shared/openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
-- conformance 资产入口：`templates/backend/shared/openrpc/conformance/README.md`
-- 适配踩雷清单：`templates/backend/shared/openrpc/openrpc-adaptation-pitfalls.md`
+- 共享真源：`openrpc/authority.openrpc.json`
+- 协议说明：`openrpc/README.md`
+- 跨语言 conformance：`openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
+- conformance 资产入口：`openrpc/conformance/README.md`
+- 适配踩雷清单：`openrpc/openrpc-adaptation-pitfalls.md`
+- 统一环境变量：`LEAFERGRAPH_OPENRPC_ROOT`
+- 环境变量语义：必须指向包含 `authority.openrpc.json`、`schemas/`、`conformance/` 的目录根；未设置时默认回退到仓库根 `openrpc/`
 
 固定 methods：
 
@@ -205,9 +207,9 @@ uv run python -m leafergraph_python_openrpc_authority_template.entry
 
 共享 conformance 资产位于：
 
-- `templates/backend/shared/openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
-- `templates/backend/shared/openrpc/conformance/manifest.json`
-- `templates/backend/shared/openrpc/conformance/fixtures/`
+- `openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
+- `openrpc/conformance/manifest.json`
+- `openrpc/conformance/fixtures/`
 
 当前 Python 模板已经把自己作为这套共享资产的第一位参考消费者，推荐至少跑下面两组测试：
 
@@ -253,6 +255,6 @@ Remove-Item Env:LEAFERGRAPH_AUTHORITY_CONFORMANCE_LEVEL
 ## 不要改
 
 - `GET /health` 与 `WS /authority` 的稳定路径
-- 共享 OpenRPC 真源路径
+- 仓库根 `openrpc/` 与 `LEAFERGRAPH_OPENRPC_ROOT` 这套统一路径契约
 - JSON-RPC 2.0 基础 wire shape
 - 正式 methods / notifications 命名

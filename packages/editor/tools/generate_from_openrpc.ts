@@ -10,18 +10,15 @@ import {
 import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import {
+  resolveOpenRpcDocumentPath,
+  resolveOpenRpcSchemaRoot
+} from "./openrpc_paths";
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(TOOL_DIR, "..");
-const WORKSPACE_ROOT = resolve(PACKAGE_ROOT, "..", "..");
-const OPENRPC_PATH = resolve(
-  WORKSPACE_ROOT,
-  "templates/backend/shared/openrpc/authority.openrpc.json"
-);
-const SCHEMA_ROOT = resolve(
-  WORKSPACE_ROOT,
-  "templates/backend/shared/openrpc/schemas"
-);
+const OPENRPC_PATH = resolveOpenRpcDocumentPath();
+const SCHEMA_ROOT = resolveOpenRpcSchemaRoot();
 const GENERATED_ROOT = resolve(
   PACKAGE_ROOT,
   "src/session/authority_openrpc/_generated"

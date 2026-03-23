@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import pprint
 import shutil
@@ -10,8 +11,33 @@ from pathlib import Path
 from typing import Any
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1]
-OPENRPC_PATH = TEMPLATE_ROOT.parent / "shared" / "openrpc" / "authority.openrpc.json"
-SCHEMA_ROOT = OPENRPC_PATH.parent / "schemas"
+OPENRPC_PATHS_MODULE_PATH = (
+    TEMPLATE_ROOT
+    / "src"
+    / "leafergraph_python_openrpc_authority_template"
+    / "core"
+    / "openrpc_paths.py"
+)
+
+
+def load_openrpc_paths_module() -> Any:
+    spec = importlib.util.spec_from_file_location(
+        "leafergraph_python_openrpc_openrpc_paths",
+        OPENRPC_PATHS_MODULE_PATH,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载 OpenRPC 路径模块: {OPENRPC_PATHS_MODULE_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+OPENRPC_PATHS_MODULE = load_openrpc_paths_module()
+get_openrpc_path = OPENRPC_PATHS_MODULE.get_openrpc_path
+get_schema_root = OPENRPC_PATHS_MODULE.get_schema_root
+
+OPENRPC_PATH = get_openrpc_path()
+SCHEMA_ROOT = get_schema_root()
 PACKAGE_ROOT = TEMPLATE_ROOT / "src" / "leafergraph_python_openrpc_authority_template"
 GENERATED_DIR = PACKAGE_ROOT / "_generated"
 LEGACY_GENERATED_DIR = PACKAGE_ROOT / "generated"

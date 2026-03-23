@@ -16,7 +16,10 @@
 
 这里的固定规则是：
 
-- `templates/backend/shared/openrpc/authority.openrpc.json` 是唯一协议真源
+- 仓库根 `openrpc/authority.openrpc.json` 是唯一协议真源
+- 当前目录位置固定为仓库根 `openrpc/`
+- 全仓唯一覆盖变量固定为 `LEAFERGRAPH_OPENRPC_ROOT`
+- 若未设置 `LEAFERGRAPH_OPENRPC_ROOT`，消费者默认回退到仓库根 `openrpc/`
 - `rpc.discover` 必须直接返回这份文档本体
 - Node / Python / editor 三端常量都要与它保持同名
 
@@ -125,9 +128,10 @@
 
 ## 5. notification 不要再塞一层 `{ type: ... }` 外壳
 
-当前 notification 名固定只有 3 个：
+当前 notification 名固定有 4 个：
 
 - `authority.document`
+- `authority.documentDiff`
 - `authority.runtimeFeedback`
 - `authority.frontendBundlesSync`
 

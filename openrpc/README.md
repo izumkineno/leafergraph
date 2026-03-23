@@ -7,10 +7,10 @@
 - [`CROSS_LANGUAGE_CONFORMANCE.md`](./CROSS_LANGUAGE_CONFORMANCE.md)
   解释 authority 协议怎样被任意语言后端实现，以及 Core / Advanced 分层验收边界。
 - [`OPENRPC_JSON_REFERENCE.md`](./OPENRPC_JSON_REFERENCE.md)
-  逐个解释 `shared/openrpc` 下全部 31 个 JSON 真源与 schema 文件，适合查目录、查引用和查边界。
+  逐个解释 `openrpc/` 下全部 31 个 JSON 真源与 schema 文件，适合查目录、查引用和查边界。
 - [`APIFOX_TEST_PLAYBOOK.md`](./APIFOX_TEST_PLAYBOOK.md)
   面向测试和联调的 Apifox 操作手册，说明怎样在 Apifox 中调试 `GET /health` 与 `WS /authority`。
-- [`PYTHON_BACKEND_INTEGRATION.md`](./PYTHON_BACKEND_INTEGRATION.md)
+- [`PYTHON_BACKEND_INTEGRATION.md`](../templates/backend/python-openrpc-authority-template/PYTHON_BACKEND_INTEGRATION.md)
   结合 Python OpenRPC backend 的生成链、service 编排、transport 发包、document diff 与测试证据的完整说明。
 - [`openrpc-adaptation-pitfalls.md`](./openrpc-adaptation-pitfalls.md)
   适配这套 authority 协议时最容易踩雷的边界与建议做法。
@@ -25,6 +25,14 @@
   跨语言接入的共享一致性场景、fixtures 和 runner 入口说明。
 - [`openrpc-adaptation-pitfalls.md`](./openrpc-adaptation-pitfalls.md)
   适配这套 authority 协议时最容易踩雷的边界与建议做法。
+
+## 目录位置与环境变量
+
+- 当前仓库的正式 OpenRPC 根目录固定为 `openrpc/`
+- 全仓唯一环境变量固定为 `LEAFERGRAPH_OPENRPC_ROOT`
+- 该环境变量必须指向一个包含 `authority.openrpc.json`、`schemas/`、`conformance/` 的目录根
+- 若未设置 `LEAFERGRAPH_OPENRPC_ROOT`，editor 生成器、Python 模板和 conformance runner 默认回退到仓库根 `openrpc/`
+- 当前不再支持旧 `templates/backend/shared/openrpc` 路径
 
 ## 它描述什么
 
@@ -102,7 +110,7 @@
 
 当前仓库里所有 authority 入口都必须和这份 OpenRPC 文档保持同一组 method / notification 名称，不能再定义平行真源。
 
-`APIFOX_TEST_PLAYBOOK.md` 只是测试消费文档，不是新的协议真源；正式真源仍然只有 `authority.openrpc.json + schemas/*.json`。
+`APIFOX_TEST_PLAYBOOK.md` 只是测试消费文档，不是新的协议真源；正式真源仍然只有 `openrpc/authority.openrpc.json + openrpc/schemas/*.json`。
 
 `CROSS_LANGUAGE_CONFORMANCE.md` 与 `conformance/` 只定义跨语言接入规范与验收资产，不是新的协议真源，也不替代现有 OpenRPC / JSON Schema 文档。
 
@@ -144,8 +152,8 @@ uv run --project templates/backend/python-openrpc-authority-template pytest temp
 
 ## 修改协议时必须同步更新
 
-- `templates/backend/shared/openrpc/authority.openrpc.json`
-- `templates/backend/shared/openrpc/schemas/*.schema.json`
+- `openrpc/authority.openrpc.json`
+- `openrpc/schemas/*.schema.json`
 - Node 协议常量与 discover 读取逻辑
 - Python 协议常量与 discover 读取逻辑
 - editor 协议常量、MessagePort host、transport 解析

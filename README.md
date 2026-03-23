@@ -9,13 +9,15 @@
   - 编辑器工程
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
   - 当前同时支持本地 bundle 加载与远端 authority 接线
+- `openrpc/`
+  - authority 协议真源目录
+  - 默认包含 `authority.openrpc.json`、`schemas/`、`conformance/`
+  - 全仓统一通过 `LEAFERGRAPH_OPENRPC_ROOT` 或默认仓库根 `openrpc/` 读取
 - `templates/`
   - 可直接复制出去的外部模板工程
   - 当前已提供：
     - `templates/backend/python-openrpc-authority-template`
       - 当前仓库默认的 OpenRPC-first authority 后端模板
-    - `templates/backend/shared/openrpc`
-      - authority 协议真源与共享 schema
     - `templates/misc/browser-node-widget-plugin-template`
     - `templates/misc/backend-node-package-template`
   - 模板职责矩阵见 `templates/README.md`

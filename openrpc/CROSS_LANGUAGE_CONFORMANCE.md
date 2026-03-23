@@ -5,7 +5,7 @@
 它不修改现有 `authority.openrpc.json` 和 `schemas/*.json`，而是补两类信息：
 
 1. 当前 wire 协议里哪些行为是跨语言接入时必须成立的硬要求。
-2. 怎样用 `shared/openrpc/conformance/` 里的场景资产，把一个后端验收到 `Core` 或 `Advanced` 兼容层级。
+2. 怎样用 `openrpc/conformance/` 里的场景资产，把一个后端验收到 `Core` 或 `Advanced` 兼容层级。
 
 ---
 
@@ -15,6 +15,13 @@
 
 - `authority.openrpc.json`
 - `schemas/*.schema.json`
+
+当前目录位置与路径契约固定为：
+
+- 正式真源目录：`openrpc/`
+- 环境变量覆盖：`LEAFERGRAPH_OPENRPC_ROOT`
+- 未设置环境变量时，消费者默认回退到仓库根 `openrpc/`
+- 不再支持旧 `templates/backend/shared/openrpc` 路径
 
 这套协议的组成是：
 
@@ -148,7 +155,7 @@
 
 ## 6. Conformance 资产怎么用
 
-`shared/openrpc/conformance/` 目录提供三类资产：
+`openrpc/conformance/` 目录提供三类资产：
 
 - `README.md`
   说明目录目的、分层和执行方式。
@@ -215,7 +222,7 @@
 ## 10. 和其他文档的关系
 
 - `README.md`
-  说明 shared/openrpc 是真源。
+  说明 `openrpc/` 是真源。
 - `OPENRPC_JSON_REFERENCE.md`
   解释全部 JSON 文件。
 - `PYTHON_BACKEND_INTEGRATION.md`

@@ -5,11 +5,15 @@ import type {
   GraphOperation,
   RuntimeFeedbackEvent
 } from "leafergraph";
-import authorityOpenRpcDocument from "../../../templates/backend/shared/openrpc/authority.openrpc.json";
 import { createMessagePortRemoteAuthorityClient } from "../src/session/message_port_remote_authority_transport";
 import { createMessagePortRemoteAuthorityTransport } from "../src/session/message_port_remote_authority_transport";
 import { createMessagePortRemoteAuthorityHost } from "../src/session/message_port_remote_authority_host";
 import type { EditorRemoteAuthorityDocumentService } from "../src/session/graph_document_authority_service";
+import { loadOpenRpcDocument } from "../tools/openrpc_paths";
+
+const authorityOpenRpcDocument = loadOpenRpcDocument<{
+  openrpc: string;
+}>();
 
 function createDocument(revision: string): GraphDocument {
   return {

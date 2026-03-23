@@ -1,6 +1,6 @@
-# `shared/openrpc` JSON 全量参考
+# `openrpc/` JSON 全量参考
 
-这份文档专门解释 `templates/backend/shared/openrpc` 目录下的全部 `.json` 文件。
+这份文档专门解释仓库根 `openrpc/` 目录下的全部 `.json` 文件。
 
 它回答 3 个问题：
 
@@ -18,7 +18,7 @@
 ## 目录骨架
 
 ```text
-shared/openrpc/
+openrpc/
 ├─ authority.openrpc.json                    # 唯一 OpenRPC 真源，声明 methods / notifications
 └─ schemas/
    ├─ graph_document.schema.json             # authoritative GraphDocument
@@ -39,6 +39,13 @@ shared/openrpc/
   是被根真源通过 `$ref` 组织起来的拆分真源；它们不是派生产物，而是协议本身的一部分。
 - `_generated/*`
   不在本目录里，也不是这份文档的主角；它们属于 Python / editor 等消费者对本目录真源的编译结果。
+
+### 目录位置与环境变量
+
+- 正式 OpenRPC 根目录固定为仓库根 `openrpc/`
+- 全仓唯一覆盖变量固定为 `LEAFERGRAPH_OPENRPC_ROOT`
+- 该变量必须指向包含 `authority.openrpc.json`、`schemas/`、`conformance/` 的目录根
+- 若未设置该变量，消费者默认回退到仓库根 `openrpc/`
 
 ### 分组总览
 

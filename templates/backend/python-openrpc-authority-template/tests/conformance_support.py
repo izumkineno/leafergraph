@@ -12,6 +12,10 @@ from typing import Any
 
 import uvicorn
 
+from leafergraph_python_openrpc_authority_template.core.openrpc_paths import (
+    get_conformance_root,
+    get_openrpc_root,
+)
 from leafergraph_python_openrpc_authority_template.transport.server import (
     create_authority_app,
 )
@@ -22,12 +26,12 @@ CONFORMANCE_LEVEL_ENV = "LEAFERGRAPH_AUTHORITY_CONFORMANCE_LEVEL"
 VALID_LEVELS = {"core", "advanced", "all"}
 
 
-def shared_openrpc_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "shared" / "openrpc"
+def openrpc_root() -> Path:
+    return get_openrpc_root()
 
 
 def conformance_root() -> Path:
-    return shared_openrpc_root() / "conformance"
+    return get_conformance_root()
 
 
 def manifest_path() -> Path:

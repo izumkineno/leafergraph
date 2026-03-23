@@ -4,7 +4,7 @@ import json
 from copy import deepcopy
 from typing import Any
 
-from .bootstrap import get_openrpc_path
+from .openrpc_paths import get_openrpc_path
 
 _cached_openrpc_document: dict[str, Any] | None = None
 DEFAULT_AUTHORITY_NAME = "python-openrpc-authority-template"

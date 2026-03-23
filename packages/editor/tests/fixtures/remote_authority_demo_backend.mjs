@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
+const LEAFERGRAPH_OPENRPC_ROOT_ENV = "LEAFERGRAPH_OPENRPC_ROOT";
 const JSON_RPC_VERSION = "2.0";
 const JSON_RPC_ERROR_CODES = {
   parseError: -32700,
@@ -11,12 +12,12 @@ const JSON_RPC_ERROR_CODES = {
   invalidParams: -32602
 };
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
+const openRpcRoot = process.env[LEAFERGRAPH_OPENRPC_ROOT_ENV]
+  ? resolve(process.env[LEAFERGRAPH_OPENRPC_ROOT_ENV])
+  : resolve(fixtureDir, "../../../../openrpc");
 const openRpcDocument = JSON.parse(
   readFileSync(
-    resolve(
-      fixtureDir,
-      "../../../../templates/backend/shared/openrpc/authority.openrpc.json"
-    ),
+    resolve(openRpcRoot, "authority.openrpc.json"),
     "utf8"
   )
 );
