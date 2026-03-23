@@ -41,6 +41,7 @@ bun run dev:editor:lan
 bun run build:testbundles
 bun run start:python-backend
 bun run start:python-openrpc-backend
+bun run test:authority-conformance
 bun run build
 ```
 
@@ -51,6 +52,7 @@ bun run start:python-backend
 bun run test:python-backend
 bun run start:python-openrpc-backend
 bun run test:python-openrpc-backend
+bun run test:authority-conformance
 ```
 
 当前 authority 协议固定为：
@@ -88,6 +90,9 @@ bun run test:python-openrpc-backend
 - `docs/节点插件接入方案.md`
   - 外部节点包接入方案
   - Vite external、宿主注入与主包节点池注册流程
+- [`docs/节点组件蓝图加载说明.md`](./docs/节点组件蓝图加载说明.md)
+  - 节点 / 组件 / 蓝图 bundle 的完整加载说明
+  - 覆盖本地导入、authority 同步、持久化恢复与模板产物
 - `docs/节点API方案.md`
   - 节点 API 与节点外壳整合方案
   - 生命周期、注册机制、节点结构与外壳设计说明
@@ -96,6 +101,10 @@ bun run test:python-openrpc-backend
   - 菜单管理器职责、坐标体系与宿主接入方式
 
 ## Editor 本地 Bundle 加载
+
+如果你想系统理解“节点 / 组件（代码中仍名为 widget）/ 蓝图（代码中仍名为 demo）”三类 bundle 怎样进入 editor、怎样做依赖求解、怎样被持久化与恢复，优先看：
+
+- [`docs/节点组件蓝图加载说明.md`](./docs/节点组件蓝图加载说明.md)
 
 editor 现在内建一个“本地 Bundle 加载面板”，按三类 bundle 分组管理：
 

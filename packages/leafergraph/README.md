@@ -2,269 +2,242 @@
 
 `leafergraph` 是当前工作区里的 Leafer-first 节点图主包。
 
-它的职责不是承接 editor 页面壳层，也不是复制 `@leafergraph/node` 的 SDK 能力，而是作为唯一图运行时宿主，负责下面这些长期能力：
+它的职责不是承接 editor 页面壳层，也不是复制 `@leafergraph/node` 的模型 SDK，而是作为唯一图运行时宿主，负责下面这些正式能力：
 
-- 正式图输入恢复
-- 节点、连线、Widget 的场景渲染与局部刷新
-- 插件安装、模块安装与 Widget 注册
-- 主题、交互、右键菜单与 Widget 编辑宿主
-- 对 editor 和外部工程暴露稳定的公共 API
+- 把 `GraphDocument` 恢复成可交互、可执行、可局部刷新的 Leafer 场景
+- 管理节点、连线、Widget、主题、视图和交互宿主
+- 对外暴露稳定的图 API、运行反馈 API 和扩展入口
+- 为 editor、外部页面和未来 authority/runtime 适配层提供统一运行时基础
 
-相关文档：
+如果你只想知道“怎么用”，从这份 README 开始即可。  
+如果你要扩插件、接 Widget、读内部实现或排查刷新链路，请按下面的深链继续读。
+
+## 适用场景
+
+`leafergraph` 适合这些场景：
+
+- 在浏览器里创建一个节点图画布，并用 Leafer 渲染节点、连线和 Widget
+- 从正式 `GraphDocument` 恢复一张图
+- 在运行时注册节点、模块、Widget 或插件
+- 在本地执行图级 `play / step / stop` 或节点级 `playFromNode(...)`
+- 订阅节点执行、图执行、节点状态和连线传播反馈
+- 对接 editor、remote runtime feedback 或外部调试面板
+
+它不直接负责这些事情：
+
+- workspace 页面布局和 UI 壳层
+- authority transport、session、OpenRPC、bundle loader
+- `@leafergraph/node` 的节点模型定义和序列化真源
+
+## 包边界
+
+这三个包的关系是当前最重要的前置认知：
+
+| 包 | 负责什么 | 不负责什么 |
+| --- | --- | --- |
+| `@leafergraph/node` | 节点定义、模块、注册表、图文档模型、序列化类型 | Leafer 场景、交互、渲染宿主 |
+| `leafergraph` | 图运行时、渲染、交互基础设施、执行反馈、公共 API | editor UI、authority transport、bundle 协议 |
+| `packages/editor` | 工作区壳层、命令、session、authority、bundle 装配 | 主包运行时真源 |
+
+一个实用判断是：
+
+- 定义“节点是什么”，去 `@leafergraph/node`
+- 让“节点图跑起来、显示出来、可交互”，用 `leafergraph`
+- 做“工作区、菜单、authority、bundle 面板”，看 `packages/editor`
+
+## 五分钟上手
+
+### 1. 创建图实例
+
+```ts
+import { createLeaferGraph, type GraphDocument } from "leafergraph";
+
+const container = document.getElementById("app");
+if (!container) {
+  throw new Error("缺少挂载容器 #app");
+}
+
+const documentData: GraphDocument = {
+  documentId: "hello-graph",
+  revision: 1,
+  appKind: "leafergraph-local",
+  nodes: [],
+  links: []
+};
+
+const graph = createLeaferGraph(container, {
+  document: documentData
+});
+
+await graph.ready;
+```
+
+### 2. 注册一个节点，再创建实例
+
+`NodeDefinition` 属于 `@leafergraph/node`，不是 `leafergraph` 直接导出的公共类型：
+
+```ts
+import type { NodeDefinition } from "@leafergraph/node";
+import { createLeaferGraph } from "leafergraph";
+
+const helloNode: NodeDefinition = {
+  type: "example/hello",
+  title: "Hello Node",
+  category: "Examples",
+  outputs: [{ name: "Text", type: "string" }],
+  onExecute(node, _context, api) {
+    node.title = "Hello Executed";
+    api?.setOutputData(0, "hello");
+  }
+};
+
+const graph = createLeaferGraph(container);
+await graph.ready;
+
+graph.registerNode(helloNode, { overwrite: true });
+graph.createNode({
+  id: "hello-1",
+  type: "example/hello",
+  x: 120,
+  y: 80
+});
+```
+
+### 3. 跑一次执行链
+
+```ts
+graph.play();
+```
+
+如果你要从某个节点直接起跑：
+
+```ts
+graph.playFromNode("hello-1");
+```
+
+### 4. 销毁
+
+```ts
+graph.destroy();
+```
+
+## 核心概念
+
+| 概念 | 作用 |
+| --- | --- |
+| `GraphDocument` | 正式图快照，包含节点、连线和图级元数据 |
+| `GraphOperation` | 正式图操作，表达节点/连线/文档的增删改移 |
+| `GraphDocumentDiff` | 文档增量，适合 authority 或同步链做增量投影 |
+| `NodeModule` | 一组可批量安装的节点定义 |
+| `LeaferGraphNodePlugin` | 主包运行时插件，能注册节点、模块和 Widget |
+| `LeaferGraphWidgetEntry` | 一个完整 Widget 条目，包含定义和 renderer |
+| `RuntimeFeedbackEvent` | 统一运行反馈事件，覆盖节点执行、图执行、节点状态和连线传播 |
+
+## 对外 API 导航
+
+`src/index.ts` 当前对外暴露的内容，建议按下面几组理解：
+
+### 1. 图宿主入口
+
+- `LeaferGraph`
+- `createLeaferGraph(...)`
+
+这是最常用的一组入口。你通常会先创建实例，再调用：
+
+- `replaceGraphDocument(...)`
+- `applyGraphOperation(...)`
+- `applyGraphDocumentDiff(...)`
+- `play / step / stop / playFromNode(...)`
+- `subscribe*` 系列
+
+### 2. 正式图与运行反馈类型
+
+- `GraphDocument`
+- `GraphLink`
+- `GraphOperation`
+- `GraphOperationApplyResult`
+- `GraphDocumentDiff`
+- `RuntimeFeedbackEvent`
+- `LeaferGraphNodeExecutionEvent`
+- `LeaferGraphGraphExecutionEvent`
+- `LeaferGraphNodeInspectorState`
+
+这组类型适合外部页面、调试工具和 authority/runtime 适配层消费。
+
+### 3. 插件与 Widget 扩展契约
+
+- `LeaferGraphNodePlugin`
+- `LeaferGraphNodePluginContext`
+- `LeaferGraphOptions`
+- `LeaferGraphWidgetEntry`
+- `LeaferGraphWidgetRendererContext`
+- `LeaferGraphWidgetLifecycle`
+- `LeaferGraphWidgetRegistry`
+
+这组类型和工具适合扩节点、扩 Widget 或自定义宿主行为。
+
+### 4. 菜单与交互辅助
+
+- `createLeaferGraphContextMenu(...)`
+- `LeaferGraphContextMenuManager`
+- `bindPressWidgetInteraction(...)`
+- `bindLinearWidgetDrag(...)`
+- `createWidgetHitArea(...)`
+- `createWidgetLabel(...)`
+- `createWidgetSurface(...)`
+- `createWidgetValueText(...)`
+
+这组入口是“在主包公共边界内能直接复用的交互/渲染 helper”。
+
+### 5. 文档 diff 工具
+
+- `applyGraphDocumentDiffToDocument(...)`
+- `createUpdateNodeInputFromNodeSnapshot(...)`
+
+它们是纯工具，不依赖图实例，适合 session 或同步链在实例外先处理文档。
+
+## 内建执行入口
+
+主包当前默认内建两个系统节点：
+
+| 节点类型 | 作用 |
+| --- | --- |
+| `system/on-play` | 图级 `play / step` 的正式入口节点 |
+| `system/timer` | 图级定时触发节点，接受 `Start` 输入，输出 `Tick` |
+
+它们的语义是：
+
+- `system/on-play`
+  - 只在图级 `play / step` 中作为入口节点使用
+  - 会把当前 `LeaferGraphExecutionContext` 写到输出槽位 `0`
+- `system/timer`
+  - 需要上游 `Start` 才会建立图级循环
+  - `playFromNode(...)` 场景下只执行一次，不建立图级循环
+  - `immediate=false` 时，首次执行只注册定时器，不立即输出 `Tick`
+
+如果你只关心“运行时刷新到底发生了什么”，直接看：
 
 - [渲染刷新策略](./渲染刷新策略.md)
 
-## 架构总览
+## 推荐阅读路径
 
-当前主包已经整理成 `api / graph / interaction / node / link / widgets` 六类源码目录。
+按不同目标，建议这样读：
 
-它们之间的关系可以概括为：
+### 我想直接用这个包
 
-- `api`
-  - 定义主包公共契约与对外 facade
-- `graph`
-  - 负责图运行时装配、启动、恢复、场景刷新和主题驱动
-- `interaction`
-  - 负责节点拖拽、缩放、折叠和右键菜单
-- `node`
-  - 负责节点外壳、布局、端口和节点运行时桥接
-- `link`
-  - 负责连线路径几何和连线视图管理
-- `widgets`
-  - 负责 Widget 注册、生命周期调度、编辑宿主和内建基础控件
+1. 先读这份 README
+2. 再看 [使用与扩展指南](./使用与扩展指南.md)
 
-```mermaid
-flowchart LR
-    entry["src/index.ts"]
+### 我想扩节点、扩 Widget、扩插件
 
-    subgraph api_layer["api"]
-        api_host["graph_api_host.ts"]
-        api_types["graph_api_types.ts"]
-        api_plugin["plugin.ts"]
-    end
+1. 先读 [使用与扩展指南](./使用与扩展指南.md)
+2. 再回看 `@leafergraph/node` 里的模型定义
 
-    subgraph graph_layer["graph"]
-        graph_assembly["graph_runtime_assembly.ts"]
-        graph_bootstrap["graph_bootstrap_host.ts"]
-        graph_scene_runtime["graph_scene_runtime_host.ts"]
-        graph_scene["graph_scene_host.ts + graph_mutation_host.ts + graph_restore_host.ts"]
-        graph_theme["graph_theme_host.ts + graph_theme_runtime_host.ts"]
-        graph_canvas["graph_canvas_host.ts + graph_view_host.ts"]
-        graph_runtime["graph_runtime_types.ts + graph_runtime_style.ts"]
-    end
+### 我想读源码或排查问题
 
-    subgraph node_layer["node"]
-        node_host["node_host.ts"]
-        node_shell["node_shell_host.ts + node_shell.ts"]
-        node_layout["node_layout.ts + node_port.ts"]
-        node_runtime["node_runtime_host.ts"]
-    end
-
-    subgraph link_layer["link"]
-        link_host["link_host.ts"]
-        link_math["link.ts"]
-    end
-
-    subgraph widget_layer["widgets"]
-        widget_registry["widget_registry.ts"]
-        widget_runtime["widget_host.ts + widget_editing.ts + widget_lifecycle.ts + widget_interaction.ts"]
-        widget_basic["widgets/basic/*"]
-    end
-
-    subgraph interaction_layer["interaction"]
-        interaction_runtime["graph_interaction_runtime_host.ts"]
-        interaction_host["interaction_host.ts"]
-        interaction_menu["context_menu.ts"]
-    end
-
-    sdk["@leafergraph/node"]
-
-    entry --> api_host
-    entry --> api_types
-    entry --> api_plugin
-    entry --> graph_assembly
-    entry --> interaction_menu
-
-    graph_assembly --> graph_bootstrap
-    graph_assembly --> graph_scene_runtime
-    graph_assembly --> graph_theme
-    graph_assembly --> graph_canvas
-    graph_assembly --> graph_runtime
-    graph_assembly --> node_host
-    graph_assembly --> node_shell
-    graph_assembly --> node_layout
-    graph_assembly --> node_runtime
-    graph_assembly --> link_host
-    graph_assembly --> widget_registry
-    graph_assembly --> widget_runtime
-    graph_assembly --> interaction_runtime
-    graph_assembly --> interaction_host
-
-    graph_scene_runtime --> graph_scene
-    graph_scene --> node_host
-    graph_scene --> link_host
-    node_shell --> node_host
-    node_runtime --> graph_scene_runtime
-    link_host --> link_math
-    widget_runtime --> widget_registry
-    widget_runtime --> widget_basic
-    interaction_host --> interaction_runtime
-    interaction_runtime --> graph_scene_runtime
-
-    graph_bootstrap --> sdk
-    node_runtime --> sdk
-    widget_registry --> sdk
-```
-
-## 运行时装配链
-
-主包当前通过 [graph_runtime_assembly.ts](./src/graph/graph_runtime_assembly.ts) 串起运行时。
-
-装配顺序可以理解成下面几步：
-
-1. 通过 `graph_entry_runtime.ts` 准备默认图状态容器和入口级默认配置
-2. 创建画布宿主
-3. 通过 `graph_widget_runtime_host.ts` 创建 Widget 注册表、主题宿主和编辑宿主
-4. 创建 `NodeRegistry`
-5. 通过 `graph_scene_runtime_assembly.ts` 拼装节点、连线、Widget、交互和恢复宿主
-6. 创建启动宿主
-7. 用 `graph_api_host` 对外暴露稳定 API
-
-这条链的目标是让 `src/index.ts` 只承担：
-
-- 入口导出
-- 宿主创建
-- 最小 API 转发
-
-## 目录结构
-
-```text
-packages/leafergraph
-├─ README.md
-├─ package.json
-└─ src
-   ├─ index.ts
-   ├─ api
-   ├─ graph
-   ├─ interaction
-   ├─ link
-   ├─ node
-   └─ widgets
-      └─ basic
-```
-
-## 文件说明
-
-### 根入口
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/index.ts` | 主包公共入口，负责导出公共 API、类型和 `LeaferGraph` 宿主工厂。 |
-
-### `src/api`
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/api/plugin.ts` | 主包公共协议中心，定义插件上下文、Widget 渲染协议、主题上下文和初始化选项。 |
-| `src/api/graph_api_types.ts` | 定义节点创建、更新、移动、缩放和连线操作的公共输入类型。 |
-| `src/api/graph_api_host.ts` | 对外 facade，负责把内部运行时壳面收拢成稳定 API。 |
-
-### `src/graph`
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/graph/graph_runtime_assembly.ts` | 主包运行时总装配器，按固定顺序拼装全部宿主。 |
-| `src/graph/graph_entry_runtime.ts` | 入口运行时创建模块，负责默认图状态容器、默认装配参数和 `ready` 链初始化。 |
-| `src/graph/graph_widget_runtime_host.ts` | Widget 基础环境装配模块，负责主题宿主、Widget 注册表和编辑宿主初始化。 |
-| `src/graph/graph_scene_runtime_assembly.ts` | 场景运行时装配模块，负责节点、连线、Widget、交互和恢复宿主的接线。 |
-| `src/graph/graph_bootstrap_host.ts` | 启动装配宿主，负责内建 Widget 注册、模块安装、插件安装和初始图恢复。 |
-| `src/graph/graph_canvas_host.ts` | 画布宿主，负责创建 Leafer App、根图层和视口基础配置。 |
-| `src/graph/graph_scene_host.ts` | 场景桥接宿主，负责节点视图、连线视图与 Widget 写回的场景级入口。 |
-| `src/graph/graph_scene_runtime_host.ts` | 场景运行时壳面，统一收口场景刷新、连线刷新和正式图变更。 |
-| `src/graph/graph_mutation_host.ts` | 正式图变更宿主，负责节点和连线的增删改移。 |
-| `src/graph/graph_restore_host.ts` | 图恢复宿主，负责把正式图快照恢复到运行时场景。 |
-| `src/graph/graph_theme_host.ts` | 主题宿主，负责主题模式状态与主题切换调度。 |
-| `src/graph/graph_theme_runtime_host.ts` | 主题运行时桥接宿主，负责主题切换后的节点、连线和编辑宿主刷新。 |
-| `src/graph/graph_view_host.ts` | 视图宿主，负责坐标换算、聚焦、选中反馈和 `fitView()`。 |
-| `src/graph/graph_runtime_types.ts` | 图运行时共享类型定义。 |
-| `src/graph/graph_runtime_style.ts` | 图运行时默认样式、尺寸和主题常量。 |
-
-### `src/interaction`
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/interaction/context_menu.ts` | 右键菜单基础设施，负责 Leafer 菜单事件归一化和 DOM 菜单管理。 |
-| `src/interaction/graph_interaction_runtime_host.ts` | 交互运行时壳面，负责把拖拽、缩放、折叠等能力收敛给交互层使用。 |
-| `src/interaction/interaction_host.ts` | 交互宿主，负责节点拖拽、缩放、折叠按钮和窗口级指针生命周期。 |
-
-### `src/link`
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/link/link.ts` | 连线几何工具，负责路径、端点和切线计算。 |
-| `src/link/link_host.ts` | 连线宿主，负责连线视图创建、移除和联动刷新。 |
-
-### `src/node`
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/node/node_host.ts` | 节点视图宿主，负责节点视图创建、刷新和销毁。 |
-| `src/node/node_layout.ts` | 节点布局模块，负责节点壳、端口区和 Widget 区的尺寸计算。 |
-| `src/node/node_port.ts` | 端口布局模块，负责输入输出端口的锚点和几何计算。 |
-| `src/node/node_runtime_host.ts` | 节点运行时宿主，负责节点快照、折叠态、尺寸约束和 Widget 动作回抛。 |
-| `src/node/node_shell.ts` | 节点外壳视图构造模块。 |
-| `src/node/node_shell_host.ts` | 节点外壳宿主，负责缺失态、外壳渲染和 resize 约束解析。 |
-
-### `src/widgets`
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/widgets/widget_registry.ts` | 主包唯一 Widget 注册表。 |
-| `src/widgets/widget_host.ts` | Widget 渲染宿主，负责 mount、update、destroy 和缺失态回退。 |
-| `src/widgets/widget_editing.ts` | Widget 编辑宿主，负责文本编辑、菜单和焦点 DOM 管理。 |
-| `src/widgets/widget_interaction.ts` | Widget 交互工具，负责命中识别和常用交互绑定。 |
-| `src/widgets/widget_lifecycle.ts` | Widget 生命周期适配工具，把生命周期对象转成正式 renderer。 |
-
-### `src/widgets/basic`
-
-| 文件 | 说明 |
-| --- | --- |
-| `src/widgets/basic/index.ts` | 基础 Widget 库入口，负责汇总内建基础控件条目。 |
-| `src/widgets/basic/template.ts` | 基础 Widget 生命周期模板和通用控制器。 |
-| `src/widgets/basic/types.ts` | 基础 Widget 共享类型定义。 |
-| `src/widgets/basic/theme.ts` | 基础 Widget 亮暗主题 token 定义。 |
-| `src/widgets/basic/constants.ts` | 基础 Widget 共享尺寸与样式常量。 |
-| `src/widgets/basic/field_view.ts` | 可复用字段底座封装。 |
-| `src/widgets/basic/readonly_widget.ts` | 只读字段控件实现。 |
-| `src/widgets/basic/text_widget.ts` | `input` / `textarea` 控件实现。 |
-| `src/widgets/basic/select_widget.ts` | `select` 控件实现。 |
-| `src/widgets/basic/checkbox_widget.ts` | `checkbox` 控件实现。 |
-| `src/widgets/basic/radio_widget.ts` | `radio` 控件实现。 |
-| `src/widgets/basic/toggle_widget.ts` | `toggle` 控件实现。 |
-| `src/widgets/basic/slider_widget.ts` | `slider` 控件实现。 |
-| `src/widgets/basic/button_widget.ts` | `button` 控件实现。 |
-
-## 文档约定
-
-当前主包源码已经统一补充文件头文档注释，约定如下：
-
-- `src/index.ts`
-  - 使用 `@packageDocumentation`，作为包级文档锚点
-- 其它源码文件
-  - 使用 TSDoc 风格的文件头摘要和 `@remarks`
-  - 顶部注释只说明文件职责，不重复抄写实现细节
-- 导出的类、接口、函数
-  - 保持原有必要注释
-  - 只在复杂约束、运行时边界或非直觉行为处补充说明
-
-## 与其它包的边界
-
-- `@leafergraph/node`
-  - 只负责 Node SDK、注册、实例化、序列化和模块作用域
-- `leafergraph`
-  - 只负责图运行时宿主、渲染、交互基础设施和公共 API
-- `packages/editor`
-  - 只负责页面壳、工作分页、本地 bundle 装配和命令接线
+1. 先读这份 README 的边界和 API 导航
+2. 再看 [内部架构地图](./内部架构地图.md)
+3. 如果问题与刷新或执行时机相关，再看 [渲染刷新策略](./渲染刷新策略.md)
 
 ## 常用命令
 
@@ -272,12 +245,23 @@ packages/leafergraph
 
 ```bash
 bun run build:leafergraph
-bun run dev:editor
 bun run build
 ```
 
-如果修改了主包公开类型、运行时装配或 Widget 宿主，优先至少执行：
+如果你改的是主包文档或公开类型，至少跑一次：
 
 ```bash
 bun run build:leafergraph
 ```
+
+## 深链文档
+
+- [使用与扩展指南](./使用与扩展指南.md)
+  - 面向使用者
+  - 讲怎么创建图、同步文档、注册节点、装插件、扩 Widget、跑执行链
+- [内部架构地图](./内部架构地图.md)
+  - 面向维护者
+  - 讲装配链、目录职责、关键宿主和源码阅读顺序
+- [渲染刷新策略](./渲染刷新策略.md)
+  - 面向性能、刷新和执行链排查
+  - 讲整图替换、局部刷新、执行期刷新和 editor 消费链
