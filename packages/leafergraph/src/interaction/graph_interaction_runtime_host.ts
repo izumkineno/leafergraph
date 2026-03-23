@@ -19,6 +19,7 @@ import {
   PORT_DIRECTION_RIGHT,
   buildLinkPath
 } from "../link/link";
+import { resolveNodePortHitAreaBounds } from "../node/node_port";
 
 /** 多选拖拽时记录的单个节点初始位置。 */
 export interface GraphDragNodePosition {
@@ -601,19 +602,17 @@ function createConnectionPortState<
   state: TNodeViewState,
   portView: LeaferGraphInteractionPortViewLike
 ): LeaferGraphConnectionPortState {
+  const fallbackHitBounds = resolveNodePortHitAreaBounds(portView.layout);
   const hitX =
     state.state.layout.x +
-    coerceFiniteNumber(portView.hitArea.x, portView.layout.portX - 9);
+    coerceFiniteNumber(portView.hitArea.x, fallbackHitBounds.x);
   const hitY =
     state.state.layout.y +
-    coerceFiniteNumber(portView.hitArea.y, portView.layout.portY - 9);
-  const hitWidth = coerceFiniteNumber(
-    portView.hitArea.width,
-    portView.layout.portWidth + 18
-  );
+    coerceFiniteNumber(portView.hitArea.y, fallbackHitBounds.y);
+  const hitWidth = coerceFiniteNumber(portView.hitArea.width, fallbackHitBounds.width);
   const hitHeight = coerceFiniteNumber(
     portView.hitArea.height,
-    portView.layout.portHeight + 18
+    fallbackHitBounds.height
   );
 
   return {

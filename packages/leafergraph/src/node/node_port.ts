@@ -30,6 +30,16 @@ export interface NodeShellPortLayout {
   slotColor?: string;
 }
 
+export interface NodeShellPortHitAreaBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export const NODE_PORT_HIT_AREA_PADDING_X = 6;
+export const NODE_PORT_HIT_AREA_PADDING_Y = 8;
+
 /**
  * 某个节点的端口布局汇总结果。
  * 这里额外保留 `inputs / outputs / slotCount / slotStartY`，方便节点壳布局和锚点查询复用。
@@ -230,6 +240,18 @@ export function findNodePortLayout(
   return ports.find(
     (port) => port.direction === direction && port.index === safeIndex
   );
+}
+
+/** 端口命中框固定围绕 slot 本体展开，避免吞掉整行或干扰头部按钮。 */
+export function resolveNodePortHitAreaBounds(
+  port: Pick<NodeShellPortLayout, "portX" | "portY" | "portWidth" | "portHeight">
+): NodeShellPortHitAreaBounds {
+  return {
+    x: port.portX - NODE_PORT_HIT_AREA_PADDING_X,
+    y: port.portY - NODE_PORT_HIT_AREA_PADDING_Y,
+    width: port.portWidth + NODE_PORT_HIT_AREA_PADDING_X * 2,
+    height: port.portHeight + NODE_PORT_HIT_AREA_PADDING_Y * 2
+  };
 }
 
 /**

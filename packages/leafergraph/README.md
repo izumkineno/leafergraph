@@ -10,6 +10,10 @@
 - 主题、交互、右键菜单与 Widget 编辑宿主
 - 对 editor 和外部工程暴露稳定的公共 API
 
+相关文档：
+
+- [渲染刷新策略](./渲染刷新策略.md)
+
 ## 架构总览
 
 当前主包已经整理成 `api / graph / interaction / node / link / widgets` 六类源码目录。

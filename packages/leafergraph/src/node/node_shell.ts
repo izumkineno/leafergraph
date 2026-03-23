@@ -8,7 +8,10 @@
 import "@leafer-in/flow";
 import { Box, Group, Path, Rect, Text } from "leafer-ui";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./node_layout";
-import type { NodeShellPortLayout } from "./node_port";
+import {
+  resolveNodePortHitAreaBounds,
+  type NodeShellPortLayout
+} from "./node_port";
 
 /**
  * 节点壳渲染需要的样式主题。
@@ -286,11 +289,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   }
 
   for (const port of shellLayout.ports) {
-    const portHitAreaWidth = port.portWidth + 18;
-    const portHitAreaX =
-      port.direction === "input"
-        ? 0
-        : Math.max(0, shellLayout.width - portHitAreaWidth);
+    const portHitAreaBounds = resolveNodePortHitAreaBounds(port);
     const portHighlight = new Rect({
       x: port.portX - 4,
       y: port.portY - 4,
@@ -334,10 +333,10 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     });
     const portHitArea = new Rect({
       name: `node-port-hit-${nodeId}-${port.direction}-${port.index}`,
-      x: portHitAreaX,
-      y: port.portY - 9,
-      width: portHitAreaWidth,
-      height: port.portHeight + 18,
+      x: portHitAreaBounds.x,
+      y: portHitAreaBounds.y,
+      width: portHitAreaBounds.width,
+      height: portHitAreaBounds.height,
       fill: "rgba(255, 255, 255, 0.001)",
       stroke: "transparent",
       strokeWidth: 0,
