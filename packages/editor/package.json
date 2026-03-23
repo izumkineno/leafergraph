@@ -31,16 +31,24 @@
     "./ui/node-library-preview/styles.css": "./src/ui/node-library-preview/styles.css"
   },
   "scripts": {
-    "dev": "vite",
-    "dev:lan": "vite --mode lan --host 0.0.0.0",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "generate:authority-openrpc": "bun ./tools/generate_from_openrpc.ts",
+    "check:authority-openrpc": "bun ./tools/generate_from_openrpc.ts --check",
+    "dev": "bun run generate:authority-openrpc && vite",
+    "dev:lan": "bun run generate:authority-openrpc && vite --mode lan --host 0.0.0.0",
+    "build": "bun run generate:authority-openrpc && tsc && vite build",
+    "preview": "vite preview",
+    "test:unit": "bun run generate:authority-openrpc && bun test ./tests",
+    "test:e2e:preview": "bun run build && playwright test --config=playwright.config.ts --project=preview",
+    "test:e2e:python": "bun run build && playwright test --config=playwright.config.ts --project=python",
+    "test": "bun run test:unit && bun run test:e2e:preview"
   },
   "dependencies": {
     "leafergraph": "0.1.0",
     "preact": "^10.26.9"
   },
   "devDependencies": {
-    "@preact/preset-vite": "^2.10.2"
+    "@playwright/test": "^1.53.2",
+    "@preact/preset-vite": "^2.10.2",
+    "preact-render-to-string": "^6.5.13"
   }
 }

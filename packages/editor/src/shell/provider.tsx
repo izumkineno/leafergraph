@@ -30,6 +30,10 @@ import {
   type EditorTheme
 } from "../theme";
 import {
+  persistWorkspacePaneOpen,
+  resolveInitialWorkspacePaneOpen
+} from "./workspace_preferences";
+import {
   EDITOR_LEAFER_DEBUG_STORAGE_KEY,
   applyLeaferDebugSettings,
   createDefaultEditorLeaferDebugSettings,
@@ -106,6 +110,10 @@ import {
   type RunConsoleTab,
   type WorkspaceSettingsTab
 } from "./editor_controller";
+import {
+  EditorErrorBoundary,
+  type EditorErrorBoundaryProps
+} from "./error_boundary";
 type RemoteRuntimeControlNotice = GraphViewportRemoteRuntimeControlNotice;
 
 const TOOLBAR_ACTION_GROUPS = ["history", "selection"] as const;
@@ -538,6 +546,7 @@ export interface EditorProviderProps {
 export interface EditorShellProps {}
 
 export type AppProps = CreateEditorControllerOptions;
+export type { EditorErrorBoundaryProps };
 
 export function useEditorContext(): EditorContextValue {
   const value = useContext(EditorContext);
@@ -570,21 +579,28 @@ export function EditorProvider({
         typeof window === "undefined" ? undefined : window.innerWidth
       )
     );
+  const hasAppliedAdaptivePresetRef = useRef(false);
   const [leftPaneOpen, setLeftPaneOpen] = useState(
-    resolveWorkspacePanePresentation(
-      resolveWorkspaceAdaptiveMode(
-        typeof window === "undefined" ? undefined : window.innerWidth
-      ),
-      "left"
-    ) === "docked"
+    resolveInitialWorkspacePaneOpen(
+      "left",
+      resolveWorkspacePanePresentation(
+        resolveWorkspaceAdaptiveMode(
+          typeof window === "undefined" ? undefined : window.innerWidth
+        ),
+        "left"
+      ) === "docked"
+    )
   );
   const [rightPaneOpen, setRightPaneOpen] = useState(
-    resolveWorkspacePanePresentation(
-      resolveWorkspaceAdaptiveMode(
-        typeof window === "undefined" ? undefined : window.innerWidth
-      ),
-      "right"
-    ) === "docked"
+    resolveInitialWorkspacePaneOpen(
+      "right",
+      resolveWorkspacePanePresentation(
+        resolveWorkspaceAdaptiveMode(
+          typeof window === "undefined" ? undefined : window.innerWidth
+        ),
+        "right"
+      ) === "docked"
+    )
   );
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
@@ -680,6 +696,12 @@ export function EditorProvider({
   }, []);
 
   useEffect(() => {
+    if (!hasAppliedAdaptivePresetRef.current) {
+      hasAppliedAdaptivePresetRef.current = true;
+      setWorkspaceMenuOpen(false);
+      return;
+    }
+
     if (workspaceAdaptiveMode === "wide-desktop") {
       setLeftPaneOpen(true);
       setRightPaneOpen(true);
@@ -1229,6 +1251,14 @@ export function EditorProvider({
     document.documentElement.style.colorScheme = theme;
     window.localStorage.setItem(EDITOR_THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    persistWorkspacePaneOpen("left", leftPaneOpen);
+  }, [leftPaneOpen]);
+
+  useEffect(() => {
+    persistWorkspacePaneOpen("right", rightPaneOpen);
+  }, [rightPaneOpen]);
 
   useEffect(() => {
     applyLeaferDebugSettings(leaferDebugSettings);
@@ -4630,8 +4660,10 @@ export function App(props: AppProps) {
   );
 
   return (
-    <EditorProvider controller={controller}>
-      <EditorShell />
-    </EditorProvider>
+    <EditorErrorBoundary>
+      <EditorProvider controller={controller}>
+        <EditorShell />
+      </EditorProvider>
+    </EditorErrorBoundary>
   );
 }

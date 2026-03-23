@@ -8,6 +8,10 @@ export {
   type EditorShellProps
 } from "./shell/provider";
 export {
+  EditorErrorBoundary,
+  type EditorErrorBoundaryProps
+} from "./shell/error_boundary";
+export {
   createEditorController,
   type CreateEditorControllerOptions,
   type EditorController,
