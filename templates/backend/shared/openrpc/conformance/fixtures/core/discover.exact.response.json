@@ -1,0 +1,4 @@
+{
+  "mode": "result-equals-file",
+  "payloadFile": "../../../authority.openrpc.json"
+}

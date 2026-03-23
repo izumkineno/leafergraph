@@ -1,0 +1,12 @@
+{
+  "mode": "subset",
+  "payload": {
+    "method": "authority.runtimeFeedback",
+    "params": {
+      "type": "link.propagation",
+      "event": {
+        "linkId": "link:counter->display"
+      }
+    }
+  }
+}

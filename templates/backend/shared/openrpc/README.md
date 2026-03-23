@@ -2,13 +2,28 @@
 
 这份目录保存 LeaferGraph authority 通信的唯一协议真源。
 
+## 深入文档
+
+- [`CROSS_LANGUAGE_CONFORMANCE.md`](./CROSS_LANGUAGE_CONFORMANCE.md)
+  解释 authority 协议怎样被任意语言后端实现，以及 Core / Advanced 分层验收边界。
+- [`OPENRPC_JSON_REFERENCE.md`](./OPENRPC_JSON_REFERENCE.md)
+  逐个解释 `shared/openrpc` 下全部 31 个 JSON 真源与 schema 文件，适合查目录、查引用和查边界。
+- [`APIFOX_TEST_PLAYBOOK.md`](./APIFOX_TEST_PLAYBOOK.md)
+  面向测试和联调的 Apifox 操作手册，说明怎样在 Apifox 中调试 `GET /health` 与 `WS /authority`。
+- [`PYTHON_BACKEND_INTEGRATION.md`](./PYTHON_BACKEND_INTEGRATION.md)
+  结合 Python OpenRPC backend 的生成链、service 编排、transport 发包、document diff 与测试证据的完整说明。
+- [`openrpc-adaptation-pitfalls.md`](./openrpc-adaptation-pitfalls.md)
+  适配这套 authority 协议时最容易踩雷的边界与建议做法。
+
 ## 文档入口
 
-- `authority.openrpc.json`
+- [`authority.openrpc.json`](./authority.openrpc.json)
   正式 OpenRPC 文档本体。
-- `schemas/`
+- [`schemas/`](./schemas/)
   共享 JSON Schema 拆分目录。
-- `openrpc-adaptation-pitfalls.md`
+- [`conformance/`](./conformance/)
+  跨语言接入的共享一致性场景、fixtures 和 runner 入口说明。
+- [`openrpc-adaptation-pitfalls.md`](./openrpc-adaptation-pitfalls.md)
   适配这套 authority 协议时最容易踩雷的边界与建议做法。
 
 ## 它描述什么
@@ -51,6 +66,8 @@
 
 - `authority.document`
   authority 主动推送最新权威图文档。
+- `authority.documentDiff`
+  authority 在已知连接 baseline 时优先推送增量 diff。
 - `authority.runtimeFeedback`
   authority 主动推送统一运行反馈事件。
 - `authority.frontendBundlesSync`
@@ -77,10 +94,40 @@
 
 - Python OpenRPC 模板协议常量：
   `templates/backend/python-openrpc-authority-template/src/leafergraph_python_openrpc_authority_template/core/protocol.py`
+- Python OpenRPC 模板 generated 常量：
+  `templates/backend/python-openrpc-authority-template/src/leafergraph_python_openrpc_authority_template/_generated/`
 - editor 协议常量：
-  `packages/editor/src/session/graph_document_authority_protocol.ts`
+  `packages/editor/src/session/authority_openrpc/`
+  正式生成入口是 `authority_openrpc/_generated/` 与 `authority_openrpc/runtime.ts`
 
 当前仓库里所有 authority 入口都必须和这份 OpenRPC 文档保持同一组 method / notification 名称，不能再定义平行真源。
+
+`APIFOX_TEST_PLAYBOOK.md` 只是测试消费文档，不是新的协议真源；正式真源仍然只有 `authority.openrpc.json + schemas/*.json`。
+
+`CROSS_LANGUAGE_CONFORMANCE.md` 与 `conformance/` 只定义跨语言接入规范与验收资产，不是新的协议真源，也不替代现有 OpenRPC / JSON Schema 文档。
+
+当前第一位共享 conformance 参考消费者是 Python OpenRPC 模板，对应测试入口为：
+
+- `templates/backend/python-openrpc-authority-template/tests/test_conformance_assets.py`
+- `templates/backend/python-openrpc-authority-template/tests/test_conformance_runner.py`
+
+从仓库根目录的可见 PowerShell 中可直接执行：
+
+```powershell
+uv run --project templates/backend/python-openrpc-authority-template pytest templates/backend/python-openrpc-authority-template/tests/test_conformance_assets.py
+uv run --project templates/backend/python-openrpc-authority-template pytest templates/backend/python-openrpc-authority-template/tests/test_conformance_runner.py
+```
+
+## Editor 生成链维护
+
+- editor 侧 authority OpenRPC 生成器：
+  `packages/editor/tools/generate_from_openrpc.ts`
+- editor 手动生成命令：
+  `bun run --filter leafergraph-editor generate:authority-openrpc`
+- editor stale 校验命令：
+  `bun run --filter leafergraph-editor check:authority-openrpc`
+
+若共享 `authority.openrpc.json` 或 `schemas/*.schema.json` 改动后 `check:authority-openrpc` 失败，默认修复方式就是重新执行一次生成命令，再回跑 editor build / authority 相关测试。
 
 ## 稳定字段与保留扩展字段
 
@@ -102,6 +149,7 @@
 - Node 协议常量与 discover 读取逻辑
 - Python 协议常量与 discover 读取逻辑
 - editor 协议常量、MessagePort host、transport 解析
+  当前 editor 侧的正式协议生成入口已经收口到 `packages/editor/src/session/authority_openrpc/`
 - 远端 demo fixture 与相关测试
 
 如果协议已改而上述任一侧没同步，当前仓库里的 discover / 常量一致性测试应直接失败。

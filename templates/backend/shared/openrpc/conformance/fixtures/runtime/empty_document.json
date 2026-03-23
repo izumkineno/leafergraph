@@ -1,0 +1,10 @@
+{
+  "documentId": "conformance-empty-doc",
+  "revision": 0,
+  "appKind": "leafergraph",
+  "nodes": [],
+  "links": [],
+  "meta": {
+    "source": "conformance"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "jsonrpc": "2.0",
+  "id": "replace-document-changed-1",
+  "method": "authority.replaceDocument",
+  "params": {
+    "document": {
+      "documentId": "conformance-empty-doc",
+      "revision": 0,
+      "appKind": "remote-demo",
+      "nodes": [],
+      "links": [],
+      "meta": {
+        "source": "conformance"
+      }
+    },
+    "context": {
+      "currentDocument": "__CURRENT_DOCUMENT__"
+    }
+  }
+}

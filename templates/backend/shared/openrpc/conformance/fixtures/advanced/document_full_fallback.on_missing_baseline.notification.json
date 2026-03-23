@@ -1,0 +1,16 @@
+{
+  "mode": "subset",
+  "payload": {
+    "method": "authority.document",
+    "params": {
+      "documentId": "conformance-empty-doc",
+      "revision": "__ANY_STRING_OR_NUMBER__",
+      "nodes": [
+        {
+          "id": "conformance-full-node",
+          "type": "demo/node"
+        }
+      ]
+    }
+  }
+}

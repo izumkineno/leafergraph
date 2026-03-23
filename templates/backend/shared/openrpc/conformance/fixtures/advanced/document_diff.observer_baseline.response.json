@@ -1,0 +1,18 @@
+{
+  "mode": "subset",
+  "payload": {
+    "result": {
+      "accepted": true,
+      "changed": true,
+      "document": {
+        "documentId": "conformance-empty-doc",
+        "nodes": [
+          {
+            "id": "conformance-diff-node",
+            "type": "demo/node"
+          }
+        ]
+      }
+    }
+  }
+}

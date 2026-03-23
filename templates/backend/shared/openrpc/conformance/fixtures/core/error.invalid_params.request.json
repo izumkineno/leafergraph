@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "id": "error-invalid-params-1",
+  "method": "authority.controlRuntime",
+  "params": {
+    "request": {
+      "type": "graph.play",
+      "unexpected": true
+    }
+  }
+}

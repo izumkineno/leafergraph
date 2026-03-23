@@ -1,0 +1,15 @@
+{
+  "mode": "subset",
+  "payload": {
+    "result": {
+      "documentId": "conformance-empty-doc",
+      "revision": "__ANY_STRING_OR_NUMBER__",
+      "appKind": "remote-demo",
+      "nodes": [],
+      "links": [],
+      "meta": {
+        "source": "conformance"
+      }
+    }
+  }
+}

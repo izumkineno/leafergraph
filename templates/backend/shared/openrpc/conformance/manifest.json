@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "levels": {
+    "core": "最小互通要求，覆盖 health、discover、正式 methods、authority.document 全量同步和客户端侧标准错误码。",
+    "advanced": "参考模板高级兼容，覆盖 documentDiff baseline/fallback、runtimeFeedback、frontendBundlesSync 和 observer 语义。"
+  },
+  "scenarios": [
+    {
+      "id": "health.ok",
+      "level": "core",
+      "channel": "http",
+      "preconditions": [],
+      "requestFixture": null,
+      "expectedResponseFixture": "fixtures/core/health.ok.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "GET /health 必须可用，并返回 authority 存活与当前文档身份。"
+    },
+    {
+      "id": "discover.exact",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [],
+      "requestFixture": "fixtures/core/discover.exact.request.json",
+      "expectedResponseFixture": "fixtures/core/discover.exact.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "rpc.discover 的 result 必须与共享 authority.openrpc.json 精确一致。"
+    },
+    {
+      "id": "get_document.empty",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/empty_document.json"
+        }
+      ],
+      "requestFixture": "fixtures/core/get_document.empty.request.json",
+      "expectedResponseFixture": "fixtures/core/get_document.empty.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "authority.getDocument 在已知空文档 baseline 上应返回完整 GraphDocument。"
+    },
+    {
+      "id": "replace_document.changed",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/empty_document.json"
+        }
+      ],
+      "requestFixture": "fixtures/core/replace_document.changed.request.json",
+      "expectedResponseFixture": "fixtures/core/replace_document.changed.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "authority.replaceDocument 应接受整图替换并返回新的 authoritative 文档。"
+    },
+    {
+      "id": "submit_operation.node_create",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/empty_document.json"
+        }
+      ],
+      "requestFixture": "fixtures/core/submit_operation.node_create.request.json",
+      "expectedResponseFixture": "fixtures/core/submit_operation.node_create.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "authority.submitOperation 应能在空文档上完成一次 node.create。"
+    },
+    {
+      "id": "document.full_sync.observer_notification",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/empty_document.json"
+        },
+        {
+          "kind": "openConnection",
+          "connection": "observer"
+        },
+        {
+          "kind": "bootstrapBaseline",
+          "connection": "primary"
+        }
+      ],
+      "requestFixture": "fixtures/advanced/document_full_fallback.on_missing_baseline.request.json",
+      "expectedResponseFixture": "fixtures/advanced/document_full_fallback.on_missing_baseline.response.json",
+      "expectedNotificationFixtures": [
+        "fixtures/advanced/document_full_fallback.on_missing_baseline.notification.json"
+      ],
+      "notes": "observer 未建立 baseline 时，至少必须能收到 authority.document 全量同步。"
+    },
+    {
+      "id": "control_runtime.graph_step",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/template_execution_document.json"
+        }
+      ],
+      "requestFixture": "fixtures/core/control_runtime.graph_step.request.json",
+      "expectedResponseFixture": "fixtures/core/control_runtime.graph_step.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "authority.controlRuntime 应能对参考 runtime fixture 成功执行 graph.step。"
+    },
+    {
+      "id": "error.parse_error",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [],
+      "requestFixture": "fixtures/core/error.parse_error.request.txt",
+      "expectedResponseFixture": "fixtures/core/error.parse_error.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "非法 JSON 必须返回 -32700。"
+    },
+    {
+      "id": "error.invalid_request",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [],
+      "requestFixture": "fixtures/core/error.invalid_request.request.json",
+      "expectedResponseFixture": "fixtures/core/error.invalid_request.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "非法 JSON-RPC envelope 必须返回 -32600。"
+    },
+    {
+      "id": "error.method_not_found",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [],
+      "requestFixture": "fixtures/core/error.method_not_found.request.json",
+      "expectedResponseFixture": "fixtures/core/error.method_not_found.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "未知 method 必须返回 -32601。"
+    },
+    {
+      "id": "error.invalid_params",
+      "level": "core",
+      "channel": "ws",
+      "preconditions": [],
+      "requestFixture": "fixtures/core/error.invalid_params.request.json",
+      "expectedResponseFixture": "fixtures/core/error.invalid_params.response.json",
+      "expectedNotificationFixtures": [],
+      "notes": "params 不符合 schema 时必须返回 -32602。"
+    },
+    {
+      "id": "frontend_bundles.initial_full_snapshot",
+      "level": "advanced",
+      "channel": "ws",
+      "preconditions": [],
+      "requestFixture": null,
+      "expectedResponseFixture": null,
+      "expectedNotificationFixtures": [
+        "fixtures/advanced/frontend_bundles.initial_full_snapshot.notification.json"
+      ],
+      "notes": "连接建立后应先收到 authority.frontendBundlesSync full snapshot。"
+    },
+    {
+      "id": "document_diff.observer_baseline",
+      "level": "advanced",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/empty_document.json"
+        },
+        {
+          "kind": "openConnection",
+          "connection": "observer"
+        },
+        {
+          "kind": "bootstrapBaseline",
+          "connection": "primary"
+        },
+        {
+          "kind": "bootstrapBaseline",
+          "connection": "observer"
+        }
+      ],
+      "requestFixture": "fixtures/advanced/document_diff.observer_baseline.request.json",
+      "expectedResponseFixture": "fixtures/advanced/document_diff.observer_baseline.response.json",
+      "expectedNotificationFixtures": [
+        "fixtures/advanced/document_diff.observer_baseline.notification.json"
+      ],
+      "notes": "primary 与 observer 都建立 baseline 后，observer 应收到 authority.documentDiff。"
+    },
+    {
+      "id": "runtime_feedback.step_chain",
+      "level": "advanced",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/template_execution_document.json"
+        },
+        {
+          "kind": "bootstrapBaseline",
+          "connection": "primary"
+        }
+      ],
+      "requestFixture": "fixtures/core/control_runtime.graph_step.request.json",
+      "expectedResponseFixture": "fixtures/core/control_runtime.graph_step.response.json",
+      "expectedNotificationFixtures": [
+        "fixtures/advanced/runtime_feedback.step_chain.notification.graph_execution.json",
+        "fixtures/advanced/runtime_feedback.step_chain.notification.node_execution.json",
+        "fixtures/advanced/runtime_feedback.step_chain.notification.link_propagation.json",
+        "fixtures/advanced/runtime_feedback.step_chain.notification.document_diff.json"
+      ],
+      "notes": "graph.step 期间应能观测到 runtimeFeedback 与文档增量同步。"
+    },
+    {
+      "id": "document_full_fallback.on_missing_baseline",
+      "level": "advanced",
+      "channel": "ws",
+      "preconditions": [
+        {
+          "kind": "replaceDocument",
+          "connection": "primary",
+          "fixture": "fixtures/runtime/empty_document.json"
+        },
+        {
+          "kind": "openConnection",
+          "connection": "observer"
+        },
+        {
+          "kind": "bootstrapBaseline",
+          "connection": "primary"
+        }
+      ],
+      "requestFixture": "fixtures/advanced/document_full_fallback.on_missing_baseline.request.json",
+      "expectedResponseFixture": "fixtures/advanced/document_full_fallback.on_missing_baseline.response.json",
+      "expectedNotificationFixtures": [
+        "fixtures/advanced/document_full_fallback.on_missing_baseline.notification.json"
+      ],
+      "notes": "支持 diff 的 authority 在 observer 没有 baseline 时，必须回退成 authority.document 而不是发 diff。"
+    }
+  ]
+}

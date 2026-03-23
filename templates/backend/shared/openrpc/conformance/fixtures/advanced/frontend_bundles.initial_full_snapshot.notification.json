@@ -1,0 +1,12 @@
+{
+  "mode": "subset",
+  "payload": {
+    "method": "authority.frontendBundlesSync",
+    "params": {
+      "type": "frontendBundles.sync",
+      "mode": "full",
+      "packages": "__ANY__",
+      "emittedAt": "__ANY_NUMBER__"
+    }
+  }
+}

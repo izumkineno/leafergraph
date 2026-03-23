@@ -1,0 +1,13 @@
+{
+  "mode": "subset",
+  "payload": {
+    "method": "authority.runtimeFeedback",
+    "params": {
+      "type": "node.execution",
+      "event": {
+        "nodeId": "counter",
+        "sequence": 1
+      }
+    }
+  }
+}

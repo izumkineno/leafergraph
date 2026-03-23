@@ -1,0 +1,5 @@
+{
+  "jsonrpc": "2.0",
+  "id": "error-method-not-found-1",
+  "method": "authority.unknown"
+}

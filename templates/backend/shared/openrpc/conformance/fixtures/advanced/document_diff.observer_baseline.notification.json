@@ -1,0 +1,20 @@
+{
+  "mode": "subset",
+  "payload": {
+    "method": "authority.documentDiff",
+    "params": {
+      "documentId": "conformance-empty-doc",
+      "baseRevision": "__ANY_STRING_OR_NUMBER__",
+      "revision": "__ANY_STRING_OR_NUMBER__",
+      "operations": [
+        {
+          "type": "node.create",
+          "input": {
+            "id": "conformance-diff-node",
+            "type": "demo/node"
+          }
+        }
+      ]
+    }
+  }
+}

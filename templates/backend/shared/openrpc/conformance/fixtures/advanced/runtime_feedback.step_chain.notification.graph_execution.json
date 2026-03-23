@@ -1,0 +1,15 @@
+{
+  "mode": "subset",
+  "payload": {
+    "method": "authority.runtimeFeedback",
+    "params": {
+      "type": "graph.execution",
+      "event": {
+        "type": "started",
+        "state": {
+          "status": "stepping"
+        }
+      }
+    }
+  }
+}

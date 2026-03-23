@@ -1,0 +1,13 @@
+{
+  "mode": "subset",
+  "payload": {
+    "result": {
+      "accepted": true,
+      "changed": true,
+      "state": {
+        "status": "idle",
+        "stepCount": 1
+      }
+    }
+  }
+}

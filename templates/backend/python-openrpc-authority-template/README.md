@@ -146,6 +146,8 @@ flowchart LR
 - `rpc.discover`：返回共享 OpenRPC 文档
 - 共享真源：`templates/backend/shared/openrpc/authority.openrpc.json`
 - 协议说明：`templates/backend/shared/openrpc/README.md`
+- 跨语言 conformance：`templates/backend/shared/openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
+- conformance 资产入口：`templates/backend/shared/openrpc/conformance/README.md`
 - 适配踩雷清单：`templates/backend/shared/openrpc/openrpc-adaptation-pitfalls.md`
 
 固定 methods：
@@ -158,6 +160,7 @@ flowchart LR
 固定 notifications：
 
 - `authority.document`
+- `authority.documentDiff`
 - `authority.runtimeFeedback`
 - `authority.frontendBundlesSync`
 
@@ -197,6 +200,35 @@ uv run python tools/generate_from_openrpc.py --check
 uv run pytest tests
 uv run python -m leafergraph_python_openrpc_authority_template.entry
 ```
+
+## Conformance 验收
+
+共享 conformance 资产位于：
+
+- `templates/backend/shared/openrpc/CROSS_LANGUAGE_CONFORMANCE.md`
+- `templates/backend/shared/openrpc/conformance/manifest.json`
+- `templates/backend/shared/openrpc/conformance/fixtures/`
+
+当前 Python 模板已经把自己作为这套共享资产的第一位参考消费者，推荐至少跑下面两组测试：
+
+```powershell
+uv run pytest tests/test_conformance_assets.py
+uv run pytest tests/test_conformance_runner.py
+```
+
+如果你想只验证 `core` 层级，可以在可见 PowerShell 里这样执行：
+
+```powershell
+$env:LEAFERGRAPH_AUTHORITY_CONFORMANCE_LEVEL = "core"
+uv run pytest tests/test_conformance_runner.py
+Remove-Item Env:LEAFERGRAPH_AUTHORITY_CONFORMANCE_LEVEL
+```
+
+若要拿这套 runner 去验收外部语言后端，则额外设置：
+
+- `LEAFERGRAPH_AUTHORITY_CONFORMANCE_HTTP_BASE_URL`
+- `LEAFERGRAPH_AUTHORITY_CONFORMANCE_WS_URL`
+- `LEAFERGRAPH_AUTHORITY_CONFORMANCE_LEVEL`
 
 默认监听：
 

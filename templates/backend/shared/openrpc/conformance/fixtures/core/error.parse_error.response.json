@@ -1,0 +1,8 @@
+{
+  "mode": "subset",
+  "payload": {
+    "error": {
+      "code": -32700
+    }
+  }
+}
