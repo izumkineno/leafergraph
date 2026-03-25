@@ -523,6 +523,14 @@ bun run build:editor
 bun run preview:editor
 ```
 
+### Bun Workspace 注意事项
+
+- `leafergraph` 是 Bun monorepo。模板工程或子包只要依赖仓库内其他包，必须在根 `package.json` 的 `workspaces` 中声明，并使用 `workspace:*`，不要写成会去 npm registry 拉取的普通版本号。
+- `link:` 仅用于 `bun link` 注册过的本地包，不作为本仓库 workspace 包互相依赖的默认写法。
+- 新增模板或子包后，优先在 `E:\Code\Node_editor\leafergraph` 根目录执行 `bun install`；如果直接在子目录执行 `bun install`，也必须先确认该目录已经被根 workspace 纳入。
+- Bun 默认会安装 `peerDependencies`。如果模板工程只是本仓库内开发样例，不希望额外触发 peer 安装或误拉外部 registry，优先在模板目录增加 `bunfig.toml` 并设置 `[install] peer = false`。
+- 如果安装过程被中断，可能留下不完整的 `node_modules`、临时锁文件或缓存拷贝残留，重试前应先检查目录状态，避免把半安装状态误判成依赖规则错误。
+
 要求如下：
 
 - 涉及核心库改动时，至少执行 `bun run build:leafergraph`
