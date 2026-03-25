@@ -235,6 +235,26 @@ describe("bundle catalog helpers", () => {
 });
 
 describe("bundle source loaders", () => {
+  test("ensureEditorBundleRuntimeGlobals 应暴露 authoring 与 runtime 全局", () => {
+    runtimeModule.ensureEditorBundleRuntimeGlobals();
+
+    const bundleHost = globalThis as typeof globalThis & {
+      LeaferGraphRuntime?: typeof import("leafergraph");
+      LeaferGraphAuthoring?: typeof import("@leafergraph/authoring");
+      LeaferGraphEditorBundleBridge?: {
+        registerBundle(manifest: unknown): void;
+      };
+    };
+
+    expect(typeof bundleHost.LeaferGraphRuntime?.createLeaferGraph).toBe("function");
+    expect(typeof bundleHost.LeaferGraphAuthoring?.createAuthoringPlugin).toBe(
+      "function"
+    );
+    expect(
+      typeof bundleHost.LeaferGraphEditorBundleBridge?.registerBundle
+    ).toBe("function");
+  });
+
   test("应支持从本地 node JSON 直接生成节点 bundle manifest", async () => {
     const manifest = await runtimeModule.loadEditorBundleSource(
       "node",

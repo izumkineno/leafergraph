@@ -72,3 +72,51 @@ test("本地模式应支持 bundle 导入恢复、节点预览创建和基础画
     "当前 Demo"
   );
 });
+
+test("本地模式应支持 authoring widget/node/demo bundle 联调", async ({
+  page
+}) => {
+  const editor = new EditorPage(page);
+  const workspaceDialog = editor.workspaceDialog("Workspace Settings");
+
+  await editor.goto("/");
+  await editor.openWorkspaceSettings();
+  await editor.uploadBundle("Widget Bundles", TEST_BUNDLE_PATHS.authoringWidget);
+  await editor.uploadBundle("Node Bundles", TEST_BUNDLE_PATHS.authoringNode);
+  await editor.uploadBundle("Demo Bundles", TEST_BUNDLE_PATHS.authoringDemo);
+
+  await expect(workspaceDialog).toContainText(
+    basename(TEST_BUNDLE_PATHS.authoringWidget)
+  );
+  await expect(workspaceDialog).toContainText(
+    basename(TEST_BUNDLE_PATHS.authoringNode)
+  );
+  await expect(workspaceDialog).toContainText(
+    basename(TEST_BUNDLE_PATHS.authoringDemo)
+  );
+
+  await workspaceDialog
+    .getByRole("button", { name: "切换为当前 Demo" })
+    .click();
+  await expect(workspaceDialog).toContainText("当前 Demo");
+  await editor.closeActiveDialog();
+
+  await editor.searchNodes("Authoring Status Node");
+  const nodeItem = editor.nodeLibraryItem("Authoring Status Node");
+  await nodeItem.hover();
+  await expect(page.getByText("Node Preview")).toBeVisible();
+  await nodeItem.click();
+  await expect(page.locator(".workspace-sidebar--right")).toContainText(
+    "Authoring Status Node"
+  );
+  await expect(editor.statusbar).toContainText("已选 1 个节点");
+
+  await page.reload();
+  await editor.openWorkspaceSettings();
+  await expect(editor.workspaceDialog("Workspace Settings")).toContainText(
+    "已从浏览器恢复"
+  );
+  await expect(editor.workspaceDialog("Workspace Settings")).toContainText(
+    "当前 Demo"
+  );
+});

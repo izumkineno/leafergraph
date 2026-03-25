@@ -11,7 +11,7 @@
 - 命令总线、历史、交互提交桥与运行控制
 - LeaferGraph 画布挂载、运行反馈投影与 inspector/statusbar/run console 展示
 
-当前工作树下，索引范围共收录 `191` 个非琐碎文件，详见 [`FILE_INDEX.md`](./FILE_INDEX.md)。
+当前工作树下，索引范围共收录 `194` 个非琐碎文件，详见 [`FILE_INDEX.md`](./FILE_INDEX.md)。
 
 ## 2. 带注释目录骨架
 
@@ -27,7 +27,7 @@ packages/editor
 ├─ authority-python-host-demo.html        # Python WebSocket authority demo 页面入口
 ├─ public
 │  ├─ favicon.svg                         # 页面图标
-│  └─ __testbundles                       # 手工维护的 bundle 样例，用于 loader 和 demo
+│  └─ __testbundles                       # 手工维护的 bundle 样例，用于 loader、demo 和 authoring 外部 bundle 实验
 ├─ src
 │  ├─ main.tsx                            # 浏览器启动入口
 │  ├─ index.ts / backend.ts / ui.ts       # 公共导出面
@@ -272,6 +272,7 @@ sequenceDiagram
 2. provider 恢复浏览器持久化 bundle 记录
 3. 用户也可以通过 workspace settings/extensions 手动选择本地 bundle 文件
 4. `loader/runtime.ts` 校验 manifest、槽位、依赖与 document/plugin 内容
+   script bundle 运行时会额外暴露 `LeaferGraphRuntime + LeaferGraphAuthoring + LeaferGraphEditorBundleBridge`
 5. provider 把 catalog 求值为当前 `runtimeSetup`
 6. `runtimeSetup.plugins` 与 `effectiveDocument` 一起传给 `GraphViewport`
 7. `GraphViewport` 用这些插件创建 `LeaferGraph`

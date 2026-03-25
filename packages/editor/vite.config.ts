@@ -6,6 +6,9 @@ import { defineConfig } from "vite";
 const leafergraphEntry = fileURLToPath(
   new URL("../leafergraph/src/index.ts", import.meta.url)
 );
+const authoringEntry = fileURLToPath(
+  new URL("../authoring/src/index.ts", import.meta.url)
+);
 
 const editorHtmlEntries = {
   index: fileURLToPath(new URL("./index.html", import.meta.url)),
@@ -23,7 +26,8 @@ export default defineConfig(({ mode }) => {
     plugins: [preact()],
     resolve: {
       alias: {
-        leafergraph: leafergraphEntry
+        leafergraph: leafergraphEntry,
+        "@leafergraph/authoring": authoringEntry
       }
     },
     server: {

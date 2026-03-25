@@ -1,4 +1,5 @@
 import * as LeaferGraphRuntime from "leafergraph";
+import * as LeaferGraphAuthoring from "@leafergraph/authoring";
 import type { GraphDocument, LeaferGraphNodePlugin } from "leafergraph";
 import type { NodeDefinition } from "@leafergraph/node";
 
@@ -549,12 +550,14 @@ function normalizeBundleManifest(
 export function ensureEditorBundleRuntimeGlobals(): void {
   const bundleHost = globalThis as typeof globalThis & {
     LeaferGraphRuntime?: typeof import("leafergraph");
+    LeaferGraphAuthoring?: typeof import("@leafergraph/authoring");
     LeaferGraphEditorBundleBridge?: {
       registerBundle(manifest: EditorBundleManifest): void;
     };
   };
 
   bundleHost.LeaferGraphRuntime = LeaferGraphRuntime;
+  bundleHost.LeaferGraphAuthoring = LeaferGraphAuthoring;
   bundleHost.LeaferGraphEditorBundleBridge = {
     registerBundle(manifest: EditorBundleManifest) {
       if (!pendingBundleLoadState.slot) {

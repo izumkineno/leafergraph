@@ -2,7 +2,7 @@
 
 ## 索引范围说明
 
-- 统计基线：当前工作树下 `packages/editor` 的非琐碎文件，共 `191` 个。
+- 统计基线：当前工作树下 `packages/editor` 的非琐碎文件，共 `194` 个。
 - 纳入范围：
   - 源码、HTML 入口、配置、README、测试、fixtures、手工维护的 `public` 资产、`__testbundles/*.iife.js`
 - 排除范围：
@@ -32,6 +32,9 @@
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
 | `public/__testbundles/demo-alt.iife.js` | 备用 demo bundle 样例，供 bundle loader/manifest 测试使用。 | `IIFE registerBundle` | `tests/public_testbundles_manifest.test.ts` |
+| `public/__testbundles/authoring-demo.iife.js` | authoring 外部 demo bundle 样例，验证蓝图仍沿用 editor demo manifest。 | `IIFE registerBundle` | `tests/public_testbundles_manifest.test.ts`、`tests/e2e/preview/bundles_and_canvas.e2e.ts` |
+| `public/__testbundles/authoring-node.iife.js` | authoring 外部 node bundle 样例，验证节点作者类可通过 script bundle 接入 editor。 | `IIFE registerBundle` | `tests/public_testbundles_manifest.test.ts`、`tests/e2e/preview/bundles_and_canvas.e2e.ts` |
+| `public/__testbundles/authoring-widget.iife.js` | authoring 外部 widget bundle 样例，验证组件作者类可通过 script bundle 接入 editor。 | `IIFE registerBundle` | `tests/public_testbundles_manifest.test.ts`、`tests/e2e/preview/bundles_and_canvas.e2e.ts` |
 | `public/__testbundles/demo.iife.js` | 默认 demo bundle 样例，提供 graph document。 | `IIFE registerBundle` | `src/loader/runtime.ts` |
 | `public/__testbundles/node.iife.js` | node bundle 样例，提供 node plugin。 | `IIFE registerBundle` | `src/loader/runtime.ts` |
 | `public/__testbundles/widget.iife.js` | widget bundle 样例，提供 widget plugin。 | `IIFE registerBundle` | `src/loader/runtime.ts` |
@@ -107,7 +110,7 @@
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
 | `src/loader/persistence.ts` | bundle 目录的浏览器持久化读写层。 | `persistEditorBundleRecord`、`readPersistedEditorBundleRecords` | `src/shell/provider.tsx`、IndexedDB |
-| `src/loader/runtime.ts` | bundle manifest 校验、IIFE/JSON 装载、依赖解析与 runtime setup 生成。 | `loadEditorBundleSource`、`resolveEditorBundleRuntimeSetup`、`ensureEditorBundleRuntimeGlobals` | `src/shell/provider.tsx`、`public/__testbundles` |
+| `src/loader/runtime.ts` | bundle manifest 校验、IIFE/JSON 装载、依赖解析与 runtime setup 生成，并向 script bundle 暴露 `LeaferGraphRuntime`、`LeaferGraphAuthoring` 与 bridge 全局。 | `loadEditorBundleSource`、`resolveEditorBundleRuntimeSetup`、`ensureEditorBundleRuntimeGlobals` | `src/shell/provider.tsx`、`public/__testbundles` |
 | `src/loader/types.ts` | bundle loader 的类型中心。 | `EditorBundleManifest`、`EditorBundleCatalogState`、`EditorBundleRuntimeSetup` | `src/loader/runtime.ts`、`src/shell/editor_controller.ts` |
 
 ## `src/menu`

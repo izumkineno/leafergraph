@@ -2,6 +2,7 @@ import type {
   GraphDocument,
   LeaferGraphNodePlugin
 } from "leafergraph";
+import type * as LeaferGraphAuthoring from "@leafergraph/authoring";
 import type { NodeDefinition } from "@leafergraph/node";
 
 /** editor 当前支持的本地 bundle 槽位。 */
@@ -147,11 +148,13 @@ export interface LeaferGraphEditorBundleBridge {
 declare global {
   interface Window {
     LeaferGraphRuntime?: typeof import("leafergraph");
+    LeaferGraphAuthoring?: typeof LeaferGraphAuthoring;
     LeaferGraphEditorBundleBridge?: LeaferGraphEditorBundleBridge;
   }
 
   interface GlobalThis {
     LeaferGraphRuntime?: typeof import("leafergraph");
+    LeaferGraphAuthoring?: typeof LeaferGraphAuthoring;
     LeaferGraphEditorBundleBridge?: LeaferGraphEditorBundleBridge;
   }
 }

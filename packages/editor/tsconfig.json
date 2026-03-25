@@ -6,7 +6,8 @@
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     "paths": {
-      "leafergraph": ["../leafergraph/src/index.ts"]
+      "leafergraph": ["../leafergraph/src/index.ts"],
+      "@leafergraph/authoring": ["../authoring/src/index.ts"]
     },
     "types": ["vite/client", "node"]
   },
