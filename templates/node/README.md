@@ -4,9 +4,19 @@
 
 ## 当前边界
 
-- 这里保留为正式分类入口。
-- 本轮先不强塞旧模板，避免把后端模板、浏览器插件模板和节点包模板继续混在一起。
-- 后续新增“单节点源码模板”时，应优先落在这里。
+- 当前默认入口是 `authoring-node-template`。
+- 节点模板的 `developer/` 会按 `shared / nodes / module` 分文件。
+- 如果只是改包名、命名空间或 bundle 信息，优先改 `src/developer/shared.ts`。
+- 如果是改节点逻辑，优先改 `src/developer/nodes/*.ts`。
+- 这里不放需要同时维护 node/widget/demo 三段链路的组合模板。
+
+## 当前模板
+
+- [`authoring-node-template`](./authoring-node-template/README.md)
+  - 纯节点作者模板
+  - 内置 `BasicSumNode` 和 `WatchNode`
+  - `WatchNode` 自带只读文字 Widget 示例
+  - 浏览器发布物是 `dist/browser/node.iife.js`
 
 ## 应放什么
 

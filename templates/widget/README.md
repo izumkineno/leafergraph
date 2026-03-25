@@ -4,9 +4,19 @@
 
 ## 当前边界
 
-- 这里保留为正式分类入口。
-- 本轮先以 README 锁定分类，不把浏览器插件模板直接塞进来。
-- 后续新增“单 Widget 模板”时，应优先落在这里。
+- 当前默认入口是 `authoring-text-widget-template`。
+- Widget 模板的 `developer/` 会按 `shared / widgets / plugin` 分文件。
+- 如果只是改包名、Widget 类型或 bundle 信息，优先改 `src/developer/shared.ts`。
+- 如果是改 Widget 渲染逻辑，优先改 `src/developer/widgets/*.ts`。
+- 这里不放同时承担 node/demo 的组合模板。
+
+## 当前模板
+
+- [`authoring-text-widget-template`](./authoring-text-widget-template/README.md)
+  - 纯展示型 Widget 模板
+  - 内置 `TextReadoutWidget`
+  - 适合 `Watch`、`Readout`、`Status Display`
+  - 浏览器发布物是 `dist/browser/widget.iife.js`
 
 ## 应放什么
 

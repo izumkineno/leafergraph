@@ -2,7 +2,7 @@
 
 这是一份面向节点作者的 `TypeScript` 模板工程。
 
-它的重点不是直接手写 `iife.js`，而是让你在 `src/` 里用 `@leafergraph/authoring` 写干净的节点类，最后再构建出给 editor 或外部宿主加载的 `dist/browser/node.iife.js`。
+它的重点不是直接手写 `iife.js`，而是让你在 `src/developer/` 里按类型维护节点模板代码，最后再构建出给 editor 或外部宿主加载的 `dist/browser/node.iife.js`。
 
 ## 这份模板提供什么
 
@@ -31,7 +31,8 @@ templates/node/authoring-node-template/
     prepare_dist.mjs
   src/
     index.ts
-    core/
+    developer/
+      index.ts
       shared.ts
       module.ts
       nodes/
@@ -41,6 +42,21 @@ templates/node/authoring-node-template/
       register_bundle.ts
       node_bundle.ts
 ```
+
+## 开发者改哪里
+
+常见修改入口：
+
+- `src/developer/shared.ts`
+  - 包名、版本、scope、类型常量、bundle 展示名
+- `src/developer/nodes/basic_sum_node.ts`
+  - 计算节点逻辑
+- `src/developer/nodes/watch_node.ts`
+  - 观察节点逻辑
+- `src/developer/module.ts`
+  - `module`、`plugin` 与节点收口方式
+
+`src/developer/index.ts` 现在只负责聚合导出，方便宿主和 browser 层统一引用。
 
 ## 开发流程
 
@@ -54,7 +70,7 @@ bun run build
 
 流程固定是：
 
-1. 在 `src/` 里写 `BaseNode` 子类
+1. 在 `src/developer/nodes/*.ts` 里写 `BaseNode` 子类
 2. 先通过 `check` 和 ESM 构建验证源码
 3. 最后再输出 `dist/browser/node.iife.js`
 
@@ -108,7 +124,7 @@ dist/browser/node.iife.js
 ## 边界说明
 
 - 模板源码优先，`iife.js` 只是最终发布物
-- 这里不提供 editor bridge helper 之外的额外 loader 协议
+- `browser/` 目录只负责 bundle 注册，不承接业务节点信息
 - 这里不兼容 litegraph.js 旧节点实现，只借用 `watch` 这种作者心智
 - 仓库内为了方便验证，`devDependencies` 默认指向本地 `packages/*`
 

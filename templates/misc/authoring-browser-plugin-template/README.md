@@ -2,7 +2,7 @@
 
 这是一份完整的 authoring-first `TypeScript` 模板工程。
 
-它面向“开发者真正要交付一个可加载 bundle”的场景：平时维护的是 `src/*.ts`，最终才构建成给 editor 或外部宿主加载的 `dist/browser/*.iife.js`。
+它面向“开发者真正要交付一个可加载 bundle”的场景：开发者平时主要维护 `src/developer/` 里的类型化文件，而 `src/presets/` 和 `src/browser/` 只负责消费这些信息，最终再构建成给 editor 或外部宿主加载的 `dist/browser/*.iife.js`。
 
 ## 这份模板提供什么
 
@@ -37,9 +37,11 @@ templates/misc/authoring-browser-plugin-template/
     prepare_dist.mjs
   src/
     index.ts
-    core/
+    developer/
+      index.ts
       shared.ts
       module.ts
+      preset.ts
       nodes/
         sum_node.ts
         pulse_counter_node.ts
@@ -55,6 +57,28 @@ templates/misc/authoring-browser-plugin-template/
       demo_bundle.ts
 ```
 
+## 开发者改哪里
+
+常见修改入口：
+
+- `src/developer/shared.ts`
+  - 包名、版本、scope、类型常量、bundle 展示名
+- `src/developer/widgets/text_readout_widget.ts`
+  - 文字 Widget 渲染逻辑
+- `src/developer/nodes/*.ts`
+  - `SumNode`、`PulseCounterNode`、`WatchNode`
+- `src/developer/preset.ts`
+  - demo 预设里的节点、连线和默认文案
+- `src/developer/module.ts`
+  - `module`、`plugin` 与节点/Widget 收口方式
+
+而这两个目录默认尽量不改：
+
+- `src/presets/`
+  - 只负责把开发者入口提供的数据装配成正式 `GraphDocument`
+- `src/browser/`
+  - 只负责向 editor 的 bundle bridge 注册 `widget/node/demo`
+
 ## 开发流程
 
 在模板目录执行：
@@ -67,7 +91,7 @@ bun run build
 
 流程固定是：
 
-1. 在 `src/` 里写 `BaseNode` / `BaseWidget`
+1. 在 `src/developer/widgets/*.ts` 和 `src/developer/nodes/*.ts` 里写 `BaseWidget` / `BaseNode`
 2. 先通过 `check` 和 ESM 构建验证源码
 3. 最后构建 `widget.iife.js`、`node.iife.js`、`demo.iife.js`
 
@@ -115,8 +139,9 @@ await graph.ready;
 - 模板源码优先，`iife.js` 只是最终发布物
 - browser bundle 继续沿用 editor 现有 script-bundle 握手
 - editor / 宿主适配 authoring 产物，不是 authoring 反向兼容 editor
+- 预设层与开发者层已分离；需要改 demo 内容时，优先先改 `src/developer/preset.ts`
 - 这里不兼容 litegraph.js 旧节点实现，只借用 `watch` 和最小流程链的开发者心智
-- 现有 `browser-node-widget-plugin-template` 仍可作为低层参考，但这里是更推荐的 authoring 入口
+- 这里就是当前更推荐的 authoring 浏览器模板入口
 
 ## 进一步阅读
 

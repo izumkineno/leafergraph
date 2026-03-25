@@ -9,11 +9,13 @@ templates/
   backend/
     python-openrpc-authority-template/
   node/
+    authoring-node-template/
     README.md
   widget/
+    authoring-text-widget-template/
     README.md
   misc/
-    browser-node-widget-plugin-template/
+    authoring-browser-plugin-template/
     backend-node-package-template/
 ```
 
@@ -22,7 +24,9 @@ templates/
 | 路径 | 主要用途 | 默认端口 | 启动/构建命令 | 核心契约 |
 | --- | --- | --- | --- | --- |
 | `templates/backend/python-openrpc-authority-template` | 精简 OpenRPC-first Python authority 模板，默认只含 document authority 与最小可执行运行时 | `5503` | `uv run --project templates/backend/python-openrpc-authority-template python -m leafergraph_python_openrpc_authority_template.entry` | `GET /health` + `WS /authority` + JSON-RPC 2.0 + 按需生成的 `_generated/` models/client |
-| `templates/misc/browser-node-widget-plugin-template` | 浏览器侧 node/widget/demo 插件模板 | 无固定端口 | `bun run --cwd templates/misc/browser-node-widget-plugin-template build` | bundle manifest + `registerBundle(...)` |
+| `templates/node/authoring-node-template` | 纯节点作者模板，`developer/` 按 `shared / nodes / module` 分文件 | 无固定端口 | `bun run --cwd templates/node/authoring-node-template build` | authoring node class + node bundle |
+| `templates/widget/authoring-text-widget-template` | 纯文字展示 Widget 模板，`developer/` 按 `shared / widgets / plugin` 分文件 | 无固定端口 | `bun run --cwd templates/widget/authoring-text-widget-template build` | authoring widget class + widget bundle |
+| `templates/misc/authoring-browser-plugin-template` | 完整的 node/widget/demo 组合模板，`developer/` 按 `shared / nodes / widgets / preset / module` 分文件 | 无固定端口 | `bun run --cwd templates/misc/authoring-browser-plugin-template build` | authoring plugin + script bundle |
 | `templates/misc/backend-node-package-template` | 后端驱动节点包模板 | 无固定端口 | 作为目录模板被 authority runtime 热加载 | package manifest + `authority.frontendBundlesSync` |
 
 ## 固定决策
@@ -50,19 +54,19 @@ templates/
 
 ### `node/`
 
-- 放纯节点模板分类说明与未来节点作者入口。
-- 本轮先保留 README 作为正式分类占位，不强塞旧模板。
+- 放纯节点作者模板。
+- 当前默认入口是 `authoring-node-template`。
 
 ### `widget/`
 
-- 放纯 Widget 模板分类说明与未来 Widget 作者入口。
-- 本轮先保留 README 作为正式分类占位，不强塞旧模板。
+- 放纯 Widget 作者模板。
+- 当前默认入口是 `authoring-text-widget-template`。
 
 ### `misc/`
 
 - 放不属于“纯后端模板 / 纯节点模板 / 纯 Widget 模板”的混合型模板。
 - 当前包括：
-  - 浏览器插件模板
+  - authoring 浏览器组合模板
   - 后端驱动节点包模板
 
 ## 需要改

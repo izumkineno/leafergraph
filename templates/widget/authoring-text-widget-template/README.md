@@ -2,7 +2,7 @@
 
 这是一份面向 Widget 作者的 `TypeScript` 模板工程。
 
-它的目标很明确：用 `@leafergraph/authoring` 写一个专门负责显示文字的自定义 Widget，然后在需要时再构建为 `dist/browser/widget.iife.js`，交给 editor 或外部宿主加载。
+它的目标很明确：让开发者在 `src/developer/` 里按类型维护 Widget 模板代码，用 `@leafergraph/authoring` 写一个专门负责显示文字的自定义 Widget，然后在需要时再构建为 `dist/browser/widget.iife.js`，交给 editor 或外部宿主加载。
 
 ## 这份模板提供什么
 
@@ -31,14 +31,29 @@ templates/widget/authoring-text-widget-template/
     prepare_dist.mjs
   src/
     index.ts
-    core/
+    developer/
+      index.ts
       shared.ts
+      plugin.ts
       widgets/
         text_readout_widget.ts
     browser/
       register_bundle.ts
       widget_bundle.ts
 ```
+
+## 开发者改哪里
+
+常见修改入口：
+
+- `src/developer/shared.ts`
+  - 包名、版本、Widget 类型、bundle 展示名
+- `src/developer/widgets/text_readout_widget.ts`
+  - Widget 渲染逻辑与展示文案
+- `src/developer/plugin.ts`
+  - Widget plugin 的收口方式
+
+`src/developer/index.ts` 现在只负责聚合导出，方便宿主和 browser 层统一引用。
 
 ## 开发流程
 
@@ -52,7 +67,7 @@ bun run build
 
 流程固定是：
 
-1. 在 `src/` 里写 `BaseWidget` 子类
+1. 在 `src/developer/widgets/*.ts` 里写 `BaseWidget` 子类
 2. 先通过 `check` 和 ESM 构建验证源码
 3. 最后再输出 `dist/browser/widget.iife.js`
 
@@ -106,6 +121,7 @@ dist/browser/widget.iife.js
 ## 边界说明
 
 - 模板源码优先，`iife.js` 只是最终发布物
+- `browser/` 目录只负责 bundle 注册，不承接 Widget 业务定义
 - 这里不提供节点模块、demo 文档或 editor 反向适配逻辑
 - 这里不兼容 litegraph.js 旧 Widget 体系，只提供 authoring-first 的展示型 Widget 示例
 - 仓库内为了方便验证，`devDependencies` 默认指向本地 `packages/*`
