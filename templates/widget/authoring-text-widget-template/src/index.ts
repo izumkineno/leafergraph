@@ -1,4 +1,4 @@
-export * from "./core";
+export * from "./developer";
 export {
   authoringTextWidgetTemplatePlugin as default
-} from "./core/index";
+} from "./developer";

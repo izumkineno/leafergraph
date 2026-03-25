@@ -1,17 +1,19 @@
-import { authoringBrowserTemplateNodePlugin } from "../core/module";
 import {
-  AUTHORING_BROWSER_TEMPLATE_PACKAGE_NAME,
+  AUTHORING_BROWSER_TEMPLATE_NODE_BUNDLE_ID,
+  AUTHORING_BROWSER_TEMPLATE_NODE_BUNDLE_NAME,
   AUTHORING_BROWSER_TEMPLATE_VERSION,
-  AUTHORING_BROWSER_TEMPLATE_WATCH_TYPE
-} from "../core/shared";
+  authoringBrowserTemplateNodeBundleRequires,
+  authoringBrowserTemplateNodePlugin,
+  authoringBrowserTemplateQuickCreateNodeType
+} from "../developer";
 import { registerAuthoringBrowserTemplateBundle } from "./register_bundle";
 
 registerAuthoringBrowserTemplateBundle({
-  id: `${AUTHORING_BROWSER_TEMPLATE_PACKAGE_NAME}/node`,
-  name: "Authoring Browser Node Bundle",
+  id: AUTHORING_BROWSER_TEMPLATE_NODE_BUNDLE_ID,
+  name: AUTHORING_BROWSER_TEMPLATE_NODE_BUNDLE_NAME,
   kind: "node",
   version: AUTHORING_BROWSER_TEMPLATE_VERSION,
-  requires: [`${AUTHORING_BROWSER_TEMPLATE_PACKAGE_NAME}/widget`],
+  requires: [...authoringBrowserTemplateNodeBundleRequires],
   plugin: authoringBrowserTemplateNodePlugin,
-  quickCreateNodeType: AUTHORING_BROWSER_TEMPLATE_WATCH_TYPE
+  quickCreateNodeType: authoringBrowserTemplateQuickCreateNodeType
 });

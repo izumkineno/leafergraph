@@ -11,6 +11,12 @@ import {
   AUTHORING_NODE_TEMPLATE_WATCH_WIDGET_NAME
 } from "../shared";
 
+/**
+ * 把 number 格式化成适合节点内展示的短文本。
+ *
+ * 这里刻意保留三位小数以内，
+ * 避免 `Watch` 节点在演示时出现过长浮点串。
+ */
 function formatWatchNumber(value: number): string {
   if (!Number.isFinite(value)) {
     return String(value);
@@ -19,6 +25,14 @@ function formatWatchNumber(value: number): string {
   return value.toFixed(3).replace(/\.?0+$/, "");
 }
 
+/**
+ * 把任意输入值转成适合节点内 readout 的文本。
+ *
+ * 这是 `WatchNode` 的核心体验函数：
+ * - `undefined` 显示为 `EMPTY`
+ * - 基础类型直接转文本
+ * - 数组和对象尽量做短格式展示
+ */
 function formatWatchValue(value: unknown, depth = 0): string {
   if (value === undefined) {
     return "EMPTY";
@@ -64,6 +78,14 @@ function formatWatchValue(value: unknown, depth = 0): string {
   return String(value);
 }
 
+/**
+ * 最小观察节点。
+ *
+ * 它的作用是演示：
+ * - 通用输入类型 `0`
+ * - 节点内部只读文字 Widget
+ * - 执行后把值同步到标题、状态和 Widget
+ */
 export class WatchNode extends BaseNode {
   static meta = {
     type: AUTHORING_NODE_TEMPLATE_WATCH_LOCAL_TYPE,
@@ -98,10 +120,12 @@ export class WatchNode extends BaseNode {
     ]
   };
 
+  /** 创建节点时先写入默认 Widget 文案。 */
   onCreate(ctx: DevNodeContext) {
     ctx.setWidget(AUTHORING_NODE_TEMPLATE_WATCH_WIDGET_NAME, "EMPTY");
   }
 
+  /** 每次执行时，把最新输入同步到节点内部展示区域。 */
   onExecute(ctx: DevNodeContext) {
     const inputValue = ctx.getInputAt(0);
     const displayText = formatWatchValue(inputValue);
@@ -117,4 +141,5 @@ export class WatchNode extends BaseNode {
   }
 }
 
+/** `WatchNode` 对应的正式节点定义。 */
 export const watchNodeDefinition = defineAuthoringNode(WatchNode);

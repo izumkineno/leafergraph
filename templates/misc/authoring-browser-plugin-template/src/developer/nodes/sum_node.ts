@@ -10,6 +10,7 @@ import {
   AUTHORING_BROWSER_TEMPLATE_SUM_LOCAL_TYPE
 } from "../shared";
 
+/** `SumNode` 运行时会读写的属性集合。 */
 interface SumNodeProps {
   [key: string]: unknown;
   precision?: number;
@@ -17,6 +18,12 @@ interface SumNodeProps {
   subtitle?: string;
 }
 
+/**
+ * 把任意输入收敛到合法精度位数。
+ *
+ * 模板默认把精度钳制在 `0..6`，
+ * 这样既能演示属性读取，也能避免示例节点输出过长的小数串。
+ */
 function clampPrecision(value: unknown): number {
   const precision = Number(value);
   if (!Number.isFinite(precision)) {
@@ -26,6 +33,14 @@ function clampPrecision(value: unknown): number {
   return Math.min(6, Math.max(0, Math.round(precision)));
 }
 
+/**
+ * 最小计算节点。
+ *
+ * 它的职责很单纯：
+ * - 读取两个数字输入
+ * - 根据属性里的精度做四舍五入
+ * - 把结果写回输出、状态和标题
+ */
 export class SumNode extends BaseNode<SumNodeProps> {
   static meta = {
     type: AUTHORING_BROWSER_TEMPLATE_SUM_LOCAL_TYPE,
@@ -53,6 +68,7 @@ export class SumNode extends BaseNode<SumNodeProps> {
     ]
   };
 
+  /** 每次执行时同步更新输出、说明文字和标题。 */
   onExecute(ctx: DevNodeContext<SumNodeProps>) {
     const a = Number(ctx.getInputAt(0) ?? 0);
     const b = Number(ctx.getInputAt(1) ?? 0);
@@ -67,4 +83,5 @@ export class SumNode extends BaseNode<SumNodeProps> {
   }
 }
 
+/** `SumNode` 对应的正式节点定义。 */
 export const sumNodeDefinition = defineAuthoringNode(SumNode);

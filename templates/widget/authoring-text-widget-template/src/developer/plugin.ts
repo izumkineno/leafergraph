@@ -6,9 +6,7 @@ import {
 } from "./shared";
 import { TextReadoutWidget } from "./widgets";
 
-export * from "./shared";
-export * from "./widgets";
-
+/** 宿主可直接放进 `plugins` 的文字 Widget 插件。 */
 export const authoringTextWidgetTemplatePlugin = createAuthoringPlugin({
   name: AUTHORING_TEXT_WIDGET_TEMPLATE_PACKAGE_NAME,
   version: AUTHORING_TEXT_WIDGET_TEMPLATE_VERSION,

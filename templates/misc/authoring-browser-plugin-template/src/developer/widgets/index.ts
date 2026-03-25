@@ -1,3 +1,4 @@
+/** Widget 实现与 Widget 条目统一从这里导出，方便模块层收口。 */
 export {
   TextReadoutWidget,
   textReadoutWidgetEntry

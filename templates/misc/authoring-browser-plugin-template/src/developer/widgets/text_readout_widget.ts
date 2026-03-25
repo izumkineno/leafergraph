@@ -4,27 +4,31 @@ import {
   type DevWidgetContext
 } from "@leafergraph/authoring";
 
-import { AUTHORING_TEXT_WIDGET_TEMPLATE_WIDGET_TYPE } from "../shared";
+import { AUTHORING_BROWSER_TEMPLATE_TEXT_WIDGET_TYPE } from "../shared";
 
-type TextReadoutWidgetUi = DevWidgetContext<string>["ui"];
-type TextReadoutWidgetText = InstanceType<TextReadoutWidgetUi["Text"]>;
-type TextReadoutWidgetRect = InstanceType<TextReadoutWidgetUi["Rect"]>;
+/** 通过宿主注入的 `ctx.ui` 推导真实 Leafer 类型，避免本地类型漂移。 */
+type TextReadoutUi = DevWidgetContext<string>["ui"];
+type TextReadoutText = InstanceType<TextReadoutUi["Text"]>;
+type TextReadoutRect = InstanceType<TextReadoutUi["Rect"]>;
 
-interface TextReadoutWidgetState {
+/** Widget 在 mount 后持有的图元状态。 */
+interface TextReadoutState {
   [key: string]: unknown;
-  label: TextReadoutWidgetText;
-  surface: TextReadoutWidgetRect;
-  valueText: TextReadoutWidgetText;
-  hintText: TextReadoutWidgetText;
+  label: TextReadoutText;
+  surface: TextReadoutRect;
+  valueText: TextReadoutText;
+  hintText: TextReadoutText;
 }
 
-interface TextReadoutWidgetOptions {
+/** 开发者可通过 `widget.options` 覆盖的文本展示配置。 */
+interface TextReadoutOptions {
   label: string;
   description: string;
   emptyText: string;
 }
 
-interface TextReadoutWidgetTheme {
+/** 从宿主主题中读取出来的最小样式集合。 */
+interface TextReadoutTheme {
   labelFill: string;
   fieldFill: string;
   fieldStroke: string;
@@ -33,6 +37,13 @@ interface TextReadoutWidgetTheme {
   fontFamily?: string;
 }
 
+/**
+ * 把任意输入值归一化为可展示字符串。
+ *
+ * 这个函数同时用于：
+ * - Widget meta 的 normalize / serialize
+ * - 实际渲染时的文本展示
+ */
 function normalizeTextValue(value: unknown): string {
   if (value === undefined || value === null) {
     return "";
@@ -53,7 +64,8 @@ function normalizeTextValue(value: unknown): string {
   return String(value);
 }
 
-function resolveWidgetOptions(options: unknown): TextReadoutWidgetOptions {
+/** 从 `widget.options` 里解析用户自定义标签、说明和空态文案。 */
+function resolveTextReadoutOptions(options: unknown): TextReadoutOptions {
   const source =
     options && typeof options === "object"
       ? (options as Record<string, unknown>)
@@ -67,15 +79,16 @@ function resolveWidgetOptions(options: unknown): TextReadoutWidgetOptions {
     description:
       typeof source.description === "string" && source.description.trim()
         ? source.description.trim()
-        : "用于在节点内部展示一段文字",
+        : "显示最近一次输入值",
     emptyText:
       typeof source.emptyText === "string" ? source.emptyText : "EMPTY"
   };
 }
 
-function resolveWidgetTheme(
+/** 从宿主主题上下文里收口出 Widget 真正要用到的视觉 token。 */
+function resolveTextReadoutTheme(
   ctx: DevWidgetContext<string>
-): TextReadoutWidgetTheme {
+): TextReadoutTheme {
   const { tokens } = ctx.theme;
 
   return {
@@ -88,13 +101,14 @@ function resolveWidgetTheme(
   };
 }
 
-function syncTextReadoutWidget(
-  state: TextReadoutWidgetState,
+/** 把最新值、选项和主题同步回现有图元，避免 update 阶段重复创建 UI。 */
+function syncTextReadout(
+  state: TextReadoutState,
   value: unknown,
-  options: TextReadoutWidgetOptions,
-  theme: TextReadoutWidgetTheme
+  options: TextReadoutOptions,
+  theme: TextReadoutTheme
 ): void {
-  const text = normalizeTextValue(value);
+  const safeValue = normalizeTextValue(value);
 
   state.label.text = options.label;
   state.label.fill = theme.labelFill;
@@ -103,7 +117,7 @@ function syncTextReadoutWidget(
   state.surface.fill = theme.fieldFill;
   state.surface.stroke = theme.fieldStroke;
 
-  state.valueText.text = text || options.emptyText;
+  state.valueText.text = safeValue || options.emptyText;
   state.valueText.fill = theme.valueFill;
   state.valueText.fontFamily = theme.fontFamily;
 
@@ -112,18 +126,26 @@ function syncTextReadoutWidget(
   state.hintText.fontFamily = theme.fontFamily;
 }
 
-export class TextReadoutWidget extends BaseWidget<string, TextReadoutWidgetState> {
+/**
+ * 组合模板里的文字展示 Widget。
+ *
+ * 它和纯 Widget 模板里的目标一致：
+ * 负责在节点内部渲染一块稳定的只读文本区域，
+ * 方便 `WatchNode` 这类展示型节点复用。
+ */
+export class TextReadoutWidget extends BaseWidget<string, TextReadoutState> {
   static meta = {
-    type: AUTHORING_TEXT_WIDGET_TEMPLATE_WIDGET_TYPE,
+    type: AUTHORING_BROWSER_TEMPLATE_TEXT_WIDGET_TYPE,
     title: "Text Readout",
-    description: "用于 watch / readout / status display 的文字展示型 Widget",
+    description: "供 Watch 节点复用的文字展示 Widget",
     normalize: normalizeTextValue,
     serialize: normalizeTextValue
   };
 
+  /** 初次挂载时创建 label / surface / value / hint 四个图元。 */
   mount(ctx: DevWidgetContext<string>) {
-    const options = resolveWidgetOptions(ctx.widget.options);
-    const theme = resolveWidgetTheme(ctx);
+    const options = resolveTextReadoutOptions(ctx.widget.options);
+    const theme = resolveTextReadoutTheme(ctx);
 
     const label = new ctx.ui.Text({
       x: 0,
@@ -172,7 +194,7 @@ export class TextReadoutWidget extends BaseWidget<string, TextReadoutWidgetState
       hittable: false
     });
 
-    const state: TextReadoutWidgetState = {
+    const state: TextReadoutState = {
       label,
       surface,
       valueText,
@@ -180,13 +202,14 @@ export class TextReadoutWidget extends BaseWidget<string, TextReadoutWidgetState
     };
 
     ctx.group.add([label, surface, valueText, hintText]);
-    syncTextReadoutWidget(state, ctx.value, options, theme);
+    syncTextReadout(state, ctx.value, options, theme);
 
     return state;
   }
 
+  /** 值变化时只更新现有图元文本与样式。 */
   update(
-    state: TextReadoutWidgetState | void,
+    state: TextReadoutState | void,
     ctx: DevWidgetContext<string>,
     nextValue: string
   ) {
@@ -194,13 +217,14 @@ export class TextReadoutWidget extends BaseWidget<string, TextReadoutWidgetState
       return;
     }
 
-    const options = resolveWidgetOptions(ctx.widget.options);
-    const theme = resolveWidgetTheme(ctx);
+    const options = resolveTextReadoutOptions(ctx.widget.options);
+    const theme = resolveTextReadoutTheme(ctx);
 
-    syncTextReadoutWidget(state, nextValue, options, theme);
+    syncTextReadout(state, nextValue, options, theme);
   }
 
-  destroy(state: TextReadoutWidgetState | void, _ctx: DevWidgetContext<string>) {
+  /** 销毁时清空文本，方便调试时确认生命周期确实触发。 */
+  destroy(state: TextReadoutState | void, _ctx: DevWidgetContext<string>) {
     if (!state) {
       return;
     }
@@ -210,4 +234,5 @@ export class TextReadoutWidget extends BaseWidget<string, TextReadoutWidgetState
   }
 }
 
+/** `TextReadoutWidget` 对应的正式 Widget 条目。 */
 export const textReadoutWidgetEntry = defineAuthoringWidget(TextReadoutWidget);

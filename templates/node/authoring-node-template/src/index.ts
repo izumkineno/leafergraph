@@ -1,2 +1,2 @@
-export * from "./core";
-export { authoringNodeTemplatePlugin as default } from "./core/module";
+export * from "./developer";
+export { authoringNodeTemplatePlugin as default } from "./developer";

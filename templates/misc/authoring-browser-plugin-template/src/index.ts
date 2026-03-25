@@ -1,3 +1,3 @@
-export * from "./core";
+export * from "./developer";
 export * from "./presets";
-export { authoringBrowserTemplatePlugin as default } from "./core/module";
+export { authoringBrowserTemplatePlugin as default } from "./developer";

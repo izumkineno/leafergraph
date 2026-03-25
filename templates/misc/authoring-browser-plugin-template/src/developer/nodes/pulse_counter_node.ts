@@ -10,6 +10,7 @@ import {
   AUTHORING_BROWSER_TEMPLATE_PULSE_COUNTER_LOCAL_TYPE
 } from "../shared";
 
+/** `PulseCounterNode` 运行时会读写的属性集合。 */
 interface PulseCounterProps {
   [key: string]: unknown;
   runCount?: number;
@@ -17,6 +18,13 @@ interface PulseCounterProps {
   subtitle?: string;
 }
 
+/**
+ * 最小流程节点。
+ *
+ * 它专门用来演示：
+ * - `system/on-play` 等执行源如何驱动普通节点
+ * - 节点如何在每次运行后更新内部计数
+ */
 export class PulseCounterNode extends BaseNode<PulseCounterProps> {
   static meta = {
     type: AUTHORING_BROWSER_TEMPLATE_PULSE_COUNTER_LOCAL_TYPE,
@@ -45,6 +53,7 @@ export class PulseCounterNode extends BaseNode<PulseCounterProps> {
     ]
   };
 
+  /** 每次执行时把内部计数递增，并输出到下游。 */
   onExecute(ctx: DevNodeContext<PulseCounterProps>) {
     const previous = Number(ctx.props.runCount ?? 0);
     const nextCount = Number.isFinite(previous) ? previous + 1 : 1;
@@ -57,5 +66,6 @@ export class PulseCounterNode extends BaseNode<PulseCounterProps> {
   }
 }
 
+/** `PulseCounterNode` 对应的正式节点定义。 */
 export const pulseCounterNodeDefinition =
   defineAuthoringNode(PulseCounterNode);
