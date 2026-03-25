@@ -1,3 +1,11 @@
+/**
+ * 节点作者层桥接。
+ *
+ * 这个模块把“开发者编写的作者类”投影成正式 `NodeDefinition`、
+ * `NodeModule` 和 `LeaferGraphNodePlugin`，让宿主只消费标准产物，
+ * 不直接依赖作者类本身。
+ */
+
 import type {
   NodeApi,
   NodeDefinition,
@@ -32,80 +40,130 @@ import {
 } from "./shared.js";
 import { defineAuthoringWidget, type DevWidgetClass } from "./widget_authoring.js";
 
+/**
+ * 作者类静态 `meta` 的描述结构。
+ * 它表达的是“这类节点的静态声明”，不是某个运行时实例的当前值。
+ */
 export interface DevNodeMeta {
+  /** 节点类型标识，最终会成为正式 `NodeDefinition.type`。 */
   type: string;
+  /** 节点标题。 */
   title: string;
+  /** 节点默认分类。 */
   category?: string;
+  /** 节点描述。 */
   description?: string;
+  /** 便于宿主搜索或分类的关键词。 */
   keywords?: string[];
+  /** 节点默认尺寸。 */
   size?: [number, number];
+  /** 节点 resize 约束。 */
   resize?: NodeResizeConfig;
+  /** 输入槽位声明。 */
   inputs?: NodeSlotSpec[];
+  /** 输出槽位声明。 */
   outputs?: NodeSlotSpec[];
+  /** 属性声明。 */
   properties?: NodePropertySpec[];
+  /** 节点内默认 Widget 声明。 */
   widgets?: NodeWidgetSpec[];
 }
 
+/**
+ * 节点作者层运行时上下文。
+ * 作者类只通过这组上下文读写节点实例，不需要直接理解宿主内部结构。
+ */
 export interface DevNodeContext<
   P extends NodeProps = NodeProps,
   I extends NodeInputs = NodeInputs,
   O extends NodeOutputs = NodeOutputs,
   S extends NodeState = NodeState
 > {
+  /** 当前节点运行时实例。 */
   node: NodeRuntimeState;
+  /** 由底层模型层提供的结构性操作 API。 */
   api: NodeApi;
+  /** 当前节点属性对象。 */
   props: P;
+  /** 给作者类保留的节点级附加数据。 */
   data: Record<string, unknown>;
+  /** 作者类私有状态。 */
   state: S;
+  /** 当前执行上下文；非执行阶段可能不存在。 */
   execution?: LeaferGraphExecutionContext;
 
+  /** 按输入槽位名称读取输入值。 */
   getInput<K extends keyof I & string>(name: K): I[K] | undefined;
+  /** 按输入槽位序号读取输入值。 */
   getInputAt(slot: number): unknown;
+  /** 按输出槽位名称写入输出值。 */
   setOutput<K extends keyof O & string>(name: K, value: O[K]): void;
+  /** 按输出槽位序号写入输出值。 */
   setOutputAt(slot: number, value: unknown): void;
 
+  /** 读取当前节点内某个 Widget 的值。 */
   getWidget(name: string): unknown;
+  /** 更新当前节点内某个 Widget 的值。 */
   setWidget(name: string, value: unknown): void;
 
+  /** 更新属性值。 */
   setProp<K extends keyof P & string>(name: K, value: P[K]): void;
+  /** 读取作者层私有附加数据。 */
   getData<T = unknown>(name: string): T | undefined;
+  /** 写入作者层私有附加数据。 */
   setData(name: string, value: unknown): void;
 }
 
+/**
+ * 节点作者类基类。
+ * 外部开发者通过继承它来声明节点行为；宿主最终只消费转换后的标准定义。
+ */
 export abstract class BaseNode<
   P extends NodeProps = NodeProps,
   I extends NodeInputs = NodeInputs,
   O extends NodeOutputs = NodeOutputs,
   S extends NodeState = NodeState
 > {
+  /** 节点静态元信息。 */
   static meta: DevNodeMeta;
 
+  /** 创建作者层私有状态。 */
   createState?(): S;
 
+  /** 节点实例初次创建完成后触发。 */
   onCreate?(ctx: DevNodeContext<P, I, O, S>): void;
+  /** 节点实例被配置或反序列化时触发。 */
   onConfigure?(data: NodeSerializeResult, ctx: DevNodeContext<P, I, O, S>): void;
+  /** 节点序列化前触发，可覆写最终输出内容。 */
   onSerialize?(data: NodeSerializeResult, ctx: DevNodeContext<P, I, O, S>): void;
+  /** 节点执行阶段触发。 */
   onExecute?(ctx: DevNodeContext<P, I, O, S>): void;
+  /** 节点属性变化后触发。 */
   onPropertyChanged?(
     name: keyof P & string,
     value: unknown,
     prevValue: unknown,
     ctx: DevNodeContext<P, I, O, S>
   ): boolean | void;
+  /** 新增输入槽位后触发。 */
   onInputAdded?(input: NodeSlotSpec, ctx: DevNodeContext<P, I, O, S>): void;
+  /** 新增输出槽位后触发。 */
   onOutputAdded?(output: NodeSlotSpec, ctx: DevNodeContext<P, I, O, S>): void;
+  /** 连线状态变化后触发。 */
   onConnectionsChange?(
     type: SlotDirection,
     slot: number,
     connected: boolean,
     ctx: DevNodeContext<P, I, O, S>
   ): void;
+  /** 宿主发送动作消息时触发。 */
   onAction?(
     action: string,
     param: unknown,
     options: Record<string, unknown> | undefined,
     ctx: DevNodeContext<P, I, O, S>
   ): void;
+  /** 宿主发送触发型消息时触发。 */
   onTrigger?(
     action: string,
     param: unknown,
@@ -114,6 +172,10 @@ export abstract class BaseNode<
   ): void;
 }
 
+/**
+ * 节点作者类构造器类型。
+ * 约束作者类必须提供可实例化构造函数和静态 `meta`。
+ */
 export interface DevNodeClass<
   P extends NodeProps = NodeProps,
   I extends NodeInputs = NodeInputs,
@@ -124,19 +186,32 @@ export interface DevNodeClass<
   readonly meta: DevNodeMeta;
 }
 
+/** 创建作者层模块时的输入结构。 */
 export interface CreateAuthoringModuleOptions {
+  /** 可选模块作用域。 */
   scope?: NodeModuleScope;
+  /** 需要收口进模块的节点作者类。 */
   nodes: DevNodeClass[];
 }
 
+/** 创建作者层插件时的输入结构。 */
 export interface CreateAuthoringPluginOptions {
+  /** 插件名称。 */
   name: string;
+  /** 插件版本。 */
   version?: string;
+  /** 可选模块作用域。 */
   scope?: NodeModuleScope;
+  /** 需要注册的节点作者类。 */
   nodes?: DevNodeClass[];
+  /** 需要注册的 Widget 作者类。 */
   widgets?: DevWidgetClass[];
 }
 
+/**
+ * 节点实例对应的作者层运行时。
+ * 每个 `NodeRuntimeState` 都会关联一个作者类实例和一份作者层私有状态。
+ */
 interface AuthoringNodeRuntime<
   P extends NodeProps,
   I extends NodeInputs,
@@ -147,6 +222,10 @@ interface AuthoringNodeRuntime<
   state: S;
 }
 
+/**
+ * 把节点作者类转换成正式 `NodeDefinition`。
+ * 转换结果不再暴露作者类本身，而是标准模型层定义与生命周期桥接。
+ */
 export function defineAuthoringNode<
   P extends NodeProps = NodeProps,
   I extends NodeInputs = NodeInputs,
@@ -160,6 +239,10 @@ export function defineAuthoringNode<
     AuthoringNodeRuntime<P, I, O, S>
   >();
 
+  /**
+   * 读取或懒创建某个节点实例对应的作者层运行时。
+   * 这样可以把作者类实例与节点实例一一对应起来。
+   */
   const getRuntime = (node: NodeRuntimeState): AuthoringNodeRuntime<P, I, O, S> => {
     const existing = runtimeByNode.get(node);
     if (existing) {
@@ -175,6 +258,10 @@ export function defineAuthoringNode<
     return runtime;
   };
 
+  /**
+   * 为作者类组装统一上下文。
+   * 它负责把模型层 `NodeApi`、节点实例和作者层私有状态收敛成一个稳定接口。
+   */
   const createContext = (
     node: NodeRuntimeState,
     api: NodeApi,
@@ -235,6 +322,10 @@ export function defineAuthoringNode<
     };
   };
 
+  /**
+   * 在宿主未显式传入 `NodeApi` 时兜底创建一份。
+   * 这样动作消息与触发消息等路径也能拿到完整 API。
+   */
   const ensureApi = (node: NodeRuntimeState, api?: NodeApi): NodeApi =>
     api ?? createNodeApi(node);
 
@@ -305,6 +396,10 @@ export function defineAuthoringNode<
   };
 }
 
+/**
+ * 把一组节点作者类组装成正式 `NodeModule`。
+ * 这里不处理 Widget，只处理节点定义和可选作用域。
+ */
 export function createAuthoringModule(options: CreateAuthoringModuleOptions): NodeModule {
   return {
     scope: options.scope,
@@ -312,6 +407,10 @@ export function createAuthoringModule(options: CreateAuthoringModuleOptions): No
   };
 }
 
+/**
+ * 把节点作者类与 Widget 作者类组装成主包可安装的插件。
+ * 宿主只需安装插件，不需要自行理解作者类桥接细节。
+ */
 export function createAuthoringPlugin(
   options: CreateAuthoringPluginOptions
 ): LeaferGraphNodePlugin {
@@ -340,6 +439,10 @@ export function createAuthoringPlugin(
   };
 }
 
+/**
+ * 规范化节点元信息。
+ * 这里会裁剪文本字段，并深拷贝数组 / 对象字段，避免宿主持有外部可变引用。
+ */
 function normalizeNodeMeta(meta: DevNodeMeta): DevNodeMeta {
   const type = assertNonEmptyText(meta.type, "节点类型");
   const title = assertNonEmptyText(meta.title, "节点标题");
@@ -359,12 +462,17 @@ function normalizeNodeMeta(meta: DevNodeMeta): DevNodeMeta {
   };
 }
 
+/** 校验节点元信息里按名称索引的声明项是否唯一。 */
 function validateNodeMeta(meta: DevNodeMeta): void {
   assertUniqueNames(meta.inputs ?? [], "输入槽位");
   assertUniqueNames(meta.outputs ?? [], "输出槽位");
   assertUniqueNames(meta.widgets ?? [], "Widget");
 }
 
+/**
+ * 确保节点拥有作者层可写的 `data` 容器。
+ * 这个容器只保存作者层附加数据，不改变正式结构字段。
+ */
 function ensureNodeData(node: NodeRuntimeState): Record<string, unknown> {
   if (!node.data) {
     node.data = {};
