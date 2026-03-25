@@ -1,3 +1,9 @@
+/**
+ * 图文档与跨应用绑定模型。
+ *
+ * 这些结构只描述正式可交换的图数据，不承担执行器、渲染宿主或编辑器页面语义。
+ */
+
 import type { NodeSerializeResult } from "./types.js";
 
 /**

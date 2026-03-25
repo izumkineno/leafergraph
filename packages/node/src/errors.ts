@@ -1,4 +1,11 @@
 /**
+ * `@leafergraph/node` 的标准错误类型集合。
+ *
+ * 这里统一承载注册、解析与定义缺失时的结构化错误，
+ * 方便宿主在日志、提示和测试里做精确匹配。
+ */
+
+/**
  * 节点注册与解析相关错误的统一基类。
  */
 export class NodeRegistryError extends Error {

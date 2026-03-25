@@ -1,3 +1,10 @@
+/**
+ * 节点定义注册表。
+ *
+ * 这个模块只负责节点定义的存取与结构性校验，
+ * 不承担图实例管理、执行调度或 Widget 真正的注册持久化。
+ */
+
 import type { NodeDefinition } from "./definition.js";
 import { NodeDefinitionExistsError, UnknownNodeTypeError } from "./errors.js";
 import { cloneDefinition } from "./utils.js";
@@ -23,6 +30,7 @@ export interface RegisterNodeOptions {
  */
 export class NodeRegistry {
   private readonly definitions = new Map<string, NodeDefinition>();
+  /** 只读 Widget 定义读取器，用于节点声明校验。 */
   readonly widgetDefinitions: WidgetDefinitionReader;
 
   constructor(

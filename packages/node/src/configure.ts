@@ -1,3 +1,10 @@
+/**
+ * 节点重配置入口。
+ *
+ * 这个模块负责把一份“可恢复的节点输入”重新投影到既有运行时实例上，
+ * 让反序列化、热更新或编辑器属性修改都走同一条整形逻辑。
+ */
+
 import { createNodeApi } from "./api.js";
 import type { NodeRegistry } from "./registry.js";
 import type { NodeRuntimeState, NodeSerializeResult } from "./types.js";

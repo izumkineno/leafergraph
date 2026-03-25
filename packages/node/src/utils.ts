@@ -1,3 +1,10 @@
+/**
+ * 节点模型层共享工具。
+ *
+ * 这里集中放置深拷贝、默认值回填、布局合并和 ID 生成等纯数据工具，
+ * 避免这些规则分散到工厂、配置和序列化流程里。
+ */
+
 import type { NodeDefinition } from "./definition.js";
 import type {
   NodeFlags,

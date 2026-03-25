@@ -1,3 +1,10 @@
+/**
+ * 节点模块解析与安装工具。
+ *
+ * 这里负责把模块级命名空间 / 分组规则应用到节点定义上，
+ * 并提供“解析但不安装”和“直接安装到注册表”两条入口。
+ */
+
 import type { NodeDefinition, NodeModule, NodeModuleScope } from "./definition.js";
 import type { NodeRegistry, RegisterNodeOptions } from "./registry.js";
 import { cloneDefinition } from "./utils.js";
@@ -7,6 +14,7 @@ import { cloneDefinition } from "./utils.js";
  * 它继承节点注册选项，并额外允许传入一次性的作用域覆写。
  */
 export interface InstallNodeModuleOptions extends RegisterNodeOptions {
+  /** 安装时额外覆写的作用域。 */
   scope?: NodeModuleScope;
 }
 
@@ -15,7 +23,9 @@ export interface InstallNodeModuleOptions extends RegisterNodeOptions {
  * 宿主拿到它之后就可以明确知道最终生效的 scope 和 nodes。
  */
 export interface ResolvedNodeModule {
+  /** 解析后最终生效的作用域。 */
   scope: NodeModuleScope;
+  /** 已应用作用域规则后的节点定义数组。 */
   nodes: NodeDefinition[];
 }
 

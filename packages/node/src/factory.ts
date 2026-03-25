@@ -1,3 +1,10 @@
+/**
+ * 节点实例工厂。
+ *
+ * 它负责把静态 `NodeDefinition` 与调用方传入的 `NodeInit`
+ * 合并成真实可执行的 `NodeRuntimeState`。
+ */
+
 import { createNodeApi } from "./api.js";
 import type { NodeRegistry } from "./registry.js";
 import type { NodeInit, NodeRuntimeState } from "./types.js";

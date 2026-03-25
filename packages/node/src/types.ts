@@ -1,4 +1,11 @@
 /**
+ * `@leafergraph/node` 的基础类型模型。
+ *
+ * 这里定义节点、槽位、Widget、属性和运行时状态的最小正式结构，
+ * 供模型层、作者层和宿主运行时共同复用。
+ */
+
+/**
  * 描述槽位方向。
  * 这组值会被连接事件、端口布局和连接变化回调共同复用。
  */
@@ -39,9 +46,13 @@ export type NodeWidgetType =
  * `select / radio` 一类控件都可以直接复用这组结构。
  */
 export interface NodeWidgetOptionItem {
+  /** 选项显示文本。 */
   label: string;
+  /** 选项实际值。 */
   value: string;
+  /** 当前选项是否不可选。 */
   disabled?: boolean;
+  /** 选项补充说明。 */
   description?: string;
 }
 
@@ -50,53 +61,73 @@ export interface NodeWidgetOptionItem {
  * 这些字段不会改变序列化结构，只是给外部节点包补齐标准类型。
  */
 export interface NodeBaseWidgetOptions {
+  /** 宿主可用的标签文本。 */
   label?: string;
+  /** 宿主可用的补充说明。 */
   description?: string;
+  /** 是否禁用。 */
   disabled?: boolean;
 }
 
 /** 只读值 / 输入框类组件使用的 options。 */
 export interface NodeTextWidgetOptions extends NodeBaseWidgetOptions {
+  /** 输入为空时的占位文案。 */
   placeholder?: string;
+  /** 是否只读。 */
   readOnly?: boolean;
+  /** 可输入的最大字符数。 */
   maxLength?: number;
 }
 
 /** 多行文本组件的 options。 */
 export interface NodeTextareaWidgetOptions extends NodeTextWidgetOptions {
+  /** 建议显示的行数。 */
   rows?: number;
 }
 
 /** slider 组件的 options。 */
 export interface NodeSliderWidgetOptions extends NodeBaseWidgetOptions {
+  /** 最小值。 */
   min?: number;
+  /** 最大值。 */
   max?: number;
+  /** 步长。 */
   step?: number;
+  /** 宿主可直接显示的格式化值。 */
   displayValue?: string;
+  /** 值格式化器，可为格式字符串或函数。 */
   formatValue?: string | ((value: number) => string);
 }
 
 /** toggle 组件的 options。 */
 export interface NodeToggleWidgetOptions extends NodeBaseWidgetOptions {
+  /** 打开态文案。 */
   onText?: string;
+  /** 关闭态文案。 */
   offText?: string;
 }
 
 /** select / radio 组件的 options。 */
 export interface NodeOptionWidgetOptions extends NodeBaseWidgetOptions {
+  /** 离散选项列表。 */
   items?: Array<string | NodeWidgetOptionItem>;
 }
 
 /** button 组件的 options。 */
 export interface NodeButtonWidgetOptions extends NodeBaseWidgetOptions {
+  /** 按钮文案。 */
   text?: string;
+  /** 点击后触发的动作名。 */
   action?: string;
+  /** 宿主可选视觉变体。 */
   variant?: "primary" | "secondary" | "ghost";
 }
 
 /** checkbox 组件的 options。 */
 export interface NodeCheckboxWidgetOptions extends NodeBaseWidgetOptions {
+  /** 勾选态文案。 */
   onText?: string;
+  /** 未勾选态文案。 */
   offText?: string;
 }
 
@@ -169,9 +200,13 @@ export interface NodePropertySpec {
  * 宿主可按需消费，也可以扩展自己的选择态与交互态系统。
  */
 export interface NodeFlags {
+  /** 是否折叠显示。 */
   collapsed?: boolean;
+  /** 是否固定在画布上方。 */
   pinned?: boolean;
+  /** 是否禁用。 */
   disabled?: boolean;
+  /** 是否被宿主视为选中。 */
   selected?: boolean;
 }
 
@@ -180,9 +215,13 @@ export interface NodeFlags {
  * 这里存的是节点在图坐标中的位置和宿主可选尺寸。
  */
 export interface NodeLayout {
+  /** 图坐标系中的横向位置。 */
   x: number;
+  /** 图坐标系中的纵向位置。 */
   y: number;
+  /** 宿主可选宽度。 */
   width?: number;
+  /** 宿主可选高度。 */
   height?: number;
 }
 
@@ -191,16 +230,27 @@ export interface NodeLayout {
  * 它允许调用方只覆写局部字段，其余部分从 `NodeDefinition` 回填。
  */
 export interface NodeInit {
+  /** 实例 ID；未提供时由工厂自动生成。 */
   id?: string;
+  /** 节点类型标识。 */
   type: string;
+  /** 实例标题覆写。 */
   title?: string;
+  /** 布局覆写。 */
   layout?: Partial<NodeLayout>;
+  /** 属性值覆写。 */
   properties?: Record<string, unknown>;
+  /** 属性声明覆写。 */
   propertySpecs?: NodePropertySpec[];
+  /** 输入槽位声明覆写。 */
   inputs?: NodeSlotSpec[];
+  /** 输出槽位声明覆写。 */
   outputs?: NodeSlotSpec[];
+  /** Widget 声明覆写。 */
   widgets?: NodeWidgetSpec[];
+  /** 节点状态位覆写。 */
   flags?: NodeFlags;
+  /** 附加运行时数据初值。 */
   data?: Record<string, unknown>;
 }
 
@@ -209,16 +259,27 @@ export interface NodeInit {
  * 该结构只包含可恢复的静态状态，不包含运行时输入输出缓存。
  */
 export interface NodeSerializeResult {
+  /** 节点实例 ID。 */
   id: string;
+  /** 节点类型标识。 */
   type: string;
+  /** 当前持久化标题。 */
   title?: string;
+  /** 当前持久化布局。 */
   layout: NodeLayout;
+  /** 当前持久化属性值。 */
   properties?: Record<string, unknown>;
+  /** 当前持久化属性声明。 */
   propertySpecs?: NodePropertySpec[];
+  /** 当前持久化输入槽位声明。 */
   inputs?: NodeSlotSpec[];
+  /** 当前持久化输出槽位声明。 */
   outputs?: NodeSlotSpec[];
+  /** 当前持久化 Widget 声明。 */
   widgets?: NodeWidgetSpec[];
+  /** 当前持久化状态位。 */
   flags?: NodeFlags;
+  /** 当前持久化附加数据。 */
   data?: Record<string, unknown>;
 }
 
@@ -227,15 +288,25 @@ export interface NodeSerializeResult {
  * 这是宿主真正持有并驱动渲染、执行和交互的核心对象。
  */
 export interface NodeRuntimeState {
+  /** 节点实例 ID。 */
   id: string;
+  /** 节点类型标识。 */
   type: string;
+  /** 当前运行时标题。 */
   title: string;
+  /** 当前运行时布局。 */
   layout: NodeLayout;
+  /** 当前运行时属性值。 */
   properties: Record<string, unknown>;
+  /** 当前运行时属性声明。 */
   propertySpecs: NodePropertySpec[];
+  /** 当前运行时输入槽位声明。 */
   inputs: NodeSlotSpec[];
+  /** 当前运行时输出槽位声明。 */
   outputs: NodeSlotSpec[];
+  /** 当前运行时 Widget 声明。 */
   widgets: NodeWidgetSpec[];
+  /** 当前运行时状态位。 */
   flags: NodeFlags;
   /** 输入值缓存属于运行时态，不参与序列化。 */
   inputValues: unknown[];

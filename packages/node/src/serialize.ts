@@ -1,3 +1,10 @@
+/**
+ * 节点序列化入口。
+ *
+ * 它把宿主持有的运行时实例裁剪成稳定的可恢复结构，
+ * 并允许节点定义在最终落盘前做一次输出修整。
+ */
+
 import { createNodeApi } from "./api.js";
 import type { NodeRegistry } from "./registry.js";
 import type { NodeRuntimeState, NodeSerializeResult } from "./types.js";

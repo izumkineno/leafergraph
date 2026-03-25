@@ -1,3 +1,10 @@
+/**
+ * Widget 定义读取、校验与值转换工具。
+ *
+ * 当前模型层不维护可写 Widget 注册表，只依赖“按类型读取定义”的能力，
+ * 这样既能保持包边界干净，也方便宿主把 Widget 真源放在更高层。
+ */
+
 import type { WidgetDefinition } from "./definition.js";
 import { UnknownWidgetTypeError } from "./errors.js";
 import type { NodePropertySpec, NodeWidgetSpec } from "./types.js";
@@ -25,6 +32,7 @@ export const BUILTIN_WIDGET_TYPES = [
  * 注册 Widget 定义时的控制项。
  */
 export interface RegisterWidgetOptions {
+  /** 是否允许覆写已存在的 Widget 类型。 */
   overwrite?: boolean;
 }
 
@@ -33,6 +41,7 @@ export interface RegisterWidgetOptions {
  * SDK 只依赖“按 type 读取定义”这一条能力，不再持有可写注册表。
  */
 export interface WidgetDefinitionReader {
+  /** 按类型读取 Widget 定义；未命中时返回 `undefined`。 */
   get(type: string): WidgetDefinition | undefined;
 }
 
