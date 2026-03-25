@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "packageManager": "bun@1.2.21",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "templates/node/authoring-node-template",
+    "templates/widget/authoring-text-widget-template",
+    "templates/misc/authoring-browser-plugin-template"
   ],
   "scripts": {
     "dev:editor": "bun run --filter leafergraph-editor dev",

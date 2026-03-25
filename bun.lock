@@ -9,6 +9,15 @@
         "vite": "^8.0.1",
       },
     },
+    "packages/authoring": {
+      "name": "@leafergraph/authoring",
+      "version": "0.1.0",
+      "peerDependencies": {
+        "@leafergraph/node": "^0.1.0",
+        "leafer-ui": "^2.0.3",
+        "leafergraph": "^0.1.0",
+      },
+    },
     "packages/editor": {
       "name": "leafergraph-editor",
       "version": "0.1.0",
@@ -44,6 +53,42 @@
     "packages/node": {
       "name": "@leafergraph/node",
       "version": "0.1.0",
+    },
+    "templates/misc/authoring-browser-plugin-template": {
+      "name": "@template/authoring-browser-plugin-template",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@leafergraph/authoring": "workspace:*",
+        "@leafergraph/node": "workspace:*",
+        "leafer-ui": "^2.0.3",
+        "leafergraph": "workspace:*",
+        "typescript": "~5.9.3",
+        "vite": "^8.0.0",
+      },
+    },
+    "templates/node/authoring-node-template": {
+      "name": "@template/authoring-node-template",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@leafergraph/authoring": "workspace:*",
+        "@leafergraph/node": "workspace:*",
+        "leafer-ui": "^2.0.3",
+        "leafergraph": "workspace:*",
+        "typescript": "~5.9.3",
+        "vite": "^8.0.0",
+      },
+    },
+    "templates/widget/authoring-text-widget-template": {
+      "name": "@template/authoring-text-widget-template",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@leafergraph/authoring": "workspace:*",
+        "@leafergraph/node": "workspace:*",
+        "leafer-ui": "^2.0.3",
+        "leafergraph": "workspace:*",
+        "typescript": "~5.9.3",
+        "vite": "^8.0.0",
+      },
     },
   },
   "packages": {
@@ -231,6 +276,8 @@
 
     "@leafer/worker-core": ["@leafer/worker-core@2.0.3", "", { "dependencies": { "@leafer/canvas-worker": "2.0.3", "@leafer/core": "2.0.3", "@leafer/image-worker": "2.0.3", "@leafer/interface": "2.0.3", "@leafer/partner": "2.0.3" } }, "sha512-Zu7pJHj3enkDwQyc2bcW8ZsOOuouUu9a19X6vB8quKa7274CoHE2GYGlbNzTHi5JTeTNfxQ9SPPb0yenJrAZIQ=="],
 
+    "@leafergraph/authoring": ["@leafergraph/authoring@workspace:packages/authoring"],
+
     "@leafergraph/node": ["@leafergraph/node@workspace:packages/node"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.1", "", { "dependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1", "@tybys/wasm-util": "^0.10.1" } }, "sha512-p64ah1M1ld8xjWv3qbvFwHiFVWrq1yFvV4f7w+mzaqiR4IlSgkqhcRdHwsGgomwzBH51sRY4NEowLxnaBjcW/A=="],
@@ -332,6 +379,12 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.59.0", "", { "os": "win32", "cpu": "x64" }, "sha512-laBkYlSS1n2L8fSo1thDNGrCTQMmxjYY5G0WFWjFFYZkKPjsMBsgJfGf4TLxXrF6RyhI60L8TMOjBMvXiTcxeA=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.59.0", "", { "os": "win32", "cpu": "x64" }, "sha512-2HRCml6OztYXyJXAvdDXPKcawukWY2GpR5/nxKp4iBgiO3wcoEGkAaqctIbZcNB6KlUQBIqt8VYkNSj2397EfA=="],
+
+    "@template/authoring-browser-plugin-template": ["@template/authoring-browser-plugin-template@workspace:templates/misc/authoring-browser-plugin-template"],
+
+    "@template/authoring-node-template": ["@template/authoring-node-template@workspace:templates/node/authoring-node-template"],
+
+    "@template/authoring-text-widget-template": ["@template/authoring-text-widget-template@workspace:templates/widget/authoring-text-widget-template"],
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg=="],
 
