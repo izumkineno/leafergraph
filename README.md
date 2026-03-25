@@ -39,6 +39,17 @@
   - 承担 Sandbox、本地 bundle 装载面板和 editor 壳层行为
   - editor 不再源码直连模板工程，而是通过文件选择器读取本地 bundle，或通过 authority 消费远端推送
 
+## 包级 README
+
+如果你想直接从包边界进入，优先看这些 README：
+
+- [`packages/node/README.md`](./packages/node/README.md)
+  - 节点定义、图文档、注册表、模块与序列化模型
+- [`packages/authoring/README.md`](./packages/authoring/README.md)
+  - 节点 / Widget 作者层、plugin / module 组装与宿主消费方式
+- [`packages/leafergraph/README.md`](./packages/leafergraph/README.md)
+  - Leafer-first 图运行时、插件消费、交互和执行反馈
+
 ## 常用命令
 
 ```bash
