@@ -1,10 +1,14 @@
 # LeaferGraph Workspace
 
-这个目录是新的 LeaferGraph 实验工程，分成两个 Vite 子项目：
+这个目录是新的 LeaferGraph 实验工程，当前主要由三个包组成：
 
 - `packages/leafergraph`
   - 核心库工程
   - 负责提供最小的 LeaferGraph API
+- `packages/authoring`
+  - 干净的作者层包
+  - 负责把节点 / widget 作者代码收口为 `NodeDefinition`、`NodeModule`、`LeaferGraphWidgetEntry`、`LeaferGraphNodePlugin`
+  - 不承担 editor 适配、bundle bridge、loader manifest 或历史兼容负担
 - `packages/editor`
   - 编辑器工程
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
@@ -24,6 +28,9 @@
 
 ## 当前边界
 
+- `packages/authoring`
+  - 只保留节点 / widget 作者体验与正式产物组装
+  - 不内置 editor 适配、不提供 browser bundle helper，也不承载 demo/public bridge
 - `packages/leafergraph`
   - 只保留核心图能力、节点运行时、渲染宿主与交互基础设施
   - 不再内建默认 demo 节点、默认 demo 图数据或 editor 专属快速创建模板
@@ -38,10 +45,12 @@
 bun install
 bun run dev:editor
 bun run dev:editor:lan
+bun run build:authoring
 bun run build:testbundles
 bun run start:python-backend
 bun run start:python-openrpc-backend
 bun run test:authority-conformance
+bun run test:authoring
 bun run build
 ```
 
@@ -66,6 +75,7 @@ bun run test:authority-conformance
 
 这一版先把工程骨架搭起来：
 
+- 作者层包：`@leafergraph/authoring`
 - 库包：`leafergraph`
 - 编辑器包：`leafergraph-editor`
 - 编辑器通过包依赖和 Vite alias 直接引用库源码
