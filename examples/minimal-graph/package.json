@@ -1,0 +1,21 @@
+{
+  "name": "leafergraph-minimal-graph-example",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@leafergraph/node": "workspace:*",
+    "leafergraph": "workspace:*",
+    "preact": "^10.26.9"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.2",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  }
+}

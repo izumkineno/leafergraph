@@ -5,6 +5,7 @@
   "packageManager": "bun@1.2.21",
   "workspaces": [
     "packages/*",
+    "examples/*",
     "templates/node/authoring-node-template",
     "templates/widget/authoring-text-widget-template",
     "templates/misc/authoring-browser-plugin-template"
@@ -12,6 +13,7 @@
   "scripts": {
     "dev:editor": "bun run --filter leafergraph-editor dev",
     "dev:editor:lan": "bun run --filter leafergraph-editor dev:lan",
+    "dev:minimal-graph": "bun run --filter leafergraph-minimal-graph-example dev",
     "generate:editor-authority-openrpc": "bun run --filter leafergraph-editor generate:authority-openrpc",
     "check:editor-authority-openrpc": "bun run --filter leafergraph-editor check:authority-openrpc",
     "build:testbundles": "node ./scripts/build_editor_testbundles.mjs",
@@ -19,9 +21,11 @@
     "build:authoring": "bun run --filter @leafergraph/authoring build",
     "build:leafergraph": "bun run --filter leafergraph build",
     "build:editor": "bun run --filter leafergraph-editor build",
+    "build:minimal-graph": "bun run --filter leafergraph-minimal-graph-example build",
     "build": "bun run build:node && bun run build:authoring && bun run build:leafergraph && bun run build:editor",
     "test:authoring": "bun run --filter @leafergraph/authoring test",
     "preview:editor": "bun run --filter leafergraph-editor preview",
+    "preview:minimal-graph": "bun run --filter leafergraph-minimal-graph-example preview",
     "test:editor": "bun run --filter leafergraph-editor test",
     "test:editor:unit": "bun run --filter leafergraph-editor test:unit",
     "test:editor:e2e:preview": "bun run --filter leafergraph-editor test:e2e:preview",

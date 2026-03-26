@@ -25,6 +25,10 @@
     - `templates/misc/browser-node-widget-plugin-template`
     - `templates/misc/backend-node-package-template`
   - 模板职责矩阵见 `templates/README.md`
+- `examples/`
+  - 仓库内可直接运行的最小示例工程
+  - 当前提供 `examples/minimal-graph`
+  - 用于演示“不依赖 editor，只用主包跑起一张最小图”
 
 ## 当前边界
 
@@ -56,8 +60,10 @@
 bun install
 bun run dev:editor
 bun run dev:editor:lan
+bun run dev:minimal-graph
 bun run build:authoring
 bun run build:testbundles
+bun run build:minimal-graph
 bun run start:python-backend
 bun run start:python-openrpc-backend
 bun run test:authority-conformance
@@ -98,6 +104,26 @@ bun run test:authority-conformance
 - viewport / selection / connect
 - 图级 `play / step / stop`
 - 节点级 `playFromNode(...)`
+
+## 最小图示例工程
+
+如果你想先脱离 editor，只验证主包最小运行链，现在可以直接运行：
+
+```bash
+bun run dev:minimal-graph
+```
+
+对应工程位于：
+
+- `examples/minimal-graph`
+
+它会演示：
+
+- 直接用 `leafergraph` 创建画布
+- 通过 `Preact` 驱动页面和日志状态
+- 注册两个最小自定义节点
+- 通过 `system/on-play -> example/counter -> example/watch` 搭一条最小执行链
+- 在页面侧订阅并展示运行反馈
 
 ## 设计文档
 
