@@ -1,6 +1,6 @@
 # LeaferGraph Workspace
 
-这个目录是新的 LeaferGraph 实验工程，当前主要由两个核心包和一个 editor 示例工程组成：
+这个目录是新的 LeaferGraph 实验工程，当前主要由多个包和示例工程组成：
 
 - `packages/leafergraph`
   - 核心库工程
@@ -9,6 +9,10 @@
   - 干净的作者层包
   - 负责把节点 / widget 作者代码收口为 `NodeDefinition`、`NodeModule`、`LeaferGraphWidgetEntry`、`LeaferGraphNodePlugin`
   - 不承担 editor 适配、bundle bridge、loader manifest 或历史兼容负担
+- `packages/sync`
+  - 新同步包的文档骨架目录
+  - 负责先定义 protocol-agnostic 的 session / outlet / 协议子出口边界
+  - 当前先落 `README / ARCHITECTURE / OUTLETS / src/* README`，不承诺已经有正式实现
 - `examples/editor`
   - editor 示例工程
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
@@ -39,6 +43,10 @@
   - 只保留核心图能力、节点运行时、渲染宿主与交互基础设施
   - 不再内建默认 demo 节点、默认 demo 图数据或 editor 专属快速创建模板
   - 主包初始化只接受正式 `graph` 输入，不再提供 `nodes` 这类 demo 级入口
+- `packages/sync`
+  - 先只收口同步包文档和接口边界
+  - 当前默认采用 authority-first、protocol-agnostic、outlet-swappable 的叙事
+  - 不直接复制 `examples/editor` 现有 authority 链，也不把 OpenRPC 写成根层前提
 - `examples/editor`
   - 承担 Sandbox、本地 bundle 装载面板和 editor 壳层行为
   - editor 不再源码直连模板工程，而是通过文件选择器读取本地 bundle，或通过 authority 消费远端推送
@@ -53,6 +61,8 @@
   - 节点 / Widget 作者层、plugin / module 组装与宿主消费方式
 - [`packages/leafergraph/README.md`](./packages/leafergraph/README.md)
   - Leafer-first 图运行时、插件消费、交互和执行反馈
+- [`packages/sync/README.md`](./packages/sync/README.md)
+  - 独立同步包的文档骨架、根层术语和 outlet 边界
 - [`examples/editor/README.md`](./examples/editor/README.md)
   - Preact 驱动的 editor 示例工程、authority 接线与 bundle 装载入口
 
