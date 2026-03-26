@@ -1,0 +1,273 @@
+/**
+ * 最小图示例样式。
+ *
+ * @remarks
+ * 这份样式只服务当前示例工程，
+ * 目标是把“最小可运行”做得清楚、紧凑且便于观察运行反馈。
+ */
+:root {
+  color-scheme: light;
+  --page-bg: #f5f1e8;
+  --panel-bg: rgba(255, 252, 246, 0.88);
+  --panel-border: rgba(32, 44, 57, 0.14);
+  --panel-shadow: 0 24px 60px rgba(44, 36, 20, 0.12);
+  --text-primary: #1f2a35;
+  --text-secondary: #5d6b78;
+  --accent: #de6b36;
+  --accent-soft: rgba(222, 107, 54, 0.12);
+  --stage-bg: linear-gradient(180deg, #fffdf8 0%, #f3eee4 100%);
+  --button-bg: #fff8ef;
+  --button-border: rgba(31, 42, 53, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family:
+    "IBM Plex Sans",
+    "Segoe UI",
+    sans-serif;
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at top left, rgba(235, 142, 77, 0.22), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(52, 109, 181, 0.14), transparent 34%),
+    var(--page-bg);
+}
+
+.example-shell {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 20px;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.example-panel,
+.example-stage-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(16px);
+}
+
+.example-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+}
+
+.example-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.example-title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.example-description,
+.example-note,
+.example-list,
+.example-log-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.example-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.example-section-title {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.example-button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.example-button {
+  appearance: none;
+  border: 1px solid var(--button-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--button-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.example-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(222, 107, 54, 0.45);
+  box-shadow: 0 10px 24px rgba(222, 107, 54, 0.14);
+}
+
+.example-button:active {
+  transform: translateY(0);
+}
+
+.example-button--accent {
+  background: linear-gradient(180deg, #f38c4a 0%, #d86632 100%);
+  border-color: transparent;
+  color: white;
+}
+
+.example-list {
+  padding-left: 18px;
+}
+
+.example-list li + li {
+  margin-top: 6px;
+}
+
+.example-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.example-log-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(31, 42, 53, 0.08);
+}
+
+.example-log-time {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.example-log-message {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.example-stage-card {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 40px);
+  overflow: hidden;
+}
+
+.example-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(31, 42, 53, 0.08);
+}
+
+.example-stage-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.example-stage-title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.example-stage-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.example-stage-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.example-badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(31, 42, 53, 0.05);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.example-stage {
+  position: relative;
+  flex: 1;
+  min-height: 480px;
+  background: var(--stage-bg);
+}
+
+@media (max-width: 1080px) {
+  .example-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .example-stage-card {
+    min-height: 72vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .example-shell {
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .example-panel,
+  .example-stage-card {
+    border-radius: 20px;
+  }
+
+  .example-button-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .example-stage-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
