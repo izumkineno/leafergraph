@@ -4,7 +4,7 @@ import type {
   LeaferGraphConnectionPortState,
   LeaferGraphInteractionActivityState
 } from "leafergraph";
-import { LeaferGraphInteractionHost } from "../../leafergraph/src/interaction/interaction_host";
+import { LeaferGraphInteractionHost } from "../../../packages/leafergraph/src/interaction/interaction_host";
 
 type Handler = (event?: unknown) => void;
 

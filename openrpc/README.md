@@ -105,7 +105,7 @@
 - Python OpenRPC 模板 generated 常量：
   `templates/backend/python-openrpc-authority-template/src/leafergraph_python_openrpc_authority_template/_generated/`
 - editor 协议常量：
-  `packages/editor/src/session/authority_openrpc/`
+  `examples/editor/src/session/authority_openrpc/`
   正式生成入口是 `authority_openrpc/_generated/` 与 `authority_openrpc/runtime.ts`
 
 当前仓库里所有 authority 入口都必须和这份 OpenRPC 文档保持同一组 method / notification 名称，不能再定义平行真源。
@@ -129,7 +129,7 @@ uv run --project templates/backend/python-openrpc-authority-template pytest temp
 ## Editor 生成链维护
 
 - editor 侧 authority OpenRPC 生成器：
-  `packages/editor/tools/generate_from_openrpc.ts`
+  `examples/editor/tools/generate_from_openrpc.ts`
 - editor 手动生成命令：
   `bun run --filter leafergraph-editor generate:authority-openrpc`
 - editor stale 校验命令：
@@ -157,7 +157,7 @@ uv run --project templates/backend/python-openrpc-authority-template pytest temp
 - Node 协议常量与 discover 读取逻辑
 - Python 协议常量与 discover 读取逻辑
 - editor 协议常量、MessagePort host、transport 解析
-  当前 editor 侧的正式协议生成入口已经收口到 `packages/editor/src/session/authority_openrpc/`
+  当前 editor 侧的正式协议生成入口已经收口到 `examples/editor/src/session/authority_openrpc/`
 - 远端 demo fixture 与相关测试
 
 如果协议已改而上述任一侧没同步，当前仓库里的 discover / 常量一致性测试应直接失败。

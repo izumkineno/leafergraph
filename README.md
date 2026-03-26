@@ -1,6 +1,6 @@
 # LeaferGraph Workspace
 
-这个目录是新的 LeaferGraph 实验工程，当前主要由三个包组成：
+这个目录是新的 LeaferGraph 实验工程，当前主要由两个核心包和一个 editor 示例工程组成：
 
 - `packages/leafergraph`
   - 核心库工程
@@ -9,8 +9,8 @@
   - 干净的作者层包
   - 负责把节点 / widget 作者代码收口为 `NodeDefinition`、`NodeModule`、`LeaferGraphWidgetEntry`、`LeaferGraphNodePlugin`
   - 不承担 editor 适配、bundle bridge、loader manifest 或历史兼容负担
-- `packages/editor`
-  - 编辑器工程
+- `examples/editor`
+  - editor 示例工程
   - 使用 Preact 作为主要控制层，并通过包名 `leafergraph` 引用核心库
   - 当前同时支持本地 bundle 加载与远端 authority 接线
 - `openrpc/`
@@ -26,9 +26,9 @@
     - `templates/misc/backend-node-package-template`
   - 模板职责矩阵见 `templates/README.md`
 - `examples/`
-  - 仓库内可直接运行的最小示例工程
-  - 当前提供 `examples/minimal-graph`
-  - 用于演示“不依赖 editor，只用主包跑起一张最小图”
+  - 仓库内可直接运行的示例工程目录
+  - 当前提供 `examples/editor` 与 `examples/minimal-graph`
+  - 分别用于演示完整 editor 壳层，以及“不依赖 editor、只用主包跑起一张最小图”
 
 ## 当前边界
 
@@ -39,11 +39,11 @@
   - 只保留核心图能力、节点运行时、渲染宿主与交互基础设施
   - 不再内建默认 demo 节点、默认 demo 图数据或 editor 专属快速创建模板
   - 主包初始化只接受正式 `graph` 输入，不再提供 `nodes` 这类 demo 级入口
-- `packages/editor`
+- `examples/editor`
   - 承担 Sandbox、本地 bundle 装载面板和 editor 壳层行为
   - editor 不再源码直连模板工程，而是通过文件选择器读取本地 bundle，或通过 authority 消费远端推送
 
-## 包级 README
+## 包与示例 README
 
 如果你想直接从包边界进入，优先看这些 README：
 
@@ -53,6 +53,8 @@
   - 节点 / Widget 作者层、plugin / module 组装与宿主消费方式
 - [`packages/leafergraph/README.md`](./packages/leafergraph/README.md)
   - Leafer-first 图运行时、插件消费、交互和执行反馈
+- [`examples/editor/README.md`](./examples/editor/README.md)
+  - Preact 驱动的 editor 示例工程、authority 接线与 bundle 装载入口
 
 ## 常用命令
 
@@ -200,7 +202,7 @@ editor 现在内建一个“本地 Bundle 加载面板”，按三类 bundle 分
 bun run build:testbundles
 ```
 
-这条命令会先重建 `templates/misc/browser-node-widget-plugin-template/dist/browser/*`，再同步到 `packages/editor/public/__testbundles/`。
+这条命令会先重建 `templates/misc/browser-node-widget-plugin-template/dist/browser/*`，再同步到 `examples/editor/public/__testbundles/`。
 
 ## 模板工程产物
 
@@ -218,7 +220,7 @@ bun run build:testbundles
 
 ## Editor 多页面预览产物
 
-`packages/editor` 的生产构建现在会同时产出这些页面：
+`examples/editor` 的生产构建现在会同时产出这些页面：
 
 - `dist/index.html`
 - `dist/authority-python-host-demo.html`
@@ -227,7 +229,7 @@ bun run build:testbundles
 
 ## GitHub Pages 托管
 
-当前仓库已经补上 editor 的 GitHub Pages 工作流，默认会把 `packages/editor/dist/` 发布到 Pages。
+当前仓库已经补上 editor 的 GitHub Pages 工作流，默认会把 `examples/editor/dist/` 发布到 Pages。
 
 工作流文件：
 

@@ -1,8 +1,8 @@
 node_modules/
 dist/
-packages/editor/playwright-report/
-packages/editor/test-results/
-packages/editor/src/session/authority_openrpc/_generated/
+examples/editor/playwright-report/
+examples/editor/test-results/
+examples/editor/src/session/authority_openrpc/_generated/
 .venv/
 __pycache__/
 *.pyc

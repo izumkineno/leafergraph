@@ -4,10 +4,10 @@ import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
 
 const leafergraphEntry = fileURLToPath(
-  new URL("../leafergraph/src/index.ts", import.meta.url)
+  new URL("../../packages/leafergraph/src/index.ts", import.meta.url)
 );
 const authoringEntry = fileURLToPath(
-  new URL("../authoring/src/index.ts", import.meta.url)
+  new URL("../../packages/authoring/src/index.ts", import.meta.url)
 );
 
 const editorHtmlEntries = {

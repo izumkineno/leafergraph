@@ -2,22 +2,22 @@ import "./helpers/install_test_host_polyfills";
 
 import { describe, expect, test } from "bun:test";
 
-import { resolveDefaultNodeShellRenderTheme } from "../../leafergraph/src/graph/graph_runtime_style";
+import { resolveDefaultNodeShellRenderTheme } from "../../../packages/leafergraph/src/graph/graph_runtime_style";
 import {
   NODE_PORT_HIT_AREA_PADDING_X,
   NODE_PORT_HIT_AREA_PADDING_Y,
   resolveNodePortHitAreaBounds
-} from "../../leafergraph/src/node/node_port";
+} from "../../../packages/leafergraph/src/node/node_port";
 import {
   NODE_SHELL_LAYOUT_METRICS,
   resolveDefaultSelectedStroke
-} from "../../leafergraph/src/graph/graph_runtime_style";
+} from "../../../packages/leafergraph/src/graph/graph_runtime_style";
 import {
   resolveNodeCategoryBadgeLayout,
   resolveNodeShellLayout
-} from "../../leafergraph/src/node/node_layout";
-import { createNodeShell } from "../../leafergraph/src/node/node_shell";
-import { LeaferGraphInteractionRuntimeHost } from "../../leafergraph/src/interaction/graph_interaction_runtime_host";
+} from "../../../packages/leafergraph/src/node/node_layout";
+import { createNodeShell } from "../../../packages/leafergraph/src/node/node_shell";
+import { LeaferGraphInteractionRuntimeHost } from "../../../packages/leafergraph/src/interaction/graph_interaction_runtime_host";
 
 function createNodeState(options?: {
   collapsed?: boolean;

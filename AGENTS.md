@@ -45,6 +45,8 @@
   - 存放范围定义、设计方案、架构讨论等文档。
 - `packages/`
   - 存放实际可运行的子包。
+- `examples/`
+  - 存放仓库内可直接运行的示例工程，包括最小图示例与 editor 示例。
 
 ### `packages/leafergraph`
 
@@ -58,9 +60,9 @@
 
 不应把编辑器壳层、复杂面板 UI、页面布局逻辑塞进该包。
 
-### `packages/editor`
+### `examples/editor`
 
-这是编辑器工程，负责用户界面与控制层，原则上应包含：
+这是 editor 示例工程，负责用户界面与控制层，原则上应包含：
 
 - Preact 组件树
 - 编辑器布局、工具栏、面板、状态编排
@@ -585,7 +587,7 @@ bun run preview:editor
 ### 新增代码时的默认放置原则
 
 - 图模型、运行时、渲染、交互基础能力：放到 `packages/leafergraph`
-- 编辑器页面、布局、面板、状态编排：放到 `packages/editor`
+- 编辑器页面、布局、面板、状态编排：放到 `examples/editor`
 - 设计说明、范围讨论、架构决策：放到 `docs/`
 
 ### 避免以下问题

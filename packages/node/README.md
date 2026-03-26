@@ -39,14 +39,14 @@
 | `@leafergraph/node` | 节点定义、图文档、模块、注册表、模型工具 | Leafer 运行时、作者层体验、editor UI |
 | `@leafergraph/authoring` | 节点 / Widget 作者层、plugin / module 组装 | 模型真源、图宿主 |
 | `leafergraph` | 图运行时、渲染、交互基础设施、插件消费 | 模型 SDK、editor 壳层 |
-| `packages/editor` | 工作区、authority、bundle loader、UI 壳层 | 主包运行时和模型真源 |
+| `examples/editor` | 工作区、authority、bundle loader、UI 壳层 | 主包运行时和模型真源 |
 
 一个实用判断是：
 
 - 描述“节点和图的数据结构是什么”，去 `@leafergraph/node`
 - 描述“怎么更舒服地写节点类和 Widget 类”，去 `@leafergraph/authoring`
 - 描述“图如何运行、渲染和交互”，去 `leafergraph`
-- 描述“工作区怎样装配 authority 和 bundle”，看 `packages/editor`
+- 描述“工作区怎样装配 authority 和 bundle”，看 `examples/editor`
 
 ## 五分钟上手
 

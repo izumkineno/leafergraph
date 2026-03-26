@@ -37,13 +37,13 @@
 | --- | --- | --- |
 | `@leafergraph/node` | 节点定义、模块、注册表、图文档模型、序列化类型 | Leafer 场景、交互、渲染宿主 |
 | `leafergraph` | 图运行时、渲染、交互基础设施、执行反馈、公共 API | editor UI、authority transport、bundle 协议 |
-| `packages/editor` | 工作区壳层、命令、session、authority、bundle 装配 | 主包运行时真源 |
+| `examples/editor` | 工作区壳层、命令、session、authority、bundle 装配 | 主包运行时真源 |
 
 一个实用判断是：
 
 - 定义“节点是什么”，去 `@leafergraph/node`
 - 让“节点图跑起来、显示出来、可交互”，用 `leafergraph`
-- 做“工作区、菜单、authority、bundle 面板”，看 `packages/editor`
+- 做“工作区、菜单、authority、bundle 面板”，看 `examples/editor`
 
 ## 五分钟上手
 

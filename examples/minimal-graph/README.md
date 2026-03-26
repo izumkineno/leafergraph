@@ -2,7 +2,7 @@
 
 `examples/minimal-graph` 是仓库根下的一个独立最小工程，用来演示：
 
-- 不依赖 `packages/editor`
+- 不依赖 `examples/editor`
 - 只使用 `leafergraph + @leafergraph/node`
 - 使用 `Preact` 驱动页面层
 - 在浏览器里挂起一张最小节点图

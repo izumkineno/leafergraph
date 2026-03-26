@@ -111,7 +111,7 @@ function schemaKeyFromPath(fileName) {
 }
 
 function createHeader() {
-  return "// 此文件由 packages/editor/tools/generate_from_openrpc.ts 自动生成。\n\n";
+  return "// 此文件由 examples/editor/tools/generate_from_openrpc.ts 自动生成。\n\n";
 }
 
 function pascalCase(value) {

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import type { LeaferGraphExecutionContext } from "../../leafergraph/src/api/graph_api_types";
-import { LeaferGraphExecutionRuntimeHost } from "../../leafergraph/src/graph/graph_execution_runtime_host";
+import type { LeaferGraphExecutionContext } from "../../../packages/leafergraph/src/api/graph_api_types";
+import { LeaferGraphExecutionRuntimeHost } from "../../../packages/leafergraph/src/graph/graph_execution_runtime_host";
 import {
   LEAFER_GRAPH_TIMER_NODE_TYPE,
   leaferGraphTimerNodeDefinition
-} from "../../leafergraph/src/node/builtin/timer_node";
-import type { LeaferGraphNodeExecutionTask } from "../../leafergraph/src/node/node_runtime_host";
+} from "../../../packages/leafergraph/src/node/builtin/timer_node";
+import type { LeaferGraphNodeExecutionTask } from "../../../packages/leafergraph/src/node/node_runtime_host";
 
 function createTask(input: {
   nodeId: string;

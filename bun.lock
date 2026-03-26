@@ -9,6 +9,19 @@
         "vite": "^8.0.1",
       },
     },
+    "examples/editor": {
+      "name": "leafergraph-editor",
+      "version": "0.1.0",
+      "dependencies": {
+        "leafergraph": "0.1.0",
+        "preact": "^10.26.9",
+      },
+      "devDependencies": {
+        "@playwright/test": "^1.53.2",
+        "@preact/preset-vite": "^2.10.2",
+        "preact-render-to-string": "^6.5.13",
+      },
+    },
     "examples/minimal-graph": {
       "name": "leafergraph-minimal-graph-example",
       "version": "0.1.0",
@@ -30,19 +43,6 @@
         "@leafergraph/node": "^0.1.0",
         "leafer-ui": "^2.0.3",
         "leafergraph": "^0.1.0",
-      },
-    },
-    "packages/editor": {
-      "name": "leafergraph-editor",
-      "version": "0.1.0",
-      "dependencies": {
-        "leafergraph": "0.1.0",
-        "preact": "^10.26.9",
-      },
-      "devDependencies": {
-        "@playwright/test": "^1.53.2",
-        "@preact/preset-vite": "^2.10.2",
-        "preact-render-to-string": "^6.5.13",
       },
     },
     "packages/leafergraph": {
@@ -462,7 +462,7 @@
 
     "leafergraph": ["leafergraph@workspace:packages/leafergraph"],
 
-    "leafergraph-editor": ["leafergraph-editor@workspace:packages/editor"],
+    "leafergraph-editor": ["leafergraph-editor@workspace:examples/editor"],
 
     "leafergraph-minimal-graph-example": ["leafergraph-minimal-graph-example@workspace:examples/minimal-graph"],
 

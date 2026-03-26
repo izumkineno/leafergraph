@@ -15,7 +15,7 @@ const templateDir = resolve(
 const templateBrowserDistDir = resolve(templateDir, "dist", "browser");
 const editorTestBundleDir = resolve(
   workspaceRoot,
-  "packages",
+  "examples",
   "editor",
   "public",
   "__testbundles"
@@ -33,13 +33,14 @@ const filesToSync = [
 ];
 
 function resolveBunCommand() {
-  return process.platform === "win32" ? "bun.exe" : "bun";
+  return process.env.BUN_EXE || "bun";
 }
 
 function runTemplateBrowserBuild() {
   const result = spawnSync(resolveBunCommand(), ["run", "build:browser"], {
     cwd: templateDir,
-    stdio: "inherit"
+    stdio: "inherit",
+    shell: process.platform === "win32"
   });
 
   if (result.error) {

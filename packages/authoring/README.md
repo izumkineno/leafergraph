@@ -40,14 +40,14 @@
 | `@leafergraph/node` | 节点定义、图文档模型、模块、注册表、序列化 | 作者类体验、Leafer 宿主 |
 | `@leafergraph/authoring` | 节点 / Widget 作者层、plugin / module 组装 | editor 适配、运行时宿主、历史兼容 |
 | `leafergraph` | 图运行时、渲染、交互基础设施、插件消费 | editor 壳层、bundle 装载协议 |
-| `packages/editor` | 工作区、authority、bundle loader、UI 壳层 | 反向定义作者层公共 API |
+| `examples/editor` | 工作区、authority、bundle loader、UI 壳层 | 反向定义作者层公共 API |
 
 一个实用判断是：
 
 - 定义正式模型和图文档，去 `@leafergraph/node`
 - 写节点类、Widget 类和正式 plugin，去 `@leafergraph/authoring`
 - 让图跑起来、显示出来、可交互，去 `leafergraph`
-- 做工作区、菜单、authority 和 bundle 面板，看 `packages/editor`
+- 做工作区、菜单、authority 和 bundle 面板，看 `examples/editor`
 
 这里必须保持一个固定方向：
 

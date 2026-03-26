@@ -1,6 +1,6 @@
 # `leafergraph-editor`
 
-`packages/editor` 是 LeaferGraph 的编辑器壳层，负责 UI 组合、状态编排、authority 接线、bundle 装载与 demo 装配。  
+`examples/editor` 是 LeaferGraph 的编辑器壳层，负责 UI 组合、状态编排、authority 接线、bundle 装载与 demo 装配。  
 底层图模型、渲染宿主与运行时能力不在这里重写，主要来自 `leafergraph` 与 `@leafergraph/node`。
 
 ## 深入文档
@@ -133,7 +133,7 @@ bun run generate:authority-openrpc
 
 ## 边界
 
-- `packages/editor`
+- `examples/editor`
   - 负责“如何组织一个编辑器”
 - `packages/leafergraph`
   - 负责“图如何被渲染、交互、运行和序列化”

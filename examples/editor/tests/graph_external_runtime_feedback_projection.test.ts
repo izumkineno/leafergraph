@@ -6,11 +6,11 @@ import type {
   LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent,
   RuntimeFeedbackEvent
-} from "../../leafergraph/src/api/graph_api_types";
-import { LeaferGraphExecutionRuntimeHost } from "../../leafergraph/src/graph/graph_execution_runtime_host";
-import { projectExternalRuntimeFeedback } from "../../leafergraph/src/graph/graph_runtime_feedback_projection";
-import { LeaferGraphNodeRuntimeHost } from "../../leafergraph/src/node/node_runtime_host";
-import { LeaferGraphWidgetRegistry } from "../../leafergraph/src/widgets/widget_registry";
+} from "../../../packages/leafergraph/src/api/graph_api_types";
+import { LeaferGraphExecutionRuntimeHost } from "../../../packages/leafergraph/src/graph/graph_execution_runtime_host";
+import { projectExternalRuntimeFeedback } from "../../../packages/leafergraph/src/graph/graph_runtime_feedback_projection";
+import { LeaferGraphNodeRuntimeHost } from "../../../packages/leafergraph/src/node/node_runtime_host";
+import { LeaferGraphWidgetRegistry } from "../../../packages/leafergraph/src/widgets/widget_registry";
 
 function createRuntimeNode(
   overrides: Partial<NodeRuntimeState> & Pick<NodeRuntimeState, "id" | "type">

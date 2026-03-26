@@ -1,8 +1,8 @@
-# `packages/editor` 文件指纹索引
+# `examples/editor` 文件指纹索引
 
 ## 索引范围说明
 
-- 统计基线：当前工作树下 `packages/editor` 的非琐碎文件，共 `211` 个。
+- 统计基线：当前工作树下 `examples/editor` 的非琐碎文件，共 `211` 个。
 - 纳入范围：
   - 源码、HTML 入口、配置、README、测试、fixtures、手工维护的 `public` 资产、`__testbundles/*.iife.js`
 - 排除范围：
@@ -20,7 +20,7 @@
 | :--- | :--- | :--- | :--- |
 | `ARCHITECTURE.md` | editor 架构总览、生命周期、数据流、运行模式与技术选型说明。 | `Mermaid 架构图`、`运行模式对照` | `README.md`、`FILE_INDEX.md` |
 | `FILE_INDEX.md` | editor 全量非琐碎文件索引。 | `分层索引表` | `ARCHITECTURE.md`、`README.md` |
-| `README.md` | 包级入口说明、阅读顺序、目录文档地图与生成目录说明。 | `开发命令、文档导航、注释约定` | `packages/editor` 全体 |
+| `README.md` | 包级入口说明、阅读顺序、目录文档地图与生成目录说明。 | `开发命令、文档导航、注释约定` | `examples/editor` 全体 |
 | `authority-python-host-demo.html` | Python WebSocket authority demo 的独立 HTML 入口。 | `HTML host 页面` | `src/demo/python_websocket_host_demo_entry.ts` |
 | `index.html` | 默认 editor 页面入口。 | `HTML host 页面` | `src/main.tsx` |
 | `package.json` | 包元数据、exports、scripts 与依赖声明。 | `scripts`、`exports` | `Vite + Preact + leafergraph` |
@@ -145,7 +145,7 @@
 | `src/session/authority_openrpc/index.ts` | authority OpenRPC 正式公共入口，聚合 generated descriptor、runtime 与 envelope 类型。 | `export *` | `src/backend.ts`、`transport/host/tests` |
 | `src/session/authority_openrpc/runtime.ts` | 基于共享 OpenRPC 生成物的 authority JSON-RPC runtime，负责 params/result/notification 校验与默认协议 adapter。 | `validateMethodParams`、`validateMethodResult`、`validateNotificationParams`、`createDefaultEditorRemoteAuthorityProtocolAdapter` | `message_port`、`websocket`、`node_process` transports |
 | `src/session/authority_openrpc/types.ts` | authority JSON-RPC envelope、协议 adapter 与 inbound/outbound 消息类型。 | `EditorRemoteAuthorityProtocolAdapter`、`EditorRemoteAuthority*Envelope` | `authority_openrpc/runtime.ts` |
-| `src/session/authority_openrpc/_generated/` | authority OpenRPC 自动生成产物目录，收口 methods、notifications、schema bundle、OpenRPC 文档和 transport 类型。 | `descriptor / methods / notifications / models / transport_types` | `packages/editor/tools/generate_from_openrpc.ts` |
+| `src/session/authority_openrpc/_generated/` | authority OpenRPC 自动生成产物目录，收口 methods、notifications、schema bundle、OpenRPC 文档和 transport 类型。 | `descriptor / methods / notifications / models / transport_types` | `examples/editor/tools/generate_from_openrpc.ts` |
 | `src/session/graph_document_authority_client.ts` | authority client 能力、连接状态与运行控制接口定义。 | `EditorRemoteAuthorityClient` 相关类型 | `src/backend/authority/remote_authority_app_runtime.ts` |
 | `src/session/graph_document_authority_service.ts` | authority service 接口定义。 | `EditorRemoteAuthorityDocumentService` | `demo service`、`service bridge` |
 | `src/session/graph_document_authority_service_bridge.ts` | 将 authority service 桥接到 transport/client 协议层。 | `createAuthorityServiceBridge` | `src/demo/remote_authority_demo_service.ts` |

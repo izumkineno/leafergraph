@@ -1,8 +1,8 @@
-# `packages/editor` 工程百科全书
+# `examples/editor` 工程百科全书
 
 ## 1. 文档定位
 
-`packages/editor` 是 LeaferGraph 的编辑器壳层。它不负责定义底层图模型，也不直接实现 Leafer retained-mode 渲染宿主；这些能力主要来自 [`leafergraph`](../leafergraph/README.md) 与 `@leafergraph/node`。  
+`examples/editor` 是 LeaferGraph 的编辑器壳层。它不负责定义底层图模型，也不直接实现 Leafer retained-mode 渲染宿主；这些能力主要来自 [`leafergraph`](../../packages/leafergraph/README.md) 与 `@leafergraph/node`。  
 它的职责是把以下几类能力编排成一个可运行的前端编辑器：
 
 - Preact UI 区域树与页面布局
@@ -32,7 +32,7 @@
 ## 2. 带注释目录骨架
 
 ```text
-packages/editor
+examples/editor
 ├─ README.md                              # 包入口说明，跳转到深入文档
 ├─ ARCHITECTURE.md                        # 架构总览、生命周期、数据流、技术选型
 ├─ FILE_INDEX.md                          # 全量非琐碎文件索引
@@ -109,7 +109,7 @@ packages/editor
 
 ### 3.1 架构类型
 
-`packages/editor` 是一个 **模块化 monolith + authority-ready frontend shell**，而不是 microservices。
+`examples/editor` 是一个 **模块化 monolith + authority-ready frontend shell**，而不是 microservices。
 
 它的核心不是把功能按前后端服务切碎，而是把前端内部能力拆成清晰的模块边界：
 
@@ -191,7 +191,7 @@ flowchart LR
 
 ### 3.4 边界总结
 
-- `packages/editor`
+- `examples/editor`
   - 负责“如何把图编辑器组织起来”。
 - `packages/leafergraph`
   - 负责“图如何被渲染、交互、序列化和运行”。
@@ -552,7 +552,7 @@ flowchart TD
 为什么选它：
 
 - `leafergraph` 的目标是 Leafer-first，editor 需要围绕 retained-mode scene graph，而不是 DOM-only canvas 编辑器
-- `packages/editor` 只做壳层，底层渲染和节点图能力交给 `createLeaferGraph(...)`
+- `examples/editor` 只做壳层，底层渲染和节点图能力交给 `createLeaferGraph(...)`
 
 在本项目中的落点：
 
