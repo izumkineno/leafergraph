@@ -1,3 +1,10 @@
+/**
+ * demo authority source 装配模块。
+ *
+ * @remarks
+ * 负责把内置 demo worker authority 包装成 editor 可直接消费的 authority source，
+ * 供 bootstrap 和 host adapter 复用。
+ */
 import {
   createEditorRemoteAuthorityWorkerSource,
   type CreateEditorRemoteAuthorityWorkerSourceOptions

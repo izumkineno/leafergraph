@@ -1,3 +1,9 @@
+/**
+ * 浏览器系统剪贴板桥接模块。
+ *
+ * @remarks
+ * 负责把 editor 内部的复制粘贴链路接到浏览器原生 Clipboard API，隔离权限、异常和兼容性差异。
+ */
 export async function readBrowserClipboardText(
   ownerWindow: Window
 ): Promise<string | null> {

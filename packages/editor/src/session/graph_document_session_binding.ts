@@ -1,3 +1,10 @@
+/**
+ * document session binding 模块。
+ *
+ * @remarks
+ * 负责在 GraphViewport 和不同 authority 模式的 session 之间建立统一绑定层，
+ * 收口命令回填、运行反馈回填和文档替换语义。
+ */
 import type {
   GraphDocument,
   LeaferGraph,

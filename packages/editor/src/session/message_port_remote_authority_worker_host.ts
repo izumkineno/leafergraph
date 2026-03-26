@@ -1,3 +1,9 @@
+/**
+ * Worker authority host 握手模块。
+ *
+ * @remarks
+ * 负责在 Worker 场景下监听主线程握手消息，并把收到的 MessagePort 挂到 authority host。
+ */
 import type { EditorRemoteAuthorityDocumentService } from "./graph_document_authority_service";
 import {
   attachMessagePortRemoteAuthorityBridgeHost,

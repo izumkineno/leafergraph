@@ -1,3 +1,10 @@
+/**
+ * editor 控制器模块。
+ *
+ * @remarks
+ * 负责承载 editor 壳层的可订阅状态、动作入口和外部桥接接口，
+ * 是 Provider 与外部宿主之间的轻量状态中枢。
+ */
 import type { GraphDocument } from "leafergraph";
 import type { NodeDefinition } from "@leafergraph/node";
 
@@ -30,6 +37,7 @@ import type {
   WorkspaceStageLayout
 } from "./layout/workspace_adaptive";
 
+/** remote authority 运行时在 editor 中的整体阶段状态。 */
 export type RemoteAuthorityRuntimeStatus =
   | "disabled"
   | "idle"
@@ -37,24 +45,29 @@ export type RemoteAuthorityRuntimeStatus =
   | "ready"
   | "error";
 
+/** 供 UI 展示的 authority 连接状态。 */
 export type RemoteAuthorityConnectionDisplayStatus =
   | "idle"
   | EditorRemoteAuthorityConnectionStatus;
 
+/** 工作区设置面板支持的标签页。 */
 export type WorkspaceSettingsTab =
   | "extensions"
   | "authority"
   | "preferences"
   | "shortcuts";
 
+/** 运行控制台支持的标签页。 */
 export type RunConsoleTab = "overview" | "chains" | "failures" | "node-runtime";
 
+/** 创建 editor 控制器时允许注入的外部输入。 */
 export interface CreateEditorControllerOptions {
   preloadedBundles?: readonly EditorAppBootstrapPreloadedBundle[];
   remoteAuthoritySource?: EditorRemoteAuthorityAppSource;
   onViewportHostBridgeChange?(bridge: GraphViewportHostBridge | null): void;
 }
 
+/** editor 壳层当前集中持有的状态快照。 */
 export interface EditorControllerState {
   theme: EditorTheme;
   leaferDebugSettings: EditorLeaferDebugSettings;
@@ -92,6 +105,7 @@ export interface EditorControllerState {
   defaultEntryOnboardingState: DefaultEntryOnboardingState;
 }
 
+/** editor 壳层可触发的动作集合。 */
 export interface EditorControllerActions {
   setTheme(theme: EditorTheme): void;
   toggleTheme(): void;
@@ -129,6 +143,7 @@ export interface EditorControllerActions {
   stopGraph(): void;
 }
 
+/** editor 控制器对外暴露的最小读写接口。 */
 export interface EditorController {
   getOptions(): Readonly<CreateEditorControllerOptions>;
   getState(): EditorControllerState;
@@ -143,6 +158,7 @@ interface InternalEditorController extends EditorController {
   ): void;
 }
 
+/** 基于启动选项创建第一份稳定的 controller 状态。 */
 function createInitialEditorControllerState(
   options: CreateEditorControllerOptions
 ): EditorControllerState {
@@ -189,6 +205,7 @@ function createInitialEditorControllerState(
   };
 }
 
+/** 在 provider 正式接线前，为控制器准备一组安全的空动作。 */
 function createNoopActions(): EditorControllerActions {
   return {
     setTheme() {},
@@ -226,6 +243,7 @@ function createNoopActions(): EditorControllerActions {
   };
 }
 
+/** 创建 editor 控制器，并提供可被 provider 二次接线的稳定外壳。 */
 export function createEditorController(
   options: CreateEditorControllerOptions = {}
 ): EditorController {
@@ -261,6 +279,7 @@ export function createEditorController(
   return controller;
 }
 
+/** 用 provider 侧最新状态和动作回填控制器，驱动外部订阅者更新。 */
 export function syncEditorController(
   controller: EditorController,
   state: EditorControllerState,

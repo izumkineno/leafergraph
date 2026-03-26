@@ -1,3 +1,10 @@
+/**
+ * MessagePort authority host 模块。
+ *
+ * @remarks
+ * 负责把 authority service 暴露到浏览器 `MessagePort` 协议壳上，
+ * 供 worker、iframe 和自定义 bridge 场景复用。
+ */
 import type {
   EditorRemoteAuthorityProtocolAdapter,
   EditorRemoteAuthorityRequestInboundEnvelope

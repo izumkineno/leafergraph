@@ -1,3 +1,9 @@
+/**
+ * 工作区面板聚合模块。
+ *
+ * @remarks
+ * 当前承担节点库与检查器主面板的过渡实现，负责把 provider 侧状态整理为面板级展示结构。
+ */
 import type { NodeDefinition } from "@leafergraph/node";
 import type { JSX } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
@@ -17,6 +23,7 @@ interface NodeLibraryGroup {
   totalCount: number;
 }
 
+/** 节点库面板当前接收的最小 props。 */
 export interface NodeLibraryPaneProps {
   definitions: readonly NodeDefinition[];
   searchQuery: string;
@@ -36,6 +43,7 @@ export interface NodeLibraryPaneProps {
   };
 }
 
+/** 检查器面板当前接收的最小 props。 */
 export interface InspectorPaneProps {
   presentation: WorkspacePanePresentation;
   workspaceState: GraphViewportWorkspaceState | null;
@@ -90,6 +98,15 @@ function createGroup(label: string, key: string): NodeLibraryGroup {
   };
 }
 
+/**
+ * 按分类路径把节点定义构造成可递归渲染的目录树。
+ *
+ * @remarks
+ * 这里先把线性定义列表投影成分层 group，方便节点库同时支持：
+ * - 分类折叠展示
+ * - 按分类统计数量
+ * - 维持节点定义与分类节点各自的稳定排序
+ */
 function buildNodeLibraryGroups(
   definitions: readonly NodeDefinition[]
 ): NodeLibraryGroup[] {
@@ -249,6 +266,7 @@ function renderNodeLibraryGroup(
   );
 }
 
+/** 渲染左侧节点库面板，并负责节点搜索、激活态与预览请求派发。 */
 export function NodeLibraryPane(props: NodeLibraryPaneProps) {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const filteredDefinitions = useMemo(
@@ -429,6 +447,7 @@ function InspectorJsonSection({
   );
 }
 
+/** 渲染右侧检查器面板，统一展示文档、运行态和 authority 摘要。 */
 export function InspectorPane({
   presentation,
   workspaceState,

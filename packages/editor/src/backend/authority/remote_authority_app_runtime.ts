@@ -1,3 +1,9 @@
+/**
+ * remote authority 应用运行时装配模块。
+ *
+ * @remarks
+ * 负责把不同 authority 来源统一装配成 editor 可消费的 app runtime、文档绑定工厂和运行反馈入口。
+ */
 import type { GraphDocument } from "leafergraph";
 import type { EditorRuntimeFeedbackInlet } from "../../runtime/runtime_feedback_inlet";
 import {

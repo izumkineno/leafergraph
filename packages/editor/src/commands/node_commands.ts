@@ -1,3 +1,9 @@
+/**
+ * 节点命令控制器模块。
+ *
+ * @remarks
+ * 负责节点创建、删除、复制、剪切、粘贴、duplicate 和 reset-size 等高频编辑命令。
+ */
 import type {
   GraphLink,
   LeaferGraph,

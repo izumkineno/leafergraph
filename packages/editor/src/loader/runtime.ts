@@ -1,3 +1,9 @@
+/**
+ * bundle 运行时装配模块。
+ *
+ * @remarks
+ * 负责解析前端 bundle、校验 manifest、求解依赖，并把可用插件与文档装配成 editor 可消费的运行时 setup。
+ */
 import * as LeaferGraphRuntime from "leafergraph";
 import * as LeaferGraphAuthoring from "@leafergraph/authoring";
 import type { GraphDocument, LeaferGraphNodePlugin } from "leafergraph";
@@ -806,6 +812,14 @@ function resolveRecordActivity(
   cache: Map<string, boolean>,
   trail: string[] = []
 ): boolean {
+  /**
+   * 一条 bundle 记录只有同时满足这几件事才算“真正活跃”：
+   * - 记录本身合法且启用
+   * - 没有处于 loading / failed 空壳态
+   * - 依赖链上的 bundle 也都能被解析为活跃
+   *
+   * 这里顺手做循环依赖短路，避免目录异常时把状态计算拖进递归死循环。
+   */
   if (cache.has(record.bundleKey)) {
     return cache.get(record.bundleKey) ?? false;
   }
@@ -914,6 +928,14 @@ function resolveQuickCreateNodeType(
 export function resolveEditorBundleRuntimeSetup(
   catalog: EditorBundleCatalogState
 ): EditorBundleRuntimeSetup {
+  /**
+   * runtime setup 是 Provider 真正关心的最小装配结果：
+   * - 哪些 bundle 在目录里
+   * - 哪些 bundle 当前可激活
+   * - 当前 demo / plugins / quick create 节点类型分别是什么
+   *
+   * 把这些判断集中在这里，能让 UI、持久化和 authority bundle 同步都共享同一套状态解释。
+   */
   const activityCache = new Map<string, boolean>();
   const resolvedBundles = {
     demo: [],

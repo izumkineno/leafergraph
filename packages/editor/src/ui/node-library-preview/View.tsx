@@ -1,3 +1,9 @@
+/**
+ * 视图组件模块。
+ *
+ * @remarks
+ * 负责承接当前区域的纯展示结构与交互回调，尽量把运行时编排留在 Connected 组件或 shell 层处理。
+ */
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { LeaferGraphNodePlugin } from "leafergraph";
 import { createLeaferGraph, type LeaferGraph } from "leafergraph";
@@ -16,6 +22,7 @@ import {
   type NodeLibraryPreviewRequest
 } from "./helpers";
 
+/** 节点库 hover 预览浮层组件的 props。 */
 export interface NodeLibraryHoverPreviewOverlayProps {
   request: NodeLibraryPreviewRequest;
   theme: EditorTheme;
@@ -65,6 +72,7 @@ function createViewportRect(): NodeLibraryPreviewAnchorRect {
   };
 }
 
+/** 渲染节点库 hover/focus 预览浮层，并在内部挂载一个只读 LeaferGraph。 */
 export function NodeLibraryHoverPreviewOverlay({
   request,
   theme,
@@ -109,6 +117,8 @@ export function NodeLibraryHoverPreviewOverlay({
   }, []);
 
   useEffect(() => {
+    // 预览浮层自己的 graph 实例只在宿主节点就绪后创建一次；
+    // 后续文档和主题变化都通过独立 effect 增量更新，避免每次 hover 都重建 DOM 容器。
     const host = hostRef.current;
     if (!host) {
       return;
@@ -177,6 +187,7 @@ export function NodeLibraryHoverPreviewOverlay({
       return;
     }
 
+    // 节点定义变化时替换 preview document，并在下一帧重新 fit，保证浮层始终展示完整节点。
     let cancelled = false;
     let frameId = 0;
     void graph.ready.then(() => {

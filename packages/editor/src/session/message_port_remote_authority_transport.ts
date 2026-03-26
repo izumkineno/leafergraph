@@ -1,3 +1,9 @@
+/**
+ * MessagePort authority transport 模块。
+ *
+ * @remarks
+ * 负责通过浏览器原生 `MessagePort` 实现 authority request/response 与事件订阅。
+ */
 import {
   createTransportRemoteAuthorityClient,
   type EditorRemoteAuthorityDocumentClient,

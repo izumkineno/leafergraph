@@ -1,15 +1,23 @@
-# Node Library
+# `src/ui/node-library`
 
 ## 作用
-- 负责节点搜索、分组展示、快速创建与 hover 预览触发。
+- 承接左侧节点库区域的 UI 入口。
 
-## 导出
-- `EditorNodeLibraryView`
-- `EditorNodeLibraryConnected`
-- `EditorNodeLibraryViewProps`
+## 边界
+- 当前复用 `app/WorkspacePanels.tsx` 中的节点库实现。
+- 负责区域接线、搜索和 hover 预览请求派发。
 
-## 使用方式
-```tsx
-import { EditorNodeLibraryConnected } from "leafergraph-editor/ui/node-library";
-import "leafergraph-editor/ui/node-library/styles.css";
-```
+## 核心入口
+- `Connected.tsx`
+- `View.tsx`
+- `types.ts`
+
+## 推荐阅读顺序
+1. `Connected.tsx`
+2. `View.tsx`
+3. `../../app/WorkspacePanels.tsx`
+4. `../node-library-preview/README.md`
+
+## 上下游关系
+- 上游：`shell/provider.tsx`、`loader/runtime.ts`。
+- 下游：工作区创建节点、节点库预览浮层。

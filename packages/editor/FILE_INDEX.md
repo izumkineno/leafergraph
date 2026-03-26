@@ -2,7 +2,7 @@
 
 ## 索引范围说明
 
-- 统计基线：当前工作树下 `packages/editor` 的非琐碎文件，共 `194` 个。
+- 统计基线：当前工作树下 `packages/editor` 的非琐碎文件，共 `211` 个。
 - 纳入范围：
   - 源码、HTML 入口、配置、README、测试、fixtures、手工维护的 `public` 资产、`__testbundles/*.iife.js`
 - 排除范围：
@@ -20,7 +20,7 @@
 | :--- | :--- | :--- | :--- |
 | `ARCHITECTURE.md` | editor 架构总览、生命周期、数据流、运行模式与技术选型说明。 | `Mermaid 架构图`、`运行模式对照` | `README.md`、`FILE_INDEX.md` |
 | `FILE_INDEX.md` | editor 全量非琐碎文件索引。 | `分层索引表` | `ARCHITECTURE.md`、`README.md` |
-| `README.md` | 包级入口说明、开发命令和文档导航。 | `开发命令、深入文档入口` | `packages/editor` 全体 |
+| `README.md` | 包级入口说明、阅读顺序、目录文档地图与生成目录说明。 | `开发命令、文档导航、注释约定` | `packages/editor` 全体 |
 | `authority-python-host-demo.html` | Python WebSocket authority demo 的独立 HTML 入口。 | `HTML host 页面` | `src/demo/python_websocket_host_demo_entry.ts` |
 | `index.html` | 默认 editor 页面入口。 | `HTML host 页面` | `src/main.tsx` |
 | `package.json` | 包元数据、exports、scripts 与依赖声明。 | `scripts`、`exports` | `Vite + Preact + leafergraph` |
@@ -44,6 +44,7 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/app/README.md` | app 过渡层目录说明，串起 bootstrap、bundle projection 与过渡面板。 | `模块阅读地图` | `src/main.tsx`、`src/shell/provider.tsx` |
 | `src/app/WorkspacePanels.tsx` | 当前承接节点库与检查器主面板实现的过渡文件。 | `NodeLibraryPane`、`InspectorPane` | `src/ui/node-library`、`src/ui/inspector` |
 | `src/app/editor_app_bootstrap.ts` | 解析全局 bootstrap，归一化 authority source、preloaded bundles 与 host bridge 钩子。 | `resolveEditorAppBootstrap` | `src/main.tsx`、`src/backend/authority` |
 | `src/app/remote_authority_bundle_projection.ts` | authority-first 场景下，将 demo bundle document 投影到远端 authority 的策略层。 | `resolveRemoteAuthorityBundleProjection`、`shouldApplyRemoteAuthorityBundleProjection` | `src/shell/provider.tsx`、`src/session` |
@@ -61,7 +62,9 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/backend/README.md` | backend 目录说明，聚焦 authority source/runtime 装配边界。 | `模块阅读地图` | `src/backend/authority`、`src/shell/provider.tsx` |
 | `src/backend.ts` | backend/session/runtime 聚合导出入口。 | `export *` | `src/backend`、`src/session`、`src/runtime` |
+| `src/backend/authority/README.md` | authority 子系统说明，串起 host adapter 与 app runtime 装配。 | `authority 阅读地图` | `src/app/editor_app_bootstrap.ts`、`src/session/*` |
 | `src/backend/authority/remote_authority_app_runtime.ts` | 将 MessagePort/Worker/Window/service 等 authority source 装配成统一 app runtime。 | `createEditorRemoteAuthority*Source`、`createEditorRemoteAuthorityAppRuntime` | `src/session/*`、`src/shell/provider.tsx` |
 | `src/backend/authority/remote_authority_host_adapter.ts` | authority host adapter 注册与 descriptor 解析层。 | `resolveEditorRemoteAuthorityHostAdapterSource` | `src/app/editor_app_bootstrap.ts` |
 | `src/backend/index.ts` | backend 子目录 barrel。 | `export *` | `src/backend.ts` |
@@ -70,6 +73,7 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/commands/README.md` | commands 目录说明，聚焦命令入口、控制器和历史记录。 | `命令阅读地图` | `src/ui/viewport/View.tsx`、`src/session/graph_document_session.ts` |
 | `src/commands/browser_clipboard_bridge.ts` | 浏览器系统剪贴板桥接。 | `readBrowserClipboardText`、`writeBrowserClipboardText` | `src/commands/clipboard_payload.ts` |
 | `src/commands/canvas_commands.ts` | 画布级命令控制器，负责按落点和 nodeType 创建节点及 fit-view。 | `createEditorCanvasCommandController` | `src/commands/command_bus.ts`、`src/ui/viewport/View.tsx` |
 | `src/commands/clipboard_payload.ts` | LeaferGraph 剪贴板 payload 的序列化与反序列化。 | `serializeLeaferGraphClipboardPayload`、`parseLeaferGraphClipboardPayload` | `src/commands/node_commands.ts` |
@@ -84,12 +88,14 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/debug/README.md` | debug 目录说明，聚焦 Leafer Debug 设置的持久化和投影。 | `debug 阅读地图` | `src/shell/provider.tsx`、`src/ui/viewport/View.tsx` |
 | `src/debug/leafer_debug.ts` | Leafer 调试配置、localStorage 持久化与 debug 类型解析。 | `applyLeaferDebugSettings`、`resolveInitialEditorLeaferDebugSettings` | `src/shell/provider.tsx`、`src/ui/viewport/View.tsx` |
 
 ## `src/demo`
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/demo/README.md` | demo 目录说明，覆盖 preview bootstrap、demo authority 与 WebSocket host demo。 | `demo 阅读地图` | `src/main.tsx`、`src/backend/authority` |
 | `src/demo/preview_remote_authority_bootstrap.ts` | 默认页面预览模式下注入 authority/bootstrap 的入口。 | `installPreviewRemoteAuthorityBootstrap` | `src/main.tsx` |
 | `src/demo/python_websocket_host_demo_bootstrap.ts` | Python WebSocket host demo 的 bootstrap 封装。 | `installPythonWebSocketHostDemoBootstrap` | `authority-python-host-demo.html` |
 | `src/demo/python_websocket_host_demo_entry.ts` | Python host demo 页面脚本入口。 | `demo entry bootstrap` | `authority-python-host-demo.html` |
@@ -102,6 +108,7 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/interaction/README.md` | interaction 目录说明，聚焦交互提交桥与 widget commit 更新。 | `interaction 阅读地图` | `src/ui/viewport/View.tsx`、`src/commands/command_bus.ts` |
 | `src/interaction/graph_interaction_commit_bridge.ts` | 将画布交互提交为命令或正式 `GraphOperation` 的桥接层。 | `createGraphInteractionCommitBridge` | `src/ui/viewport/View.tsx`、`src/commands/command_bus.ts` |
 | `src/interaction/widget_commit_update.ts` | widget 提交值时构造节点更新输入的辅助逻辑。 | `widget commit helpers` | `src/interaction/graph_interaction_commit_bridge.ts` |
 
@@ -109,6 +116,7 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/loader/README.md` | loader 目录说明，聚焦 bundle 装载、依赖求解和持久化。 | `loader 阅读地图` | `src/shell/provider.tsx`、`public/__testbundles` |
 | `src/loader/persistence.ts` | bundle 目录的浏览器持久化读写层。 | `persistEditorBundleRecord`、`readPersistedEditorBundleRecords` | `src/shell/provider.tsx`、IndexedDB |
 | `src/loader/runtime.ts` | bundle manifest 校验、IIFE/JSON 装载、依赖解析与 runtime setup 生成，并向 script bundle 暴露 `LeaferGraphRuntime`、`LeaferGraphAuthoring` 与 bridge 全局。 | `loadEditorBundleSource`、`resolveEditorBundleRuntimeSetup`、`ensureEditorBundleRuntimeGlobals` | `src/shell/provider.tsx`、`public/__testbundles` |
 | `src/loader/types.ts` | bundle loader 的类型中心。 | `EditorBundleManifest`、`EditorBundleCatalogState`、`EditorBundleRuntimeSetup` | `src/loader/runtime.ts`、`src/shell/editor_controller.ts` |
@@ -117,6 +125,7 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/menu/README.md` | menu 目录说明，聚焦右键菜单绑定与解析。 | `menu 阅读地图` | `src/ui/viewport/View.tsx`、`src/commands/command_bus.ts` |
 | `src/menu/context_menu_bindings.ts` | 节点/连线右键菜单绑定元数据与辅助键。 | `bindNodeContextMenu`、`bindLinkContextMenu` | `src/ui/viewport/View.tsx` |
 | `src/menu/context_menu_resolver.ts` | 上下文菜单解析器，负责生成最终菜单项和打开前逻辑。 | `createEditorContextMenuResolver`、`createEditorContextMenuBeforeOpenHandler` | `src/ui/viewport/View.tsx` |
 
@@ -124,12 +133,15 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/runtime/README.md` | runtime 目录说明，聚焦统一运行反馈入口。 | `runtime 阅读地图` | `src/backend/authority`、`src/ui/viewport/View.tsx` |
 | `src/runtime/runtime_feedback_inlet.ts` | 统一运行反馈入口抽象，兼容本地与远端 runtime event。 | `createManualRuntimeFeedbackInlet` | `src/ui/viewport/View.tsx`、`src/backend/authority` |
 
 ## `src/session`
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/session/README.md` | session 目录说明，串起 authority transport、document session 与 viewport binding。 | `session 阅读地图` | `src/backend/authority`、`src/ui/viewport/View.tsx` |
+| `src/session/authority_openrpc/README.md` | authority OpenRPC 子系统说明，解释 `_generated/` 的生成边界和 runtime 用法。 | `OpenRPC 阅读地图` | `tools/generate_from_openrpc.ts`、`src/session/*transport*` |
 | `src/session/authority_openrpc/index.ts` | authority OpenRPC 正式公共入口，聚合 generated descriptor、runtime 与 envelope 类型。 | `export *` | `src/backend.ts`、`transport/host/tests` |
 | `src/session/authority_openrpc/runtime.ts` | 基于共享 OpenRPC 生成物的 authority JSON-RPC runtime，负责 params/result/notification 校验与默认协议 adapter。 | `validateMethodParams`、`validateMethodResult`、`validateNotificationParams`、`createDefaultEditorRemoteAuthorityProtocolAdapter` | `message_port`、`websocket`、`node_process` transports |
 | `src/session/authority_openrpc/types.ts` | authority JSON-RPC envelope、协议 adapter 与 inbound/outbound 消息类型。 | `EditorRemoteAuthorityProtocolAdapter`、`EditorRemoteAuthority*Envelope` | `authority_openrpc/runtime.ts` |
@@ -151,9 +163,12 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/shell/README.md` | shell 目录说明，聚焦 controller、Provider 和壳层编排。 | `shell 阅读地图` | `src/ui/*`、`src/backend/*` |
 | `src/shell/editor_controller.ts` | editor 壳层状态模型与 actions 定义。 | `createEditorController`、`syncEditorController` | `src/shell/provider.tsx`、`src/ui/*` |
 | `src/shell/index.ts` | shell barrel。 | `export *` | `src/index.ts` |
+| `src/shell/layout/README.md` | layout 子系统说明，解释断点、自适应面板与 stage layout 计算。 | `layout 阅读地图` | `src/shell/provider.tsx`、`src/ui/workspace` |
 | `src/shell/layout/workspace_adaptive.ts` | 工作区断点、自适应侧栏与 stage layout 决策。 | `resolveWorkspaceAdaptiveMode`、`resolveWorkspaceStageLayout` | `src/shell/provider.tsx`、`src/ui/workspace` |
+| `src/shell/onboarding/README.md` | onboarding 子系统说明，解释 clean entry 引导和默认 demo 入口。 | `onboarding 阅读地图` | `src/shell/provider.tsx`、`src/ui/node-library` |
 | `src/shell/onboarding/default_entry_onboarding.ts` | clean entry 模式下的 onboarding 判定与默认 Python demo URL。 | `resolveDefaultEntryOnboardingState`、`DEFAULT_PYTHON_AUTHORITY_DEMO_URL` | `src/shell/provider.tsx` |
 | `src/shell/provider.tsx` | `EditorProvider` 与 `EditorShell` 主编排文件，连接 bundle、authority、theme、workspace 与 viewport。 | `EditorProvider`、`EditorShell`、`useEditorContext` | `src/shell/editor_controller.ts`、`src/ui/*` |
 
@@ -161,12 +176,14 @@
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/state/README.md` | state 目录说明，聚焦轻量状态控制器。 | `state 阅读地图` | `src/ui/viewport/View.tsx`、`src/commands/*` |
 | `src/state/selection.ts` | 编辑器选择状态控制器。 | `createEditorNodeSelection` | `src/ui/viewport/View.tsx`、`commands` |
 
 ## `src/theme`
 
 | 文件/目录路径 | 作用描述 | 核心函数/类 | 关联模块 |
 | :--- | :--- | :--- | :--- |
+| `src/theme/README.md` | theme 目录说明，聚焦主题初始化和画布背景样式。 | `theme 阅读地图` | `src/shell/provider.tsx`、`src/ui/viewport/View.tsx` |
 | `src/theme/index.ts` | 主题类型、初始主题解析与画布背景样式。 | `resolveInitialEditorTheme`、`resolveGraphViewportBackground` | `src/shell/provider.tsx`、`src/ui/viewport/View.tsx` |
 
 ## `src/ui` 顶层

@@ -1,3 +1,10 @@
+/**
+ * widget 提交更新辅助模块。
+ *
+ * @remarks
+ * 负责把节点 widget 的值提交整理成 editor 可复用的节点更新输入，
+ * 让交互层和命令层共享同一套最小更新协议。
+ */
 import type { GraphDocument, LeaferGraphUpdateNodeInput } from "leafergraph";
 
 type EditorNodeSnapshot = GraphDocument["nodes"][number];

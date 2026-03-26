@@ -1,3 +1,10 @@
+/**
+ * 浏览器内 demo authority service 模块。
+ *
+ * @remarks
+ * 负责在不接真实后端时提供一份“像 authority 一样工作”的文档与运行反馈服务，
+ * 供 worker demo、transport、session 与 runtime control 链路联调使用。
+ */
 import type {
   GraphDocument,
   GraphOperation,
@@ -530,6 +537,11 @@ export function createDemoRemoteAuthorityService(
     intervalMs: number;
     immediate: boolean;
   }): void => {
+    /**
+     * 图运行里的 timer 节点不会长期占用主执行队列。
+     * 这里把它们拆成独立定时器，既能模拟真实 runtime 的持续触发，
+     * 也能让 graph-play/graph-step 继续保持“离散推进”的状态机。
+     */
     const hasActiveRun =
       activeGraphPlayRun?.runId === input.runId || graphExecutionState.runId === input.runId;
     if (!hasActiveRun) {
@@ -605,6 +617,11 @@ export function createDemoRemoteAuthorityService(
   };
 
   const executeNodeChain = (input: ExecuteNodeChainOptions): ExecuteNodeChainResult => {
+    /**
+     * 这里故意用 DFS 风格递归推进节点链，而不是做复杂调度器：
+     * demo service 的目标是稳定产出 authority 风格反馈事件，
+     * 不是复刻完整 runtime 内核。
+     */
     const rootNode = getNode(input.rootNodeId);
     if (!rootNode) {
       return {
@@ -896,6 +913,12 @@ export function createDemoRemoteAuthorityService(
   });
 
   const applyOperation = (operation: GraphOperation) => {
+    /**
+     * demo authority 对 GraphOperation 的处理保持“最小可解释”：
+     * - 明确给出 accepted / changed / reason
+     * - 所有成功写入都会推进 revision
+     * - 需要时同步发出 node.state / graph.execution 反馈
+     */
     switch (operation.type) {
       case "document.update": {
         const nextDocument = patchDocumentRoot(currentDocument, operation.input);

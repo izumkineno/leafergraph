@@ -1,17 +1,18 @@
-# Foundation
+# `src/ui/foundation`
 
 ## 作用
-- 提供跨区域可复用的基础 UI 组件。
-- 当前包含 `dialog` 基础抽象，供设置面板与运行控制台复用。
+- 存放跨区域复用的基础 UI 组件。
 
-## 导出
-- `AppDialog`
-- `AppDialogConnected`
-- `AppDialogProps`
-- `AppDialogSize`
+## 边界
+- 负责通用基础组件，不绑定具体业务区域。
+- 当前主要提供 dialog 体系。
 
-## 使用方式
-```ts
-import { AppDialog } from "leafergraph-editor/ui/foundation";
-import "leafergraph-editor/ui/foundation/styles.css";
-```
+## 核心入口
+- `dialog/`
+
+## 推荐阅读顺序
+1. `dialog/README.md`
+
+## 上下游关系
+- 上游：`shell/provider.tsx`。
+- 下游：各业务区域对话框。

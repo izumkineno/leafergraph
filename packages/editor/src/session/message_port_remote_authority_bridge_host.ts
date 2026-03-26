@@ -1,3 +1,9 @@
+/**
+ * MessagePort bridge 握手模块。
+ *
+ * @remarks
+ * 负责定义 editor 与外部 bridge/iframe/worker 之间共享的 authority 握手消息格式。
+ */
 import type { EditorRemoteAuthorityDocumentService } from "./graph_document_authority_service";
 import {
   createMessagePortRemoteAuthorityHost,

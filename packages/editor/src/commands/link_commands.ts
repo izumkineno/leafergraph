@@ -1,3 +1,10 @@
+/**
+ * 连线命令控制器模块。
+ *
+ * @remarks
+ * 负责 editor 里的连线创建、删除和重连命令，
+ * 并把结果回填到 session、菜单绑定和选区语义。
+ */
 import type {
   GraphLink,
   LeaferGraph,

@@ -1,3 +1,10 @@
+/**
+ * authority client 协议模块。
+ *
+ * @remarks
+ * 定义 editor 对 remote authority client 的最小能力面，
+ * 包括文档读取、操作提交、运行反馈和运行控制。
+ */
 import type {
   GraphDocument,
   GraphDocumentDiff,

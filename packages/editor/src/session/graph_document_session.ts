@@ -1,3 +1,9 @@
+/**
+ * 正式图文档会话模块。
+ *
+ * @remarks
+ * 负责统一本地 loopback、mock remote 和正式 authority client 的文档快照、提交确认与重同步语义。
+ */
 import type {
   ApplyGraphDocumentDiffResult,
   AdapterBinding,
@@ -786,6 +792,17 @@ export function createRemoteGraphDocumentSession(
   >();
   let currentDocument = cloneGraphDocument(options.document);
   let pendingResyncPromise: Promise<GraphDocument> | null = null;
+  /**
+   * 记录已经完整应用过的 authority revision。
+   *
+   * @remarks
+   * remote authority 可能同时推送：
+   * - submitOperation 的响应文档
+   * - subscribeDocument 的整图快照
+   * - subscribeDocumentDiff 的增量 diff
+   *
+   * 这里用 `documentId + revision` 做去重，避免同一份 authority 事实被重复投影。
+   */
   const appliedAuthorityRevisionKeys = new Set<string>();
   const appliedAuthorityRevisionOrder: string[] = [];
 
@@ -991,6 +1008,11 @@ export function createRemoteGraphDocumentSession(
   const resyncAuthorityDocument = async (
     resyncOptions?: EditorGraphDocumentResyncOptions
   ): Promise<GraphDocument> => {
+    /**
+     * remote-client 当前采用 `resync-only` 恢复策略：
+     * 一旦怀疑本地快照和 authority 脱节，就直接回拉整图，
+     * 而不是在 editor 侧尝试 replay pending 操作。
+     */
     if (typeof options.client.getDocument !== "function") {
       return cloneGraphDocument(currentDocument);
     }
@@ -1041,6 +1063,10 @@ export function createRemoteGraphDocumentSession(
   const applyAuthorityDocumentDiff = (
     diff: GraphDocumentDiff
   ): ApplyGraphDocumentDiffResult => {
+    /**
+     * diff 只在“当前快照仍和 authority revision 链对得上”时才做局部投影。
+     * 一旦发现 diff 无法安全应用，就退回整图 resync，避免 editor 自己发明修补策略。
+     */
     if (hasAppliedAuthorityRevision(diff.documentId, diff.revision)) {
       return createIgnoredAuthorityDocumentDiffResult();
     }
@@ -1100,6 +1126,10 @@ export function createRemoteGraphDocumentSession(
   const submitOperationWithAuthority = (
     operation: GraphOperation
   ): EditorGraphOperationSubmission => {
+    /**
+     * remote-client 会先把操作放进 pending 队列，再把最终裁决交给 authority。
+     * editor 当前阶段不做本地乐观投影，只把“等待确认”显式暴露给命令层和历史层。
+     */
     if (pendingOperations.has(operation.operationId)) {
       return createDuplicatePendingSubmission(operation);
     }

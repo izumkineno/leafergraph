@@ -1,3 +1,10 @@
+/**
+ * GraphOperation 构造工具模块。
+ *
+ * @remarks
+ * 负责把节点、连线和快照操作整理成正式 `GraphOperation`，
+ * 供命令层、历史记录和交互提交桥共享。
+ */
 import type {
   GraphLink,
   GraphOperation,

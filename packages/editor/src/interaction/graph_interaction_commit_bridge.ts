@@ -1,3 +1,10 @@
+/**
+ * 图交互提交桥模块。
+ *
+ * @remarks
+ * 负责把 LeaferGraph 交互层产生的提交意图翻译成 editor 命令或正式 `GraphOperation`，
+ * 让交互侧不直接依赖命令总线的实现细节。
+ */
 import type {
   LeaferGraphInteractionCommitEvent,
   LeaferGraphUpdateNodeInput

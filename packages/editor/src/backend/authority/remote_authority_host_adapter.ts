@@ -1,3 +1,10 @@
+/**
+ * remote authority host adapter 模块。
+ *
+ * @remarks
+ * 负责把不同浏览器宿主的 authority 接法收敛成统一 adapter 机制，
+ * 让 bootstrap 只声明“接法”，不直接内嵌每种桥接实现。
+ */
 import {
   createEditorRemoteAuthorityMessagePortSource,
   createEditorRemoteAuthorityWindowSource,

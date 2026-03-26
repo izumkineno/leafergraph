@@ -1,3 +1,10 @@
+/**
+ * 上下文菜单解析模块。
+ *
+ * @remarks
+ * 负责把节点、连线和空白区域的菜单绑定信息展开成最终菜单项，
+ * 并补充创建节点、命令状态和打开前逻辑。
+ */
 import type {
   LeaferGraph,
   LeaferGraphContextMenuContext,

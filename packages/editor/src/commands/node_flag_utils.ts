@@ -1,3 +1,9 @@
+/**
+ * 节点 flag 工具模块。
+ *
+ * @remarks
+ * 负责 editor 在复制、序列化和恢复节点时对 flag 字段做最小清洗与规范化。
+ */
 import type { NodeFlags } from "@leafergraph/node";
 
 /**

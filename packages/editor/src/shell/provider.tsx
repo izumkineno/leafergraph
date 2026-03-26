@@ -1,3 +1,9 @@
+/**
+ * editor Provider 与壳层编排模块。
+ *
+ * @remarks
+ * 负责主题、bundle、authority、workspace 状态和画布桥接的统一编排，是 editor 前端壳层的主状态中心。
+ */
 import { createContext, type ComponentChildren, type JSX } from "preact";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { GraphDocument } from "leafergraph";
@@ -536,18 +542,22 @@ interface EditorContextValue {
   };
 }
 
+/** editor 全局上下文。 */
 const EditorContext = createContext<EditorContextValue | null>(null);
 
+/** `EditorProvider` 当前接收的最小 props。 */
 export interface EditorProviderProps {
   controller: EditorController;
   children?: ComponentChildren;
 }
 
+/** editor 壳层组件当前不额外接收 props。 */
 export interface EditorShellProps {}
 
 export type AppProps = CreateEditorControllerOptions;
 export type { EditorErrorBoundaryProps };
 
+/** 读取 editor 上下文；若未挂载 `EditorProvider` 会直接抛错。 */
 export function useEditorContext(): EditorContextValue {
   const value = useContext(EditorContext);
   if (!value) {
@@ -557,6 +567,16 @@ export function useEditorContext(): EditorContextValue {
   return value;
 }
 
+/**
+ * editor 顶层 Provider。
+ *
+ * @remarks
+ * 负责统一编排：
+ * - 本地 UI 与主题状态
+ * - bundle catalog 与运行时 setup
+ * - remote authority runtime 与文档真相
+ * - GraphViewport 回传的桥接状态
+ */
 export function EditorProvider({
   controller,
   children
@@ -566,6 +586,7 @@ export function EditorProvider({
     remoteAuthoritySource,
     onViewportHostBridgeChange
   } = controller.getOptions();
+  // 这组本地 UI 状态完全由 editor 壳层自己持有，不依赖 authority 或 graph runtime。
   const [theme, setTheme] = useState<EditorTheme>(() =>
     resolveInitialEditorTheme()
   );
@@ -626,12 +647,14 @@ export function EditorProvider({
   const [nodeLibraryHoverPreviewCapabilities, setNodeLibraryHoverPreviewCapabilities] =
     useState(() => readNodeLibraryHoverPreviewCapabilities());
   const extensionsBundleGridRef = useRef<HTMLDivElement | null>(null);
+  // bundle catalog 决定当前哪些 node/widget/demo 能力会真正进入运行时装配。
   const [bundleCatalog, setBundleCatalog] = useState<EditorBundleCatalogState>(() =>
     createInitialBundleCatalogState()
   );
   const [loopbackDocument, setLoopbackDocument] = useState<GraphDocument>(
     structuredClone(EMPTY_EDITOR_DOCUMENT)
   );
+  // 这一组状态描述 remote authority 的生命周期、文档快照和确认链。
   const [remoteAuthorityStatus, setRemoteAuthorityStatus] =
     useState<RemoteAuthorityRuntimeStatus>(
       remoteAuthoritySource ? "idle" : "disabled"
@@ -1327,6 +1350,8 @@ export function EditorProvider({
     () => resolveRemoteAuthorityBundleProjection(runtimeSetup),
     [runtimeSetup]
   );
+  // `effectiveDocument` 是 Provider 对下游画布给出的最终文档真相：
+  // remote authority ready 时优先使用 authority 文档，否则回退到本地 loopback/demo 文档。
   const effectiveDocument = remoteAuthorityRuntime?.document ?? loopbackDocument;
   const effectiveCreateDocumentSessionBinding =
     remoteAuthorityRuntime?.createDocumentSessionBinding;
@@ -1780,6 +1805,7 @@ export function EditorProvider({
     ]
   );
 
+  /** 把 GraphViewport 回传的 bridge 同步到 Provider 与外部宿主。 */
   const handleViewportHostBridgeChange = useCallback(
     (bridge: GraphViewportHostBridge | null): void => {
       setViewportHostBridge(bridge);
@@ -2169,6 +2195,7 @@ export function EditorProvider({
     ]
   );
 
+  // 统一把当前 shell 状态与 actions 回填到 controller，供外部订阅者和宿主页面消费。
   useEffect(() => {
     syncEditorController(controller, controllerState, controllerActions);
   }, [controller, controllerActions, controllerState]);
@@ -3280,6 +3307,7 @@ export function EditorProvider({
   );
 }
 
+/** 渲染顶栏区域。 */
 export function EditorTitlebar() {
   const { state, actions, graphExecutionState, toolbarActionGroups, showToolbarShortcuts } =
     useEditorContext();
@@ -3490,6 +3518,7 @@ export function EditorTitlebar() {
   );
 }
 
+/** 渲染左侧节点库区域。 */
 export function EditorNodeLibrary() {
   const { state, actions, runtimeSetup, nodeLibraryHoverPreviewEnabled, viewportHostBridge } =
     useEditorContext();
@@ -3526,6 +3555,7 @@ export function EditorNodeLibrary() {
   );
 }
 
+/** 渲染右侧检查器区域。 */
 export function EditorInspector() {
   const { state, authoritySummary, actions } = useEditorContext();
 
@@ -3541,6 +3571,7 @@ export function EditorInspector() {
   );
 }
 
+/** 渲染中间画布区域，并在需要时叠加节点库预览浮层。 */
 export function EditorViewportPane() {
   const {
     state,
@@ -3656,6 +3687,7 @@ export function EditorViewportPane() {
   );
 }
 
+/** 组合主工作区布局。 */
 export function EditorWorkspace() {
   const {
     state,
@@ -3711,6 +3743,7 @@ export function EditorWorkspace() {
   );
 }
 
+/** 渲染底部状态栏。 */
 export function EditorStatusbar() {
   const { state, statusbarItems } = useEditorContext();
 
@@ -3865,6 +3898,7 @@ function EditorLeaferDebugPreferenceCard() {
   );
 }
 
+/** 渲染工作区设置对话框。 */
 export function EditorWorkspaceSettingsDialog() {
   const {
     state,
@@ -4303,6 +4337,7 @@ export function EditorWorkspaceSettingsDialog() {
   );
 }
 
+/** 渲染运行控制台对话框。 */
 export function EditorRunConsoleDialog() {
   const { state, actions, workspaceDialogSize } = useEditorContext();
   const runConsoleTabIdPrefix = "run-console-tab-";
@@ -4625,6 +4660,7 @@ function EditorRunConsolePanels() {
   );
 }
 
+/** 渲染 editor 整体壳层，包括顶栏、主工作区、状态栏与对话框。 */
 export function EditorShell(_: EditorShellProps) {
   const { state } = useEditorContext();
 
@@ -4649,6 +4685,7 @@ export function EditorShell(_: EditorShellProps) {
   );
 }
 
+/** 作为包级入口创建控制器并挂载完整 editor 应用。 */
 export function App(props: AppProps) {
   const controller = useMemo(
     () => createEditorController(props),

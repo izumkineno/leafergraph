@@ -1,3 +1,10 @@
+/**
+ * Node 子进程 authority transport 模块。
+ *
+ * @remarks
+ * 负责在测试或本地桥接环境中把 authority 后端启动为子进程，
+ * 并通过 stdin/stdout 构造 editor 可消费的 transport/client。
+ */
 import { spawn } from "node:child_process";
 import readline from "node:readline";
 import {

@@ -1,6 +1,13 @@
+/**
+ * Connected 接线组件模块。
+ *
+ * @remarks
+ * 负责从 EditorProvider 或上层 props 读取当前区域所需状态，再转交给对应的 View 组件。
+ */
 import { useEditorContext } from "../../shell/provider";
 import { GraphViewport } from "./View";
 
+/** 连接 `EditorProvider`，把当前有效文档、运行时和工具栏回调接入画布执行面。 */
 export function EditorViewportConnected() {
   const {
     state,

@@ -1,7 +1,15 @@
+/**
+ * Leafer 调试配置模块。
+ *
+ * @remarks
+ * 负责解析 editor 侧的调试开关、localStorage 持久化和对画布实例的调试设置投影。
+ */
 import { Debug } from "leafer-ui";
 
+/** Leafer Debug `showBounds` 的 editor 侧展示模式。 */
 export type EditorLeaferDebugShowBoundsMode = "off" | "bounds" | "hit";
 
+/** editor 持久化的 Leafer Debug 设置。 */
 export interface EditorLeaferDebugSettings {
   enabled: boolean;
   showWarn: boolean;
@@ -52,10 +60,12 @@ function cloneDefaultSettings(): EditorLeaferDebugSettings {
   };
 }
 
+/** 创建一份默认 Leafer Debug 设置副本。 */
 export function createDefaultEditorLeaferDebugSettings(): EditorLeaferDebugSettings {
   return cloneDefaultSettings();
 }
 
+/** 归一化任意输入值，得到稳定可持久化的 Leafer Debug 设置。 */
 export function normalizeEditorLeaferDebugSettings(
   value: unknown
 ): EditorLeaferDebugSettings {
@@ -81,6 +91,7 @@ export function normalizeEditorLeaferDebugSettings(
   };
 }
 
+/** 读取浏览器持久化的初始 Leafer Debug 设置。 */
 export function resolveInitialEditorLeaferDebugSettings(): EditorLeaferDebugSettings {
   if (typeof window === "undefined" || !window.localStorage) {
     return cloneDefaultSettings();
@@ -98,6 +109,7 @@ export function resolveInitialEditorLeaferDebugSettings(): EditorLeaferDebugSett
   }
 }
 
+/** 把当前 Leafer Debug 设置序列化为 JSON。 */
 export function serializeEditorLeaferDebugSettings(
   settings: EditorLeaferDebugSettings
 ): string {
@@ -111,6 +123,7 @@ export function serializeEditorLeaferDebugSettings(
   });
 }
 
+/** 基于当前设置和 patch 生成新的归一化结果。 */
 export function mergeEditorLeaferDebugSettings(
   current: EditorLeaferDebugSettings,
   patch: Partial<EditorLeaferDebugSettings>
@@ -121,6 +134,7 @@ export function mergeEditorLeaferDebugSettings(
   });
 }
 
+/** 解析 UI 输入框中的逗号分隔类型列表。 */
 export function parseEditorLeaferDebugTypeListInput(value: string): string[] {
   return value
     .split(",")
@@ -128,12 +142,14 @@ export function parseEditorLeaferDebugTypeListInput(value: string): string[] {
     .filter((item) => item.length > 0);
 }
 
+/** 把类型列表格式化为适合输入框展示的字符串。 */
 export function formatEditorLeaferDebugTypeList(
   value: readonly string[]
 ): string {
   return value.join(", ");
 }
 
+/** 把 editor 侧设置直接投影到 Leafer Debug 全局运行时。 */
 export function applyLeaferDebugSettings(
   settings: EditorLeaferDebugSettings
 ): void {

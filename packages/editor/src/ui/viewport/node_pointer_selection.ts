@@ -1,3 +1,9 @@
+/**
+ * 节点指针选区解析模块。
+ *
+ * @remarks
+ * 负责根据左键、右键和修饰键解析节点命中的选区动作，供 viewport 统一处理点击选中语义。
+ */
 export type NodePointerSelectionAction =
   | "preserve-selection"
   | "select-node"

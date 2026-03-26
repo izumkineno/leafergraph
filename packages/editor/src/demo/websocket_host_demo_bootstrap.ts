@@ -1,3 +1,9 @@
+/**
+ * bootstrap 模块。
+ *
+ * @remarks
+ * 负责解析页面级启动参数或 demo 宿主配置，并把结果整理成 editor 可直接消费的初始化输入。
+ */
 import type {
   EditorAppBootstrap
 } from "../app/editor_app_bootstrap";
@@ -5,6 +11,7 @@ import type { GraphViewportHostBridge } from "../ui/viewport";
 import type { EditorRemoteAuthorityHostAdapter } from "../backend/authority/remote_authority_host_adapter";
 import { createWebSocketRemoteAuthorityTransport } from "../session/websocket_remote_authority_transport";
 
+/** WebSocket authority demo 支持的页面级启动参数。 */
 export interface WebSocketHostDemoBootstrapOptions {
   authorityUrl?: string;
   authorityLabel?: string;
@@ -12,6 +19,7 @@ export interface WebSocketHostDemoBootstrapOptions {
   debugViewportBridgeLog?: boolean;
 }
 
+/** WebSocket authority demo 在全局对象上暴露的最小运行时状态。 */
 export interface WebSocketHostDemoState<TMode extends string> {
   readonly mode: TMode;
   bridge: GraphViewportHostBridge | null;
@@ -29,6 +37,7 @@ interface WebSocketHostDemoGlobal {
   LeaferGraphEditorAppBootstrap?: EditorAppBootstrap;
 }
 
+/** 生成某一类 WebSocket demo bootstrap 所需的固定配置。 */
 export interface WebSocketHostDemoConfig<TMode extends string> {
   defaultAuthorityUrl: string;
   defaultAuthorityLabel: string;
@@ -84,6 +93,7 @@ function readWebSocketHostDemoBootstrapOptions(
   );
 }
 
+/** 把 authority URL 归一化为 editor transport 要使用的 WebSocket 地址。 */
 export function resolveWebSocketHostDemoTransportUrl(
   authorityUrl: string
 ): string {
@@ -135,6 +145,7 @@ export function resolveWebSocketHostDemoTransportUrl(
   return parsedAuthorityUrl.toString();
 }
 
+/** 把 authority URL 归一化为浏览器可访问的 `/health` 地址。 */
 export function resolveWebSocketHostDemoHealthUrl(authorityUrl: string): string {
   const trimmedAuthorityUrl = authorityUrl.trim();
   const normalizedAuthorityUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(
@@ -226,6 +237,7 @@ async function buildWebSocketAuthorityConnectionError(
   }
 }
 
+/** 为某种 demo 模式创建对应的 remote authority host adapter。 */
 export function createWebSocketHostDemoRemoteAuthorityHostAdapter<TMode extends string>(
   config: WebSocketHostDemoConfig<TMode>
 ): EditorRemoteAuthorityHostAdapter {
@@ -268,6 +280,7 @@ export function createWebSocketHostDemoRemoteAuthorityHostAdapter<TMode extends 
   };
 }
 
+/** 生成可直接挂到页面 bootstrap 上的 authority adapter 配置。 */
 export function createWebSocketHostDemoBootstrap<TMode extends string>(
   config: WebSocketHostDemoConfig<TMode>,
   options: WebSocketHostDemoBootstrapOptions = {}
@@ -290,6 +303,7 @@ export function createWebSocketHostDemoBootstrap<TMode extends string>(
   };
 }
 
+/** 安装 WebSocket host demo bootstrap，并把 viewport bridge 状态同步到全局。 */
 export function installWebSocketHostDemoBootstrap<TMode extends string>(
   config: WebSocketHostDemoConfig<TMode>,
   host: WebSocketHostDemoGlobal = globalThis as WebSocketHostDemoGlobal

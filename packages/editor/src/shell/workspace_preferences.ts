@@ -1,3 +1,9 @@
+/**
+ * 工作区偏好设置模块。
+ *
+ * @remarks
+ * 负责工作区布局、面板偏好和用户界面设置的读取、持久化与恢复。
+ */
 export type EditorWorkspacePaneSide = "left" | "right";
 
 /** 工作区左右 pane 持久化使用的本地存储 key。 */

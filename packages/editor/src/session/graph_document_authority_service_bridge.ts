@@ -1,3 +1,10 @@
+/**
+ * authority service bridge 模块。
+ *
+ * @remarks
+ * 负责把 authority service 重新包装成 editor transport/client 可消费的协议桥，
+ * 让 demo service 或外部宿主实现能复用同一套前端链路。
+ */
 import type {
   GraphDocument,
   GraphOperation

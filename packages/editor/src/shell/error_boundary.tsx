@@ -1,3 +1,9 @@
+/**
+ * editor 错误边界组件模块。
+ *
+ * @remarks
+ * 负责在壳层级别兜底渲染错误，避免单个 UI 区域异常直接让整个编辑器白屏。
+ */
 import { Component, type ComponentChildren } from "preact";
 
 export interface EditorErrorFallbackProps {

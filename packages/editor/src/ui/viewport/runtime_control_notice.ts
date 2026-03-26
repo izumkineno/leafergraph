@@ -1,8 +1,15 @@
+/**
+ * 运行时模块。
+ *
+ * @remarks
+ * 负责承接当前子系统的运行时状态、装配逻辑或反馈投影能力。
+ */
 import type {
   EditorRemoteAuthorityRuntimeControlRequest,
   EditorRemoteAuthorityRuntimeControlResult
 } from "../../session/graph_document_authority_client";
 
+/** 远端运行控制请求投影到 UI 后的最小 notice 结构。 */
 export interface GraphViewportRemoteRuntimeControlNotice {
   tone: "info" | "error";
   message: string;
@@ -33,6 +40,7 @@ function formatRemoteRuntimeControlActionLabel(
   }
 }
 
+/** 把远端运行控制请求的执行结果映射成标题栏/控制台可读 notice。 */
 export function resolveRemoteRuntimeControlNotice(options: {
   request: EditorRemoteAuthorityRuntimeControlRequest;
   result?: EditorRemoteAuthorityRuntimeControlResult;

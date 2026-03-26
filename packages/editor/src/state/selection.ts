@@ -1,3 +1,9 @@
+/**
+ * 节点选区状态模块。
+ *
+ * @remarks
+ * 负责 editor 当前选中节点集合、主选中节点以及多选同步逻辑。
+ */
 import type { LeaferGraph } from "leafergraph";
 
 /**

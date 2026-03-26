@@ -11,7 +11,23 @@
 - 命令总线、历史、交互提交桥与运行控制
 - LeaferGraph 画布挂载、运行反馈投影与 inspector/statusbar/run console 展示
 
-当前工作树下，索引范围共收录 `194` 个非琐碎文件，详见 [`FILE_INDEX.md`](./FILE_INDEX.md)。
+当前工作树下，索引范围共收录 `211` 个非琐碎文件，详见 [`FILE_INDEX.md`](./FILE_INDEX.md)。
+
+## 1.1 源码文档入口
+
+如果你不是从 `README.md` 进入，而是直接打开这份架构文档，建议先把下面几份目录 README 作为并行索引：
+
+- `src/shell/README.md`
+- `src/ui/README.md`
+- `src/session/README.md`
+- `src/commands/README.md`
+- `src/backend/README.md`
+- `src/loader/README.md`
+- `src/demo/README.md`
+- `src/runtime/README.md`
+
+它们分别解决“状态编排在哪里”“UI 区域怎么拆”“authority/session 在哪一层”“命令从哪里进”和“remote authority 来源怎么装配”。
+如果你正在追 bundle、demo 或运行反馈链路，再把 `src/loader/README.md`、`src/demo/README.md`、`src/runtime/README.md` 一起打开，能更快把 Provider 主流程对上。
 
 ## 2. 带注释目录骨架
 
@@ -48,6 +64,27 @@ packages/editor
 │  └─ ui                                  # 按区域拆分的 Connected/View 模块
 └─ tests                                  # 单元与集成测试，覆盖 authority/bundle/viewport/interaction
 ```
+
+### 2.0 目录 README 映射
+
+- `src/app/README.md`
+  - 讲 bootstrap、过渡面板和 authority bundle projection。
+- `src/backend/README.md`
+  - 讲 authority source/runtime 装配；`src/backend/authority/README.md` 继续展开 adapter/runtime。
+- `src/commands/README.md`
+  - 讲命令总线、控制器和剪贴板协议。
+- `src/session/README.md`
+  - 讲 document session、transport 和 `_generated/` 的生成边界。
+- `src/shell/README.md`
+  - 讲 controller、Provider、自适应布局和 onboarding。
+- `src/ui/README.md`
+  - 讲区域组件地图；各 `src/ui/*/README.md` 再继续拆到单区域。
+- `src/backend/authority/README.md`
+  - 继续展开 authority host adapter 与 app runtime 的装配策略。
+- `src/session/authority_openrpc/README.md`
+  - 继续展开 `_generated/` 的真源、更新命令和 runtime 消费方式。
+- `src/shell/layout/README.md` / `src/shell/onboarding/README.md`
+  - 继续展开工作区断点、自适应布局和 clean entry 引导逻辑。
 
 ### 2.1 分层语义
 

@@ -1,3 +1,9 @@
+/**
+ * bootstrap 模块。
+ *
+ * @remarks
+ * 负责解析页面级启动参数或 demo 宿主配置，并把结果整理成 editor 可直接消费的初始化输入。
+ */
 import {
   type EditorRemoteAuthorityAppSource
 } from "../backend/authority/remote_authority_app_runtime";
@@ -92,14 +98,23 @@ export interface EditorAppBootstrapPreloadedBundle {
 }
 
 export interface EditorAppBootstrap {
+  /** 已经由宿主预先装配好的 authority source。 */
   remoteAuthoritySource?: EditorRemoteAuthorityAppSource;
+  /** 通过 adapter descriptor 延迟解析 authority source。 */
   remoteAuthorityAdapter?: EditorAppBootstrapRemoteAuthorityAdapter;
+  /** 页面额外注册的 authority host adapters。 */
   remoteAuthorityHostAdapters?: readonly EditorRemoteAuthorityHostAdapter[];
+  /** 直接通过 MessagePort 接入 authority。 */
   remoteAuthorityMessagePort?: EditorAppBootstrapMessagePortAuthority;
+  /** 直接通过 Worker 接入 authority。 */
   remoteAuthorityWorker?: EditorAppBootstrapWorkerAuthority;
+  /** 直接通过 Window / iframe 接入 authority。 */
   remoteAuthorityWindow?: EditorAppBootstrapWindowAuthority;
+  /** 启用内置 demo worker authority。 */
   remoteAuthorityDemoWorker?: EditorAppBootstrapDemoWorkerAuthority;
+  /** 页面预装的 bundle 列表。 */
   preloadedBundles?: readonly EditorAppBootstrapPreloadedBundle[];
+  /** 供宿主观察 viewport host bridge 生命周期。 */
   onViewportHostBridgeChange?(
     bridge: GraphViewportHostBridge | null
   ): void;

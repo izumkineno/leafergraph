@@ -1,3 +1,10 @@
+/**
+ * LeaferGraph 剪贴板 payload 模块。
+ *
+ * @remarks
+ * 负责 editor 节点复制粘贴所需的 payload 序列化、反序列化和快照重建，
+ * 让内存剪贴板与浏览器剪贴板共用同一份结构。
+ */
 import type {
   GraphLink,
   LeaferGraph,
@@ -14,6 +21,7 @@ import {
 import { sanitizePersistedNodeFlags } from "./node_flag_utils";
 import type { EditorGraphDocumentSession } from "../session/graph_document_session";
 
+/** editor 写入系统剪贴板的 LeaferGraph JSON 负载。 */
 export interface LeaferGraphClipboardPayload {
   kind: "leafergraph/clipboard";
   version: 1;
@@ -200,12 +208,14 @@ function isClipboardNodeShape(value: unknown): value is NodeSerializeResult {
   );
 }
 
+/** 把 LeaferGraph 剪贴板负载序列化为可写入浏览器剪贴板的 JSON。 */
 export function serializeLeaferGraphClipboardPayload(
   payload: LeaferGraphClipboardPayload
 ): string {
   return JSON.stringify(payload);
 }
 
+/** 从浏览器剪贴板文本中恢复 LeaferGraph JSON 负载。 */
 export function parseLeaferGraphClipboardPayload(
   text: string
 ): LeaferGraphClipboardPayload | null {
@@ -244,6 +254,7 @@ export function parseLeaferGraphClipboardPayload(
   }
 }
 
+/** 根据一组节点 ID 抓取当前图中的剪贴板 JSON 负载。 */
 export function copyNodesToClipboardPayload(
   graph: LeaferGraph,
   nodeIds: readonly string[]
@@ -270,6 +281,7 @@ export function copyNodesToClipboardPayload(
   };
 }
 
+/** 按新的节点 ID 映射关系重建剪贴板中的内部连线快照。 */
 export function createClipboardLinkSnapshotsFromPayload(
   payload: LeaferGraphClipboardPayload,
   nodeIdMap: ReadonlyMap<string, string>
@@ -320,6 +332,7 @@ function createClipboardNodeCreateInputs(
   }));
 }
 
+/** 从剪贴板 JSON 负载恢复节点、连线与待提交操作。 */
 export function createNodesFromClipboardPayload(
   graph: LeaferGraph,
   session: EditorGraphDocumentSession,

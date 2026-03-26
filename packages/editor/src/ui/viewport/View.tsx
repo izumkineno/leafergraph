@@ -1,3 +1,9 @@
+/**
+ * GraphViewport 画布执行面模块。
+ *
+ * @remarks
+ * 负责挂载 LeaferGraph，并把命令总线、文档会话、运行反馈和远端控制统一接入画布执行面。
+ */
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import {
@@ -92,6 +98,13 @@ import {
 } from "./authority_document_projection_gate";
 import { resolveNodePointerSelectionAction } from "./node_pointer_selection";
 
+/**
+ * `GraphViewport` 的输入参数。
+ *
+ * @remarks
+ * 这里把画布真正需要的文档真相、插件、运行控制和外部回调集中起来，
+ * 让 `Connected` 组件只负责提供数据，而不承担画布内部编排。
+ */
 export interface GraphViewportProps {
   document: GraphDocument;
   modules?: LeaferGraphOptions["modules"];
@@ -121,6 +134,7 @@ type GraphViewportNodeExecutionSnapshot = NonNullable<
 >;
 type GraphViewportGraphExecutionSnapshot = LeaferGraphGraphExecutionState;
 
+/** 供标题栏和 provider 读取的图级运行控制状态。 */
 export interface GraphViewportRuntimeControlsState {
   available: boolean;
   executionState: GraphViewportGraphExecutionSnapshot;
@@ -129,6 +143,7 @@ export interface GraphViewportRuntimeControlsState {
   stop(): void;
 }
 
+/** 供检查器、状态栏和运行控制台复用的工作区快照。 */
 export interface GraphViewportWorkspaceState {
   selection: {
     count: number;
@@ -237,6 +252,7 @@ export interface GraphViewportToolbarControlsState {
   execute(actionId: GraphViewportToolbarActionId): void;
 }
 
+/** 运行态检查器当前聚焦的最小摘要。 */
 export interface GraphViewportRuntimeInspectorState {
   focusMode: "idle" | "selection" | "recent-execution";
   focusNodeId: string | null;
@@ -573,6 +589,11 @@ export function GraphViewport({
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
+  // 画布挂载是整个执行面的主生命周期：
+  // 1. 创建 LeaferGraph
+  // 2. 装配 command bus / history / selection
+  // 3. 接上文档 session 与运行反馈
+  // 4. 把对外 bridge 回传给 Provider
   useEffect(() => {
     setWorkspaceDocument(documentData);
   }, [documentData]);
@@ -1693,6 +1714,8 @@ export function GraphViewport({
         document
       });
     };
+    // authority / session 的文档更新不会直接粗暴替换画布；
+    // 这里统一经过投影 gate，避免打断正在进行的框选、连线或重连交互。
     const syncAuthoritativeProjectionEvent = (
       projection: EditorGraphDocumentProjectionEvent
     ): void => {

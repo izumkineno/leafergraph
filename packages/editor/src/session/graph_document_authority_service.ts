@@ -1,3 +1,10 @@
+/**
+ * authority service 协议模块。
+ *
+ * @remarks
+ * 定义 authority 宿主侧需要实现的服务能力面，
+ * 供 MessagePort host、demo service 和外部后端桥接复用。
+ */
 import type {
   GraphDocument,
   GraphOperation

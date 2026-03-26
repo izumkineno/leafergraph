@@ -1,3 +1,10 @@
+/**
+ * 画布命令控制器模块。
+ *
+ * @remarks
+ * 负责画布级创建节点、视图定位和空白区域命令，
+ * 让 viewport 事件可以通过统一命令入口驱动节点生成。
+ */
 import type {
   LeaferGraph,
   LeaferGraphCreateNodeInput,

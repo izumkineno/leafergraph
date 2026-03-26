@@ -1,3 +1,10 @@
+/**
+ * 图执行反馈过滤模块。
+ *
+ * @remarks
+ * 负责在 remote authority 模式下过滤由文档投影带来的执行态重置噪声，
+ * 让 run console 和状态栏只展示真正的 runtime 反馈。
+ */
 import type {
   LeaferGraphGraphExecutionState,
   RuntimeFeedbackEvent

@@ -1,3 +1,9 @@
+/**
+ * authority transport 与标准 client 模块。
+ *
+ * @remarks
+ * 负责定义 editor 侧统一 transport 抽象，并把底层 transport 封装成标准 authority client。
+ */
 import type {
   GraphDocument,
   GraphDocumentDiff,

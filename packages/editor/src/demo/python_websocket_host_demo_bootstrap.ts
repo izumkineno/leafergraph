@@ -1,3 +1,9 @@
+/**
+ * bootstrap 模块。
+ *
+ * @remarks
+ * 负责解析页面级启动参数或 demo 宿主配置，并把结果整理成 editor 可直接消费的初始化输入。
+ */
 import type { EditorAppBootstrap } from "../app/editor_app_bootstrap";
 import {
   createWebSocketHostDemoBootstrap,

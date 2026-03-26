@@ -1,3 +1,9 @@
+/**
+ * authority 文档投影 gate 模块。
+ *
+ * @remarks
+ * 负责在视口活跃交互期间阻断 authority 整图投影，避免 selection、reconnect 和 marquee 被异步刷新打断。
+ */
 import type { LeaferGraphInteractionActivityState } from "leafergraph";
 
 export interface AuthorityDocumentProjectionInteractionInput {

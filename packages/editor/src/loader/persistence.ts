@@ -1,3 +1,10 @@
+/**
+ * bundle 持久化模块。
+ *
+ * @remarks
+ * 负责浏览器侧 bundle 目录记录的读写、恢复和清理，
+ * 让 Provider 重启后仍能复原本地装入过的 bundle 状态。
+ */
 import type { EditorBundleSlot } from "./types";
 
 /** 单个 bundle 写入浏览器后的持久化记录。 */

@@ -1,3 +1,9 @@
+/**
+ * 运行时模块。
+ *
+ * @remarks
+ * 负责承接当前子系统的运行时状态、装配逻辑或反馈投影能力。
+ */
 import type {
   AuthorityMethodParams,
   AuthorityMethodResult,

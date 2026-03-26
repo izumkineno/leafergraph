@@ -1,3 +1,9 @@
+/**
+ * WebSocket authority transport 模块。
+ *
+ * @remarks
+ * 负责通过 WebSocket 连接远端 authority，并处理请求响应、事件订阅与连接状态重连。
+ */
 import type {
   EditorRemoteAuthorityDocumentClient,
   EditorRemoteAuthorityTransport,

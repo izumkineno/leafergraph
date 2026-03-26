@@ -8,6 +8,64 @@
 - [架构总览](./ARCHITECTURE.md)
 - [全量文件索引](./FILE_INDEX.md)
 
+## 阅读顺序
+
+如果你想快速建立 editor 的心智模型，推荐按下面顺序阅读：
+
+1. `src/main.tsx`
+2. `src/app/editor_app_bootstrap.ts`
+3. `src/shell/README.md`
+4. `src/shell/provider.tsx`
+5. `src/ui/viewport/README.md`
+6. `src/ui/viewport/View.tsx`
+7. `src/session/README.md`
+8. `src/commands/README.md`
+
+## 目录文档地图
+
+- `src/app/README.md`
+  - 页面 bootstrap、过渡面板和 authority bundle projection
+- `src/backend/README.md`
+  - authority source/runtime 装配
+- `src/debug/README.md`
+  - Leafer debug 初始化、持久化与调试投影
+- `src/commands/README.md`
+  - 命令总线、历史、剪贴板和节点/连线命令
+- `src/demo/README.md`
+  - demo authority、Worker 与 WebSocket host demo
+- `src/interaction/README.md`
+  - 交互提交桥、widget commit 更新与 operation 回填
+- `src/loader/README.md`
+  - bundle 装载、依赖求解和持久化
+- `src/menu/README.md`
+  - 右键菜单绑定、上下文解析与创建节点子菜单
+- `src/runtime/README.md`
+  - 统一运行反馈入口和外部 runtime 回流
+- `src/session/README.md`
+  - authority 协议、transport、document session 和 binding
+- `src/shell/README.md`
+  - controller、Provider、自适应布局和 onboarding
+- `src/state/README.md`
+  - 轻量状态控制器，例如节点选区
+- `src/theme/README.md`
+  - 主题初始化、画布背景与界面外观入口
+- `src/ui/README.md`
+  - UI 区域地图与 Connected/View 约定
+
+关键嵌套目录也有独立入口，建议在进入主链路前并行打开：
+
+- `src/backend/authority/README.md`
+- `src/session/authority_openrpc/README.md`
+- `src/shell/layout/README.md`
+- `src/shell/onboarding/README.md`
+
+## 注释约定
+
+- `src/` 下手写 `.ts/.tsx` 文件统一带文件级中文说明。
+- 导出的类型、接口、工厂和关键组件优先补中文 JSDoc。
+- 超大文件优先补“数据流/生命周期”块注释，而不是机械逐行翻译。
+- `_generated/` 生成目录不做人肉注释，改动应回到真源和生成器。
+
 ## 开发命令
 
 在仓库根目录执行：
@@ -42,6 +100,13 @@ bun run preview
 ```powershell
 bun run generate:authority-openrpc
 ```
+
+### 生成目录说明
+
+- `src/session/authority_openrpc/_generated/` 是 editor 侧 authority OpenRPC 自动生成产物。
+- 真源来自仓库根的 `openrpc/`，生成入口是 `tools/generate_from_openrpc.ts`。
+- 这类文件不做人肉补注释或手工修补；如果内容过期，重新生成而不是直接编辑。
+- 目录级说明放在 `src/session/README.md` 与 `src/session/authority_openrpc/README.md`，便于读代码时先理解生成链和消费方式。
 
 ## 包结构
 
