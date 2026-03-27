@@ -1,0 +1,79 @@
+{
+  "documentId": "tauri-sync-demo",
+  "revision": 1,
+  "appKind": "tauri-sync-demo",
+  "nodes": [
+    {
+      "id": "on-play-1",
+      "type": "system/on-play",
+      "title": "On Play",
+      "layout": {
+        "x": 120,
+        "y": 176,
+        "width": 220,
+        "height": 120
+      },
+      "flags": {}
+    },
+    {
+      "id": "counter-1",
+      "type": "example/counter",
+      "title": "Counter 0",
+      "layout": {
+        "x": 418,
+        "y": 162,
+        "width": 240,
+        "height": 140
+      },
+      "properties": {
+        "step": 1,
+        "count": 0,
+        "note": "每次执行会把 count 增加 step"
+      },
+      "flags": {}
+    },
+    {
+      "id": "watch-1",
+      "type": "example/watch",
+      "title": "Watch",
+      "layout": {
+        "x": 732,
+        "y": 162,
+        "width": 240,
+        "height": 140
+      },
+      "properties": {
+        "preview": "EMPTY",
+        "status": "WAITING"
+      },
+      "flags": {}
+    }
+  ],
+  "links": [
+    {
+      "id": "link-play-counter",
+      "source": {
+        "nodeId": "on-play-1",
+        "slot": 0
+      },
+      "target": {
+        "nodeId": "counter-1",
+        "slot": 0
+      }
+    },
+    {
+      "id": "link-counter-watch",
+      "source": {
+        "nodeId": "counter-1",
+        "slot": 0
+      },
+      "target": {
+        "nodeId": "watch-1",
+        "slot": 0
+      }
+    }
+  ],
+  "meta": {
+    "demo": "tauri-sync-authority"
+  }
+}

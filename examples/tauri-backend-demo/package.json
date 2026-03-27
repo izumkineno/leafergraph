@@ -1,0 +1,39 @@
+{
+  "name": "tauri-backend-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@leafer-in/arrow": "^2.0.3",
+    "@leafer-in/editor": "^2.0.3",
+    "@leafer-in/export": "^2.0.3",
+    "@leafer-in/find": "^2.0.3",
+    "@leafer-in/flow": "^2.0.3",
+    "@leafer-in/resize": "^2.0.3",
+    "@leafer-in/scroll": "^2.0.3",
+    "@leafer-in/state": "^2.0.3",
+    "@leafer-in/text-editor": "^2.0.3",
+    "@leafer-in/view": "^2.0.3",
+    "@leafer-in/viewport": "^2.0.3",
+    "@leafer-ui/worker": "^2.0.3",
+    "@leafergraph/node": "workspace:*",
+    "@leafergraph/sync": "workspace:*",
+    "preact": "^10.25.1",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "leafer-ui": "^2.0.3",
+    "leafergraph": "workspace:*"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.3",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "@tauri-apps/cli": "^2"
+  }
+}
