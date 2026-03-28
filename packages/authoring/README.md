@@ -38,16 +38,16 @@
 | 包 | 负责什么 | 不负责什么 |
 | --- | --- | --- |
 | `@leafergraph/node` | 节点定义、图文档模型、模块、注册表、序列化 | 作者类体验、Leafer 宿主 |
-| `@leafergraph/authoring` | 节点 / Widget 作者层、plugin / module 组装 | editor 适配、运行时宿主、历史兼容 |
-| `leafergraph` | 图运行时、渲染、交互基础设施、插件消费 | editor 壳层、bundle 装载协议 |
-| `examples/editor` | 工作区、authority、bundle loader、UI 壳层 | 反向定义作者层公共 API |
+| `@leafergraph/authoring` | 节点 / Widget 作者层、plugin / module 组装 | 宿主适配、运行时宿主、历史兼容 |
+| `leafergraph` | 图运行时、渲染、交互基础设施、插件消费 | 宿主壳层、bundle 装载协议 |
+| 外部宿主 / bundle 消费方 | 页面壳层、bundle 装配和外围接线 | 反向定义作者层公共 API |
 
 一个实用判断是：
 
 - 定义正式模型和图文档，去 `@leafergraph/node`
 - 写节点类、Widget 类和正式 plugin，去 `@leafergraph/authoring`
 - 让图跑起来、显示出来、可交互，去 `leafergraph`
-- 做工作区、菜单、authority 和 bundle 面板，看 `examples/editor`
+- 做宿主页面、菜单、bundle 装配和外围协议接线，看具体宿主工程
 
 这里必须保持一个固定方向：
 
@@ -198,7 +198,6 @@ await graph.ready;
 ```bash
 bun run build:authoring
 bun run test:authoring
-bun run build
 ```
 
 如果你只改了作者层文档或公开类型，至少跑一次：

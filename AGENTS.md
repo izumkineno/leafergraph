@@ -45,8 +45,8 @@
   - 存放范围定义、设计方案、架构讨论等文档。
 - `packages/`
   - 存放实际可运行的子包。
-- `examples/`
-  - 存放仓库内可直接运行的示例工程，包括最小图示例与 editor 示例。
+- `templates/`
+  - 存放可复制出去的模板工程与模板分类入口。
 
 ### `packages/leafergraph`
 
@@ -60,15 +60,15 @@
 
 不应把编辑器壳层、复杂面板 UI、页面布局逻辑塞进该包。
 
-### `examples/editor`
+### `templates`
 
-这是 editor 示例工程，负责用户界面与控制层，原则上应包含：
+这是模板工程目录，负责对外可复制的节点、Widget 和 browser bundle 样例，原则上应包含：
 
-- Preact 组件树
-- 编辑器布局、工具栏、面板、状态编排
-- 对核心库的挂载、驱动、调试与演示
+- 节点 / Widget 作者代码样例
+- 对外发布用的 `dist/browser/*` 产物示例
+- 最小必要的模板说明与构建入口
 
-不应在该包中重新实现底层图模型或渲染宿主。
+不应在该目录中反向定义核心模型真源或主包长期 API。
 
 ---
 
@@ -79,7 +79,7 @@
 在开始实现前，至少优先阅读以下内容：
 
 1. `README.md`
-2. `docs/范围与设计选项.md`
+2. 与任务最相关的当前维护文档，优先从 `docs/节点API方案.md`、`docs/节点插件接入方案.md`、`packages/leafergraph/内部架构地图.md` 中选择
 3. 目标子包的 `package.json`
 4. 目标入口文件与直接依赖文件
 
@@ -518,11 +518,9 @@
 
 ```bash
 bun install
-bun run dev:editor
-bun run build
+bun run build:node
+bun run build:authoring
 bun run build:leafergraph
-bun run build:editor
-bun run preview:editor
 ```
 
 ### Bun Workspace 注意事项
@@ -536,8 +534,9 @@ bun run preview:editor
 要求如下：
 
 - 涉及核心库改动时，至少执行 `bun run build:leafergraph`
-- 涉及编辑器改动时，至少执行 `bun run build:editor`
-- 涉及跨包改动时，优先执行 `bun run build`
+- 涉及模型层改动时，至少执行 `bun run build:node`
+- 涉及作者层改动时，至少执行 `bun run build:authoring`
+- 涉及跨包改动时，优先执行受影响包对应的 `build:*` 命令
 - 如果因为环境问题无法完成验证，必须在最终说明中明确写出未验证项
 
 ---
@@ -565,13 +564,13 @@ bun run preview:editor
 - 交互控制器不要直接承担 UI 壳层布局职责
 - 新增能力优先考虑后续模板化节点和外部节点接入
 
-### 编辑器要求
+### 模板与宿主接入要求
 
-编辑器代码应优先满足以下标准：
+模板代码和外部宿主接入说明应优先满足以下标准：
 
-- Preact 组件负责界面组织，不负责重写底层图逻辑
-- `GraphViewport` 一类组件负责挂载与生命周期管理
-- UI 状态与图运行时状态要尽量解耦
+- 模板负责样例和产物组织，不反向定义核心库边界
+- browser bundle 接入说明要和正式主包 API 明确分层
+- 宿主状态与图运行时状态要尽量解耦
 - 演示代码、正式能力、实验性代码尽量分目录或分模块放置
 
 ### 注释与文档
@@ -587,7 +586,7 @@ bun run preview:editor
 ### 新增代码时的默认放置原则
 
 - 图模型、运行时、渲染、交互基础能力：放到 `packages/leafergraph`
-- 编辑器页面、布局、面板、状态编排：放到 `examples/editor`
+- 模板说明、外部宿主接入说明与架构决策：放到 `docs/` 或 `templates/` 对应目录
 - 设计说明、范围讨论、架构决策：放到 `docs/`
 
 ### 避免以下问题

@@ -10,7 +10,7 @@
 - 负责节点创建、配置、序列化和模块安装的模型侧工具
 
 如果你只想知道“节点模型层有哪些正式入口”，从这份 README 开始即可。  
-如果你要继续看运行时宿主或 editor 接入层，请顺着下面的深链继续读。
+如果你要继续看运行时宿主或外部宿主接入层，请顺着下面的深链继续读。
 
 ## 适用场景
 
@@ -36,17 +36,17 @@
 
 | 包 | 负责什么 | 不负责什么 |
 | --- | --- | --- |
-| `@leafergraph/node` | 节点定义、图文档、模块、注册表、模型工具 | Leafer 运行时、作者层体验、editor UI |
+| `@leafergraph/node` | 节点定义、图文档、模块、注册表、模型工具 | Leafer 运行时、作者层体验、宿主页面 |
 | `@leafergraph/authoring` | 节点 / Widget 作者层、plugin / module 组装 | 模型真源、图宿主 |
-| `leafergraph` | 图运行时、渲染、交互基础设施、插件消费 | 模型 SDK、editor 壳层 |
-| `examples/editor` | 工作区、authority、bundle loader、UI 壳层 | 主包运行时和模型真源 |
+| `leafergraph` | 图运行时、渲染、交互基础设施、插件消费 | 模型 SDK、宿主壳层 |
+| 外部宿主 / bundle 消费方 | 页面壳层、bundle 装配、外围协议接线 | 主包运行时和模型真源 |
 
 一个实用判断是：
 
 - 描述“节点和图的数据结构是什么”，去 `@leafergraph/node`
 - 描述“怎么更舒服地写节点类和 Widget 类”，去 `@leafergraph/authoring`
 - 描述“图如何运行、渲染和交互”，去 `leafergraph`
-- 描述“工作区怎样装配 authority 和 bundle”，看 `examples/editor`
+- 描述“宿主怎样装配 bundle 或外围协议”，看具体宿主工程或模板工程
 
 ## 五分钟上手
 
@@ -189,7 +189,6 @@ const documentData: GraphDocument = {
 
 ```bash
 bun run build:node
-bun run build
 ```
 
 如果你只改了模型层文档或公开类型，至少跑一次：
@@ -203,9 +202,9 @@ bun run build:node
 - [节点 API 方案](../../docs/节点API方案.md)
   - 面向节点模型与节点壳边界
   - 讲模型层和宿主层当前怎样拆分
-- [当前节点计划书](../../docs/当前节点计划书.md)
-  - 面向现状地图和长期路线
-  - 讲 authority、runtime feedback、bundle 与模型层的整体关系
+- [外部节点包接入方案](../../docs/节点插件接入方案.md)
+  - 面向外部节点、Widget 与 bundle 接入边界
+  - 讲正式模型入口与外部宿主接入怎样拆分
 - [主包 README](../leafergraph/README.md)
   - 面向运行时宿主使用者
   - 讲 `@leafergraph/node` 的模型最终怎样进入 `leafergraph`

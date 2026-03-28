@@ -2,7 +2,7 @@
 
 这是一份面向节点作者的 `TypeScript` 模板工程。
 
-它的重点不是直接手写 `iife.js`，而是让你在 `src/developer/` 里按类型维护节点模板代码，最后再构建出给 editor 或外部宿主加载的 `dist/browser/node.iife.js`。
+它的重点不是直接手写 `iife.js`，而是让你在 `src/developer/` 里按类型维护节点模板代码，最后再构建出给支持 browser bundle 的宿主或外部应用加载的 `dist/browser/node.iife.js`。
 
 ## 这份模板提供什么
 
@@ -115,7 +115,7 @@ const graph = createLeaferGraph(container, {
 await graph.ready;
 ```
 
-如果你想给 editor 的本地 bundle 面板加载，使用最终产物：
+如果你想给支持 IIFE bundle 的宿主加载，使用最终产物：
 
 ```text
 dist/browser/node.iife.js
@@ -132,4 +132,4 @@ dist/browser/node.iife.js
 
 - [Templates 总览](../../README.md)
 - [@leafergraph/authoring README](../../../packages/authoring/README.md)
-- [节点 / 组件 / 蓝图加载说明](../../../docs/节点组件蓝图加载说明.md)
+- [外部节点包接入方案](../../../docs/节点插件接入方案.md)

@@ -7,7 +7,7 @@
 - 把 `GraphDocument` 恢复成可交互、可执行、可局部刷新的 Leafer 场景
 - 管理节点、连线、Widget、主题、视图和交互宿主
 - 对外暴露稳定的图 API、运行反馈 API 和扩展入口
-- 为 editor、外部页面和未来 authority/runtime 适配层提供统一运行时基础
+- 为外部页面和未来宿主 / runtime 适配层提供统一运行时基础
 
 如果你只想知道“怎么用”，从这份 README 开始即可。  
 如果你要扩插件、接 Widget、读内部实现或排查刷新链路，请按下面的深链继续读。
@@ -21,7 +21,7 @@
 - 在运行时注册节点、模块、Widget 或插件
 - 在本地执行图级 `play / step / stop` 或节点级 `playFromNode(...)`
 - 订阅节点执行、图执行、节点状态和连线传播反馈
-- 对接 editor、remote runtime feedback 或外部调试面板
+- 对接外部宿主、remote runtime feedback 或外部调试面板
 
 它不直接负责这些事情：
 
@@ -36,14 +36,14 @@
 | 包 | 负责什么 | 不负责什么 |
 | --- | --- | --- |
 | `@leafergraph/node` | 节点定义、模块、注册表、图文档模型、序列化类型 | Leafer 场景、交互、渲染宿主 |
-| `leafergraph` | 图运行时、渲染、交互基础设施、执行反馈、公共 API | editor UI、authority transport、bundle 协议 |
-| `examples/editor` | 工作区壳层、命令、session、authority、bundle 装配 | 主包运行时真源 |
+| `leafergraph` | 图运行时、渲染、交互基础设施、执行反馈、公共 API | 宿主 UI、authority transport、bundle 协议 |
+| 外部宿主 / 页面壳层 | 页面组织、bundle 装配、外围命令和协议接线 | 主包运行时真源 |
 
 一个实用判断是：
 
 - 定义“节点是什么”，去 `@leafergraph/node`
 - 让“节点图跑起来、显示出来、可交互”，用 `leafergraph`
-- 做“工作区、菜单、authority、bundle 面板”，看 `examples/editor`
+- 做“宿主页面、菜单、bundle 面板和外围协议接线”，放在主包外处理
 
 ## 五分钟上手
 
@@ -245,7 +245,6 @@ graph.destroy();
 
 ```bash
 bun run build:leafergraph
-bun run build
 ```
 
 如果你改的是主包文档或公开类型，至少跑一次：
@@ -264,4 +263,4 @@ bun run build:leafergraph
   - 讲装配链、目录职责、关键宿主和源码阅读顺序
 - [渲染刷新策略](./渲染刷新策略.md)
   - 面向性能、刷新和执行链排查
-  - 讲整图替换、局部刷新、执行期刷新和 editor 消费链
+  - 讲整图替换、局部刷新、执行期刷新和外围消费链

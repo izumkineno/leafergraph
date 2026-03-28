@@ -2,12 +2,11 @@
 
 `templates/` 只放可复制出去的模板工程与分类入口，不承载 workspace 核心源码。
 
-## 目录结构
+## 当前目录结构
 
 ```text
 templates/
   backend/
-    python-openrpc-authority-template/
   node/
     authoring-node-template/
     README.md
@@ -19,38 +18,21 @@ templates/
     backend-node-package-template/
 ```
 
-## 模板矩阵
+## 当前模板矩阵
 
-| 路径 | 主要用途 | 默认端口 | 启动/构建命令 | 核心契约 |
-| --- | --- | --- | --- | --- |
-| `templates/backend/python-openrpc-authority-template` | 精简 OpenRPC-first Python authority 模板，默认只含 document authority 与最小可执行运行时 | `5503` | `uv run --project templates/backend/python-openrpc-authority-template python -m leafergraph_python_openrpc_authority_template.entry` | `GET /health` + `WS /authority` + JSON-RPC 2.0 + 按需生成的 `_generated/` models/client |
-| `templates/node/authoring-node-template` | 纯节点作者模板，`developer/` 按 `shared / nodes / module` 分文件 | 无固定端口 | `bun run --cwd templates/node/authoring-node-template build` | authoring node class + node bundle |
-| `templates/widget/authoring-text-widget-template` | 纯文字展示 Widget 模板，`developer/` 按 `shared / widgets / plugin` 分文件 | 无固定端口 | `bun run --cwd templates/widget/authoring-text-widget-template build` | authoring widget class + widget bundle |
-| `templates/misc/authoring-browser-plugin-template` | 完整的 node/widget/demo 组合模板，`developer/` 按 `shared / nodes / widgets / preset / module` 分文件 | 无固定端口 | `bun run --cwd templates/misc/authoring-browser-plugin-template build` | authoring plugin + script bundle |
-| `templates/misc/backend-node-package-template` | 后端驱动节点包模板 | 无固定端口 | 作为目录模板被 authority runtime 热加载 | package manifest + `authority.frontendBundlesSync` |
-
-## 固定决策
-
-- authority 协议真源固定为仓库根 `openrpc/authority.openrpc.json`。
-- 协议说明入口固定为 `openrpc/README.md`。
-- OpenRPC 接入踩雷说明固定见 `openrpc/openrpc-adaptation-pitfalls.md`。
-- 全仓统一环境变量固定为 `LEAFERGRAPH_OPENRPC_ROOT`，它必须指向包含 `authority.openrpc.json`、`schemas/`、`conformance/` 的目录根。
-- 若未设置 `LEAFERGRAPH_OPENRPC_ROOT`，所有消费者默认回退到仓库根 `openrpc/`。
-- `WS /authority` 固定走 JSON-RPC 2.0。
-- `rpc.discover` 固定返回完整 OpenRPC 文档本体。
-- `GET /health` 保持独立 HTTP 健康检查入口，不并入 JSON-RPC。
-- notification 固定使用 `authority.document`、`authority.documentDiff`、`authority.runtimeFeedback`、`authority.frontendBundlesSync`。
+| 路径 | 主要用途 | 典型产物 |
+| --- | --- | --- |
+| `templates/node/authoring-node-template` | 纯节点作者模板 | `module`、`plugin`、`dist/browser/node.iife.js` |
+| `templates/widget/authoring-text-widget-template` | 纯 Widget 作者模板 | `widget entry`、`plugin`、`dist/browser/widget.iife.js` |
+| `templates/misc/authoring-browser-plugin-template` | node / widget / demo 组合模板 | `dist/browser/widget.iife.js`、`node.iife.js`、`demo.iife.js` |
+| `templates/misc/backend-node-package-template` | 后端节点包模板 | package manifest 与结构化前端 bundle 约定 |
 
 ## 分类边界
 
 ### `backend/`
 
-- 放 authority 后端模板。
-- 当前仓库内默认的 authority 后端模板是 `python-openrpc-authority-template`。
-- 若需要 schema 驱动的 Python 入站校验与 generated client，优先使用 `python-openrpc-authority-template`。
-- 这份 OpenRPC 模板是精简版，重点是协议真源、类型生成和最小运行闭环。
-- 协议真源目录已上移到仓库根 `openrpc/`，这里不再承载协议真源镜像。
-- 这里是“后端运行时模板”，不是节点/Widget 作者目录。
+- 当前保留为模板分类目录。
+- 目前没有活动中的模板 README。
 
 ### `node/`
 
@@ -64,19 +46,19 @@ templates/
 
 ### `misc/`
 
-- 放不属于“纯后端模板 / 纯节点模板 / 纯 Widget 模板”的混合型模板。
+- 放不属于“纯节点模板 / 纯 Widget 模板”的混合型模板。
 - 当前包括：
   - authoring 浏览器组合模板
   - 后端驱动节点包模板
 
-## 需要改
+## 推荐阅读
 
-- 业务节点、业务 widget、业务 demo、业务执行器。
-- 默认 authority 名称、日志前缀、示例文档内容。
-- 模板 README 里的业务接入说明。
+- [`node/README.md`](./node/README.md)
+- [`widget/README.md`](./widget/README.md)
+- [`misc/authoring-browser-plugin-template/README.md`](./misc/authoring-browser-plugin-template/README.md)
+- [`misc/backend-node-package-template/README.md`](./misc/backend-node-package-template/README.md)
 
-## 不要改
+## 说明
 
-- `GET /health` 与 `WS /authority` 的稳定路径语义。
-- 仓库根 `openrpc/` 与 `LEAFERGRAPH_OPENRPC_ROOT` 这套统一路径契约。
-- `authority.document / authority.documentDiff / authority.runtimeFeedback / authority.frontendBundlesSync` 这些正式 notification 名。
+- 当前模板入口只覆盖仓库里真实存在的模板。
+- 已删除模板对应的旧说明已经从这里移除，避免继续把历史目录写成现状。

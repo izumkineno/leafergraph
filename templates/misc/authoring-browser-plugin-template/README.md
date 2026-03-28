@@ -2,7 +2,7 @@
 
 这是一份完整的 authoring-first `TypeScript` 模板工程。
 
-它面向“开发者真正要交付一个可加载 bundle”的场景：开发者平时主要维护 `src/developer/` 里的类型化文件，而 `src/presets/` 和 `src/browser/` 只负责消费这些信息，最终再构建成给 editor 或外部宿主加载的 `dist/browser/*.iife.js`。
+它面向“开发者真正要交付一个可加载 bundle”的场景：开发者平时主要维护 `src/developer/` 里的类型化文件，而 `src/presets/` 和 `src/browser/` 只负责消费这些信息，最终再构建成给支持 browser bundle 的宿主或外部应用加载的 `dist/browser/*.iife.js`。
 
 ## 这份模板提供什么
 
@@ -77,7 +77,7 @@ templates/misc/authoring-browser-plugin-template/
 - `src/presets/`
   - 只负责把开发者入口提供的数据装配成正式 `GraphDocument`
 - `src/browser/`
-  - 只负责向 editor 的 bundle bridge 注册 `widget/node/demo`
+  - 只负责向 bundle bridge 注册 `widget/node/demo`
 
 ## 开发流程
 
@@ -124,9 +124,9 @@ const graph = createLeaferGraph(container, {
 await graph.ready;
 ```
 
-## editor 本地加载顺序
+## browser bundle 加载顺序
 
-如果你想直接用 editor 的本地 bundle 面板联调，推荐顺序是：
+如果你想直接在支持这些 bundle 的宿主里联调，推荐顺序是：
 
 1. `dist/browser/widget.iife.js`
 2. `dist/browser/node.iife.js`
@@ -137,8 +137,8 @@ await graph.ready;
 ## 边界说明
 
 - 模板源码优先，`iife.js` 只是最终发布物
-- browser bundle 继续沿用 editor 现有 script-bundle 握手
-- editor / 宿主适配 authoring 产物，不是 authoring 反向兼容 editor
+- browser bundle 继续沿用现有 script-bundle 握手
+- 宿主适配 authoring 产物，不是 authoring 反向兼容宿主
 - 预设层与开发者层已分离；需要改 demo 内容时，优先先改 `src/developer/preset.ts`
 - 这里不兼容 litegraph.js 旧节点实现，只借用 `watch` 和最小流程链的开发者心智
 - 这里就是当前更推荐的 authoring 浏览器模板入口
@@ -147,4 +147,4 @@ await graph.ready;
 
 - [Templates 总览](../../README.md)
 - [@leafergraph/authoring README](../../../packages/authoring/README.md)
-- [节点 / 组件 / 蓝图加载说明](../../../docs/节点组件蓝图加载说明.md)
+- [外部节点包接入方案](../../../docs/节点插件接入方案.md)

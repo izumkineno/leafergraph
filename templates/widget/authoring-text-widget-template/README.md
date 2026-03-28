@@ -2,7 +2,7 @@
 
 这是一份面向 Widget 作者的 `TypeScript` 模板工程。
 
-它的目标很明确：让开发者在 `src/developer/` 里按类型维护 Widget 模板代码，用 `@leafergraph/authoring` 写一个专门负责显示文字的自定义 Widget，然后在需要时再构建为 `dist/browser/widget.iife.js`，交给 editor 或外部宿主加载。
+它的目标很明确：让开发者在 `src/developer/` 里按类型维护 Widget 模板代码，用 `@leafergraph/authoring` 写一个专门负责显示文字的自定义 Widget，然后在需要时再构建为 `dist/browser/widget.iife.js`，交给支持 browser bundle 的宿主或外部应用加载。
 
 ## 这份模板提供什么
 
@@ -110,7 +110,7 @@ class WatchNode extends BaseNode {
 
 ## 宿主接入
 
-如果你想给 editor 的本地 bundle 面板加载，使用最终产物：
+如果你想给支持 IIFE bundle 的宿主加载，使用最终产物：
 
 ```text
 dist/browser/widget.iife.js
@@ -130,4 +130,4 @@ dist/browser/widget.iife.js
 
 - [Templates 总览](../../README.md)
 - [@leafergraph/authoring README](../../../packages/authoring/README.md)
-- [节点 / 组件 / 蓝图加载说明](../../../docs/节点组件蓝图加载说明.md)
+- [外部节点包接入方案](../../../docs/节点插件接入方案.md)
