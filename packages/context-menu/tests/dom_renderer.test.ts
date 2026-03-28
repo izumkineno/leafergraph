@@ -3,14 +3,36 @@ import { createContextMenuController, type ContextMenuContext } from "../src/cor
 import { createDomContextMenuRenderer } from "../src/internal/dom_overlay_renderer";
 
 const originalMatchMedia = window.matchMedia.bind(window);
+const originalMaxTouchPoints = Object.getOwnPropertyDescriptor(
+  window.navigator,
+  "maxTouchPoints"
+);
 
 beforeEach(() => {
   window.matchMedia = originalMatchMedia;
+  if (originalMaxTouchPoints) {
+    Object.defineProperty(
+      window.navigator,
+      "maxTouchPoints",
+      originalMaxTouchPoints
+    );
+  } else {
+    Reflect.deleteProperty(window.navigator, "maxTouchPoints");
+  }
 });
 
 afterEach(() => {
   document.body.innerHTML = "";
   window.matchMedia = originalMatchMedia;
+  if (originalMaxTouchPoints) {
+    Object.defineProperty(
+      window.navigator,
+      "maxTouchPoints",
+      originalMaxTouchPoints
+    );
+  } else {
+    Reflect.deleteProperty(window.navigator, "maxTouchPoints");
+  }
 });
 
 describe("@leafergraph/context-menu dom renderer", () => {
@@ -103,6 +125,90 @@ describe("@leafergraph/context-menu dom renderer", () => {
 
     submenuButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await waitForTimers();
+    expect(
+      document.querySelector(
+        '.leafergraph-context-menu__panel[data-level="1"]'
+      )
+    ).not.toBeNull();
+
+    controller.destroy();
+  });
+
+  it("没有图标时不会渲染图标占位元素", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const controller = createContextMenuController({
+      renderer: createDomContextMenuRenderer()
+    });
+
+    controller.open(createContext(container), [
+      {
+        key: "rename",
+        label: "重命名"
+      }
+    ]);
+
+    const renameItem = document.querySelector<HTMLElement>(
+      '.leafergraph-context-menu__item[data-key="rename"]'
+    );
+    expect(renameItem).not.toBeNull();
+    expect(
+      renameItem?.querySelector(".leafergraph-context-menu__icon")
+    ).toBeNull();
+    expect(
+      renameItem?.querySelector(".leafergraph-context-menu__leading")
+    ).toBeNull();
+
+    controller.destroy();
+  });
+
+  it("带触控能力但仍有 hover 指针时不会错误退化为 click", async () => {
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: query === "(any-hover: hover)",
+        media: query,
+        onchange: null,
+        addEventListener() {},
+        removeEventListener() {},
+        addListener() {},
+        removeListener() {},
+        dispatchEvent() {
+          return false;
+        }
+      }) as MediaQueryList) as typeof window.matchMedia;
+
+    Object.defineProperty(window.navigator, "maxTouchPoints", {
+      configurable: true,
+      value: 5
+    });
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const controller = createContextMenuController({
+      renderer: createDomContextMenuRenderer()
+    });
+
+    controller.open(createContext(container), [
+      {
+        kind: "submenu",
+        key: "advanced",
+        label: "高级",
+        children: [{ key: "inspect", label: "查看详情" }]
+      }
+    ]);
+
+    const submenuButton = document.querySelector<HTMLButtonElement>(
+      '.leafergraph-context-menu__item[data-key="advanced"]'
+    );
+    expect(submenuButton).not.toBeNull();
+
+    submenuButton?.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true })
+    );
+    await waitForTimers();
+
     expect(
       document.querySelector(
         '.leafergraph-context-menu__panel[data-level="1"]'

@@ -84,7 +84,8 @@ export function createExampleContextMenu(
     app: options.graph.app,
     container: options.container,
     host: resolveContextMenuHost(options.container),
-    submenuTriggerMode: "hover+click",
+    // demo 端统一用 hover 展开子菜单；混合设备是否需要退化由菜单包内部判断。
+    submenuTriggerMode: "hover",
     resolveItems(context) {
       return resolveExampleContextMenuItems(context, options);
     }

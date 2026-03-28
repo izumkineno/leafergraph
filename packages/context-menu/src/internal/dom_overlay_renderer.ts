@@ -91,8 +91,7 @@ const CONTEXT_MENU_STYLE_TEXT = `
 
 .${CONTEXT_MENU_ROOT_CLASS}__item {
   width: 100%;
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -124,6 +123,14 @@ const CONTEXT_MENU_STYLE_TEXT = `
   color: var(--lgcm-danger);
 }
 
+.${CONTEXT_MENU_ROOT_CLASS}__leading,
+.${CONTEXT_MENU_ROOT_CLASS}__trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
 .${CONTEXT_MENU_ROOT_CLASS}__indicator,
 .${CONTEXT_MENU_ROOT_CLASS}__arrow,
 .${CONTEXT_MENU_ROOT_CLASS}__shortcut,
@@ -143,6 +150,7 @@ const CONTEXT_MENU_STYLE_TEXT = `
 
 .${CONTEXT_MENU_ROOT_CLASS}__content {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -537,21 +545,10 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
       );
     }
 
-    const indicator = ownerDocument.createElement("span");
-    indicator.className = `${CONTEXT_MENU_ROOT_CLASS}__indicator`;
-    indicator.setAttribute("aria-hidden", "true");
-    if (item.kind === "checkbox") {
-      indicator.dataset.checked = String(Boolean(item.checked));
-      indicator.textContent = item.checked ? "✓" : "";
-    } else if (item.kind === "radio") {
-      indicator.dataset.checked = String(Boolean(item.checked));
-      indicator.textContent = item.checked ? "●" : "";
-    } else {
-      indicator.textContent = "";
+    const leading = this.createLeadingElement(item);
+    if (leading) {
+      button.appendChild(leading);
     }
-    button.appendChild(indicator);
-
-    button.appendChild(this.createIconElement(item.icon));
 
     const content = ownerDocument.createElement("span");
     content.className = `${CONTEXT_MENU_ROOT_CLASS}__content`;
@@ -567,17 +564,10 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     }
     button.appendChild(content);
 
-    const shortcut = ownerDocument.createElement("span");
-    shortcut.className = `${CONTEXT_MENU_ROOT_CLASS}__shortcut`;
-    shortcut.textContent = item.shortcut ?? "";
-    shortcut.setAttribute("aria-hidden", "true");
-    button.appendChild(shortcut);
-
-    const arrow = ownerDocument.createElement("span");
-    arrow.className = `${CONTEXT_MENU_ROOT_CLASS}__arrow`;
-    arrow.textContent = item.kind === "submenu" ? "›" : "";
-    arrow.setAttribute("aria-hidden", "true");
-    button.appendChild(arrow);
+    const trailing = this.createTrailingElement(item);
+    if (trailing) {
+      button.appendChild(trailing);
+    }
 
     button.addEventListener("focus", () => {
       this.controller?.setFocusedKey(level, item.key);
@@ -618,6 +608,45 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return button;
   }
 
+  private createLeadingElement(
+    item: Exclude<ContextMenuItem, { kind: "separator" } | { kind: "group" }>
+  ): HTMLSpanElement | null {
+    const ownerDocument = this.ownerDocument;
+    if (!ownerDocument) {
+      throw new Error("缺少右键菜单文档上下文");
+    }
+
+    const hasIndicator =
+      item.kind === "checkbox" || item.kind === "radio";
+    const hasIcon = Boolean(item.icon);
+    if (!hasIndicator && !hasIcon) {
+      return null;
+    }
+
+    const leading = ownerDocument.createElement("span");
+    leading.className = `${CONTEXT_MENU_ROOT_CLASS}__leading`;
+    leading.setAttribute("aria-hidden", "true");
+
+    if (hasIndicator) {
+      const indicator = ownerDocument.createElement("span");
+      indicator.className = `${CONTEXT_MENU_ROOT_CLASS}__indicator`;
+      if (item.kind === "checkbox") {
+        indicator.dataset.checked = String(Boolean(item.checked));
+        indicator.textContent = item.checked ? "✓" : "";
+      } else {
+        indicator.dataset.checked = String(Boolean(item.checked));
+        indicator.textContent = item.checked ? "●" : "";
+      }
+      leading.appendChild(indicator);
+    }
+
+    if (hasIcon) {
+      leading.appendChild(this.createIconElement(item.icon));
+    }
+
+    return leading;
+  }
+
   private createIconElement(icon: ContextMenuRenderableIcon | undefined): HTMLSpanElement {
     const ownerDocument = this.ownerDocument;
     if (!ownerDocument) {
@@ -644,6 +673,41 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
         : icon.cloneNode(true);
     iconElement.appendChild(node);
     return iconElement;
+  }
+
+  private createTrailingElement(
+    item: Exclude<ContextMenuItem, { kind: "separator" } | { kind: "group" }>
+  ): HTMLSpanElement | null {
+    const ownerDocument = this.ownerDocument;
+    if (!ownerDocument) {
+      throw new Error("缺少右键菜单文档上下文");
+    }
+
+    const hasShortcut = Boolean(item.shortcut);
+    const hasArrow = item.kind === "submenu";
+    if (!hasShortcut && !hasArrow) {
+      return null;
+    }
+
+    const trailing = ownerDocument.createElement("span");
+    trailing.className = `${CONTEXT_MENU_ROOT_CLASS}__trailing`;
+    trailing.setAttribute("aria-hidden", "true");
+
+    if (hasShortcut) {
+      const shortcut = ownerDocument.createElement("span");
+      shortcut.className = `${CONTEXT_MENU_ROOT_CLASS}__shortcut`;
+      shortcut.textContent = item.shortcut ?? "";
+      trailing.appendChild(shortcut);
+    }
+
+    if (hasArrow) {
+      const arrow = ownerDocument.createElement("span");
+      arrow.className = `${CONTEXT_MENU_ROOT_CLASS}__arrow`;
+      arrow.textContent = "›";
+      trailing.appendChild(arrow);
+    }
+
+    return trailing;
   }
 
   private handlePanelKeyDown(level: number, event: KeyboardEvent): void {
@@ -879,11 +943,20 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
       return false;
     }
 
+    // 混合设备上常见 `maxTouchPoints > 0`，但只要存在可 hover 的细指针，
+    // 子菜单仍应保持桌面端 hover 体验，不能一刀切退化成 click。
+    if (ownerWindow.matchMedia?.("(any-hover: hover)").matches) {
+      return false;
+    }
+
     if (ownerWindow.matchMedia?.("(pointer: coarse)").matches) {
       return true;
     }
 
-    return (ownerWindow.navigator.maxTouchPoints ?? 0) > 0;
+    return (
+      ownerWindow.matchMedia?.("(hover: none)").matches &&
+      (ownerWindow.navigator.maxTouchPoints ?? 0) > 0
+    );
   }
 
   private attachGlobalListeners(ownerDocument: Document): void {

@@ -12,7 +12,7 @@
 import "./app.css";
 import {
   type ExampleGraphStatus,
-  useExampleGraph
+  useExampleGraph,
 } from "./graph/use_example_graph";
 
 interface ActionItem {
@@ -26,7 +26,7 @@ interface ActionItem {
 const LOG_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
   minute: "2-digit",
-  second: "2-digit"
+  second: "2-digit",
 });
 
 /** 把内部状态枚举映射成页面要显示的短标签。 */
@@ -44,7 +44,7 @@ function resolveStatusLabel(status: ExampleGraphStatus): string {
 /** 根据当前状态输出一条更可读的中文说明。 */
 function resolveStatusCopy(
   status: ExampleGraphStatus,
-  errorMessage: string
+  errorMessage: string,
 ): string {
   switch (status) {
     case "ready":
@@ -70,14 +70,14 @@ export function App() {
     logs,
     stageBadges,
     stageRef,
-    status
+    status,
   } = useExampleGraph();
 
   // 把按钮配置抽成结构化数组，方便后续继续增删动作时保持页面清晰。
   const actionItems: readonly ActionItem[] = [
     { id: "play", label: "Play", accent: true, onClick: actions.play },
     { id: "stop", label: "Stop", accent: false, onClick: actions.stop },
-    { id: "reset", label: "Reset", accent: false, onClick: actions.reset }
+    { id: "reset", label: "Reset", accent: false, onClick: actions.reset },
   ];
 
   return (
@@ -87,7 +87,7 @@ export function App() {
           <p class="eyebrow">LeaferGraph Mini Demo</p>
           <h1>最小执行链 Demo</h1>
           <p class="toolbar-description">
-            参考 VSCode 侧的 <code>minimal-graph</code>，这里直接通过公开 API
+            这里直接通过公开 API
             恢复一条最小链路，并让画布尽量占满页面。右键画布、节点或连线即可验证
             Leafer-first 上下文菜单。
           </p>
@@ -162,7 +162,10 @@ export function App() {
           {logs.length > 0 ? (
             <ol class="log-list">
               {logs.map((entry) => (
-                <li key={`${entry.timestamp}-${entry.message}`} class="log-item">
+                <li
+                  key={`${entry.timestamp}-${entry.message}`}
+                  class="log-item"
+                >
                   <span class="log-time">{formatLogTime(entry.timestamp)}</span>
                   <span class="log-message">{entry.message}</span>
                 </li>
