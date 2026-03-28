@@ -23,6 +23,12 @@ import {
   createExampleSeedNodes
 } from "./example_document";
 import {
+  createExampleContextMenu,
+  type ExampleContextMenuHandle,
+  type ExampleContextMenuLinkMeta,
+  type ExampleContextMenuNodeMeta
+} from "./example_context_menu";
+import {
   createCounterNodeDefinition,
   createWatchNodeDefinition
 } from "./example_nodes";
@@ -38,7 +44,7 @@ const MAX_LOG_ENTRIES = 60;
 const EXAMPLE_STAGE_BADGES = [
   { id: "public-api", label: "公开 API" },
   { id: "minimal-chain", label: "最小执行链" },
-  { id: "auto-theme", label: "Auto Theme" }
+  { id: "context-menu", label: "Context Menu" }
 ] as const;
 
 /** 画布左上角展示的默认执行链说明。 */
@@ -114,6 +120,7 @@ export function useExampleGraph(): UseExampleGraphResult {
 
   // `graphRef` 只在 hook 内部持有，避免页面层直接耦合运行时细节。
   const graphRef = useRef<LeaferGraph | null>(null);
+  const contextMenuRef = useRef<ExampleContextMenuHandle | null>(null);
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
   const [status, setStatus] = useState<ExampleGraphStatus>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -170,6 +177,8 @@ export function useExampleGraph(): UseExampleGraphResult {
       graph.createLink(linkInput);
     }
 
+    // reset 会重建全部节点和连线，所以这里要同步重绑菜单目标。
+    contextMenuRef.current?.rebindTargets();
     scheduleFitView();
     appendLog("已恢复最小执行链：On Play -> Counter -> Watch");
   };
@@ -233,6 +242,46 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
   };
 
+  /** 读取节点当前快照，并规整成菜单模块需要的最小节点元信息。 */
+  const resolveNodeMeta = (
+    nodeId: string
+  ): ExampleContextMenuNodeMeta | undefined => {
+    const graph = graphRef.current;
+    const snapshot = graph?.getNodeSnapshot(nodeId);
+    if (!snapshot) {
+      return undefined;
+    }
+
+    return {
+      id: snapshot.id,
+      type: snapshot.type,
+      title: snapshot.title ?? snapshot.type
+    };
+  };
+
+  /** 读取连线当前快照，并规整成菜单模块需要的最小连线元信息。 */
+  const resolveLinkMeta = (
+    linkId: string
+  ): ExampleContextMenuLinkMeta | undefined => {
+    const graph = graphRef.current;
+    const link = graph?.getLink(linkId);
+    if (!link) {
+      return undefined;
+    }
+
+    return {
+      id: link.id,
+      source: {
+        nodeId: link.source.nodeId,
+        slot: link.source.slot ?? 0
+      },
+      target: {
+        nodeId: link.target.nodeId,
+        slot: link.target.slot ?? 0
+      }
+    };
+  };
+
   useEffect(() => {
     // 理论上 `stageRef` 在首次挂载后就应该可用，这里保留兜底错误提示。
     const stageHost = stageRef.current;
@@ -270,6 +319,8 @@ export function useExampleGraph(): UseExampleGraphResult {
       cleanupThemeListener();
       window.removeEventListener("resize", handleWindowResize);
 
+      contextMenuRef.current?.destroy();
+      contextMenuRef.current = null;
       const graph = graphRef.current;
       graphRef.current = null;
       graph?.destroy();
@@ -324,6 +375,7 @@ export function useExampleGraph(): UseExampleGraphResult {
         setStatus("ready");
         setErrorMessage("");
         appendLog("LeaferGraph 已完成初始化");
+        appendLog("Leafer 右键菜单已就绪，可区分画布、节点和连线");
       } catch (error) {
         if (disposed) {
           return;
@@ -346,6 +398,39 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     return cleanup;
   }, []);
+
+  useEffect(() => {
+    if (status !== "ready") {
+      return;
+    }
+
+    const graph = graphRef.current;
+    const stageHost = stageRef.current;
+    if (!graph || !stageHost) {
+      return;
+    }
+
+    contextMenuRef.current?.destroy();
+    contextMenuRef.current = createExampleContextMenu({
+      graph,
+      container: stageHost,
+      play: actions.play,
+      step: actions.step,
+      stop: actions.stop,
+      fit: actions.fit,
+      reset: actions.reset,
+      clearLog: actions.clearLog,
+      appendLog,
+      resolveNodeMeta,
+      resolveLinkMeta
+    });
+    contextMenuRef.current.rebindTargets();
+
+    return () => {
+      contextMenuRef.current?.destroy();
+      contextMenuRef.current = null;
+    };
+  }, [status]);
 
   return {
     stageRef,

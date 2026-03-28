@@ -63,22 +63,21 @@ function formatLogTime(timestamp: number): string {
 
 export function App() {
   // 页面层只消费 hook 投影后的数据，不直接操作图实例。
-  const { actions, chainSteps, errorMessage, logs, stageBadges, stageRef, status } =
-    useExampleGraph();
+  const {
+    actions,
+    chainSteps,
+    errorMessage,
+    logs,
+    stageBadges,
+    stageRef,
+    status
+  } = useExampleGraph();
 
   // 把按钮配置抽成结构化数组，方便后续继续增删动作时保持页面清晰。
   const actionItems: readonly ActionItem[] = [
     { id: "play", label: "Play", accent: true, onClick: actions.play },
-    { id: "step", label: "Step", accent: false, onClick: actions.step },
     { id: "stop", label: "Stop", accent: false, onClick: actions.stop },
-    { id: "fit", label: "Fit", accent: false, onClick: actions.fit },
-    { id: "reset", label: "Reset", accent: false, onClick: actions.reset },
-    {
-      id: "clear-log",
-      label: "Clear Log",
-      accent: false,
-      onClick: actions.clearLog
-    }
+    { id: "reset", label: "Reset", accent: false, onClick: actions.reset }
   ];
 
   return (
@@ -89,7 +88,8 @@ export function App() {
           <h1>最小执行链 Demo</h1>
           <p class="toolbar-description">
             参考 VSCode 侧的 <code>minimal-graph</code>，这里直接通过公开 API
-            恢复一条最小链路，并让画布尽量占满页面。
+            恢复一条最小链路，并让画布尽量占满页面。右键画布、节点或连线即可验证
+            Leafer-first 上下文菜单。
           </p>
         </div>
 
@@ -118,6 +118,7 @@ export function App() {
             </div>
 
             <div class="badge-row">
+              <span class="stage-badge">Leafer Menu</span>
               {stageBadges.map((badge) => (
                 <span key={badge.id} class="stage-badge">
                   {badge.label}

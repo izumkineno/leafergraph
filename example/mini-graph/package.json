@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@leafergraph/context-menu": "workspace:*",
     "@leafergraph/node": "workspace:*",
     "leafergraph": "workspace:*",
     "preact": "^10.29.0"
