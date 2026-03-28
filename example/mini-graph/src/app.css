@@ -1,0 +1,390 @@
+/* 页面整体布局：尽量压缩非画布区域，把剩余空间留给图画布。 */
+.page-shell {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  padding: 6px;
+}
+
+/* 顶部工具栏：保留最小信息密度，但不抢占画布面积。 */
+.toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 18px;
+  padding: 2px 4px 0;
+}
+
+/* 左侧标题区。 */
+.toolbar-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 小号眉题，用来提示这是最小 demo。 */
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* 一行简短说明，控制为辅助信息，不盖过主画布。 */
+.toolbar-description {
+  max-width: 56rem;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* 右侧工具区：动作按钮、状态与 badge 都收口到这里。 */
+.toolbar-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* 顶部的按钮组、状态组和 badge 组统一用紧凑横向流布局。 */
+.toolbar-actions,
+.badge-row,
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* 按钮与状态区域再做一层垂直组织。 */
+.toolbar-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* 顶部控制按钮。 */
+.toolbar-button {
+  appearance: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: var(--overlay-section-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/* hover 时给一点轻微反馈，不抢戏。 */
+.toolbar-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  box-shadow: 0 12px 28px var(--overlay-shadow);
+}
+
+.toolbar-button:active {
+  transform: translateY(0);
+}
+
+/* 主动作按钮单独提亮，方便用户先注意到 Play。 */
+.toolbar-button--accent {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  color: white;
+}
+
+/* 状态胶囊和 badge 统一风格。 */
+.status-chip,
+.stage-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+/* 不同运行状态用不同颜色提示。 */
+.status-chip--loading {
+  color: #ffe7a2;
+  background: rgba(184, 134, 11, 0.18);
+  border-color: rgba(255, 215, 120, 0.24);
+}
+
+.status-chip--ready {
+  color: #b6ffd8;
+  background: rgba(6, 95, 70, 0.22);
+  border-color: rgba(74, 222, 128, 0.24);
+}
+
+.status-chip--error {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.28);
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
+.status-copy {
+  max-width: min(32rem, 100%);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* 右上角 badge 只做补充说明。 */
+.stage-badge {
+  color: var(--muted);
+  background: var(--overlay-section-bg);
+  border-color: var(--overlay-border);
+}
+
+/* 主画布容器：始终占据除顶栏外的全部剩余空间。 */
+.graph-card {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  background:
+    linear-gradient(180deg, var(--panel-top), var(--panel-bottom)),
+    radial-gradient(circle at top, var(--panel-glow), transparent 52%);
+  box-shadow:
+    0 18px 48px var(--panel-shadow),
+    inset 0 1px 0 var(--panel-highlight);
+}
+
+/* LeaferGraph 真正挂载的绝对定位画布层。 */
+.graph-host {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* 浮层统一样式：用于执行链说明和日志面板。 */
+.graph-overlay {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--overlay-border);
+  background: var(--overlay-bg);
+  box-shadow: 0 16px 40px var(--overlay-shadow);
+  backdrop-filter: blur(18px);
+}
+
+/* 左上角链路说明浮层。 */
+.graph-overlay--chain {
+  top: 12px;
+  left: 12px;
+  width: min(348px, calc(100% - 24px));
+}
+
+/* 右下角日志浮层。 */
+.graph-overlay--log {
+  right: 12px;
+  bottom: 12px;
+  width: clamp(280px, 30vw, 420px);
+  max-height: min(38vh, 340px);
+}
+
+/* 浮层头部。 */
+.overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* 浮层的小号标题。 */
+.overlay-label {
+  margin: 0;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* 日志数量计数器。 */
+.overlay-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--overlay-section-bg);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 空日志提示与错误提示。 */
+.overlay-empty,
+.overlay-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.overlay-empty {
+  color: var(--muted);
+}
+
+.overlay-error {
+  color: #fecaca;
+}
+
+/* 执行链列表与日志列表都用无序基础样式重置。 */
+.chain-list,
+.log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 左上角链路说明使用竖向卡片列表。 */
+.chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 单条链路说明或单条日志的卡片样式。 */
+.chain-item,
+.log-item {
+  display: grid;
+  gap: 4px 10px;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: var(--overlay-section-bg);
+  border: 1px solid var(--overlay-border);
+}
+
+/* 链路步骤标题。 */
+.chain-item-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* 链路步骤说明。 */
+.chain-item-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* 日志列表允许内部滚动，避免撑大整个页面。 */
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+/* 日志项固定成“时间 + 内容”两列。 */
+.log-item {
+  grid-template-columns: 58px minmax(0, 1fr);
+}
+
+/* 日志时间。 */
+.log-time {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 日志正文。 */
+.log-message {
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+/* 中等宽度下把顶栏改为上下结构，优先保证画布宽度。 */
+@media (max-width: 900px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-side,
+  .toolbar-meta {
+    align-items: stretch;
+  }
+
+  .toolbar-actions,
+  .badge-row,
+  .status-row {
+    justify-content: flex-start;
+  }
+
+  .graph-overlay--log {
+    width: min(360px, calc(100% - 24px));
+  }
+}
+
+/* 手机宽度下进一步压缩边距和浮层占位。 */
+@media (max-width: 640px) {
+  .page-shell {
+    padding: 4px;
+  }
+
+  .toolbar {
+    gap: 8px;
+  }
+
+  .graph-card {
+    border-radius: 16px;
+  }
+
+  .graph-overlay {
+    padding: 10px 12px;
+    border-radius: 16px;
+  }
+
+  .graph-overlay--chain {
+    top: 8px;
+    left: 8px;
+    width: calc(100% - 16px);
+  }
+
+  .graph-overlay--log {
+    right: 8px;
+    bottom: 8px;
+    width: calc(100% - 16px);
+    max-height: min(32vh, 240px);
+  }
+}
