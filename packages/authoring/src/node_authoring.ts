@@ -19,9 +19,9 @@ import type {
   NodeWidgetSpec,
   SlotDirection
 } from "@leafergraph/node";
+import type { LeaferGraphExecutionContext } from "@leafergraph/execution";
 import { createNodeApi } from "@leafergraph/node";
 import type {
-  LeaferGraphExecutionContext,
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext
 } from "leafergraph";
@@ -385,12 +385,20 @@ export function defineAuthoringNode<
     },
     onAction(node, action, param, options, api) {
       const safeApi = ensureApi(node, api);
-      const context = createContext(node, safeApi);
+      const context = createContext(
+        node,
+        safeApi,
+        resolveExecutionContextFromActionOptions(options)
+      );
       getRuntime(node).instance.onAction?.(action, param, options, context);
     },
     onTrigger(node, action, param, options, api) {
       const safeApi = ensureApi(node, api);
-      const context = createContext(node, safeApi);
+      const context = createContext(
+        node,
+        safeApi,
+        resolveExecutionContextFromActionOptions(options)
+      );
       getRuntime(node).instance.onTrigger?.(action, param, options, context);
     }
   };
@@ -479,4 +487,19 @@ function ensureNodeData(node: NodeRuntimeState): Record<string, unknown> {
   }
 
   return node.data;
+}
+
+function resolveExecutionContextFromActionOptions(
+  options: Record<string, unknown> | undefined
+): LeaferGraphExecutionContext | undefined {
+  if (!options || typeof options !== "object") {
+    return undefined;
+  }
+
+  const executionContext = options.executionContext;
+  if (!executionContext || typeof executionContext !== "object") {
+    return undefined;
+  }
+
+  return executionContext as LeaferGraphExecutionContext;
 }

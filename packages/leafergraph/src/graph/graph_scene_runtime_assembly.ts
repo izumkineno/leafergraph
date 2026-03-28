@@ -324,7 +324,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
   });
 
   graphExecutionRuntimeHost = new LeaferGraphExecutionRuntimeHost({
-    nodeRuntimeHost
+    nodeExecutionHost: nodeRuntimeHost
   });
 
   const interactionRuntimeHost = new LeaferGraphInteractionRuntimeHost<

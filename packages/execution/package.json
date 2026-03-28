@@ -1,5 +1,5 @@
 {
-  "name": "@leafergraph/authoring",
+  "name": "@leafergraph/execution",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -17,13 +17,9 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "test": "bun test ./tests"
+    "build": "tsc -p tsconfig.build.json"
   },
-  "peerDependencies": {
-    "@leafergraph/execution": "^0.1.0",
-    "@leafergraph/node": "^0.1.0",
-    "leafer-ui": "^2.0.3",
-    "leafergraph": "^0.1.0"
+  "dependencies": {
+    "@leafergraph/node": "workspace:*"
   }
 }

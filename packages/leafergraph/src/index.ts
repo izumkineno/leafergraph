@@ -33,11 +33,6 @@ export type {
   GraphLinkEndpoint
 } from "@leafergraph/node";
 export {
-  LEAFER_GRAPH_POINTER_MENU_EVENT,
-  LeaferGraphContextMenuManager,
-  createLeaferGraphContextMenu
-} from "./interaction/context_menu";
-export {
   LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
   bindLinearWidgetDrag,
   bindPressWidgetInteraction,
@@ -45,21 +40,6 @@ export {
   resolveLinearWidgetProgressFromEvent,
   stopWidgetPointerEvent
 } from "./widgets/widget_interaction";
-export type {
-  LeaferGraphContextMenuActionItem,
-  LeaferGraphContextMenuBinding,
-  LeaferGraphContextMenuBindingKind,
-  LeaferGraphContextMenuBindingTarget,
-  LeaferGraphContextMenuContext,
-  LeaferGraphContextMenuItem,
-  LeaferGraphContextMenuOptions,
-  LeaferGraphContextMenuPoint,
-  LeaferGraphContextMenuResolver,
-  LeaferGraphContextMenuSeparatorItem,
-  LeaferGraphContextMenuSubmenuItem,
-  LeaferGraphMenuOriginEvent,
-  LeaferGraphPointerMenuEvent
-} from "./interaction/context_menu";
 export type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
@@ -82,6 +62,10 @@ export type {
   LeaferGraphWidgetOptionsMenuRequest
 } from "./api/plugin";
 export type {
+  ExecutionFeedbackAdapter,
+  ExecutionFeedbackEvent,
+  GraphExecutionFeedbackEvent,
+  LeaferGraphActionExecutionOptions,
   GraphDocumentUpdateOperation,
   GraphOperation,
   GraphOperationApplyResult,
@@ -89,9 +73,11 @@ export type {
   LeaferGraphInteractionActivityMode,
   LeaferGraphInteractionActivityState,
   LinkCreateInteractionCommitEvent,
+  LinkPropagationFeedbackEvent,
   LeaferGraphNodeMoveCommitEntry,
   LeaferGraphLinkPropagationEvent,
   NodeCollapseInteractionCommitEvent,
+  NodeExecutionFeedbackEvent,
   NodeMoveInteractionCommitEvent,
   NodeResizeInteractionCommitEvent,
   NodeWidgetInteractionCommitEvent,
@@ -112,6 +98,7 @@ export type {
   LeaferGraphNodeExecutionState,
   LeaferGraphNodeExecutionStatus,
   LeaferGraphNodeExecutionTrigger,
+  LeaferGraphPropagatedExecutionMetadata,
   LeaferGraphConnectionValidationResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
@@ -122,6 +109,15 @@ export type {
   LeaferGraphUpdateDocumentInput,
   LeaferGraphUpdateNodeInput
 } from "./api/graph_api_types";
+export { LEAFER_GRAPH_ON_PLAY_NODE_TYPE } from "./node/builtin/on_play_node";
+export {
+  LEAFER_GRAPH_TIMER_DEFAULT_INTERVAL_MS,
+  LEAFER_GRAPH_TIMER_NODE_TYPE
+} from "./node/builtin/timer_node";
+export type {
+  LeaferGraphTimerRegistration,
+  LeaferGraphTimerRuntimePayload
+} from "./node/builtin/timer_node";
 export type {
   ApplyGraphDocumentDiffResult,
   GraphDocumentDiff,
@@ -163,7 +159,6 @@ import { createLeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import {
   DEFAULT_FIT_VIEW_PADDING
 } from "./graph/graph_runtime_style";
-import type { LeaferGraphContextMenuBindingTarget } from "./interaction/context_menu";
 import type {
   GraphOperation,
   GraphOperationApplyResult,
@@ -189,6 +184,13 @@ import type {
 interface LeaferGraphFindHost {
   findId?(id: string): unknown;
   findOne?(query: { id?: string }): unknown;
+}
+
+interface LeaferGraphInteractionTargetLike {
+  name?: string;
+  parent?: unknown | null;
+  on_?: App["on_"];
+  off_?: App["off_"];
 }
 
 function findGraphicById(host: Group, id: string): unknown {
@@ -337,7 +339,7 @@ export class LeaferGraph {
   /** 获取某条连线对应的 Leafer 视图宿主，便于挂接链接菜单与未来的重连交互。 */
   getLinkView(
     linkId: string
-  ): LeaferGraphContextMenuBindingTarget | undefined {
+  ): LeaferGraphInteractionTargetLike | undefined {
     return this.apiHost.getLinkView(linkId);
   }
 

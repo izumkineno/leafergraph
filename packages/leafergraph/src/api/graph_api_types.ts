@@ -18,7 +18,35 @@ import type {
   SlotDirection,
   SlotType
 } from "@leafergraph/node";
+import type {
+  ExecutionFeedbackEvent,
+  GraphExecutionFeedbackEvent,
+  LinkPropagationFeedbackEvent,
+  LeaferGraphNodeExecutionState,
+  NodeExecutionFeedbackEvent
+} from "@leafergraph/execution";
 import type { GraphNodeDisplayProperties } from "../graph/graph_runtime_types";
+
+export type {
+  ExecutionFeedbackAdapter,
+  ExecutionFeedbackEvent,
+  GraphExecutionFeedbackEvent,
+  LeaferGraphActionExecutionOptions,
+  LeaferGraphExecutionContext,
+  LeaferGraphExecutionSource,
+  LeaferGraphGraphExecutionEvent,
+  LeaferGraphGraphExecutionEventType,
+  LeaferGraphGraphExecutionState,
+  LeaferGraphGraphExecutionStatus,
+  LeaferGraphLinkPropagationEvent,
+  LeaferGraphNodeExecutionEvent,
+  LeaferGraphNodeExecutionState,
+  LeaferGraphNodeExecutionStatus,
+  LeaferGraphNodeExecutionTrigger,
+  LeaferGraphPropagatedExecutionMetadata,
+  LinkPropagationFeedbackEvent,
+  NodeExecutionFeedbackEvent
+} from "@leafergraph/execution";
 
 /**
  * 主包允许的槽位输入结构。
@@ -176,157 +204,6 @@ export interface LeaferGraphNodeResizeConstraint {
 }
 
 /**
- * 节点执行反馈状态。
- *
- * @remarks
- * 这是主包对外暴露的最小运行反馈协议，
- * 专门服务 editor 调试提示、节点信号灯和后续执行面板。
- */
-export type LeaferGraphNodeExecutionStatus =
-  | "idle"
-  | "running"
-  | "success"
-  | "error";
-
-/**
- * 节点当前的最小执行反馈快照。
- *
- * @remarks
- * 第一版只记录最小可见信息：
- * - 当前状态
- * - 总执行次数
- * - 最近成功 / 失败时间
- * - 最近错误信息
- */
-export interface LeaferGraphNodeExecutionState {
-  /** 当前执行状态。 */
-  status: LeaferGraphNodeExecutionStatus;
-  /** 当前节点累计执行次数。 */
-  runCount: number;
-  /** 最近一次进入执行的时间戳。 */
-  lastExecutedAt?: number;
-  /** 最近一次成功执行的时间戳。 */
-  lastSucceededAt?: number;
-  /** 最近一次失败执行的时间戳。 */
-  lastFailedAt?: number;
-  /** 最近一次失败的最小错误信息。 */
-  lastErrorMessage?: string;
-}
-
-/**
- * 节点执行来源。
- *
- * @remarks
- * 这里显式区分“图级运行”和“节点级调试运行”，
- * 方便 editor 在时间线和状态面板里给出更准确的语义反馈。
- */
-export type LeaferGraphExecutionSource =
-  | "graph-play"
-  | "graph-step"
-  | "node-play";
-
-/**
- * 统一执行上下文。
- *
- * @remarks
- * 它会作为 `onExecute(...)` 的第二个参数传给节点，
- * 同时也会被 `OnPlay` 一类入口节点写到输出槽位里，供下游节点读取。
- */
-export interface LeaferGraphExecutionContext {
-  /** 当前执行来源。 */
-  source: LeaferGraphExecutionSource;
-  /** 当前图级运行 ID；节点级调试运行没有该字段。 */
-  runId?: string;
-  /** 当前执行链入口节点 ID。 */
-  entryNodeId: string;
-  /** 当前运行已推进到的步数，从 `0` 开始。 */
-  stepIndex: number;
-  /** 当前执行链的开始时间戳。 */
-  startedAt: number;
-  /** 供外部调用方补充的附加上下文。 */
-  payload?: unknown;
-}
-
-/**
- * 节点执行事件的触发来源。
- *
- * @remarks
- * 第一版先区分两类来源：
- * - `direct`：来自图级入口节点或显式 `playFromNode(...)`
- * - `propagated`：来自上游 `setOutputData(...)` 后沿连线传播的下游执行
- */
-export type LeaferGraphNodeExecutionTrigger = "direct" | "propagated";
-
-/**
- * 主包对外暴露的最小节点执行事件。
- *
- * @remarks
- * 这份事件专门服务 editor 的执行时间线、失败列表和未来调试面板：
- * 1. 事件只在一次节点执行结束时发出，避免同步 `onExecute(...)` 期间产生重复噪音
- * 2. `state` 已经是执行完成后的正式快照，外部无需再手动拼装状态
- * 3. `trigger` 用来区分是显式执行还是链路传播带来的下游执行
- */
-export interface LeaferGraphNodeExecutionEvent {
-  /** 当前执行链 ID。一次显式执行及其传播链共用同一个 ID。 */
-  chainId: string;
-  /** 当前执行链的根节点 ID。 */
-  rootNodeId: string;
-  /** 当前执行链根节点类型。 */
-  rootNodeType: string;
-  /** 当前执行链根节点标题。 */
-  rootNodeTitle: string;
-  /** 当前执行结束的节点 ID。 */
-  nodeId: string;
-  /** 当前节点类型。 */
-  nodeType: string;
-  /** 当前执行结束时的节点标题。 */
-  nodeTitle: string;
-  /** 当前节点位于执行链中的深度；入口节点为 `0`。 */
-  depth: number;
-  /** 当前节点在执行链里的进入顺序，从 `0` 开始。 */
-  sequence: number;
-  /** 当前执行来源。 */
-  source: LeaferGraphExecutionSource;
-  /** 当前触发方式。 */
-  trigger: LeaferGraphNodeExecutionTrigger;
-  /** 当前事件时间戳。 */
-  timestamp: number;
-  /** 当前节点执行时收到的正式上下文。 */
-  executionContext: LeaferGraphExecutionContext;
-  /** 节点执行完成后的正式状态快照。 */
-  state: LeaferGraphNodeExecutionState;
-}
-
-/**
- * 图级执行状态。
- *
- * @remarks
- * 这份状态专门服务图级 `play / step / stop`，
- * 不和节点级调试运行共享同一套状态机。
- */
-export type LeaferGraphGraphExecutionStatus = "idle" | "running" | "stepping";
-
-/**
- * 图级执行状态快照。
- */
-export interface LeaferGraphGraphExecutionState {
-  /** 当前图执行状态。 */
-  status: LeaferGraphGraphExecutionStatus;
-  /** 当前活动运行 ID；空闲时为空。 */
-  runId?: string;
-  /** 当前待执行队列长度。 */
-  queueSize: number;
-  /** 当前运行已经推进的总步数。 */
-  stepCount: number;
-  /** 当前运行开始时间戳。 */
-  startedAt?: number;
-  /** 最近一次停止时间戳。 */
-  stoppedAt?: number;
-  /** 最近一次图级入口来源。 */
-  lastSource?: Extract<LeaferGraphExecutionSource, "graph-play" | "graph-step">;
-}
-
-/**
  * 主包对外暴露的最小交互活跃模式。
  *
  * @remarks
@@ -351,33 +228,6 @@ export interface LeaferGraphInteractionActivityState {
   active: boolean;
   /** 当前活跃交互模式；空闲时固定为 `idle`。 */
   mode: LeaferGraphInteractionActivityMode;
-}
-
-/**
- * 图级执行事件类型。
- */
-export type LeaferGraphGraphExecutionEventType =
-  | "started"
-  | "advanced"
-  | "drained"
-  | "stopped";
-
-/**
- * 图级执行事件。
- */
-export interface LeaferGraphGraphExecutionEvent {
-  /** 当前事件类型。 */
-  type: LeaferGraphGraphExecutionEventType;
-  /** 事件发生时的图级执行状态快照。 */
-  state: LeaferGraphGraphExecutionState;
-  /** 当前运行 ID；若处于空闲态则可能缺失。 */
-  runId?: string;
-  /** 当前图级来源。 */
-  source?: Extract<LeaferGraphExecutionSource, "graph-play" | "graph-step">;
-  /** 本次推进命中的节点 ID。 */
-  nodeId?: string;
-  /** 事件时间戳。 */
-  timestamp: number;
 }
 
 /**
@@ -532,32 +382,6 @@ export interface LeaferGraphCreateLinkInput
   extends Omit<GraphLink, "id"> {
   /** 连线 ID；未提供时由主包自动生成。 */
   id?: string;
-}
-
-/**
- * 正式连线的真实传播事件。
- *
- * @remarks
- * 这份事件只表达“哪条连线刚刚完成了一次真实传播”，
- * 供数据流动画、运行反馈桥和未来外部 runtime 适配层复用。
- */
-export interface LeaferGraphLinkPropagationEvent {
-  /** 命中的正式连线 ID。 */
-  linkId: string;
-  /** 当前传播所属的执行链 ID。 */
-  chainId: string;
-  /** 输出来源节点 ID。 */
-  sourceNodeId: string;
-  /** 输出来源槽位。 */
-  sourceSlot: number;
-  /** 输入目标节点 ID。 */
-  targetNodeId: string;
-  /** 输入目标槽位。 */
-  targetSlot: number;
-  /** 本次传播携带的原始 payload。 */
-  payload: unknown;
-  /** 事件时间戳。 */
-  timestamp: number;
 }
 
 /**
@@ -753,28 +577,10 @@ export type LeaferGraphInteractionCommitEvent =
   | NodeWidgetInteractionCommitEvent
   | LinkCreateInteractionCommitEvent;
 
-/** 节点执行反馈事件。 */
-export interface NodeExecutionRuntimeFeedbackEvent {
-  type: "node.execution";
-  event: LeaferGraphNodeExecutionEvent;
-}
-
-/** 图执行反馈事件。 */
-export interface GraphExecutionRuntimeFeedbackEvent {
-  type: "graph.execution";
-  event: LeaferGraphGraphExecutionEvent;
-}
-
 /** 节点状态反馈事件。 */
 export interface NodeStateRuntimeFeedbackEvent {
   type: "node.state";
   event: LeaferGraphNodeStateChangeEvent;
-}
-
-/** 连线传播反馈事件。 */
-export interface LinkPropagationRuntimeFeedbackEvent {
-  type: "link.propagation";
-  event: LeaferGraphLinkPropagationEvent;
 }
 
 /**
@@ -785,10 +591,8 @@ export interface LinkPropagationRuntimeFeedbackEvent {
  * 而不是直接耦合到本地执行器内部宿主。
  */
 export type RuntimeFeedbackEvent =
-  | NodeExecutionRuntimeFeedbackEvent
-  | GraphExecutionRuntimeFeedbackEvent
-  | NodeStateRuntimeFeedbackEvent
-  | LinkPropagationRuntimeFeedbackEvent;
+  | ExecutionFeedbackEvent
+  | NodeStateRuntimeFeedbackEvent;
 
 /**
  * 运行时反馈接入口。
@@ -801,3 +605,7 @@ export interface RuntimeAdapter {
   subscribe(listener: (event: RuntimeFeedbackEvent) => void): () => void;
   destroy?(): void;
 }
+
+export type NodeExecutionRuntimeFeedbackEvent = NodeExecutionFeedbackEvent;
+export type GraphExecutionRuntimeFeedbackEvent = GraphExecutionFeedbackEvent;
+export type LinkPropagationRuntimeFeedbackEvent = LinkPropagationFeedbackEvent;

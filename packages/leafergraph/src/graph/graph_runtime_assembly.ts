@@ -6,6 +6,7 @@
  */
 
 import { NodeRegistry } from "@leafergraph/node";
+import { LeaferGraphLocalExecutionFeedbackAdapter } from "@leafergraph/execution";
 import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetEditingOptions,
@@ -129,15 +130,18 @@ export function createLeaferGraphRuntimeAssembly<
     replaceGraphDocument: (document) =>
       sceneRuntime.restoreHost.replaceGraphDocument(document)
   });
-  const runtimeAdapter = new LeaferGraphLocalRuntimeAdapter({
+  const executionAdapter = new LeaferGraphLocalExecutionFeedbackAdapter({
     subscribeNodeExecution: (listener) =>
       sceneRuntime.nodeRuntimeHost.subscribeNodeExecution(listener),
     subscribeGraphExecution: (listener) =>
       sceneRuntime.graphExecutionRuntimeHost.subscribeGraphExecution(listener),
-    subscribeNodeState: (listener) =>
-      sceneRuntime.nodeRuntimeHost.subscribeNodeState(listener),
     subscribeLinkPropagation: (listener) =>
       sceneRuntime.nodeRuntimeHost.subscribeLinkPropagation(listener)
+  });
+  const runtimeAdapter = new LeaferGraphLocalRuntimeAdapter({
+    executionAdapter,
+    subscribeNodeState: (listener) =>
+      sceneRuntime.nodeRuntimeHost.subscribeNodeState(listener)
   });
   const apiRuntime: LeaferGraphApiRuntime<TNodeState> = {
     app: canvasState.app,

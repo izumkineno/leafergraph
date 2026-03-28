@@ -5,7 +5,7 @@
  * 负责把内部运行时壳面收敛成对外可调用的图、节点、连线和主题接口。
  */
 
-import type { Box, Group } from "leafer-ui";
+import type { App, Box, Group } from "leafer-ui";
 import type {
   InstallNodeModuleOptions,
   GraphDocument,
@@ -23,7 +23,6 @@ import type {
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderInstance
 } from "./plugin";
-import type { LeaferGraphContextMenuBindingTarget } from "../interaction/context_menu";
 import { projectExternalRuntimeFeedback } from "../graph/graph_runtime_feedback_projection";
 import type {
   GraphOperation,
@@ -53,6 +52,13 @@ import type { LeaferGraphBootstrapRuntimeLike } from "../graph/graph_bootstrap_h
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
 import type { LeaferGraphInteractionCommitSource } from "../interaction/interaction_commit_source";
 
+interface LeaferGraphInteractionTargetLike {
+  name?: string;
+  parent?: unknown | null;
+  on_?: App["on_"];
+  off_?: App["off_"];
+}
+
 type LeaferGraphApiNodeViewState<
   TNodeState extends LeaferGraphRenderableNodeState
 > = {
@@ -64,7 +70,7 @@ type LeaferGraphApiNodeViewState<
 
 type LeaferGraphApiLinkViewState = {
   linkId: string;
-  view: LeaferGraphContextMenuBindingTarget;
+  view: LeaferGraphInteractionTargetLike;
 };
 
 /**
@@ -297,7 +303,7 @@ export class LeaferGraphApiHost<
   }
 
   /** 获取某条连线对应的 Leafer 视图宿主，便于 editor 绑定链接菜单与未来的重连交互。 */
-  getLinkView(linkId: string): LeaferGraphContextMenuBindingTarget | undefined {
+  getLinkView(linkId: string): LeaferGraphInteractionTargetLike | undefined {
     return this.options.linkViews.find((state) => state.linkId === linkId)?.view;
   }
 

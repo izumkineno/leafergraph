@@ -1,32 +1,21 @@
 /**
- * 本地运行时反馈 adapter。
+ * 主包本地运行时反馈 adapter。
  *
  * @remarks
- * 当前阶段它只负责把本地执行器和节点状态宿主归一成统一 `RuntimeFeedbackEvent`，
- * 让 UI 与未来外部 runtime 桥接可以共享同一条订阅入口。
+ * 当前阶段它负责把纯执行反馈和主包 `node.state` 归一成统一 `RuntimeFeedbackEvent`。
  */
 
+import type { ExecutionFeedbackAdapter } from "@leafergraph/execution";
 import type {
   RuntimeAdapter,
   RuntimeFeedbackEvent,
-  LeaferGraphGraphExecutionEvent,
-  LeaferGraphLinkPropagationEvent,
-  LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent
 } from "../api/graph_api_types";
 
 interface LeaferGraphLocalRuntimeAdapterOptions {
-  subscribeNodeExecution(
-    listener: (event: LeaferGraphNodeExecutionEvent) => void
-  ): () => void;
-  subscribeGraphExecution(
-    listener: (event: LeaferGraphGraphExecutionEvent) => void
-  ): () => void;
+  executionAdapter: ExecutionFeedbackAdapter;
   subscribeNodeState(
     listener: (event: LeaferGraphNodeStateChangeEvent) => void
-  ): () => void;
-  subscribeLinkPropagation(
-    listener: (event: LeaferGraphLinkPropagationEvent) => void
   ): () => void;
 }
 
@@ -37,29 +26,17 @@ export class LeaferGraphLocalRuntimeAdapter implements RuntimeAdapter {
 
   private readonly disposers: Array<() => void>;
 
+  private readonly executionAdapter: ExecutionFeedbackAdapter;
+
   constructor(options: LeaferGraphLocalRuntimeAdapterOptions) {
+    this.executionAdapter = options.executionAdapter;
     this.disposers = [
-      options.subscribeNodeExecution((event) => {
-        this.emit({
-          type: "node.execution",
-          event
-        });
-      }),
-      options.subscribeGraphExecution((event) => {
-        this.emit({
-          type: "graph.execution",
-          event
-        });
+      this.executionAdapter.subscribe((event) => {
+        this.emit(event);
       }),
       options.subscribeNodeState((event) => {
         this.emit({
           type: "node.state",
-          event
-        });
-      }),
-      options.subscribeLinkPropagation((event) => {
-        this.emit({
-          type: "link.propagation",
           event
         });
       })
@@ -78,6 +55,7 @@ export class LeaferGraphLocalRuntimeAdapter implements RuntimeAdapter {
     for (const dispose of this.disposers.splice(0)) {
       dispose();
     }
+    this.executionAdapter.destroy?.();
     this.listeners.clear();
   }
 

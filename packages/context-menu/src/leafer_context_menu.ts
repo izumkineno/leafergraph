@@ -1,0 +1,606 @@
+/**
+ * Leafer-first 右键菜单公开入口。
+ *
+ * @remarks
+ * 这个文件定义 `@leafergraph/context-menu` 唯一对外推荐的 API：
+ * - 事件来源固定为 Leafer `pointer.menu`
+ * - 菜单展示仍然走内部 DOM overlay
+ * - 外部不再感知 controller / renderer / adapter 的分层拼装
+ */
+
+import type { App } from "leafer-ui";
+import { createLeaferContextMenuAdapter } from "./adapters/leafer";
+import {
+  LEAFER_GRAPH_POINTER_MENU_EVENT,
+  type LeaferContextMenuAdapter as InternalLeaferContextMenuAdapter,
+  type LeaferContextMenuBinding as InternalLeaferContextMenuBinding,
+  type LeaferMenuOriginEvent as InternalLeaferMenuOriginEvent,
+  type LeaferPointerMenuEvent as InternalLeaferPointerMenuEvent
+} from "./adapters/leafer";
+import { createContextMenuController } from "./core/controller";
+import type {
+  ContextMenuActionItem as InternalContextMenuActionItem,
+  ContextMenuCheckboxItem as InternalContextMenuCheckboxItem,
+  ContextMenuContext as InternalContextMenuContext,
+  ContextMenuController as InternalContextMenuController,
+  ContextMenuGroupItem as InternalContextMenuGroupItem,
+  ContextMenuItem as InternalContextMenuItem,
+  ContextMenuRadioItem as InternalContextMenuRadioItem,
+  ContextMenuSeparatorItem as InternalContextMenuSeparatorItem,
+  ContextMenuSubmenuItem as InternalContextMenuSubmenuItem,
+  ContextMenuTarget as InternalContextMenuTarget
+} from "./core/types";
+import { createDomContextMenuRenderer } from "./internal/dom_overlay_renderer";
+
+interface LeaferContextMenuPoint {
+  x: number;
+  y: number;
+}
+
+interface LeaferContextMenuOriginEvent {
+  clientX?: number;
+  clientY?: number;
+  pageX?: number;
+  pageY?: number;
+  preventDefault?(): void;
+  stopPropagation?(): void;
+}
+
+interface LeaferBindingTargetLike {
+  name?: string;
+  parent?: unknown | null;
+  on_?: App["on_"];
+  off_?: App["off_"];
+}
+
+type LeaferContextMenuTriggerReason =
+  | "contextmenu"
+  | "click"
+  | "hover"
+  | "keyboard"
+  | "manual";
+
+type LeaferContextMenuRenderableIcon =
+  | string
+  | Node
+  | ((ownerDocument: Document) => Node);
+
+type LeaferContextMenuResolver = (
+  context: LeaferContextMenuContext
+) => LeaferContextMenuItem[] | null | undefined;
+
+type LeaferSubmenuTriggerMode = "hover" | "click" | "hover+click";
+
+interface LeaferContextMenuBindingResolverInput {
+  app: App;
+  binding: LeaferContextMenuBinding;
+  event: LeaferPointerMenuEvent;
+  hitTarget: unknown;
+}
+
+export const LEAFER_POINTER_MENU_EVENT = LEAFER_GRAPH_POINTER_MENU_EVENT;
+
+export type LeaferPointerMenuEvent = InternalLeaferPointerMenuEvent;
+
+export type LeaferContextMenuTargetKind =
+  | "canvas"
+  | "node"
+  | "link"
+  | "custom"
+  | (string & {});
+
+export interface LeaferContextMenuTarget {
+  kind: LeaferContextMenuTargetKind;
+  id?: string;
+  meta?: Record<string, unknown>;
+  data?: unknown;
+}
+
+export interface LeaferContextMenuContext {
+  container: HTMLElement;
+  host: HTMLElement;
+  target: LeaferContextMenuTarget;
+  currentTarget?: unknown;
+  bindingKey?: string;
+  bindingKind?: string;
+  bindingMeta?: Record<string, unknown>;
+  event?: LeaferPointerMenuEvent;
+  originEvent?: LeaferContextMenuOriginEvent;
+  triggerReason: LeaferContextMenuTriggerReason;
+  worldPoint?: LeaferContextMenuPoint;
+  pagePoint: LeaferContextMenuPoint;
+  clientPoint: LeaferContextMenuPoint;
+  containerPoint: LeaferContextMenuPoint;
+  boxPoint?: LeaferContextMenuPoint;
+  localPoint?: LeaferContextMenuPoint;
+  data?: Record<string, unknown>;
+}
+
+interface LeaferContextMenuItemBase {
+  key: string;
+  label?: string;
+  description?: string;
+  icon?: LeaferContextMenuRenderableIcon;
+  shortcut?: string;
+  disabled?: boolean;
+  hidden?: boolean;
+  danger?: boolean;
+  closeOnSelect?: boolean;
+  order?: number;
+  targetKinds?: readonly string[];
+  excludeTargetKinds?: readonly string[];
+  when?(context: LeaferContextMenuContext): boolean;
+  enableWhen?(context: LeaferContextMenuContext): boolean;
+}
+
+export interface LeaferContextMenuActionItem
+  extends LeaferContextMenuItemBase {
+  kind?: "action";
+  onSelect?(context: LeaferContextMenuContext): void | Promise<void>;
+}
+
+export interface LeaferContextMenuSeparatorItem {
+  kind: "separator";
+  key?: string;
+  hidden?: boolean;
+  order?: number;
+}
+
+export interface LeaferContextMenuGroupItem
+  extends LeaferContextMenuItemBase {
+  kind: "group";
+  children: LeaferContextMenuItem[];
+}
+
+export interface LeaferContextMenuSubmenuItem
+  extends LeaferContextMenuItemBase {
+  kind: "submenu";
+  children?: LeaferContextMenuItem[];
+  lazyChildren?(
+    context: LeaferContextMenuContext
+  ): LeaferContextMenuItem[] | Promise<LeaferContextMenuItem[]>;
+  submenuTriggerMode?: LeaferSubmenuTriggerMode;
+  openDelay?: number;
+  closeDelay?: number;
+}
+
+export interface LeaferContextMenuCheckboxItem
+  extends LeaferContextMenuItemBase {
+  kind: "checkbox";
+  checked?: boolean;
+  defaultChecked?: boolean;
+  onCheckedChange?(
+    checked: boolean,
+    context: LeaferContextMenuContext
+  ): void | Promise<void>;
+}
+
+export interface LeaferContextMenuRadioItem
+  extends LeaferContextMenuItemBase {
+  kind: "radio";
+  groupKey: string;
+  value: string;
+  checked?: boolean;
+  defaultChecked?: boolean;
+  onCheckedChange?(
+    checked: boolean,
+    context: LeaferContextMenuContext
+  ): void | Promise<void>;
+}
+
+export type LeaferContextMenuItem =
+  | LeaferContextMenuActionItem
+  | LeaferContextMenuSeparatorItem
+  | LeaferContextMenuGroupItem
+  | LeaferContextMenuSubmenuItem
+  | LeaferContextMenuCheckboxItem
+  | LeaferContextMenuRadioItem;
+
+export interface LeaferContextMenuBinding {
+  key: string;
+  target: LeaferBindingTargetLike;
+  kind?: LeaferContextMenuTargetKind;
+  meta?: Record<string, unknown>;
+  resolveTarget?(
+    input: LeaferContextMenuBindingResolverInput
+  ): LeaferContextMenuTarget | null | undefined;
+}
+
+export interface LeaferContextMenuOptions {
+  app: App;
+  container: HTMLElement;
+  host?: HTMLElement;
+  className?: string;
+  canvasTarget?: LeaferBindingTargetLike | false;
+  bindings?: LeaferContextMenuBinding[];
+  resolveItems?: LeaferContextMenuResolver;
+  onBeforeOpen?(context: LeaferContextMenuContext): boolean | void;
+  onOpen?(context: LeaferContextMenuContext): void;
+  onClose?(context?: LeaferContextMenuContext): void;
+  submenuTriggerMode?: LeaferSubmenuTriggerMode;
+  openDelay?: number;
+  closeDelay?: number;
+}
+
+export interface LeaferContextMenu {
+  bindCanvas(
+    target?: LeaferBindingTargetLike,
+    meta?: Record<string, unknown>
+  ): this;
+  bindNode(
+    key: string,
+    target: LeaferBindingTargetLike,
+    meta?: Record<string, unknown>
+  ): this;
+  bindLink(
+    key: string,
+    target: LeaferBindingTargetLike,
+    meta?: Record<string, unknown>
+  ): this;
+  bindTarget(binding: LeaferContextMenuBinding): this;
+  unbindTarget(key: string): this;
+  setResolver(resolver?: LeaferContextMenuResolver): this;
+  open(
+    context: LeaferContextMenuContext,
+    items?: LeaferContextMenuItem[]
+  ): void;
+  close(): void;
+  isOpen(): boolean;
+  destroy(): void;
+}
+
+class LeaferContextMenuImpl implements LeaferContextMenu {
+  private readonly app: App;
+  private readonly adapter: InternalLeaferContextMenuAdapter;
+  private readonly controller: InternalContextMenuController;
+  private resolveItems?: LeaferContextMenuResolver;
+
+  constructor(options: LeaferContextMenuOptions) {
+    this.app = options.app;
+    const host =
+      options.host ??
+      options.container.ownerDocument.body ??
+      options.container;
+    this.resolveItems = options.resolveItems;
+    this.adapter = createLeaferContextMenuAdapter({
+      app: options.app,
+      container: options.container,
+      host: options.host,
+      canvasTarget: options.canvasTarget as
+        | InternalLeaferContextMenuBinding["target"]
+        | false
+        | undefined,
+      bindings: options.bindings?.map((binding) =>
+        toInternalBinding(binding)
+      )
+    });
+    this.controller = createContextMenuController({
+      renderer: createDomContextMenuRenderer({
+        host,
+        className: options.className
+      }),
+      adapters: [this.adapter],
+      submenuTriggerMode: options.submenuTriggerMode,
+      openDelay: options.openDelay,
+      closeDelay: options.closeDelay,
+      resolveItems: (context) =>
+        this.resolveItems?.(toPublicContext(context))?.map((item) =>
+          toInternalItem(item)
+        ),
+      onBeforeOpen: (context) =>
+        options.onBeforeOpen?.(toPublicContext(context)),
+      onOpen: (context) => {
+        options.onOpen?.(toPublicContext(context));
+      },
+      onClose: (context) => {
+        options.onClose?.(
+          context ? toPublicContext(context) : undefined
+        );
+      }
+    });
+  }
+
+  bindCanvas(
+    target: LeaferBindingTargetLike = this.app as unknown as LeaferBindingTargetLike,
+    meta?: Record<string, unknown>
+  ): this {
+    this.adapter.bindCanvas(
+      target as InternalLeaferContextMenuBinding["target"],
+      meta
+    );
+    return this;
+  }
+
+  bindNode(
+    key: string,
+    target: LeaferBindingTargetLike,
+    meta?: Record<string, unknown>
+  ): this {
+    this.adapter.bindNode(
+      key,
+      target as InternalLeaferContextMenuBinding["target"],
+      meta
+    );
+    return this;
+  }
+
+  bindLink(
+    key: string,
+    target: LeaferBindingTargetLike,
+    meta?: Record<string, unknown>
+  ): this {
+    this.adapter.bindLink(
+      key,
+      target as InternalLeaferContextMenuBinding["target"],
+      meta
+    );
+    return this;
+  }
+
+  bindTarget(binding: LeaferContextMenuBinding): this {
+    this.adapter.bindTarget(toInternalBinding(binding));
+    return this;
+  }
+
+  unbindTarget(key: string): this {
+    this.adapter.unbindTarget(key);
+    return this;
+  }
+
+  setResolver(resolver?: LeaferContextMenuResolver): this {
+    this.resolveItems = resolver;
+    this.controller.setResolver((context) =>
+      this.resolveItems?.(toPublicContext(context))?.map((item) =>
+        toInternalItem(item)
+      )
+    );
+    return this;
+  }
+
+  open(
+    context: LeaferContextMenuContext,
+    items?: LeaferContextMenuItem[]
+  ): void {
+    this.controller.open(
+      toInternalContext(context),
+      items?.map((item) => toInternalItem(item))
+    );
+  }
+
+  close(): void {
+    this.controller.close();
+  }
+
+  isOpen(): boolean {
+    return this.controller.getState().open;
+  }
+
+  destroy(): void {
+    this.adapter.destroy();
+    this.controller.destroy();
+  }
+}
+
+export function createLeaferContextMenu(
+  options: LeaferContextMenuOptions
+): LeaferContextMenu {
+  return new LeaferContextMenuImpl(options);
+}
+
+function toInternalBinding(
+  binding: LeaferContextMenuBinding
+): InternalLeaferContextMenuBinding {
+  return {
+    key: binding.key,
+    target: binding.target as InternalLeaferContextMenuBinding["target"],
+    kind: binding.kind as InternalLeaferContextMenuBinding["kind"],
+    meta: binding.meta,
+    resolveTarget: binding.resolveTarget
+      ? (input) =>
+          binding.resolveTarget?.({
+            app: input.app,
+            binding,
+            event: input.event,
+            hitTarget: input.hitTarget
+          }) as InternalContextMenuTarget | null | undefined
+      : undefined
+  };
+}
+
+function toPublicContext(
+  context: InternalContextMenuContext
+): LeaferContextMenuContext {
+  return {
+    container: context.container,
+    host: context.host,
+    target: toPublicTarget(context.target),
+    currentTarget: context.currentTarget,
+    bindingKey: context.bindingKey,
+    bindingKind: context.bindingKind,
+    bindingMeta: context.bindingMeta,
+    event: context.event as LeaferPointerMenuEvent | undefined,
+    originEvent: context.originEvent as
+      | LeaferContextMenuOriginEvent
+      | undefined,
+    triggerReason: context.triggerReason,
+    worldPoint: context.worldPoint,
+    pagePoint: context.pagePoint,
+    clientPoint: context.clientPoint,
+    containerPoint: context.containerPoint,
+    boxPoint: context.boxPoint,
+    localPoint: context.localPoint,
+    data: context.data
+  };
+}
+
+function toPublicTarget(
+  target: InternalContextMenuTarget
+): LeaferContextMenuTarget {
+  return {
+    kind: target.kind,
+    id: target.id,
+    meta: target.meta,
+    data: target.data
+  };
+}
+
+function toInternalContext(
+  context: LeaferContextMenuContext
+): InternalContextMenuContext {
+  return {
+    container: context.container,
+    host: context.host,
+    target: {
+      kind: context.target.kind,
+      id: context.target.id,
+      meta: context.target.meta,
+      data: context.target.data
+    },
+    currentTarget: context.currentTarget,
+    bindingKey: context.bindingKey,
+    bindingKind: context.bindingKind,
+    bindingMeta: context.bindingMeta,
+    event: context.event,
+    originEvent: context.originEvent as
+      | InternalLeaferMenuOriginEvent
+      | undefined,
+    triggerReason: context.triggerReason,
+    worldPoint: context.worldPoint,
+    pagePoint: context.pagePoint,
+    clientPoint: context.clientPoint,
+    containerPoint: context.containerPoint,
+    boxPoint: context.boxPoint,
+    localPoint: context.localPoint,
+    data: context.data
+  };
+}
+
+function toInternalItem(
+  item: LeaferContextMenuItem
+): InternalContextMenuItem {
+  switch (item.kind) {
+    case "separator":
+      return toInternalSeparatorItem(item);
+    case "group":
+      return toInternalGroupItem(item);
+    case "submenu":
+      return toInternalSubmenuItem(item);
+    case "checkbox":
+      return toInternalCheckboxItem(item);
+    case "radio":
+      return toInternalRadioItem(item);
+    default:
+      return toInternalActionItem(item);
+  }
+}
+
+function toInternalActionItem(
+  item: LeaferContextMenuActionItem
+): InternalContextMenuActionItem {
+  return {
+    ...toInternalItemBase(item),
+    kind: item.kind,
+    onSelect: item.onSelect
+      ? (context) => item.onSelect?.(toPublicContext(context))
+      : undefined
+  };
+}
+
+function toInternalSeparatorItem(
+  item: LeaferContextMenuSeparatorItem
+): InternalContextMenuSeparatorItem {
+  return {
+    kind: "separator",
+    key: item.key,
+    hidden: item.hidden,
+    order: item.order
+  };
+}
+
+function toInternalGroupItem(
+  item: LeaferContextMenuGroupItem
+): InternalContextMenuGroupItem {
+  return {
+    ...toInternalItemBase(item),
+    kind: "group",
+    children: item.children.map((child) => toInternalItem(child))
+  };
+}
+
+function toInternalSubmenuItem(
+  item: LeaferContextMenuSubmenuItem
+): InternalContextMenuSubmenuItem {
+  return {
+    ...toInternalItemBase(item),
+    kind: "submenu",
+    children: item.children?.map((child) => toInternalItem(child)),
+    lazyChildren: item.lazyChildren
+      ? async (context) => {
+          const children = await item.lazyChildren?.(toPublicContext(context));
+          return (children ?? []).map((child) => toInternalItem(child));
+        }
+      : undefined,
+    submenuTriggerMode: item.submenuTriggerMode,
+    openDelay: item.openDelay,
+    closeDelay: item.closeDelay
+  };
+}
+
+function toInternalCheckboxItem(
+  item: LeaferContextMenuCheckboxItem
+): InternalContextMenuCheckboxItem {
+  return {
+    ...toInternalItemBase(item),
+    kind: "checkbox",
+    checked: item.checked,
+    defaultChecked: item.defaultChecked,
+    onCheckedChange: item.onCheckedChange
+      ? (checked, context) =>
+          item.onCheckedChange?.(checked, toPublicContext(context))
+      : undefined
+  };
+}
+
+function toInternalRadioItem(
+  item: LeaferContextMenuRadioItem
+): InternalContextMenuRadioItem {
+  return {
+    ...toInternalItemBase(item),
+    kind: "radio",
+    groupKey: item.groupKey,
+    value: item.value,
+    checked: item.checked,
+    defaultChecked: item.defaultChecked,
+    onCheckedChange: item.onCheckedChange
+      ? (checked, context) =>
+          item.onCheckedChange?.(checked, toPublicContext(context))
+      : undefined
+  };
+}
+
+function toInternalItemBase(item: LeaferContextMenuItemBase) {
+  const when = item.when;
+  const enableWhen = item.enableWhen;
+
+  return {
+    key: item.key,
+    label: item.label,
+    description: item.description,
+    icon: item.icon,
+    shortcut: item.shortcut,
+    disabled: item.disabled,
+    hidden: item.hidden,
+    danger: item.danger,
+    closeOnSelect: item.closeOnSelect,
+    order: item.order,
+    targetKinds: item.targetKinds,
+    excludeTargetKinds: item.excludeTargetKinds,
+    when: when
+      ? (context: InternalContextMenuContext) => when(toPublicContext(context))
+      : undefined,
+    enableWhen: enableWhen
+      ? (context: InternalContextMenuContext) =>
+          enableWhen(toPublicContext(context))
+      : undefined
+  };
+}

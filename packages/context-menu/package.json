@@ -1,5 +1,5 @@
 {
-  "name": "@leafergraph/authoring",
+  "name": "@leafergraph/context-menu",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -18,12 +18,12 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "bun test ./tests"
+    "test": "bun test --preload ./tests/setup.ts ./tests"
   },
-  "peerDependencies": {
-    "@leafergraph/execution": "^0.1.0",
-    "@leafergraph/node": "^0.1.0",
-    "leafer-ui": "^2.0.3",
-    "leafergraph": "^0.1.0"
+  "dependencies": {
+    "leafer-ui": "^2.0.3"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.10"
   }
 }

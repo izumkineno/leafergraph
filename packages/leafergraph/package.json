@@ -25,6 +25,8 @@
     "build": "tsc -p tsconfig.build.json && vite build"
   },
   "dependencies": {
+    "@leafergraph/execution": "workspace:*",
+    "@leafergraph/node": "workspace:*",
     "@leafer-in/arrow": "^2.0.3",
     "@leafer-in/editor": "^2.0.3",
     "@leafer-in/export": "^2.0.3",

@@ -2,11 +2,12 @@
 
 `leafergraph` 是当前工作区里的 Leafer-first 节点图主包。
 
-它的职责不是承接 editor 页面壳层，也不是复制 `@leafergraph/node` 的模型 SDK，而是作为唯一图运行时宿主，负责下面这些正式能力：
+它的职责不是承接 editor 页面壳层，也不是复制 `@leafergraph/node` 的模型 SDK，而是作为 Leafer 宿主与图 façade，负责下面这些正式能力：
 
 - 把 `GraphDocument` 恢复成可交互、可执行、可局部刷新的 Leafer 场景
 - 管理节点、连线、Widget、主题、视图和交互宿主
-- 对外暴露稳定的图 API、运行反馈 API 和扩展入口
+- 消费 `@leafergraph/execution` 并把执行态投影回 Leafer scene
+- 对外暴露稳定的图 API、宿主级运行反馈 API 和扩展入口
 - 为外部页面和未来宿主 / runtime 适配层提供统一运行时基础
 
 如果你只想知道“怎么用”，从这份 README 开始即可。  
@@ -36,12 +37,14 @@
 | 包 | 负责什么 | 不负责什么 |
 | --- | --- | --- |
 | `@leafergraph/node` | 节点定义、模块、注册表、图文档模型、序列化类型 | Leafer 场景、交互、渲染宿主 |
-| `leafergraph` | 图运行时、渲染、交互基础设施、执行反馈、公共 API | 宿主 UI、authority transport、bundle 协议 |
+| `@leafergraph/execution` | 执行链、传播、图级 `play/step/stop`、执行反馈、系统执行节点 | Leafer scene、节点壳、Widget 渲染、宿主状态投影 |
+| `leafergraph` | 图运行时、渲染、交互基础设施、宿主反馈、公共 API | 宿主 UI、authority transport、bundle 协议 |
 | 外部宿主 / 页面壳层 | 页面组织、bundle 装配、外围命令和协议接线 | 主包运行时真源 |
 
 一个实用判断是：
 
 - 定义“节点是什么”，去 `@leafergraph/node`
+- 定义“节点怎么执行、怎么传播”，去 `@leafergraph/execution`
 - 让“节点图跑起来、显示出来、可交互”，用 `leafergraph`
 - 做“宿主页面、菜单、bundle 面板和外围协议接线”，放在主包外处理
 
@@ -131,7 +134,8 @@ graph.destroy();
 | `NodeModule` | 一组可批量安装的节点定义 |
 | `LeaferGraphNodePlugin` | 主包运行时插件，能注册节点、模块和 Widget |
 | `LeaferGraphWidgetEntry` | 一个完整 Widget 条目，包含定义和 renderer |
-| `RuntimeFeedbackEvent` | 统一运行反馈事件，覆盖节点执行、图执行、节点状态和连线传播 |
+| `ExecutionFeedbackEvent` | 纯执行反馈事件，只覆盖节点执行、图执行和连线传播 |
+| `RuntimeFeedbackEvent` | 宿主级运行反馈事件，等于 `ExecutionFeedbackEvent + node.state` |
 
 ## 对外 API 导航
 
@@ -176,10 +180,8 @@ graph.destroy();
 
 这组类型和工具适合扩节点、扩 Widget 或自定义宿主行为。
 
-### 4. 菜单与交互辅助
+### 4. 交互与 Widget 辅助
 
-- `createLeaferGraphContextMenu(...)`
-- `LeaferGraphContextMenuManager`
 - `bindPressWidgetInteraction(...)`
 - `bindLinearWidgetDrag(...)`
 - `createWidgetHitArea(...)`
@@ -188,6 +190,12 @@ graph.destroy();
 - `createWidgetValueText(...)`
 
 这组入口是“在主包公共边界内能直接复用的交互/渲染 helper”。
+
+补充说明：
+
+- 右键菜单已经完全移到 `@leafergraph/context-menu`
+- 主包当前不再导出菜单兼容入口
+- 如果你要做画布、节点或连线右键菜单，请直接使用 `@leafergraph/context-menu`
 
 ### 5. 文档 diff 工具
 
@@ -214,6 +222,26 @@ graph.destroy();
   - 需要上游 `Start` 才会建立图级循环
   - `playFromNode(...)` 场景下只执行一次，不建立图级循环
   - `immediate=false` 时，首次执行只注册定时器，不立即输出 `Tick`
+
+## Event 输入语义
+
+主包当前对 `event` 输入使用下面这套稳定语义：
+
+- 连线传播命中目标输入槽位 `type === "event"` 时
+  - 如果节点定义实现了 `onAction(...)`
+  - 主包会调用 `onAction(node, input.name, payload, options, api)`
+- `options.executionContext` 会带当前正式执行上下文
+- `options.propagation` 会带来源连线、来源输出槽位和目标输入槽位信息
+- 非 `event` 输入继续沿用 `onExecute(...)` 数据流执行语义
+
+如果你在作者层节点里要消费图级定时契约，可以直接使用主包导出的：
+
+- `LEAFER_GRAPH_TIMER_NODE_TYPE`
+- `LEAFER_GRAPH_TIMER_DEFAULT_INTERVAL_MS`
+- `LeaferGraphTimerRegistration`
+- `LeaferGraphTimerRuntimePayload`
+
+`onTrigger(...)` 当前仍不建议作为 v1 稳定依赖。
 
 如果你只关心“运行时刷新到底发生了什么”，直接看：
 
