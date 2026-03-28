@@ -1,5 +1,5 @@
 /**
- * 最小执行链 demo 的图生命周期 hook。
+ * 最小空画布 demo 的图生命周期 hook。
  *
  * 页面层不直接持有 `LeaferGraph` 实例，而是统一通过这个 hook 获取：
  * - 画布挂载 ref
@@ -14,25 +14,18 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import {
   createLeaferGraph,
   type LeaferGraph,
-  type LeaferGraphThemeMode
+  type LeaferGraphThemeMode,
+  type RuntimeFeedbackEvent
 } from "leafergraph";
 
 import {
-  createEmptyExampleDocument,
-  createExampleSeedLinks,
-  createExampleSeedNodes
-} from "./example_document";
+  loadAuthoringBundleRegistration
+} from "./example_authoring_bundle_loader";
+import { createEmptyExampleDocument } from "./example_document";
 import {
   createExampleContextMenu,
-  type ExampleContextMenuHandle,
-  type ExampleContextMenuLinkMeta,
-  type ExampleContextMenuNodeMeta
+  type ExampleContextMenuHandle
 } from "./example_context_menu";
-import {
-  createCounterNodeDefinition,
-  createWatchNodeDefinition
-} from "./example_nodes";
-import { formatRuntimeFeedback } from "./runtime_feedback_format";
 
 /** `fitView()` 的统一留白，避免节点紧贴画布边缘。 */
 const DEFAULT_FIT_VIEW_PADDING = 120;
@@ -43,36 +36,68 @@ const MAX_LOG_ENTRIES = 60;
 /** 画布顶部辅助 badge，强调这个 demo 的定位。 */
 const EXAMPLE_STAGE_BADGES = [
   { id: "public-api", label: "公开 API" },
-  { id: "minimal-chain", label: "最小执行链" },
+  { id: "empty-canvas", label: "空画布" },
+  { id: "bundle-loader", label: "Bundle Loader" },
   { id: "context-menu", label: "Context Menu" }
 ] as const;
 
-/** 画布左上角展示的默认执行链说明。 */
+/** 画布左上角展示的 demo 说明。 */
 const EXAMPLE_CHAIN_STEPS = [
   {
-    id: "system-on-play",
-    title: "system/on-play",
-    description: "图级 play / step 的正式入口。"
+    id: "empty-canvas",
+    title: "默认空画布",
+    description: "初始化时不再注入任何节点或连线，直接展示最小宿主页。"
   },
   {
-    id: "example-counter",
-    title: "example/counter",
-    description: "每次执行将内部 count 增加后输出。"
+    id: "reset-empty",
+    title: "Reset 会清空画布",
+    description: "点击 Reset 后会停止当前运行，并恢复到默认空画布。"
   },
   {
-    id: "example-watch",
-    title: "example/watch",
-    description: "把最新输入回显到节点标题。"
+    id: "context-menu",
+    title: "右键菜单入口",
+    description: "右键画布可打开菜单，并从当前节点注册表里直接创建节点。"
+  },
+  {
+    id: "register-bundle",
+    title: "选择编译后 JS 注册",
+    description: "顶部按钮会选择单文件 ESM JS bundle，并把其中导出的 plugin 或 module 注册进 graph；注册后右键菜单会按分类展示新增节点。"
   }
 ] as const;
 
 /** 页面可见的最小图状态。 */
 export type ExampleGraphStatus = "loading" | "ready" | "error";
 
+/** authoring bundle 注册入口的最小状态。 */
+export type ExampleAuthoringBundleStatus =
+  | "idle"
+  | "registering"
+  | "registered"
+  | "error";
+
 /** 单条日志在页面层的最小投影结构。 */
 export interface ExampleLogEntry {
   timestamp: number;
   message: string;
+}
+
+type ExampleRegisteredNodeDefinition = ReturnType<LeaferGraph["listNodes"]>[number];
+
+/** 右键菜单“从注册表添加节点”会消费的最小节点投影。 */
+export interface ExampleRegisteredNodeEntry {
+  type: string;
+  title: string;
+  category: string;
+  description?: string;
+}
+
+/** 从当前注册表创建节点时使用的最小输入。 */
+export interface ExampleCreateNodeFromRegistryInput {
+  type: string;
+  position: {
+    x: number;
+    y: number;
+  };
 }
 
 /** 页面按钮会用到的动作集合。 */
@@ -83,6 +108,8 @@ export interface ExampleGraphActions {
   fit(): void;
   reset(): void;
   clearLog(): void;
+  createNodeFromRegistry(input: ExampleCreateNodeFromRegistryInput): void;
+  registerAuthoringBundle(file: File): Promise<void>;
 }
 
 /** 页面层消费 hook 结果时使用的完整返回值结构。 */
@@ -91,9 +118,62 @@ export interface UseExampleGraphResult {
   logs: readonly ExampleLogEntry[];
   actions: ExampleGraphActions;
   status: ExampleGraphStatus;
+  authoringBundleStatus: ExampleAuthoringBundleStatus;
+  registeredBundleCount: number;
   errorMessage: string;
   stageBadges: readonly { id: string; label: string }[];
   chainSteps: readonly { id: string; title: string; description: string }[];
+}
+
+/** 把统一运行反馈事件压缩成一行简洁中文日志。 */
+function formatRuntimeFeedback(event: RuntimeFeedbackEvent): string {
+  switch (event.type) {
+    case "graph.execution":
+      return `图执行 ${event.event.type}，状态=${event.event.state.status}，步数=${event.event.state.stepCount}`;
+    case "node.execution":
+      return `节点执行 ${event.event.nodeTitle}，来源=${event.event.source}，序号=${event.event.sequence}`;
+    case "node.state":
+      return `节点状态 ${event.event.nodeId} -> ${event.event.reason}，exists=${event.event.exists}`;
+    case "link.propagation":
+      return `连线传播 ${event.event.sourceNodeId} -> ${event.event.targetNodeId}`;
+    default:
+      return "收到未知运行反馈";
+  }
+}
+
+/** 用文件名、大小和修改时间生成一个稳定的 bundle 指纹。 */
+function createBundleFingerprint(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+/** 把 `NodeDefinition` 压缩成菜单需要的最小节点信息。 */
+function projectRegisteredNode(
+  definition: ExampleRegisteredNodeDefinition
+): ExampleRegisteredNodeEntry {
+  return {
+    type: definition.type,
+    title: definition.title?.trim() || definition.type,
+    category: definition.category?.trim() || "未分类",
+    description: definition.description?.trim() || undefined
+  };
+}
+
+/** 统一排序注册表节点，避免菜单层重复做同样的整理逻辑。 */
+function compareRegisteredNodes(
+  left: ExampleRegisteredNodeEntry,
+  right: ExampleRegisteredNodeEntry
+): number {
+  const categoryOrder = left.category.localeCompare(right.category, "zh-CN");
+  if (categoryOrder !== 0) {
+    return categoryOrder;
+  }
+
+  const titleOrder = left.title.localeCompare(right.title, "zh-CN");
+  if (titleOrder !== 0) {
+    return titleOrder;
+  }
+
+  return left.type.localeCompare(right.type, "zh-CN");
 }
 
 /**
@@ -121,8 +201,12 @@ export function useExampleGraph(): UseExampleGraphResult {
   // `graphRef` 只在 hook 内部持有，避免页面层直接耦合运行时细节。
   const graphRef = useRef<LeaferGraph | null>(null);
   const contextMenuRef = useRef<ExampleContextMenuHandle | null>(null);
+  const registeredBundleFingerprintsRef = useRef(new Set<string>());
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
   const [status, setStatus] = useState<ExampleGraphStatus>("loading");
+  const [authoringBundleStatus, setAuthoringBundleStatus] =
+    useState<ExampleAuthoringBundleStatus>("idle");
+  const [registeredBundleCount, setRegisteredBundleCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
 
   /** 追加一条日志，并把总量限制在可控范围内。 */
@@ -141,8 +225,8 @@ export function useExampleGraph(): UseExampleGraphResult {
   /**
    * 下一帧再执行 `fitView()`。
    *
-   * 节点和连线恢复需要先完成一次渲染，
-   * 下一帧适配视图会更稳定，不容易拿到旧边界。
+   * 当前 demo 虽然默认是空画布，但初始化和 reset 后仍会触发场景刷新，
+   * 下一帧再适配视图会更稳定。
    */
   const scheduleFitView = (): void => {
     requestAnimationFrame(() => {
@@ -150,37 +234,39 @@ export function useExampleGraph(): UseExampleGraphResult {
     });
   };
 
+  /** 读取当前 graph 已注册的节点定义，并投影成菜单需要的结构。 */
+  const listRegisteredNodes = (): ExampleRegisteredNodeEntry[] => {
+    const graph = graphRef.current;
+    if (!graph) {
+      return [];
+    }
+
+    return graph
+      .listNodes()
+      .map((definition) => projectRegisteredNode(definition))
+      .sort(compareRegisteredNodes);
+  };
+
   /**
-   * 恢复参考示例中的最小执行链。
+   * 把 demo 恢复为默认空画布。
    *
    * 每次 reset 都走同一条路径：
    * 1. 停掉当前运行
    * 2. 替换为空文档
-   * 3. 重新创建节点与连线
-   * 4. 适配到当前视口
+   * 3. 适配到当前视口
    */
   const resetExampleGraph = (): void => {
     const graph = graphRef.current;
     if (!graph) {
-      appendLog("图实例尚未就绪，暂时无法恢复示例图");
+      appendLog("图实例尚未就绪，暂时无法恢复空画布");
       return;
     }
 
     graph.stop();
     graph.replaceGraphDocument(createEmptyExampleDocument());
 
-    for (const nodeInput of createExampleSeedNodes()) {
-      graph.createNode(nodeInput);
-    }
-
-    for (const linkInput of createExampleSeedLinks()) {
-      graph.createLink(linkInput);
-    }
-
-    // reset 会重建全部节点和连线，所以这里要同步重绑菜单目标。
-    contextMenuRef.current?.rebindTargets();
     scheduleFitView();
-    appendLog("已恢复最小执行链：On Play -> Counter -> Watch");
+    appendLog("已恢复默认空画布");
   };
 
   /**
@@ -239,47 +325,77 @@ export function useExampleGraph(): UseExampleGraphResult {
     },
     clearLog() {
       setLogs([]);
-    }
-  };
-
-  /** 读取节点当前快照，并规整成菜单模块需要的最小节点元信息。 */
-  const resolveNodeMeta = (
-    nodeId: string
-  ): ExampleContextMenuNodeMeta | undefined => {
-    const graph = graphRef.current;
-    const snapshot = graph?.getNodeSnapshot(nodeId);
-    if (!snapshot) {
-      return undefined;
-    }
-
-    return {
-      id: snapshot.id,
-      type: snapshot.type,
-      title: snapshot.title ?? snapshot.type
-    };
-  };
-
-  /** 读取连线当前快照，并规整成菜单模块需要的最小连线元信息。 */
-  const resolveLinkMeta = (
-    linkId: string
-  ): ExampleContextMenuLinkMeta | undefined => {
-    const graph = graphRef.current;
-    const link = graph?.getLink(linkId);
-    if (!link) {
-      return undefined;
-    }
-
-    return {
-      id: link.id,
-      source: {
-        nodeId: link.source.nodeId,
-        slot: link.source.slot ?? 0
-      },
-      target: {
-        nodeId: link.target.nodeId,
-        slot: link.target.slot ?? 0
+    },
+    createNodeFromRegistry(input) {
+      const graph = graphRef.current;
+      if (!graph) {
+        appendLog("图实例尚未就绪，暂时无法从注册表创建节点");
+        return;
       }
-    };
+
+      try {
+        const nextNode = graph.createNode({
+          type: input.type,
+          x: input.position.x,
+          y: input.position.y
+        });
+
+        appendLog(
+          `已从注册表添加节点：${nextNode.title} · ${nextNode.type} @ (${Math.round(
+            nextNode.layout.x
+          )}, ${Math.round(nextNode.layout.y)})`
+        );
+      } catch (error) {
+        appendLog(
+          error instanceof Error
+            ? `从注册表添加节点失败：${error.message}`
+            : `从注册表添加节点失败：${input.type}`
+        );
+      }
+    },
+    async registerAuthoringBundle(file: File) {
+      const graph = graphRef.current;
+      if (!graph) {
+        appendLog("图实例尚未就绪，暂时无法注册 authoring bundle");
+        return;
+      }
+
+      if (authoringBundleStatus === "registering") {
+        return;
+      }
+
+      const bundleFingerprint = createBundleFingerprint(file);
+      if (registeredBundleFingerprintsRef.current.has(bundleFingerprint)) {
+        setAuthoringBundleStatus("registered");
+        appendLog(`该 JS bundle 已注册过：${file.name}`);
+        return;
+      }
+
+      setAuthoringBundleStatus("registering");
+
+      try {
+        const registration = await loadAuthoringBundleRegistration(file);
+        await registration.apply(graph);
+        registeredBundleFingerprintsRef.current.add(bundleFingerprint);
+        setRegisteredBundleCount(
+          registeredBundleFingerprintsRef.current.size
+        );
+        setAuthoringBundleStatus("registered");
+        appendLog(
+          `已注册 JS bundle：${registration.packageName} · ${file.name}`
+        );
+        appendLog(
+          `导出入口=${registration.exportName} · 注册方式=${registration.registrationMode}`
+        );
+      } catch (error) {
+        setAuthoringBundleStatus("error");
+        appendLog(
+          error instanceof Error
+            ? `注册 JS bundle 失败：${error.message}`
+            : "注册 JS bundle 失败"
+        );
+      }
+    }
   };
 
   useEffect(() => {
@@ -332,9 +448,8 @@ export function useExampleGraph(): UseExampleGraphResult {
      * 顺序刻意保持固定：
      * 1. 创建空图实例
      * 2. 等待 `graph.ready`
-     * 3. 注册自定义节点
-     * 4. 建立运行反馈与主题、窗口监听
-     * 5. 恢复默认最小执行链
+     * 3. 建立运行反馈与主题、窗口监听
+     * 4. 进入默认空画布
      */
     const bootstrap = async (): Promise<void> => {
       try {
@@ -361,21 +476,20 @@ export function useExampleGraph(): UseExampleGraphResult {
           return;
         }
 
-        // 自定义节点必须在恢复示例图之前注册完成。
-        graph.registerNode(createCounterNodeDefinition(), { overwrite: true });
-        graph.registerNode(createWatchNodeDefinition(), { overwrite: true });
-
         // 统一订阅运行反馈，再投影成页面层可直接显示的中文日志。
         cleanupRuntimeFeedback = graph.subscribeRuntimeFeedback((event) => {
           appendLog(formatRuntimeFeedback(event));
         });
 
         window.addEventListener("resize", handleWindowResize);
-        resetExampleGraph();
+        scheduleFitView();
         setStatus("ready");
+        setAuthoringBundleStatus("idle");
         setErrorMessage("");
         appendLog("LeaferGraph 已完成初始化");
-        appendLog("Leafer 右键菜单已就绪，可区分画布、节点和连线");
+        appendLog("默认节点已移除，当前为空画布");
+        appendLog("可点击顶部按钮选择编译后的 JS bundle 来注册 authoring 库");
+        appendLog("Leafer 右键菜单已就绪，可右键画布从当前注册表添加节点");
       } catch (error) {
         if (disposed) {
           return;
@@ -420,11 +534,10 @@ export function useExampleGraph(): UseExampleGraphResult {
       fit: actions.fit,
       reset: actions.reset,
       clearLog: actions.clearLog,
-      appendLog,
-      resolveNodeMeta,
-      resolveLinkMeta
+      listRegisteredNodes,
+      createNodeFromRegistry: actions.createNodeFromRegistry,
+      appendLog
     });
-    contextMenuRef.current.rebindTargets();
 
     return () => {
       contextMenuRef.current?.destroy();
@@ -437,6 +550,8 @@ export function useExampleGraph(): UseExampleGraphResult {
     logs,
     actions,
     status,
+    authoringBundleStatus,
+    registeredBundleCount,
     errorMessage,
     stageBadges: EXAMPLE_STAGE_BADGES,
     chainSteps: EXAMPLE_CHAIN_STEPS

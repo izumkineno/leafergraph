@@ -217,6 +217,88 @@ describe("@leafergraph/context-menu dom renderer", () => {
 
     controller.destroy();
   });
+
+  it("三级及以上子菜单在 hover 进入更深层 panel 时不会被祖先关闭定时器误杀", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const controller = createContextMenuController({
+      closeDelay: 20,
+      renderer: createDomContextMenuRenderer()
+    });
+
+    controller.open(createContext(container), [
+      {
+        kind: "submenu",
+        key: "advanced",
+        label: "高级",
+        children: [
+          {
+            kind: "submenu",
+            key: "inspect",
+            label: "查看",
+            children: [{ key: "runtime", label: "运行时详情" }]
+          }
+        ]
+      }
+    ]);
+
+    const advancedButton = document.querySelector<HTMLButtonElement>(
+      '.leafergraph-context-menu__item[data-key="advanced"]'
+    );
+    expect(advancedButton).not.toBeNull();
+
+    advancedButton?.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true })
+    );
+    await waitForTimers();
+
+    const levelOnePanel = document.querySelector<HTMLDivElement>(
+      '.leafergraph-context-menu__panel[data-level="1"]'
+    );
+    expect(levelOnePanel).not.toBeNull();
+
+    advancedButton?.dispatchEvent(
+      new PointerEvent("pointerleave", { bubbles: true })
+    );
+    levelOnePanel?.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true })
+    );
+
+    const inspectButton = document.querySelector<HTMLButtonElement>(
+      '.leafergraph-context-menu__item[data-level="1"][data-key="inspect"]'
+    );
+    expect(inspectButton).not.toBeNull();
+
+    inspectButton?.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true })
+    );
+    await waitForTimers();
+
+    const levelTwoPanel = document.querySelector<HTMLDivElement>(
+      '.leafergraph-context-menu__panel[data-level="2"]'
+    );
+    expect(levelTwoPanel).not.toBeNull();
+
+    inspectButton?.dispatchEvent(
+      new PointerEvent("pointerleave", { bubbles: true })
+    );
+    levelOnePanel?.dispatchEvent(
+      new PointerEvent("pointerleave", { bubbles: true })
+    );
+    levelTwoPanel?.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true })
+    );
+
+    await wait(40);
+
+    expect(controller.getState().openPath).toEqual(["advanced", "inspect"]);
+    expect(
+      document.querySelector('.leafergraph-context-menu__panel[data-level="2"]')
+    ).not.toBeNull();
+
+    controller.destroy();
+  });
 });
 
 function createContext(container: HTMLElement): ContextMenuContext {
@@ -234,5 +316,11 @@ function createContext(container: HTMLElement): ContextMenuContext {
 function waitForTimers(): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, 0);
+  });
+}
+
+function wait(durationMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
   });
 }

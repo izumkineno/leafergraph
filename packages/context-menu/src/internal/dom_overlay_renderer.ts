@@ -431,7 +431,7 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     });
     panel.addEventListener("pointerenter", () => {
       if (level > 0) {
-        this.clearCloseTimer(level - 1);
+        this.clearCloseTimersThrough(level - 1);
       }
     });
     panel.addEventListener("pointerleave", () => {
@@ -903,6 +903,22 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
 
     this.ownerDocument.defaultView.clearTimeout(timerId);
     this.closeTimers.delete(level);
+  }
+
+  /**
+   * 进入更深层 submenu panel 时，需要把祖先链上还没执行的关闭定时器一起清掉。
+   *
+   * 例如从二级 panel 进入三级 panel 时：
+   * - 当前 submenu item 的 `pointerleave` 会挂一个“关闭二级 submenu”的定时器
+   * - 二级 panel 自己的 `pointerleave` 还会挂一个“关闭一级 submenu”的定时器
+   *
+   * 如果这里只清理最里层那一个，祖先层的延迟关闭仍会生效，表现出来就是
+   * “三级及以上 submenu 一 hover 就自己收回去”。
+   */
+  private clearCloseTimersThrough(maxLevel: number): void {
+    for (let level = 0; level <= maxLevel; level += 1) {
+      this.clearCloseTimer(level);
+    }
   }
 
   private clearAllTimers(): void {

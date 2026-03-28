@@ -77,6 +77,14 @@
   gap: 6px;
 }
 
+.bundle-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* 顶部控制按钮。 */
 .toolbar-button {
   appearance: none;
@@ -102,6 +110,19 @@
   transform: translateY(-1px);
   border-color: var(--accent);
   box-shadow: 0 12px 28px var(--overlay-shadow);
+}
+
+.toolbar-button:disabled {
+  opacity: 0.58;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.toolbar-button:disabled:hover {
+  transform: none;
+  border-color: var(--panel-border);
+  box-shadow: none;
 }
 
 .toolbar-button:active {

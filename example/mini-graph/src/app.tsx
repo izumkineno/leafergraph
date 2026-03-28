@@ -9,8 +9,10 @@
  *
  * 真正的图生命周期与交互动作都收口在 `useExampleGraph()`。
  */
+import { useRef } from "preact/hooks";
 import "./app.css";
 import {
+  type ExampleAuthoringBundleStatus,
   type ExampleGraphStatus,
   useExampleGraph,
 } from "./graph/use_example_graph";
@@ -19,6 +21,7 @@ interface ActionItem {
   id: string;
   label: string;
   accent: boolean;
+  disabled?: boolean;
   onClick(): void;
 }
 
@@ -48,11 +51,11 @@ function resolveStatusCopy(
 ): string {
   switch (status) {
     case "ready":
-      return "On Play -> Counter -> Watch";
+      return "默认空画布已就绪";
     case "error":
       return errorMessage || "LeaferGraph 初始化失败";
     default:
-      return "正在创建图实例并恢复默认链路";
+      return "正在创建图实例并准备空画布";
   }
 }
 
@@ -61,13 +64,36 @@ function formatLogTime(timestamp: number): string {
   return LOG_TIME_FORMATTER.format(timestamp);
 }
 
+/** 根据 authoring 注册状态返回按钮文案。 */
+function resolveRegisterButtonLabel(
+  status: ExampleAuthoringBundleStatus,
+  registeredCount: number,
+): string {
+  switch (status) {
+    case "registering":
+      return "Registering JS...";
+    case "registered":
+      return registeredCount > 0
+        ? "Select Another JS Bundle"
+        : "Select JS Bundle";
+    case "error":
+      return "Retry JS Bundle";
+    default:
+      return "Select JS Bundle";
+  }
+}
+
 export function App() {
+  const bundleInputRef = useRef<HTMLInputElement | null>(null);
+
   // 页面层只消费 hook 投影后的数据，不直接操作图实例。
   const {
     actions,
+    authoringBundleStatus,
     chainSteps,
     errorMessage,
     logs,
+    registeredBundleCount,
     stageBadges,
     stageRef,
     status,
@@ -75,6 +101,18 @@ export function App() {
 
   // 把按钮配置抽成结构化数组，方便后续继续增删动作时保持页面清晰。
   const actionItems: readonly ActionItem[] = [
+    {
+      id: "register-bundle",
+      label: resolveRegisterButtonLabel(
+        authoringBundleStatus,
+        registeredBundleCount,
+      ),
+      accent: false,
+      disabled: status !== "ready" || authoringBundleStatus === "registering",
+      onClick() {
+        bundleInputRef.current?.click();
+      },
+    },
     { id: "play", label: "Play", accent: true, onClick: actions.play },
     { id: "stop", label: "Stop", accent: false, onClick: actions.stop },
     { id: "reset", label: "Reset", accent: false, onClick: actions.reset },
@@ -85,11 +123,12 @@ export function App() {
       <header class="toolbar" aria-live="polite">
         <div class="toolbar-copy">
           <p class="eyebrow">LeaferGraph Mini Demo</p>
-          <h1>最小执行链 Demo</h1>
+          <h1>最小空画布 Demo</h1>
           <p class="toolbar-description">
-            这里直接通过公开 API
-            恢复一条最小链路，并让画布尽量占满页面。右键画布、节点或连线即可验证
-            Leafer-first 上下文菜单。
+            这里直接通过公开 API 启动一个默认空画布，并让画布尽量占满页面。
+            当前默认不注入任何节点；可以先选择编译后的单文件 JS bundle 来注册
+            authoring 库，再继续扩展图内容。
+            右键画布即可验证 Leafer-first 上下文菜单，并从当前注册表直接添加节点。
           </p>
         </div>
 
@@ -100,6 +139,7 @@ export function App() {
                 key={item.id}
                 type="button"
                 class={`toolbar-button ${item.accent ? "toolbar-button--accent" : ""}`}
+                disabled={item.disabled}
                 onClick={item.onClick}
               >
                 {item.label}
@@ -119,6 +159,9 @@ export function App() {
 
             <div class="badge-row">
               <span class="stage-badge">Leafer Menu</span>
+              <span class="stage-badge">
+                Bundles {registeredBundleCount}
+              </span>
               {stageBadges.map((badge) => (
                 <span key={badge.id} class="stage-badge">
                   {badge.label}
@@ -130,12 +173,28 @@ export function App() {
       </header>
 
       <section class="graph-card">
+        <input
+          ref={bundleInputRef}
+          type="file"
+          class="bundle-file-input"
+          accept=".js,.mjs,text/javascript,application/javascript"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (!file) {
+              return;
+            }
+
+            void actions.registerAuthoringBundle(file);
+          }}
+        />
+
         {/* 这个 div 是 LeaferGraph 实例真正挂载的容器。 */}
         <div class="graph-host" ref={stageRef} />
 
-        {/* 左上角浮层：固定展示当前 demo 的执行链结构。 */}
+        {/* 左上角浮层：固定展示当前 demo 的空画布说明。 */}
         <aside class="graph-overlay graph-overlay--chain">
-          <p class="overlay-label">Execution Chain</p>
+          <p class="overlay-label">Canvas Notes</p>
           <ol class="chain-list">
             {chainSteps.map((step) => (
               <li key={step.id} class="chain-item">
@@ -173,7 +232,7 @@ export function App() {
             </ol>
           ) : (
             <p class="overlay-empty">
-              等待运行反馈。可以先点击 <code>Play</code> 或 <code>Step</code>。
+              等待运行反馈。当前默认没有节点，可以先选择编译后的 JS bundle 来注册，然后右键画布从注册表添加节点。
             </p>
           )}
         </aside>
