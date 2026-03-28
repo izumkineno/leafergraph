@@ -1,5 +1,0 @@
-{
-  "jsonrpc": "2.0",
-  "id": "get-document-empty-1",
-  "method": "authority.getDocument"
-}
