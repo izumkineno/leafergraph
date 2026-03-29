@@ -5,13 +5,17 @@
  * 负责把主题切换影响到的节点、连线和 Widget 编辑宿主刷新收敛起来。
  */
 
-import type { LeaferGraphWidgetThemeContext } from "../api/plugin";
+import type {
+  LeaferGraphThemeMode,
+  LeaferGraphWidgetThemeContext
+} from "../api/plugin";
 import type { NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphSceneRuntimeHost } from "./graph_scene_runtime_host";
 
 /** 主题宿主对外只依赖这一层运行时壳面。 */
 export interface LeaferGraphThemeRuntimeLike {
   setWidgetTheme(theme: LeaferGraphWidgetThemeContext): void;
+  setCanvasThemeMode(mode: LeaferGraphThemeMode): void;
   refreshThemeScene(): void;
 }
 
@@ -28,6 +32,9 @@ interface LeaferGraphThemeRuntimeHostOptions<
 > {
   widgetEditingManager: {
     setTheme(theme: LeaferGraphWidgetThemeContext): void;
+  };
+  canvasHost: {
+    setThemeMode(mode: LeaferGraphThemeMode): void;
   };
   sceneRuntime: Pick<
     LeaferGraphSceneRuntimeHost<TNodeState, TNodeViewState>,
@@ -64,6 +71,11 @@ export class LeaferGraphThemeRuntimeHost<
    */
   setWidgetTheme(theme: LeaferGraphWidgetThemeContext): void {
     this.options.widgetEditingManager.setTheme(theme);
+  }
+
+  /** 同步画布背景的主题。 */
+  setCanvasThemeMode(mode: LeaferGraphThemeMode): void {
+    this.options.canvasHost.setThemeMode(mode);
   }
 
   /**

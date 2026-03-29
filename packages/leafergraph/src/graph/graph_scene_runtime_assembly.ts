@@ -21,6 +21,7 @@ import type { NodeShellRenderTheme } from "../node/node_shell";
 import { LeaferGraphWidgetHost } from "../widgets/widget_host";
 import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
 import type { LeaferGraphCanvasState } from "./graph_canvas_host";
+import type { LeaferGraphCanvasHost } from "./graph_canvas_host";
 import { LeaferGraphMutationHost } from "./graph_mutation_host";
 import { LeaferGraphExecutionRuntimeHost } from "./graph_execution_runtime_host";
 import type {
@@ -54,6 +55,7 @@ export interface LeaferGraphSceneRuntimeAssemblyOptions<
   nodeViews: Map<string, NodeViewState<TNodeState>>;
   linkViews: GraphLinkViewState<TNodeState>[];
   canvasState: LeaferGraphCanvasState;
+  canvasHost: LeaferGraphCanvasHost;
   nodeRegistry: NodeRegistry;
   widgetRegistry: LeaferGraphWidgetRegistry;
   themeHost: LeaferGraphThemeHost;
@@ -380,6 +382,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
 
   const themeRuntimeHost = new LeaferGraphThemeRuntimeHost({
     widgetEditingManager: options.widgetEditingManager,
+    canvasHost: options.canvasHost,
     sceneRuntime: sceneRuntimeHost
   });
   options.themeHost.attachRuntime(themeRuntimeHost);

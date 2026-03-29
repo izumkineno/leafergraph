@@ -24,6 +24,9 @@ export interface NodeShellRenderTheme {
   selectedRingOutset: number;
   selectedRingStrokeWidth: number;
   selectedRingOpacity: number;
+  resizeHandleFill: string;
+  resizeHandleStroke: string;
+  resizeHandleStrokeWidth: number;
   cardFill: string;
   cardStroke: string;
   headerFill: string;
@@ -382,15 +385,15 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   const resizeHandleHitArea = new Rect({
     width: 18,
     height: 18,
-    fill: "rgba(255, 255, 255, 0.001)",
+    fill: theme.resizeHandleFill,
     cornerRadius: 6
   });
   const resizeHandleIcon = new Path({
     x: 0,
     y: 0,
     path: "M 4 14 L 14 4 M 8 14 L 14 8 M 12 14 L 14 12",
-    stroke: "rgba(255, 255, 255, 0.72)",
-    strokeWidth: 1.5,
+    stroke: theme.resizeHandleStroke,
+    strokeWidth: theme.resizeHandleStrokeWidth,
     strokeCap: "round",
     strokeJoin: "round",
     hittable: false

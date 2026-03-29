@@ -17,6 +17,7 @@ import {
   VIEWPORT_MIN_SCALE,
   createDefaultDataFlowAnimationStyleConfig,
   createDefaultNodeShellStyleConfig,
+  resolveDefaultCanvasBackground,
   resolveDefaultLinkStroke,
   resolveDefaultNodeShellRenderTheme,
   resolveDefaultSelectedStroke
@@ -86,6 +87,7 @@ export function createLeaferGraphEntryRuntime(
     }),
     nodeShellLayoutMetrics: NODE_SHELL_LAYOUT_METRICS,
     nodeShellStyle: createDefaultNodeShellStyleConfig(),
+    resolveCanvasBackground: (mode) => resolveDefaultCanvasBackground(mode),
     resolveSelectedStroke: (mode) => resolveDefaultSelectedStroke(mode),
     resolveNodeShellRenderTheme: (mode) =>
       resolveDefaultNodeShellRenderTheme(mode),

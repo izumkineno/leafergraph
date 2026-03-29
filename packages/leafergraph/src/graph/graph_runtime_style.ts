@@ -40,6 +40,18 @@ const SLOT_LABEL_FILL = "#A1A1AA";
 const CATEGORY_FILL = "rgba(255, 255, 255, 0.08)";
 const CATEGORY_STROKE = "rgba(255, 255, 255, 0.05)";
 const CATEGORY_TEXT_FILL = "#A1A1AA";
+const CANVAS_BACKGROUND_DARK = [
+  "radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 28%)",
+  "radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.12), transparent 26%)",
+  "radial-gradient(circle at center, rgba(255, 255, 255, 0.06) 1px, transparent 1px)",
+  "linear-gradient(180deg, #0f172a 0%, #111827 100%)"
+].join(", ");
+const CANVAS_BACKGROUND_LIGHT = [
+  "radial-gradient(circle at top left, rgba(56, 189, 248, 0.20), transparent 30%)",
+  "radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 28%)",
+  "radial-gradient(circle at center, rgba(15, 23, 42, 0.06) 1px, transparent 1px)",
+  "linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%)"
+].join(", ");
 const ERROR_BADGE_FILL_DARK = "rgba(127, 29, 29, 0.92)";
 const ERROR_BADGE_STROKE_DARK = "rgba(248, 113, 113, 0.42)";
 const ERROR_BADGE_TEXT_FILL_DARK = "#FEE2E2";
@@ -304,6 +316,13 @@ export function resolveDefaultSelectedStroke(_mode: LeaferGraphThemeMode): strin
   return NODE_SELECTED_STROKE;
 }
 
+/** 根据主题模式解析画布背景。 */
+export function resolveDefaultCanvasBackground(
+  mode: LeaferGraphThemeMode
+): string {
+  return mode === "dark" ? CANVAS_BACKGROUND_DARK : CANVAS_BACKGROUND_LIGHT;
+}
+
 /** 根据主题模式解析节点壳渲染主题。 */
 export function resolveDefaultNodeShellRenderTheme(
   mode: LeaferGraphThemeMode
@@ -315,6 +334,9 @@ export function resolveDefaultNodeShellRenderTheme(
       selectedRingOutset: SELECTED_RING_OUTSET,
       selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
       selectedRingOpacity: 0.92,
+      resizeHandleFill: "rgba(255, 255, 255, 0.001)",
+      resizeHandleStroke: "rgba(255, 255, 255, 0.72)",
+      resizeHandleStrokeWidth: 1.5,
       cardFill: CARD_FILL,
       cardStroke: CARD_STROKE,
       headerFill: HEADER_FILL,
@@ -360,6 +382,9 @@ export function resolveDefaultNodeShellRenderTheme(
     selectedRingOutset: SELECTED_RING_OUTSET,
     selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
     selectedRingOpacity: 0.92,
+    resizeHandleFill: "rgba(15, 23, 42, 0.06)",
+    resizeHandleStroke: "rgba(15, 23, 42, 0.72)",
+    resizeHandleStrokeWidth: 1.85,
     cardFill: "rgba(255, 255, 255, 0.96)",
     cardStroke: "rgba(148, 163, 184, 0.28)",
     headerFill: "rgba(248, 250, 252, 0.96)",

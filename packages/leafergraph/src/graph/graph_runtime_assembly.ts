@@ -51,6 +51,7 @@ interface LeaferGraphRuntimeAssemblyOptions<
   resolveWidgetTheme(mode: LeaferGraphThemeMode): LeaferGraphWidgetThemeContext;
   nodeShellLayoutMetrics: NodeShellLayoutMetrics;
   nodeShellStyle: LeaferGraphNodeShellStyleConfig;
+  resolveCanvasBackground(mode: LeaferGraphThemeMode): string;
   resolveSelectedStroke(mode: LeaferGraphThemeMode): string;
   resolveNodeShellRenderTheme(mode: LeaferGraphThemeMode): NodeShellRenderTheme;
   normalizeLinkSlotIndex(slot: number | undefined): number;
@@ -76,15 +77,18 @@ export interface LeaferGraphRuntimeAssemblyResult<
  */
 export function createLeaferGraphRuntimeAssembly<
   TNodeState extends LeaferGraphRenderableNodeState
->(
+>( 
   options: LeaferGraphRuntimeAssemblyOptions<TNodeState>
 ): LeaferGraphRuntimeAssemblyResult<TNodeState> {
-  const canvasState = new LeaferGraphCanvasHost({
+  const canvasHost = new LeaferGraphCanvasHost({
     container: options.container,
     fill: options.fill,
+    themeMode: options.themeMode,
+    resolveBackground: options.resolveCanvasBackground,
     viewportMinScale: options.viewportMinScale,
     viewportMaxScale: options.viewportMaxScale
-  }).mount();
+  });
+  const canvasState = canvasHost.mount();
   const widgetEnvironment = createLeaferGraphWidgetEnvironment({
     app: canvasState.app,
     container: options.container,
@@ -110,6 +114,7 @@ export function createLeaferGraphRuntimeAssembly<
     nodeRegistry,
     widgetRegistry: widgetEnvironment.widgetRegistry,
     themeHost: widgetEnvironment.themeHost,
+    canvasHost,
     widgetEditingManager: widgetEnvironment.widgetEditingManager,
     widgetEditingContext: widgetEnvironment.widgetEditingContext,
     requestRender,

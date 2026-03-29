@@ -7,10 +7,13 @@
 
 import { App, Group } from "leafer-ui";
 import { addViewport } from "@leafer-in/viewport";
+import type { LeaferGraphThemeMode } from "../api/plugin";
 
 interface LeaferGraphCanvasHostOptions {
   container: HTMLElement;
   fill?: string;
+  themeMode?: LeaferGraphThemeMode;
+  resolveBackground(mode: LeaferGraphThemeMode): string;
   viewportMinScale: number;
   viewportMaxScale: number;
 }
@@ -77,9 +80,14 @@ export class LeaferGraphCanvasHost {
     };
   }
 
+  /** 主题切换时同步刷新画布背景。 */
+  setThemeMode(mode: LeaferGraphThemeMode): void {
+    this.applyContainerBackground(mode);
+  }
+
   /** 规范化容器样式与背景。 */
   private prepareContainer(): void {
-    const { container, fill } = this.options;
+    const { container } = this.options;
 
     container.replaceChildren();
     if (!container.style.position) {
@@ -92,15 +100,14 @@ export class LeaferGraphCanvasHost {
       container.style.height = "100%";
     }
     container.style.overflow = "hidden";
-    container.style.background =
-      fill ??
-      [
-        "radial-gradient(circle at top left, rgba(56, 189, 248, 0.20), transparent 30%)",
-        "radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 28%)",
-        "radial-gradient(circle at center, rgba(15, 23, 42, 0.06) 1px, transparent 1px)",
-        "linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%)"
-      ].join(", ");
     container.style.backgroundSize = "auto, auto, 20px 20px, auto";
+    this.applyContainerBackground(this.options.themeMode ?? "light");
+  }
+
+  /** 统一应用画布背景，显式 fill 仍然拥有最高优先级。 */
+  private applyContainerBackground(mode: LeaferGraphThemeMode): void {
+    const { container, fill, resolveBackground } = this.options;
+    container.style.background = fill ?? resolveBackground(mode);
   }
 
   /**

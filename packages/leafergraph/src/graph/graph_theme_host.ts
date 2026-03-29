@@ -92,6 +92,7 @@ export class LeaferGraphThemeHost {
     }
 
     this.runtime.setWidgetTheme(this.widgetTheme);
+    this.runtime.setCanvasThemeMode(mode);
     this.runtime.refreshThemeScene();
   }
 }
