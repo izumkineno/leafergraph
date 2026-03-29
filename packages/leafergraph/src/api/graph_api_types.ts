@@ -178,6 +178,17 @@ export interface LeaferGraphResizeNodeInput {
 }
 
 /**
+ * 节点选区更新模式。
+ *
+ * @remarks
+ * 主包把多选语义统一为三种最小操作：
+ * - `replace`：完全替换当前选区
+ * - `add`：并入当前选区
+ * - `remove`：从当前选区移除
+ */
+export type LeaferGraphSelectionUpdateMode = "replace" | "add" | "remove";
+
+/**
  * 主包对外暴露的节点 resize 约束。
  * 它已经把节点定义中的默认值、兼容字段和宿主默认值统一解析完成，
  * 适合 editor、命令层或调试工具直接读取。
@@ -214,7 +225,8 @@ export type LeaferGraphInteractionActivityMode =
   | "idle"
   | "node-drag"
   | "node-resize"
-  | "link-connect";
+  | "link-connect"
+  | "selection-box";
 
 /**
  * 当前交互活跃态快照。

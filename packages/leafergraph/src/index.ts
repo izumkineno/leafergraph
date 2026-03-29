@@ -105,6 +105,7 @@ export type {
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
   LeaferGraphNodeResizeConstraint,
+  LeaferGraphSelectionUpdateMode,
   LeaferGraphNodeSlotInput,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateDocumentInput,
@@ -179,6 +180,7 @@ import type {
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
   LeaferGraphNodeResizeConstraint,
+  LeaferGraphSelectionUpdateMode,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
 } from "./api/graph_api_types";
@@ -376,6 +378,29 @@ export class LeaferGraph {
    */
   setNodeSelected(nodeId: string, selected: boolean): boolean {
     return this.apiHost.setNodeSelected(nodeId, selected);
+  }
+
+  /** 列出当前全部已选节点 ID。 */
+  listSelectedNodeIds(): string[] {
+    return this.apiHost.listSelectedNodeIds();
+  }
+
+  /** 判断单个节点当前是否处于选中态。 */
+  isNodeSelected(nodeId: string): boolean {
+    return this.apiHost.isNodeSelected(nodeId);
+  }
+
+  /** 按正式选区更新模式批量写回当前节点选区。 */
+  setSelectedNodeIds(
+    nodeIds: readonly string[],
+    mode: LeaferGraphSelectionUpdateMode = "replace"
+  ): string[] {
+    return this.apiHost.setSelectedNodeIds(nodeIds, mode);
+  }
+
+  /** 清空当前全部节点选区。 */
+  clearSelectedNodes(): string[] {
+    return this.apiHost.clearSelectedNodes();
   }
 
   /**

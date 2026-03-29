@@ -340,6 +340,11 @@ export function createLeaferGraphSceneRuntimeAssembly<
       nodeShellHost.syncNodeResizeHandleVisibility(state),
     requestRender: options.requestRender,
     resolveDraggedNodeIds: (nodeId) => viewHost.resolveDraggedNodeIds(nodeId),
+    listSelectedNodeIds: () => viewHost.listSelectedNodeIds(),
+    isNodeSelected: (nodeId) => viewHost.isNodeSelected(nodeId),
+    setSelectedNodeIds: (nodeIds, mode) =>
+      viewHost.setSelectedNodeIds(nodeIds, mode),
+    clearSelectedNodes: () => viewHost.clearSelectedNodes(),
     sceneRuntime: sceneRuntimeHost,
     setNodeCollapsed: (nodeId, collapsed) =>
       nodeRuntimeHost.setNodeCollapsed(nodeId, collapsed),
@@ -366,6 +371,10 @@ export function createLeaferGraphSceneRuntimeAssembly<
   >({
     container: options.container,
     runtime: interactionRuntimeHost,
+    selectionLayer: options.canvasState.selectionLayer,
+    resolveSelectionStroke: () =>
+      options.resolveSelectedStroke(options.themeHost.getMode()),
+    requestRender: options.requestRender,
     emitInteractionCommit: (event) => interactionCommitSource.emit(event)
   });
 

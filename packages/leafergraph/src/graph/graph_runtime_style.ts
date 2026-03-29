@@ -33,8 +33,6 @@ const SLOT_TEXT_WIDTH = 84;
 const NODE_FONT_FAMILY = '"Inter", "IBM Plex Sans", "Segoe UI", sans-serif';
 const CARD_FILL = "rgba(28, 28, 33, 0.76)";
 const CARD_STROKE = "rgba(255, 255, 255, 0.10)";
-const CARD_PRESS_FILL = "rgba(24, 24, 29, 0.86)";
-const CARD_PRESS_STROKE = "rgba(59, 130, 246, 0.28)";
 const HEADER_FILL = "rgba(255, 255, 255, 0.05)";
 const HEADER_DIVIDER_FILL = "rgba(255, 255, 255, 0.08)";
 const TITLE_FILL = "#F4F4F5";
@@ -72,7 +70,6 @@ const DATA_FLOW_PULSE_EXTRA_STROKE_WIDTH = 4;
 const DATA_FLOW_MAX_PULSES = 16;
 const MISSING_NODE_FILL = "rgba(220, 38, 38, 0.92)";
 const MISSING_NODE_STROKE = "rgba(127, 29, 29, 0.86)";
-const MISSING_NODE_PRESS_FILL = "rgba(185, 28, 28, 0.96)";
 const MISSING_NODE_TEXT_FILL = "#FFF1F2";
 const ERROR_BADGE_FILL_LIGHT = "rgba(254, 226, 226, 0.96)";
 const ERROR_BADGE_STROKE_LIGHT = "rgba(239, 68, 68, 0.24)";
@@ -99,7 +96,6 @@ export interface LeaferGraphNodeShellStyleConfig {
   selectedRingStrokeWidth: number;
   missingNodeFill: string;
   missingNodeStroke: string;
-  missingNodePressFill: string;
   missingNodeTextFill: string;
   inputPortFill: string;
   outputPortFill: string;
@@ -213,7 +209,6 @@ export function createDefaultNodeShellStyleConfig(): LeaferGraphNodeShellStyleCo
     selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
     missingNodeFill: MISSING_NODE_FILL,
     missingNodeStroke: MISSING_NODE_STROKE,
-    missingNodePressFill: MISSING_NODE_PRESS_FILL,
     missingNodeTextFill: MISSING_NODE_TEXT_FILL,
     inputPortFill: INPUT_PORT_FILL,
     outputPortFill: OUTPUT_PORT_FILL,
@@ -322,8 +317,6 @@ export function resolveDefaultNodeShellRenderTheme(
       selectedRingOpacity: 0.92,
       cardFill: CARD_FILL,
       cardStroke: CARD_STROKE,
-      cardPressFill: CARD_PRESS_FILL,
-      cardPressStroke: CARD_PRESS_STROKE,
       headerFill: HEADER_FILL,
       headerDividerFill: HEADER_DIVIDER_FILL,
       titleFill: TITLE_FILL,
@@ -369,8 +362,6 @@ export function resolveDefaultNodeShellRenderTheme(
     selectedRingOpacity: 0.92,
     cardFill: "rgba(255, 255, 255, 0.96)",
     cardStroke: "rgba(148, 163, 184, 0.28)",
-    cardPressFill: "rgba(248, 250, 252, 0.98)",
-    cardPressStroke: "rgba(37, 99, 235, 0.28)",
     headerFill: "rgba(248, 250, 252, 0.96)",
     headerDividerFill: "rgba(148, 163, 184, 0.16)",
     titleFill: "#0F172A",

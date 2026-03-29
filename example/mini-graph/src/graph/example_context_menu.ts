@@ -38,6 +38,7 @@ export interface CreateExampleContextMenuOptions {
   createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState;
   createLink(input: LeaferGraphCreateLinkInput): GraphLink;
   removeNode(nodeId: string): void;
+  removeNodes(nodeIds: readonly string[]): void;
   removeLink(linkId: string): void;
   appendLog(message: string): void;
 }
@@ -111,6 +112,9 @@ export function createExampleContextMenu(
     },
     removeNode(nodeId) {
       options.removeNode(nodeId);
+    },
+    removeNodes(nodeIds) {
+      options.removeNodes(nodeIds);
     },
     removeLink(linkId) {
       options.removeLink(linkId);

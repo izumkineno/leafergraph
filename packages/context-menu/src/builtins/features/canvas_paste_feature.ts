@@ -13,7 +13,7 @@ const DEFAULT_PASTE_OFFSET = {
 
 export const canvasPasteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
   id: "canvasPaste",
-  register({ clipboard, options, registerResolver, createLink, createNode }) {
+  register({ clipboard, graph, options, registerResolver, createLink, createNode }) {
     return registerResolver("canvas-paste", (context) => {
       if (context.target.kind !== "canvas") {
         return [];
@@ -34,6 +34,7 @@ export const canvasPasteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
             const offset = options.pasteOffset ?? DEFAULT_PASTE_OFFSET;
             pasteClipboardFragment({
               fragment,
+              graph,
               createLink,
               createNode,
               context,
@@ -48,6 +49,7 @@ export const canvasPasteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
 
 function pasteClipboardFragment(input: {
   fragment: LeaferContextMenuClipboardFragment;
+  graph: Pick<import("leafergraph").LeaferGraph, "setSelectedNodeIds">;
   createNode: LeaferContextMenuBuiltinFeatureRegistrationContext["createNode"];
   createLink: LeaferContextMenuBuiltinFeatureRegistrationContext["createLink"];
   context: LeaferContextMenuContext;
@@ -71,6 +73,7 @@ function pasteClipboardFragment(input: {
     y: targetOrigin.y - origin.y
   };
   const nodeIdMap = new Map<string, string>();
+  const createdNodeIds: string[] = [];
 
   for (const snapshot of input.fragment.nodes) {
     const nextNodeInput = createCreateNodeInputFromNodeSnapshot(snapshot);
@@ -84,6 +87,7 @@ function pasteClipboardFragment(input: {
       input.context
     );
     nodeIdMap.set(snapshot.id, createdNode.id);
+    createdNodeIds.push(createdNode.id);
   }
 
   for (const link of input.fragment.links) {
@@ -104,6 +108,8 @@ function pasteClipboardFragment(input: {
       }
     }, input.context);
   }
+
+  input.graph.setSelectedNodeIds(createdNodeIds, "replace");
 }
 
 function resolveFragmentOrigin(fragment: LeaferContextMenuClipboardFragment): {

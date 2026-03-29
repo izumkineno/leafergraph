@@ -48,6 +48,10 @@ export interface LeaferContextMenuBuiltinOptions {
     context: LeaferContextMenuContext
   ): GraphLink;
   removeNode?(nodeId: string, context: LeaferContextMenuContext): void;
+  removeNodes?(
+    nodeIds: readonly string[],
+    context: LeaferContextMenuContext
+  ): void;
   removeLink?(linkId: string, context: LeaferContextMenuContext): void;
   nodeFactory?(
     input: LeaferGraphCreateNodeInput,
@@ -82,6 +86,7 @@ export interface LeaferContextMenuBuiltinFeatureRegistrationContext {
   fitView(context: LeaferContextMenuContext): void;
   playFromNode(nodeId: string, context: LeaferContextMenuContext): void;
   removeNode(nodeId: string, context: LeaferContextMenuContext): void;
+  removeNodes(nodeIds: readonly string[], context: LeaferContextMenuContext): void;
   removeLink(linkId: string, context: LeaferContextMenuContext): void;
   createDefaultNodeProjection?(type: string): {
     title: string;

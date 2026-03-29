@@ -10,7 +10,8 @@ import { Path } from "leafer-ui";
 import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
 import type {
   LeaferGraphConnectionPortState,
-  LeaferGraphConnectionValidationResult
+  LeaferGraphConnectionValidationResult,
+  LeaferGraphSelectionUpdateMode
 } from "../api/graph_api_types";
 import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
@@ -115,6 +116,20 @@ export interface LeaferGraphInteractionRuntimeLike<
   resizeNode(nodeId: string, size: { width: number; height: number }): void;
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
   canResizeNode(nodeId: string): boolean;
+  listSelectedNodeIds(): string[];
+  isNodeSelected(nodeId: string): boolean;
+  setSelectedNodeIds(
+    nodeIds: readonly string[],
+    mode?: LeaferGraphSelectionUpdateMode
+  ): string[];
+  clearSelectedNodes(): string[];
+  resolveNodeAtPoint(point: { x: number; y: number }): string | undefined;
+  resolveNodeIdsInBounds(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): string[];
   getPagePointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
     x: number;
     y: number;
@@ -138,6 +153,13 @@ interface LeaferGraphInteractionRuntimeHostOptions<
   syncNodeResizeHandleVisibility(state: TNodeViewState): void;
   requestRender(): void;
   resolveDraggedNodeIds(nodeId: string): string[];
+  listSelectedNodeIds(): string[];
+  isNodeSelected(nodeId: string): boolean;
+  setSelectedNodeIds(
+    nodeIds: readonly string[],
+    mode?: LeaferGraphSelectionUpdateMode
+  ): string[];
+  clearSelectedNodes(): string[];
   sceneRuntime: Pick<
     LeaferGraphSceneRuntimeHost<TNodeState, TNodeViewState>,
     "moveNodesByDelta" | "resizeNode" | "createLink" | "findLinksByNode"
@@ -531,6 +553,83 @@ export class LeaferGraphInteractionRuntimeHost<
     return this.options.canResizeNode(nodeId);
   }
 
+  /** 列出当前全部已选节点。 */
+  listSelectedNodeIds(): string[] {
+    return this.options.listSelectedNodeIds();
+  }
+
+  /** 判断单个节点当前是否处于选中态。 */
+  isNodeSelected(nodeId: string): boolean {
+    return this.options.isNodeSelected(nodeId);
+  }
+
+  /** 批量更新当前节点选区。 */
+  setSelectedNodeIds(
+    nodeIds: readonly string[],
+    mode?: LeaferGraphSelectionUpdateMode
+  ): string[] {
+    return this.options.setSelectedNodeIds(nodeIds, mode);
+  }
+
+  /** 清空当前节点选区。 */
+  clearSelectedNodes(): string[] {
+    return this.options.clearSelectedNodes();
+  }
+
+  /** 根据 page 坐标命中当前最上层节点。 */
+  resolveNodeAtPoint(point: { x: number; y: number }): string | undefined {
+    let bestMatch:
+      | {
+          nodeId: string;
+          zIndex: number;
+        }
+      | undefined;
+
+    for (const state of this.options.nodeViews.values()) {
+      const bounds = this.resolveNodeBounds(state);
+      if (!bounds || !isPointInBounds(point, bounds)) {
+        continue;
+      }
+
+      const rawZIndex = state.view.zIndex;
+      const zIndex =
+        typeof rawZIndex === "number" && Number.isFinite(rawZIndex)
+          ? rawZIndex
+          : 0;
+
+      if (!bestMatch || zIndex >= bestMatch.zIndex) {
+        bestMatch = {
+          nodeId: state.state.id,
+          zIndex
+        };
+      }
+    }
+
+    return bestMatch?.nodeId;
+  }
+
+  /** 读取与给定矩形相交的全部节点 ID。 */
+  resolveNodeIdsInBounds(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): string[] {
+    const normalizedBounds = normalizeRectBounds(bounds);
+    const nodeIds: string[] = [];
+
+    for (const state of this.options.nodeViews.values()) {
+      const nodeBounds = this.resolveNodeBounds(state);
+      if (!nodeBounds || !doBoundsIntersect(nodeBounds, normalizedBounds)) {
+        continue;
+      }
+
+      nodeIds.push(state.state.id);
+    }
+
+    return nodeIds;
+  }
+
   /** 把浏览器 client 坐标换成 Leafer page 坐标。 */
   getPagePointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
     x: number;
@@ -598,6 +697,23 @@ export class LeaferGraphInteractionRuntimeHost<
   private attachPreviewPathToLayer(): void {
     this.previewPath.remove();
     this.options.linkLayer.add(this.previewPath);
+  }
+
+  /** 统一读取节点当前参与交互命中的矩形边界。 */
+  private resolveNodeBounds(
+    state: TNodeViewState
+  ): { x: number; y: number; width: number; height: number } | undefined {
+    const size = this.options.resolveNodeSize(state);
+    if (!size) {
+      return undefined;
+    }
+
+    return {
+      x: state.state.layout.x,
+      y: state.state.layout.y,
+      width: size.width,
+      height: size.height
+    };
   }
 
   /** 拖线预览统一跟随当前起始端口的最终展示色。 */
@@ -683,6 +799,35 @@ function isPointInBounds(
     point.x <= bounds.x + bounds.width &&
     point.y >= bounds.y &&
     point.y <= bounds.y + bounds.height
+  );
+}
+
+function normalizeRectBounds(bounds: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): { x: number; y: number; width: number; height: number } {
+  const nextX = bounds.width >= 0 ? bounds.x : bounds.x + bounds.width;
+  const nextY = bounds.height >= 0 ? bounds.y : bounds.y + bounds.height;
+
+  return {
+    x: nextX,
+    y: nextY,
+    width: Math.abs(bounds.width),
+    height: Math.abs(bounds.height)
+  };
+}
+
+function doBoundsIntersect(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number }
+): boolean {
+  return !(
+    left.x + left.width < right.x ||
+    right.x + right.width < left.x ||
+    left.y + left.height < right.y ||
+    right.y + right.height < left.y
   );
 }
 

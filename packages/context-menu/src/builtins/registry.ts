@@ -96,6 +96,16 @@ export function registerLeaferContextMenuBuiltins(
 
           options.graph.removeNode(nodeId);
         },
+        removeNodes: (nodeIds, context) => {
+          if (options.removeNodes) {
+            options.removeNodes(nodeIds, context);
+            return;
+          }
+
+          for (const nodeId of nodeIds) {
+            options.graph.removeNode(nodeId);
+          }
+        },
         removeLink: (linkId, context) => {
           if (options.removeLink) {
             options.removeLink(linkId, context);

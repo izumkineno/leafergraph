@@ -20,13 +20,14 @@ export interface LeaferGraphCanvasState {
   root: Group;
   linkLayer: Group;
   nodeLayer: Group;
+  selectionLayer: Group;
 }
 
 /**
  * 画布装配宿主。
  * 当前集中收口：
  * 1. 容器样式与背景准备
- * 2. `App/root/linkLayer/nodeLayer` 的初始化
+ * 2. `App/root/linkLayer/nodeLayer/selectionLayer` 的初始化
  * 3. 视口缩放和平移能力接入
  */
 export class LeaferGraphCanvasHost {
@@ -55,8 +56,15 @@ export class LeaferGraphCanvasHost {
       hitChildren: true
     });
     const nodeLayer = new Group({ name: "nodes" });
+    const selectionLayer = new Group({
+      name: "selection",
+      hitSelf: false,
+      hitChildren: false,
+      hittable: false,
+      zIndex: 999998
+    });
 
-    root.add([linkLayer, nodeLayer]);
+    root.add([linkLayer, nodeLayer, selectionLayer]);
     app.tree.add(root);
     this.setupViewport(app);
 
@@ -64,7 +72,8 @@ export class LeaferGraphCanvasHost {
       app,
       root,
       linkLayer,
-      nodeLayer
+      nodeLayer,
+      selectionLayer
     };
   }
 

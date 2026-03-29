@@ -16,6 +16,7 @@ import type {
   GraphDragNodePosition,
   LeaferGraphInteractionRuntimeLike
 } from "./graph_interaction_runtime_host";
+import { LeaferGraphSelectionBoxHost } from "./selection_box_host";
 import {
   isWidgetInteractionTarget,
   type LeaferGraphWidgetEventSource,
@@ -47,6 +48,16 @@ interface GraphConnectionState {
   originDirection: SlotDirection;
   originSlot: number;
   hoveredTarget: LeaferGraphConnectionPortState | null;
+}
+
+/** 左键空白区框选时维护的最小手势状态。 */
+interface GraphSelectionState {
+  startPageX: number;
+  startPageY: number;
+  currentPageX: number;
+  currentPageY: number;
+  additive: boolean;
+  started: boolean;
 }
 
 interface LeaferGraphInteractivePortViewState {
@@ -91,6 +102,9 @@ interface LeaferGraphInteractionHostOptions<
 > {
   container: HTMLElement;
   runtime: LeaferGraphInteractionRuntimeLike<TNodeState, TNodeViewState>;
+  selectionLayer: Group;
+  resolveSelectionStroke(): string;
+  requestRender(): void;
   emitInteractionCommit?(event: LeaferGraphInteractionCommitEvent): void;
 }
 
@@ -114,15 +128,23 @@ export class LeaferGraphInteractionHost<
   private dragState: GraphDragState | null = null;
   private resizeState: GraphResizeState | null = null;
   private connectionState: GraphConnectionState | null = null;
+  private selectionState: GraphSelectionState | null = null;
   private interactionActivityState: LeaferGraphInteractionActivityState = {
     active: false,
     mode: "idle"
   };
+  private readonly selectionBoxHost: LeaferGraphSelectionBoxHost;
   private readonly interactionActivityListeners = new Set<
     (state: LeaferGraphInteractionActivityState) => void
   >();
+  private spaceKeyPressed = false;
 
   private readonly handleWindowPointerMove = (event: PointerEvent): void => {
+    if (this.selectionState) {
+      this.updateSelectionDrag(event);
+      return;
+    }
+
     if (this.connectionState) {
       const point = this.options.runtime.getPagePointByClient(event);
       this.updateConnectionPreview(point);
@@ -159,6 +181,11 @@ export class LeaferGraphInteractionHost<
   };
 
   private readonly handleWindowPointerUp = (event?: PointerEvent): void => {
+    if (this.selectionState) {
+      this.finishSelectionDrag();
+      return;
+    }
+
     if (this.connectionState) {
       const point = event
         ? this.options.runtime.getPagePointByClient(event)
@@ -251,11 +278,61 @@ export class LeaferGraphInteractionHost<
     }
   };
 
+  private readonly handleWindowKeyDown = (event: KeyboardEvent): void => {
+    if (event.code === "Space") {
+      this.spaceKeyPressed = true;
+    }
+  };
+
+  private readonly handleWindowKeyUp = (event: KeyboardEvent): void => {
+    if (event.code === "Space") {
+      this.spaceKeyPressed = false;
+    }
+  };
+
+  private readonly handleContainerPointerDown = (event: PointerEvent): void => {
+    if (
+      event.button !== 0 ||
+      event.defaultPrevented ||
+      this.spaceKeyPressed ||
+      event.ctrlKey
+    ) {
+      return;
+    }
+
+    const point = this.options.runtime.getPagePointByClient(event);
+    if (this.options.runtime.resolveNodeAtPoint(point)) {
+      return;
+    }
+
+    this.dragState = null;
+    this.resizeState = null;
+    this.clearConnectionState();
+    this.selectionState = {
+      startPageX: point.x,
+      startPageY: point.y,
+      currentPageX: point.x,
+      currentPageY: point.y,
+      additive: event.shiftKey,
+      started: false
+    };
+    this.syncInteractionActivityState();
+  };
+
   constructor(
     options: LeaferGraphInteractionHostOptions<TNodeState, TNodeViewState>
   ) {
     this.options = options;
+    this.selectionBoxHost = new LeaferGraphSelectionBoxHost({
+      selectionLayer: this.options.selectionLayer,
+      requestRender: () => this.options.requestRender(),
+      resolveStroke: () => this.options.resolveSelectionStroke()
+    });
     this.ownerWindow = this.options.container.ownerDocument.defaultView ?? window;
+    this.options.container.addEventListener(
+      "pointerdown",
+      this.handleContainerPointerDown
+    );
     this.ownerWindow.addEventListener(
       "pointermove",
       this.handleWindowPointerMove
@@ -265,6 +342,8 @@ export class LeaferGraphInteractionHost<
       "pointercancel",
       this.handleWindowPointerUp
     );
+    this.ownerWindow.addEventListener("keydown", this.handleWindowKeyDown);
+    this.ownerWindow.addEventListener("keyup", this.handleWindowKeyUp);
   }
 
   /** 绑定节点拖拽交互。 */
@@ -296,17 +375,33 @@ export class LeaferGraphInteractionHost<
         return;
       }
 
+      const interactiveSubTarget =
+        isWidgetInteractionTarget(event.target) ||
+        this.isPortHitTarget(event.target) ||
+        this.isResizeHandleTarget(event.target) ||
+        this.isResizeHandleHit(event, state);
+      const shiftPressed = this.isSelectionModifierPressed(event);
+
       if (!event.right && !event.middle) {
+        if (!interactiveSubTarget && shiftPressed) {
+          const mode = this.options.runtime.isNodeSelected(nodeId)
+            ? "remove"
+            : "add";
+          this.options.runtime.setSelectedNodeIds([nodeId], mode);
+          return;
+        }
+
+        if (!this.options.runtime.isNodeSelected(nodeId)) {
+          this.options.runtime.setSelectedNodeIds([nodeId], "replace");
+        }
+
         this.options.runtime.focusNode(nodeId);
       }
 
       if (
         event.right ||
         event.middle ||
-        isWidgetInteractionTarget(event.target) ||
-        this.isPortHitTarget(event.target) ||
-        this.isResizeHandleTarget(event.target) ||
-        this.isResizeHandleHit(event, state)
+        interactiveSubTarget
       ) {
         return;
       }
@@ -328,6 +423,12 @@ export class LeaferGraphInteractionHost<
     state.resizeHandle.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
       event.stopNow?.();
       event.stop?.();
+      if (!event.right && !event.middle) {
+        if (!this.options.runtime.isNodeSelected(nodeId)) {
+          this.options.runtime.setSelectedNodeIds([nodeId], "replace");
+        }
+        this.options.runtime.focusNode(nodeId);
+      }
       this.dragState = null;
       const point = this.options.runtime.getPagePointFromGraphEvent(event);
       const size = this.options.runtime.resolveNodeSize(nodeId);
@@ -361,6 +462,9 @@ export class LeaferGraphInteractionHost<
             return;
           }
 
+          if (!this.options.runtime.isNodeSelected(nodeId)) {
+            this.options.runtime.setSelectedNodeIds([nodeId], "replace");
+          }
           event.stopNow?.();
           event.stop?.();
           this.options.runtime.focusNode(nodeId);
@@ -383,6 +487,12 @@ export class LeaferGraphInteractionHost<
     state.shellView.signalButton.on(
       "pointer.down",
       (event: LeaferGraphWidgetPointerEvent) => {
+        if (!event.right && !event.middle) {
+          if (!this.options.runtime.isNodeSelected(nodeId)) {
+            this.options.runtime.setSelectedNodeIds([nodeId], "replace");
+          }
+          this.options.runtime.focusNode(nodeId);
+        }
         event.stopNow?.();
         event.stop?.();
         this.dragState = null;
@@ -439,7 +549,9 @@ export class LeaferGraphInteractionHost<
   clearInteractionState(): void {
     this.dragState = null;
     this.resizeState = null;
+    this.selectionState = null;
     this.clearConnectionState();
+    this.selectionBoxHost.hide();
     this.syncInteractionActivityState();
     this.options.container.style.cursor = "";
   }
@@ -473,11 +585,18 @@ export class LeaferGraphInteractionHost<
       "pointermove",
       this.handleWindowPointerMove
     );
+    this.options.container.removeEventListener(
+      "pointerdown",
+      this.handleContainerPointerDown
+    );
     this.ownerWindow.removeEventListener("pointerup", this.handleWindowPointerUp);
     this.ownerWindow.removeEventListener(
       "pointercancel",
       this.handleWindowPointerUp
     );
+    this.ownerWindow.removeEventListener("keydown", this.handleWindowKeyDown);
+    this.ownerWindow.removeEventListener("keyup", this.handleWindowKeyUp);
+    this.selectionBoxHost.destroy();
   }
 
   /** 启动一次节点拖拽。 */
@@ -658,6 +777,8 @@ export class LeaferGraphInteractionHost<
       mode = "link-connect";
     } else if (this.resizeState) {
       mode = "node-resize";
+    } else if (this.selectionState?.started) {
+      mode = "selection-box";
     } else if (this.dragState) {
       mode = "node-drag";
     }
@@ -743,6 +864,73 @@ export class LeaferGraphInteractionHost<
   /** 根据拖线起点方向解析目标端应命中的相反方向。 */
   private getOppositeDirection(direction: SlotDirection): SlotDirection {
     return direction === "output" ? "input" : "output";
+  }
+
+  /** 根据当前框选手势刷新矩形 overlay 和选区结果。 */
+  private updateSelectionDrag(event: PointerEvent): void {
+    const selectionState = this.selectionState;
+    if (!selectionState) {
+      return;
+    }
+
+    const point = this.options.runtime.getPagePointByClient(event);
+    selectionState.currentPageX = point.x;
+    selectionState.currentPageY = point.y;
+
+    if (
+      !selectionState.started &&
+      Math.abs(selectionState.currentPageX - selectionState.startPageX) < 4 &&
+      Math.abs(selectionState.currentPageY - selectionState.startPageY) < 4
+    ) {
+      return;
+    }
+
+    selectionState.started = true;
+    const selectionBounds = this.resolveSelectionBounds(selectionState);
+    this.selectionBoxHost.show(selectionBounds);
+    this.options.runtime.setSelectedNodeIds(
+      this.options.runtime.resolveNodeIdsInBounds(selectionBounds),
+      selectionState.additive ? "add" : "replace"
+    );
+    this.syncInteractionActivityState();
+  }
+
+  /** 结束一次空白区点击或框选拖拽。 */
+  private finishSelectionDrag(): void {
+    const selectionState = this.selectionState;
+    if (!selectionState) {
+      return;
+    }
+
+    this.selectionState = null;
+    this.selectionBoxHost.hide();
+    if (!selectionState.started && !selectionState.additive) {
+      this.options.runtime.clearSelectedNodes();
+    }
+    this.syncInteractionActivityState();
+  }
+
+  /** 统一读取当前事件里的多选辅助修饰键。 */
+  private isSelectionModifierPressed(
+    event: LeaferGraphWidgetPointerEvent
+  ): boolean {
+    const origin = event.origin as PointerEvent | undefined;
+    const eventLike = event as LeaferGraphWidgetPointerEvent & {
+      shiftKey?: boolean;
+    };
+    return Boolean(origin?.shiftKey ?? eventLike.shiftKey);
+  }
+
+  /** 把一次框选手势归一成 page 坐标矩形。 */
+  private resolveSelectionBounds(
+    selectionState: GraphSelectionState
+  ): { x: number; y: number; width: number; height: number } {
+    return {
+      x: Math.min(selectionState.startPageX, selectionState.currentPageX),
+      y: Math.min(selectionState.startPageY, selectionState.currentPageY),
+      width: Math.abs(selectionState.currentPageX - selectionState.startPageX),
+      height: Math.abs(selectionState.currentPageY - selectionState.startPageY)
+    };
   }
 
   /**

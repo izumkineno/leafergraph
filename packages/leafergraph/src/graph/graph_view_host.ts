@@ -7,6 +7,7 @@
 
 import type { App, Group } from "leafer-ui";
 import type { NodeRuntimeState } from "@leafergraph/node";
+import type { LeaferGraphSelectionUpdateMode } from "../api/graph_api_types";
 import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
 
 /**
@@ -122,6 +123,78 @@ export class LeaferGraphViewHost<
     return true;
   }
 
+  /** 读取当前所有已选节点 ID。 */
+  listSelectedNodeIds(): string[] {
+    const selectedNodeIds: string[] = [];
+
+    for (const [nodeId, node] of this.options.graphNodes) {
+      if (node.flags.selected) {
+        selectedNodeIds.push(nodeId);
+      }
+    }
+
+    return selectedNodeIds;
+  }
+
+  /** 判断某个节点当前是否处于选中态。 */
+  isNodeSelected(nodeId: string): boolean {
+    return Boolean(this.options.graphNodes.get(nodeId)?.flags.selected);
+  }
+
+  /** 批量更新节点选区。 */
+  setSelectedNodeIds(
+    nodeIds: readonly string[],
+    mode: LeaferGraphSelectionUpdateMode = "replace"
+  ): string[] {
+    const currentSelectedNodeIds = new Set(this.listSelectedNodeIds());
+    const nextNodeIds = [...new Set(nodeIds)].filter((nodeId) =>
+      this.options.graphNodes.has(nodeId)
+    );
+
+    let nextSelectedNodeIds: Set<string>;
+    switch (mode) {
+      case "add":
+        nextSelectedNodeIds = new Set([
+          ...currentSelectedNodeIds,
+          ...nextNodeIds
+        ]);
+        break;
+      case "remove":
+        nextSelectedNodeIds = new Set(currentSelectedNodeIds);
+        for (const nodeId of nextNodeIds) {
+          nextSelectedNodeIds.delete(nodeId);
+        }
+        break;
+      case "replace":
+      default:
+        nextSelectedNodeIds = new Set(nextNodeIds);
+        break;
+    }
+
+    let changed = false;
+    for (const [nodeId, state] of this.options.nodeViews) {
+      const nextSelected = nextSelectedNodeIds.has(nodeId);
+      if (Boolean(state.state.flags.selected) === nextSelected) {
+        continue;
+      }
+
+      state.state.flags.selected = nextSelected;
+      this.options.applyNodeSelectionStyles(state);
+      changed = true;
+    }
+
+    if (changed) {
+      this.options.requestRender();
+    }
+
+    return [...nextSelectedNodeIds];
+  }
+
+  /** 清空当前全部节点选区。 */
+  clearSelectedNodes(): string[] {
+    return this.setSelectedNodeIds([], "replace");
+  }
+
   /**
    * 解析一次拖拽应当带上的节点集合。
    * 当前保持与常见节点编辑器一致：
@@ -187,18 +260,5 @@ export class LeaferGraphViewHost<
   /** 整图重建前重置纯视图级运行时状态。 */
   resetViewState(): void {
     this.nodeZIndexSeed = 0;
-  }
-
-  /** 列出当前处于选中态的节点 ID。 */
-  private listSelectedNodeIds(): string[] {
-    const selectedNodeIds: string[] = [];
-
-    for (const [nodeId, node] of this.options.graphNodes) {
-      if (node.flags.selected) {
-        selectedNodeIds.push(nodeId);
-      }
-    }
-
-    return selectedNodeIds;
   }
 }

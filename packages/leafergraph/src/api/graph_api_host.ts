@@ -44,6 +44,7 @@ import type {
   LeaferGraphCreateNodeInput,
   LeaferGraphMoveNodeInput,
   LeaferGraphNodeResizeConstraint,
+  LeaferGraphSelectionUpdateMode,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
 } from "./graph_api_types";
@@ -187,6 +188,13 @@ export interface LeaferGraphApiRuntime<
   viewHost: {
     fitView(padding: number): boolean;
     setNodeSelected(nodeId: string, selected: boolean): boolean;
+    listSelectedNodeIds(): string[];
+    isNodeSelected(nodeId: string): boolean;
+    setSelectedNodeIds(
+      nodeIds: readonly string[],
+      mode?: LeaferGraphSelectionUpdateMode
+    ): string[];
+    clearSelectedNodes(): string[];
   };
   widgetHost: {
     destroyNodeWidgets(
@@ -327,6 +335,29 @@ export class LeaferGraphApiHost<
   /** 设置单个节点的选中态。 */
   setNodeSelected(nodeId: string, selected: boolean): boolean {
     return this.options.runtime.viewHost.setNodeSelected(nodeId, selected);
+  }
+
+  /** 列出当前全部已选节点。 */
+  listSelectedNodeIds(): string[] {
+    return this.options.runtime.viewHost.listSelectedNodeIds();
+  }
+
+  /** 判断单个节点当前是否处于选中态。 */
+  isNodeSelected(nodeId: string): boolean {
+    return this.options.runtime.viewHost.isNodeSelected(nodeId);
+  }
+
+  /** 批量更新当前节点选区。 */
+  setSelectedNodeIds(
+    nodeIds: readonly string[],
+    mode?: LeaferGraphSelectionUpdateMode
+  ): string[] {
+    return this.options.runtime.viewHost.setSelectedNodeIds(nodeIds, mode);
+  }
+
+  /** 清空全部已选节点。 */
+  clearSelectedNodes(): string[] {
+    return this.options.runtime.viewHost.clearSelectedNodes();
   }
 
   /** 设置单个节点的折叠态。 */

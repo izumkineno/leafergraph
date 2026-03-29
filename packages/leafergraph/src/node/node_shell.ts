@@ -26,8 +26,6 @@ export interface NodeShellRenderTheme {
   selectedRingOpacity: number;
   cardFill: string;
   cardStroke: string;
-  cardPressFill: string;
-  cardPressStroke: string;
   headerFill: string;
   headerDividerFill: string;
   titleFill: string;
@@ -159,15 +157,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     stroke: theme.cardStroke,
     strokeWidth: 1,
     cornerRadius: theme.nodeRadius,
-    cursor: "grab",
-    pressStyle: {
-      fill: theme.cardPressFill,
-      stroke: theme.cardPressStroke
-    },
-    selectedStyle: {
-      stroke: selectedStroke,
-      strokeWidth: 1.5
-    }
+    cursor: "grab"
   });
 
   const header = new Rect({

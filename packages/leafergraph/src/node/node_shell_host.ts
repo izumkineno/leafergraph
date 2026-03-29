@@ -114,10 +114,8 @@ export class LeaferGraphNodeShellHost<
 
   /**
    * 将运行时 `flags.selected` 同步成节点视觉状态。
-   * 这里采用“外圈 ring + 卡片描边增强”的组合：
-   * 1. 在亮色画布里足够清晰
-   * 2. 不依赖重阴影，性能和层次都更稳定
-   * 3. 不需要重建整节点视图
+   * 当前只恢复外圈选中边框，不恢复卡片本体描边，
+   * 这样既能保留选区反馈，也不会让节点内部边框变重。
    */
   applyNodeSelectionStyles(state: NodeViewState<TNodeState>): void {
     const selected = Boolean(state.state.flags.selected);
@@ -127,12 +125,7 @@ export class LeaferGraphNodeShellHost<
       stroke: ringStroke,
       opacity: 0.92
     };
-    state.card.selectedStyle = {
-      stroke: ringStroke,
-      strokeWidth: 1.5
-    };
     state.selectedRing.selected = selected;
-    state.card.selected = selected;
     this.syncNodeResizeHandleVisibility(state);
   }
 
@@ -240,14 +233,6 @@ export class LeaferGraphNodeShellHost<
       strokeWidth: 1,
       cornerRadius: this.options.style.nodeRadius,
       cursor: "grab",
-      pressStyle: {
-        fill: this.options.style.missingNodePressFill,
-        stroke: this.options.style.missingNodeStroke
-      },
-      selectedStyle: {
-        stroke: selectedStroke,
-        strokeWidth: 1.5
-      }
     });
     const label = new LeaferUI.Text({
       x: 20,

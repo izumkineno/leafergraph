@@ -301,6 +301,67 @@ export function useExampleGraph(): UseExampleGraphResult {
     trackedLinksRef.current.clear();
   };
 
+  /** 批量删除节点，并把关联连线清理与日志语义统一收口。 */
+  const removeNodesWithLogging = (nodeIds: readonly string[]): void => {
+    const graph = graphRef.current;
+    if (!graph) {
+      appendLog("图实例尚未就绪，暂时无法删除节点");
+      return;
+    }
+
+    const uniqueNodeIds = [...new Set(nodeIds)];
+    if (!uniqueNodeIds.length) {
+      return;
+    }
+
+    const linkIdsToForget = new Set<string>();
+    const removedNodeLabels: string[] = [];
+    let removedCount = 0;
+
+    for (const nodeId of uniqueNodeIds) {
+      const relatedLinks = listTrackedLinksByNodeId(nodeId);
+      const snapshot = graph.getNodeSnapshot(nodeId);
+      const removed = graph.removeNode(nodeId);
+      if (!removed) {
+        continue;
+      }
+
+      removedCount += 1;
+      removedNodeLabels.push(snapshot?.title?.trim() || nodeId);
+      for (const trackedLink of relatedLinks) {
+        linkIdsToForget.add(trackedLink.id);
+      }
+    }
+
+    if (!removedCount) {
+      if (uniqueNodeIds.length === 1) {
+        appendLog(`删除节点失败：未找到节点 ${uniqueNodeIds[0]}`);
+      } else {
+        appendLog(`批量删除节点失败：未找到 ${uniqueNodeIds.length} 个目标节点`);
+      }
+      return;
+    }
+
+    for (const linkId of linkIdsToForget) {
+      forgetTrackedLink(linkId);
+    }
+
+    if (removedCount === 1) {
+      appendLog(
+        `已删除节点：${removedNodeLabels[0]}${
+          linkIdsToForget.size ? `，并清理 ${linkIdsToForget.size} 条关联连线` : ""
+        }`
+      );
+      return;
+    }
+
+    appendLog(
+      `已批量删除 ${removedCount} 个节点：${removedNodeLabels.join("、")}${
+        linkIdsToForget.size ? `，并清理 ${linkIdsToForget.size} 条关联连线` : ""
+      }`
+    );
+  };
+
   /** graph 重建后重放已成功注册过的 bundle，保持 demo 可继续使用这些节点。 */
   const replayRegisteredBundles = async (
     graph: LeaferGraph
@@ -481,33 +542,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       setLinkPropagationAnimationPresetState(preset);
     },
     removeNode(nodeId) {
-      const graph = graphRef.current;
-      if (!graph) {
-        appendLog("图实例尚未就绪，暂时无法删除节点");
-        return;
-      }
-
-      const relatedLinks = listTrackedLinksByNodeId(nodeId);
-      const snapshot = graph.getNodeSnapshot(nodeId);
-      const removed = graph.removeNode(nodeId);
-      if (!removed) {
-        appendLog(`删除节点失败：未找到节点 ${nodeId}`);
-        return;
-      }
-
-      for (const trackedLink of relatedLinks) {
-        forgetTrackedLink(trackedLink.id);
-      }
-
-      appendLog(
-        `已删除节点：${snapshot?.title?.trim() || nodeId} · ${
-          snapshot?.type ?? "unknown"
-        }${
-          relatedLinks.length
-            ? `，并清理 ${relatedLinks.length} 条关联连线`
-            : ""
-        }`
-      );
+      removeNodesWithLogging([nodeId]);
     },
     removeLink(linkId) {
       const graph = graphRef.current;
@@ -778,6 +813,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       createNode: createNodeWithLogging,
       createLink: createLinkWithLogging,
       removeNode: actions.removeNode,
+      removeNodes: removeNodesWithLogging,
       removeLink: actions.removeLink,
       appendLog
     });
