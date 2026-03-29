@@ -5,14 +5,15 @@ export const LEAFER_GRAPH_ON_PLAY_NODE_TYPE = "system/on-play";
 
 export const leaferGraphOnPlayNodeDefinition: NodeDefinition = {
   type: LEAFER_GRAPH_ON_PLAY_NODE_TYPE,
-  title: "On Play",
+  title: "Start Event",
   category: "System",
-  description: "图级 Play / Step 的正式入口节点",
+  description: "图级 Play / Step 的启动事件源",
   outputs: [
     {
-      name: "Event",
+      name: "Start",
       type: "event",
-      label: "Event"
+      label: "Start",
+      shape: "box"
     }
   ],
   onExecute(_node, context, api) {

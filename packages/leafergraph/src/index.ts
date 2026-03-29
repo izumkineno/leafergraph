@@ -435,7 +435,7 @@ export class LeaferGraph {
     return this.apiHost.executeNode(nodeId, context);
   }
 
-  /** 从全部 `OnPlay` 节点开始图级运行。 */
+  /** 从全部 `system/on-play` 启动事件节点开始图级运行。 */
   play(): boolean {
     return this.apiHost.play();
   }

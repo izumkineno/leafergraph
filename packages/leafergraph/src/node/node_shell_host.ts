@@ -9,8 +9,7 @@ import { Box, Group, Rect } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import type {
   NodeResizeConfig,
-  NodeRegistry,
-  SlotType
+  NodeRegistry
 } from "@leafergraph/node";
 import type {
   LeaferGraphNodeExecutionState,
@@ -32,6 +31,7 @@ import type {
 import { createNodeShell } from "./node_shell";
 import type { NodeShellPortLayout } from "./node_port";
 import type { LeaferGraphNodeShellStyleConfig } from "../graph/graph_runtime_style";
+import { resolveSlotTypeFill } from "./node_slot_style";
 
 type LeaferGraphNodeShellThemeMode = "light" | "dark";
 
@@ -378,7 +378,10 @@ export class LeaferGraphNodeShellHost<
       return port.slotColor;
     }
 
-    const typeColor = this.resolveSlotTypeFill(port.slotType);
+    const typeColor = resolveSlotTypeFill(port.slotType, {
+      slotTypeFillMap: this.options.style.slotTypeFillMap,
+      genericFill: this.options.style.genericPortFill
+    });
     if (typeColor) {
       return typeColor;
     }
@@ -386,37 +389,6 @@ export class LeaferGraphNodeShellHost<
     return port.direction === "input"
       ? this.options.style.inputPortFill
       : this.options.style.outputPortFill;
-  }
-
-  /** 根据槽位类型查颜色；泛型槽位 `0` 使用统一中性色。 */
-  private resolveSlotTypeFill(type: SlotType | undefined): string | undefined {
-    if (type === 0) {
-      return this.options.style.genericPortFill;
-    }
-
-    if (typeof type !== "string") {
-      return undefined;
-    }
-
-    const normalized = type.trim().toLowerCase();
-    if (!normalized) {
-      return undefined;
-    }
-
-    const candidates = [
-      normalized,
-      normalized.replace(/\[\]$/, ""),
-      ...normalized.split(/[\s|,:/]+/).filter(Boolean)
-    ];
-
-    for (const candidate of candidates) {
-      const color = this.options.style.slotTypeFillMap[candidate];
-      if (color) {
-        return color;
-      }
-    }
-
-    return undefined;
   }
 
   /** 解析节点状态灯颜色。 */

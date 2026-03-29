@@ -210,13 +210,13 @@ graph.destroy();
 
 | 节点类型 | 作用 |
 | --- | --- |
-| `system/on-play` | 图级 `play / step` 的正式入口节点 |
+| `system/on-play` | 图级 `play / step` 的启动事件节点 |
 | `system/timer` | 图级定时触发节点，接受 `Start` 输入，输出 `Tick` |
 
 它们的语义是：
 
 - `system/on-play`
-  - 只在图级 `play / step` 中作为入口节点使用
+  - 只在图级 `play / step` 中作为启动事件节点使用
   - 会把当前 `LeaferGraphExecutionContext` 写到输出槽位 `0`
 - `system/timer`
   - 需要上游 `Start` 才会建立图级循环

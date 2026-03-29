@@ -8,7 +8,7 @@
 - 图级 `play / step / stop`
 - `event` 输入到 `onAction(...)` 的分发语义
 - 执行反馈事件与本地 feedback adapter
-- 内建 `system/on-play` 与 `system/timer`
+- 内建 `system/on-play`（Start Event）与 `system/timer`
 
 它不负责：
 

@@ -17,6 +17,7 @@ import {
 } from "./link";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import { resolveNodePortAnchorYForNode } from "../node/node_port";
+import { resolveNodeSlotFill } from "../node/node_slot_style";
 
 /** 连线视图状态。 */
 export interface GraphLinkViewState<TNodeState = unknown> {
@@ -95,6 +96,8 @@ interface LeaferGraphLinkHostOptions<TNodeState extends LeaferGraphLinkNodeState
   defaultNodeWidth: number;
   portSize: number;
   stroke: string;
+  slotTypeFillMap: Readonly<Record<string, string>>;
+  genericPortFill: string;
   strokeWidth?: number;
 }
 
@@ -227,7 +230,7 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
       path: buildLinkPathFromCurve(curve),
       endArrow: "none",
       fill: "transparent",
-      stroke: this.options.stroke,
+      stroke: this.resolveLinkStroke(source, sourceSlot),
       strokeWidth: this.options.strokeWidth ?? 3,
       strokeCap: "round",
       strokeJoin: "round",
@@ -255,6 +258,17 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     });
 
     link.view.path = buildLinkPathFromCurve(curve);
+    link.view.stroke = this.resolveLinkStroke(source, link.sourceSlot);
+  }
+
+  /** 正式连线颜色统一跟随 source output slot 的类型色。 */
+  private resolveLinkStroke(source: TNodeState, sourceSlot: number): string {
+    return (
+      resolveNodeSlotFill(source, "output", sourceSlot, {
+        slotTypeFillMap: this.options.slotTypeFillMap,
+        genericFill: this.options.genericPortFill
+      }) ?? this.options.stroke
+    );
   }
 
   /**

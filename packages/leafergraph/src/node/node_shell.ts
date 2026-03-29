@@ -12,6 +12,7 @@ import {
   resolveNodePortHitAreaBounds,
   type NodeShellPortLayout
 } from "./node_port";
+import { resolveSlotCornerRadius } from "./node_slot_style";
 
 /**
  * 节点壳渲染需要的样式主题。
@@ -86,7 +87,7 @@ export interface CreateNodeShellOptions {
  */
 export interface NodeShellPortView {
   layout: NodeShellPortLayout;
-  port: Rect;
+  port: Group | Path | Rect;
   label: Text;
   highlight: Rect;
   hitArea: Rect;
@@ -290,6 +291,14 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
 
   for (const port of shellLayout.ports) {
     const portHitAreaBounds = resolveNodePortHitAreaBounds(port);
+    const highlightCornerRadius = resolveSlotFrameCornerRadius(
+      port.slotShape,
+      Math.max(port.portWidth + 8, port.portHeight + 8)
+    );
+    const hitAreaCornerRadius = resolveSlotFrameCornerRadius(
+      port.slotShape,
+      Math.max(portHitAreaBounds.width, portHitAreaBounds.height)
+    );
     const portHighlight = new Rect({
       x: port.portX - 4,
       y: port.portY - 4,
@@ -298,26 +307,12 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       fill: "transparent",
       stroke: "rgba(56, 189, 248, 0.92)",
       strokeWidth: 2,
-      cornerRadius: 999,
+      cornerRadius: highlightCornerRadius,
       opacity: 0,
       visible: false,
       hittable: false
     });
-    const portView = new Rect({
-      x: port.portX,
-      y: port.portY,
-      width: port.portWidth,
-      height: port.portHeight,
-      fill:
-        port.slotColor ??
-        (port.direction === "input"
-          ? theme.inputPortFill
-          : theme.outputPortFill),
-      stroke: theme.portStroke,
-      strokeWidth: theme.portStrokeWidth,
-      cornerRadius: 999,
-      hittable: false
-    });
+    const portView = createNodeShellPortGlyph(port, theme);
     const portLabel = new Text({
       x: port.labelX,
       y: port.labelY,
@@ -340,7 +335,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       fill: "rgba(255, 255, 255, 0.001)",
       stroke: "transparent",
       strokeWidth: 0,
-      cornerRadius: 999,
+      cornerRadius: hitAreaCornerRadius,
       cursor: "crosshair",
       hoverStyle: {
         fill: "rgba(255, 255, 255, 0.001)",
@@ -471,4 +466,124 @@ function normalizeNodeErrorMessage(errorMessage: string | undefined): string | n
 
   const normalized = errorMessage.replace(/\s+/g, " ").trim();
   return normalized || null;
+}
+
+/** 根据 slot 形状创建真正显示在节点壳上的 port glyph。 */
+function createNodeShellPortGlyph(
+  port: NodeShellPortLayout,
+  theme: NodeShellRenderTheme
+): Group | Path | Rect {
+  const fill =
+    port.slotColor ??
+    (port.direction === "input" ? theme.inputPortFill : theme.outputPortFill);
+
+  switch (port.slotShape) {
+    case "box":
+      return new Rect({
+        x: port.portX,
+        y: port.portY,
+        width: port.portWidth,
+        height: port.portHeight,
+        fill,
+        stroke: theme.portStroke,
+        strokeWidth: theme.portStrokeWidth,
+        cornerRadius: resolveSlotFrameCornerRadius(
+          port.slotShape,
+          Math.max(port.portWidth, port.portHeight)
+        ),
+        hittable: false
+      });
+    case "arrow":
+      return new Path({
+        path: buildArrowPortPath(port),
+        fill,
+        stroke: theme.portStroke,
+        strokeWidth: Math.max(1.5, theme.portStrokeWidth * 0.7),
+        strokeJoin: "round",
+        strokeCap: "round",
+        hittable: false
+      });
+    case "grid":
+      return createGridPortGlyph(port, fill, theme);
+    case "circle":
+    default:
+      return new Rect({
+        x: port.portX,
+        y: port.portY,
+        width: port.portWidth,
+        height: port.portHeight,
+        fill,
+        stroke: theme.portStroke,
+        strokeWidth: theme.portStrokeWidth,
+        cornerRadius: 999,
+        hittable: false
+      });
+  }
+}
+
+/** `grid` 形状用 2x2 小格子表达，避免和普通方形端口混淆。 */
+function createGridPortGlyph(
+  port: NodeShellPortLayout,
+  fill: string,
+  theme: NodeShellRenderTheme
+): Group {
+  const group = new Group({
+    hittable: false
+  });
+  const gap = 1.5;
+  const cellWidth = Math.max(2, (port.portWidth - gap) / 2);
+  const cellHeight = Math.max(2, (port.portHeight - gap) / 2);
+  const strokeWidth = Math.max(1, theme.portStrokeWidth * 0.55);
+  const cellRadius = resolveSlotFrameCornerRadius(
+    "grid",
+    Math.max(cellWidth, cellHeight)
+  );
+
+  const cells = [
+    [port.portX, port.portY],
+    [port.portX + cellWidth + gap, port.portY],
+    [port.portX, port.portY + cellHeight + gap],
+    [port.portX + cellWidth + gap, port.portY + cellHeight + gap]
+  ] as const;
+
+  for (const [x, y] of cells) {
+    group.add(
+      new Rect({
+        x,
+        y,
+        width: cellWidth,
+        height: cellHeight,
+        fill,
+        stroke: theme.portStroke,
+        strokeWidth,
+        cornerRadius: cellRadius,
+        hittable: false
+      })
+    );
+  }
+
+  return group;
+}
+
+/** `arrow` 形状用朝向相关的小三角表达输入/输出方向。 */
+function buildArrowPortPath(port: NodeShellPortLayout): string {
+  const x = port.portX;
+  const y = port.portY;
+  const width = port.portWidth;
+  const height = port.portHeight;
+  const centerY = y + height / 2;
+
+  if (port.direction === "input") {
+    return `M ${x} ${centerY} L ${x + width} ${y} L ${x + width} ${y + height} Z`;
+  }
+
+  return `M ${x + width} ${centerY} L ${x} ${y} L ${x} ${y + height} Z`;
+}
+
+/** 非圆形端口统一使用较小圆角，事件方形和显式方形都走这条规则。 */
+function resolveSlotFrameCornerRadius(
+  shape: NodeShellPortLayout["slotShape"],
+  size: number
+): number {
+  return resolveSlotCornerRadius(shape, size);
 }

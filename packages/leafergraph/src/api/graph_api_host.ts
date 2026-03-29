@@ -378,7 +378,7 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.executeNode(nodeId, context);
   }
 
-  /** 从全部入口节点开始图级运行。 */
+  /** 从全部启动事件节点开始图级运行。 */
   play(): boolean {
     return this.options.runtime.graphExecutionHost.play();
   }

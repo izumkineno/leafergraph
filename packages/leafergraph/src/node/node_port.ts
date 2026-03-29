@@ -5,8 +5,14 @@
  * 负责输入输出端口的布局、锚点和几何换算。
  */
 
-import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
+import type {
+  NodeRuntimeState,
+  NodeSlotShape,
+  SlotDirection,
+  SlotType
+} from "@leafergraph/node";
 import type { NodeShellLayoutMetrics } from "./node_layout";
+import { resolveNodeSlotShape } from "./node_slot_style";
 
 /**
  * 节点端口及其标签的布局结果。
@@ -28,6 +34,7 @@ export interface NodeShellPortLayout {
   anchorY: number;
   slotType?: SlotType;
   slotColor?: string;
+  slotShape: NodeSlotShape;
 }
 
 export interface NodeShellPortHitAreaBounds {
@@ -141,7 +148,8 @@ export function resolveNodePortsLayout(
         textAlign: "left",
         anchorY,
         slotType: firstInput?.type,
-        slotColor: firstInput?.color
+        slotColor: firstInput?.color,
+        slotShape: resolveNodeSlotShape(firstInput)
       });
     }
 
@@ -161,7 +169,8 @@ export function resolveNodePortsLayout(
         textAlign: "right",
         anchorY,
         slotType: firstOutput?.type,
-        slotColor: firstOutput?.color
+        slotColor: firstOutput?.color,
+        slotShape: resolveNodeSlotShape(firstOutput)
       });
     }
 
@@ -193,7 +202,8 @@ export function resolveNodePortsLayout(
       textAlign: "left",
       anchorY,
       slotType: slot?.type,
-      slotColor: slot?.color
+      slotColor: slot?.color,
+      slotShape: resolveNodeSlotShape(slot)
     });
   }
 
@@ -217,7 +227,8 @@ export function resolveNodePortsLayout(
       textAlign: "right",
       anchorY,
       slotType: slot?.type,
-      slotColor: slot?.color
+      slotColor: slot?.color,
+      slotShape: resolveNodeSlotShape(slot)
     });
   }
 

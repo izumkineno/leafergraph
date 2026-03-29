@@ -247,7 +247,9 @@ export function createLeaferGraphSceneRuntimeAssembly<
     layoutMetrics: options.nodeShellLayoutMetrics,
     defaultNodeWidth: options.linkDefaultNodeWidth,
     portSize: options.linkPortSize,
-    stroke: options.linkStroke
+    stroke: options.linkStroke,
+    slotTypeFillMap: options.nodeShellStyle.slotTypeFillMap,
+    genericPortFill: options.nodeShellStyle.genericPortFill
   });
 
   sceneHost = new LeaferGraphSceneHost({
@@ -352,7 +354,9 @@ export function createLeaferGraphSceneRuntimeAssembly<
         state.state.layout.height ??
         options.nodeShellStyle.defaultNodeMinHeight
     }),
-    resolveConnectionPreviewStroke: () =>
+    slotTypeFillMap: options.nodeShellStyle.slotTypeFillMap,
+    genericPortFill: options.nodeShellStyle.genericPortFill,
+    resolveConnectionPreviewStrokeFallback: () =>
       options.resolveSelectedStroke(options.themeHost.getMode())
   });
 

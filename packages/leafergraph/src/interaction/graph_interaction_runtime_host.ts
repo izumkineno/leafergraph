@@ -20,6 +20,10 @@ import {
   buildLinkPath
 } from "../link/link";
 import { resolveNodePortHitAreaBounds } from "../node/node_port";
+import {
+  normalizeComparableSlotTypes,
+  resolveNodeSlotFill
+} from "../node/node_slot_style";
 
 /** 多选拖拽时记录的单个节点初始位置。 */
 export interface GraphDragNodePosition {
@@ -152,7 +156,9 @@ interface LeaferGraphInteractionRuntimeHostOptions<
     width: number;
     height: number;
   };
-  resolveConnectionPreviewStroke(): string;
+  slotTypeFillMap: Readonly<Record<string, string>>;
+  genericPortFill: string;
+  resolveConnectionPreviewStrokeFallback(): string;
 }
 
 /**
@@ -179,7 +185,7 @@ export class LeaferGraphInteractionRuntimeHost<
     this.previewPath = new Path({
       name: "graph-connection-preview",
       path: "",
-      stroke: this.options.resolveConnectionPreviewStroke(),
+      stroke: this.options.resolveConnectionPreviewStrokeFallback(),
       strokeWidth: 3,
       strokeCap: "round",
       strokeJoin: "round",
@@ -368,7 +374,7 @@ export class LeaferGraphInteractionRuntimeHost<
           ? PORT_DIRECTION_LEFT
           : PORT_DIRECTION_RIGHT;
 
-    this.previewPath.stroke = this.options.resolveConnectionPreviewStroke();
+    this.previewPath.stroke = this.resolveConnectionPreviewStroke(source);
     this.previewPath.path = buildLinkPath(
       [source.center.x, source.center.y],
       [endPoint.x, endPoint.y],
@@ -593,6 +599,23 @@ export class LeaferGraphInteractionRuntimeHost<
     this.previewPath.remove();
     this.options.linkLayer.add(this.previewPath);
   }
+
+  /** 拖线预览统一跟随当前起始端口的最终展示色。 */
+  private resolveConnectionPreviewStroke(
+    source: LeaferGraphConnectionPortState
+  ): string {
+    const node = this.options.nodeViews.get(source.nodeId)?.state;
+    if (!node) {
+      return this.options.resolveConnectionPreviewStrokeFallback();
+    }
+
+    return (
+      resolveNodeSlotFill(node, source.direction, source.slot, {
+        slotTypeFillMap: this.options.slotTypeFillMap,
+        genericFill: this.options.genericPortFill
+      }) ?? this.options.resolveConnectionPreviewStrokeFallback()
+    );
+  }
 }
 
 function createConnectionPortState<
@@ -680,8 +703,8 @@ function areSlotTypesCompatible(
     return true;
   }
 
-  const sourceTypes = normalizeSlotTypes(sourceType);
-  const targetTypes = normalizeSlotTypes(targetType);
+  const sourceTypes = normalizeComparableSlotTypes(sourceType);
+  const targetTypes = normalizeComparableSlotTypes(targetType);
 
   if (!sourceTypes.length || !targetTypes.length) {
     return true;
@@ -695,15 +718,4 @@ function areSlotTypesCompatible(
   }
 
   return sourceTypes.some((type) => targetTypes.includes(type));
-}
-
-function normalizeSlotTypes(type: SlotType): string[] {
-  if (type === 0) {
-    return [];
-  }
-
-  return String(type)
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
 }
