@@ -12,7 +12,7 @@ import type {
 import type {
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetTextEditRequest
-} from "../../api/plugin";
+} from "@leafergraph/contracts";
 import { bindPressWidgetInteraction } from "../widget_interaction";
 import {
   WIDGET_FIELD_FONT_SIZE,

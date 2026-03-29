@@ -21,6 +21,7 @@
     "test": "bun test ./tests"
   },
   "peerDependencies": {
+    "@leafergraph/contracts": "^0.1.0",
     "@leafergraph/execution": "^0.1.0",
     "@leafergraph/node": "^0.1.0",
     "leafer-ui": "^2.0.3",

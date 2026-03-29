@@ -2,14 +2,7 @@
  * 图文档 diff 轻量子出口。
  *
  * @remarks
- * 负责导出不依赖 UI 宿主的文档 diff 工具，供同步层等纯数据模块复用。
+ * 为兼容现有 `leafergraph/graph-document-diff` 子路径而保留，
+ * 实际真源已经迁到 `@leafergraph/contracts/graph-document-diff`。
  */
-export {
-  applyGraphDocumentDiffToDocument,
-  createUpdateNodeInputFromNodeSnapshot
-} from "./api/graph_document_diff";
-export type {
-  ApplyGraphDocumentDiffResult,
-  GraphDocumentDiff,
-  GraphDocumentFieldChange
-} from "./api/graph_document_diff";
+export * from "@leafergraph/contracts/graph-document-diff";

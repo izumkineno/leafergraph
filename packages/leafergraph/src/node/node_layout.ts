@@ -6,7 +6,7 @@
  */
 
 import type { NodeRuntimeState } from "@leafergraph/node";
-import type { LeaferGraphWidgetBounds } from "../api/plugin";
+import type { LeaferGraphWidgetBounds } from "@leafergraph/contracts";
 import type { NodeShellPortLayout } from "./node_port";
 import { resolveNodePortsLayout } from "./node_port";
 

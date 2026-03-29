@@ -13,7 +13,7 @@ import type {
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetThemeContext
-} from "leafergraph";
+} from "@leafergraph/contracts";
 import type { Group } from "leafer-ui";
 
 import {

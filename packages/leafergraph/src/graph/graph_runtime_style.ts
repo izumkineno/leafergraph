@@ -8,7 +8,7 @@
 import type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import type { NodeShellRenderTheme } from "../node/node_shell";
 

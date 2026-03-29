@@ -13,7 +13,7 @@ import type {
   LeaferGraphWidgetRenderInstance,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetThemeContext
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 import { LeaferGraphWidgetRegistry } from "./widget_registry";
 
 const MISSING_WIDGET_FILL = "rgba(220, 38, 38, 0.92)";

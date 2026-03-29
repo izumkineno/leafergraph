@@ -12,7 +12,7 @@ import type {
   NodeWidgetOptionItem,
   NodeWidgetSpec
 } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import type {
   LeaferGraphWidgetInteractionBinding
 } from "../widget_interaction";

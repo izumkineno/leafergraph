@@ -11,7 +11,7 @@ import type {
   LeaferGraphInteractionActivityState,
   LeaferGraphConnectionPortState,
   LeaferGraphInteractionCommitEvent
-} from "../api/graph_api_types";
+} from "@leafergraph/contracts";
 import type {
   GraphDragNodePosition,
   LeaferGraphInteractionRuntimeLike

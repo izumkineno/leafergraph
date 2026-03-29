@@ -21,7 +21,7 @@ import type {
   LeaferGraphNodeSlotInput,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "../api/graph_api_types";
+} from "@leafergraph/contracts";
 import type {
   GraphNodeProperties,
   LeaferGraphRenderableNodeState

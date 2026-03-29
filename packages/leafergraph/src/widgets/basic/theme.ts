@@ -5,7 +5,7 @@
  * 负责亮色和暗色两套基础控件主题 token。
  */
 
-import type { LeaferGraphThemeMode } from "../../api/plugin";
+import type { LeaferGraphThemeMode } from "@leafergraph/contracts";
 import type { BasicWidgetTheme } from "./types";
 
 /**

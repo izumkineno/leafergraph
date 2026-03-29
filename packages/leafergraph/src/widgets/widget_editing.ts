@@ -18,7 +18,7 @@ import type {
   LeaferGraphWidgetOptionsMenuRequest,
   LeaferGraphWidgetTextEditRequest,
   LeaferGraphWidgetThemeContext
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 
 const LEAFER_GRAPH_WIDGET_OVERLAY_STYLE_ID = "leafergraph-widget-overlay-style";
 const LEAFER_GRAPH_WIDGET_MENU_CLASS = "leafergraph-widget-menu";

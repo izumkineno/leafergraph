@@ -10,7 +10,7 @@ import type {
   RuntimeAdapter,
   RuntimeFeedbackEvent,
   LeaferGraphNodeStateChangeEvent
-} from "../api/graph_api_types";
+} from "@leafergraph/contracts";
 
 interface LeaferGraphLocalRuntimeAdapterOptions {
   executionAdapter: ExecutionFeedbackAdapter;

@@ -17,7 +17,7 @@ import type {
   LeaferGraphNodeStateChangeReason,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "../api/graph_api_types";
+} from "@leafergraph/contracts";
 
 type LeaferGraphSceneRuntimeNodeViewState<
   TNodeState extends NodeRuntimeState = NodeRuntimeState

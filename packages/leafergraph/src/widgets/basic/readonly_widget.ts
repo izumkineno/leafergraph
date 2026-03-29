@@ -6,7 +6,7 @@
  */
 
 import type { NodeBaseWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import { bindPressWidgetInteraction } from "../widget_interaction";
 import { WidgetFieldView } from "./field_view";
 import { BasicWidgetController, runtimeRequestRender } from "./template";

@@ -9,8 +9,8 @@
 import type { GraphLink } from "@leafergraph/node";
 import { Arrow } from "@leafer-in/arrow";
 import { Group, Rect } from "leafer-ui";
-import type { LeaferGraphThemeMode } from "../api/plugin";
-import type { LeaferGraphLinkPropagationEvent } from "../api/graph_api_types";
+import type { LeaferGraphThemeMode } from "@leafergraph/contracts";
+import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/contracts";
 import type { LeaferGraphDataFlowAnimationStyleConfig } from "../graph/graph_runtime_style";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import { buildLinkPathFromCurve, sampleLinkCurvePoint } from "./link";

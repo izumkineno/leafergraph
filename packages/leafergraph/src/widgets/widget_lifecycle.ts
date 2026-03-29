@@ -12,7 +12,7 @@ import type {
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetRendererContext
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 
 /**
  * Widget 标题文本的创建参数。

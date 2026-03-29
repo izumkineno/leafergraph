@@ -61,7 +61,7 @@ export type {
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetLifecycleState,
   LeaferGraphWidgetOptionsMenuRequest
-} from "./api/plugin";
+} from "@leafergraph/contracts";
 export type {
   ExecutionFeedbackAdapter,
   ExecutionFeedbackEvent,
@@ -110,7 +110,7 @@ export type {
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateDocumentInput,
   LeaferGraphUpdateNodeInput
-} from "./api/graph_api_types";
+} from "@leafergraph/contracts";
 export { LEAFER_GRAPH_ON_PLAY_NODE_TYPE } from "./node/builtin/on_play_node";
 export {
   LEAFER_GRAPH_TIMER_DEFAULT_INTERVAL_MS,
@@ -124,12 +124,12 @@ export type {
   ApplyGraphDocumentDiffResult,
   GraphDocumentDiff,
   GraphDocumentFieldChange
-} from "./api/graph_document_diff";
+} from "@leafergraph/contracts/graph-document-diff";
 export {
   applyGraphDocumentDiffToDocument,
   createCreateNodeInputFromNodeSnapshot,
   createUpdateNodeInputFromNodeSnapshot
-} from "./api/graph_document_diff";
+} from "@leafergraph/contracts/graph-document-diff";
 export {
   createWidgetHitArea,
   createWidgetLabel,
@@ -151,12 +151,12 @@ import type {
   LeaferGraphOptions,
   LeaferGraphThemeMode,
   LeaferGraphWidgetEntry
-} from "./api/plugin";
+} from "@leafergraph/contracts";
 import {
   createUpdateNodeInputFromNodeSnapshot,
   type ApplyGraphDocumentDiffResult,
   type GraphDocumentDiff
-} from "./api/graph_document_diff";
+} from "@leafergraph/contracts/graph-document-diff";
 import type { LeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import { createLeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import {
@@ -183,7 +183,7 @@ import type {
   LeaferGraphSelectionUpdateMode,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "./api/graph_api_types";
+} from "@leafergraph/contracts";
 
 interface LeaferGraphFindHost {
   findId?(id: string): unknown;

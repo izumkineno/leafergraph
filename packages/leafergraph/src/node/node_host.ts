@@ -12,7 +12,7 @@ import {
   type NodeShellLayoutMetrics
 } from "./node_layout";
 import type { NodeShellView } from "./node_shell";
-import type { LeaferGraphWidgetRenderInstance } from "../api/plugin";
+import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/contracts";
 
 type LeaferGraphNodeShellLayout = ReturnType<typeof resolveNodeShellLayout>;
 

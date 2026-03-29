@@ -4,7 +4,7 @@ import type {
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
   RuntimeFeedbackEvent
-} from "../api/graph_api_types";
+} from "@leafergraph/contracts";
 
 /** 外部 runtime feedback 投影到主包运行时宿主所需的最小壳面。 */
 export interface LeaferGraphExternalRuntimeFeedbackProjectionHost {

@@ -15,7 +15,7 @@ import type {
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetRendererLike
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 
 /**
  * 注册后的 Widget 条目。

@@ -13,7 +13,7 @@ import type {
   LeaferGraphWidgetEditingOptions,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetThemeContext
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 import { LeaferGraphThemeHost } from "./graph_theme_host";
 import {
   LeaferGraphWidgetEditingManager,

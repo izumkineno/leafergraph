@@ -12,7 +12,7 @@ import type {
   LeaferGraphWidgetEditingOptions,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetThemeContext
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 import {
   LeaferGraphApiHost,
   type LeaferGraphApiRuntime

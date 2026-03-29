@@ -1,5 +1,6 @@
 import type { GraphLink, NodeRuntimeState, NodeSerializeResult } from "@leafergraph/node";
-import type { LeaferGraph, LeaferGraphCreateNodeInput } from "leafergraph";
+import type { LeaferGraph } from "leafergraph";
+import type { LeaferGraphCreateNodeInput } from "@leafergraph/contracts";
 import type {
   LeaferContextMenu,
   LeaferContextMenuContext,

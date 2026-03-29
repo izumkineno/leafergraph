@@ -6,7 +6,7 @@
  */
 
 import type { Group } from "leafer-ui";
-import type { LeaferGraphWidgetBounds } from "../api/plugin";
+import type { LeaferGraphWidgetBounds } from "@leafergraph/contracts";
 
 /**
  * Widget 命中热区统一使用的图元名称。

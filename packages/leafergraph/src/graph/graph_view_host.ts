@@ -7,7 +7,7 @@
 
 import type { App, Group } from "leafer-ui";
 import type { NodeRuntimeState } from "@leafergraph/node";
-import type { LeaferGraphSelectionUpdateMode } from "../api/graph_api_types";
+import type { LeaferGraphSelectionUpdateMode } from "@leafergraph/contracts";
 import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
 
 /**

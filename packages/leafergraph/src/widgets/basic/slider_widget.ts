@@ -7,7 +7,7 @@
 
 import type { Rect, Text } from "leafer-ui";
 import type { NodeSliderWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import { bindLinearWidgetDrag } from "../widget_interaction";
 import {
   createWidgetFieldSurface,

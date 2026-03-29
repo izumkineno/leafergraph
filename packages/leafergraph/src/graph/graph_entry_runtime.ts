@@ -7,7 +7,7 @@
  */
 
 import type { App, Group } from "leafer-ui";
-import type { LeaferGraphOptions } from "../api/plugin";
+import type { LeaferGraphOptions } from "@leafergraph/contracts";
 import type { LeaferGraphApiHost } from "../api/graph_api_host";
 import { createLeaferGraphRuntimeAssembly } from "./graph_runtime_assembly";
 import { normalizeGraphLinkSlotIndex } from "./graph_mutation_host";

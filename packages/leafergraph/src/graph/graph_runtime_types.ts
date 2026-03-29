@@ -6,16 +6,10 @@
  */
 
 import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphNodeDisplayProperties } from "@leafergraph/contracts";
 import type { GraphLinkViewState as LeaferGraphLinkHostViewState } from "../link/link_host";
 import type { NodeViewState as LeaferGraphNodeHostViewState } from "../node/node_host";
-
-/** 节点展示层对外可见的保留属性。 */
-export interface GraphNodeDisplayProperties {
-  subtitle?: string;
-  accent?: string;
-  category?: string;
-  status?: string;
-}
+export type { GraphNodeDisplayProperties } from "@leafergraph/contracts";
 
 /** 主包内部使用的节点属性形态：既允许任意扩展字段，也保留常用展示字段。 */
 export type GraphNodeProperties = Record<string, unknown> &

@@ -24,7 +24,7 @@ import { createNodeApi } from "@leafergraph/node";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext
-} from "leafergraph";
+} from "@leafergraph/contracts";
 
 import {
   assertNonEmptyText,

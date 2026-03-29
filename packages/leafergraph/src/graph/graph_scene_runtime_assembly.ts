@@ -7,7 +7,7 @@
  */
 
 import { NodeRegistry } from "@leafergraph/node";
-import type { LeaferGraphThemeMode, LeaferGraphWidgetEditingContext } from "../api/plugin";
+import type { LeaferGraphThemeMode, LeaferGraphWidgetEditingContext } from "@leafergraph/contracts";
 import { LeaferGraphInteractionRuntimeHost } from "../interaction/graph_interaction_runtime_host";
 import { LeaferGraphInteractionHost } from "../interaction/interaction_host";
 import { createLeaferGraphInteractionCommitSource } from "../interaction/interaction_commit_source";

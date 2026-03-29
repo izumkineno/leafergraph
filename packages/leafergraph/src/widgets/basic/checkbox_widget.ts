@@ -7,7 +7,7 @@
 
 import type { Rect, Text, Path } from "leafer-ui";
 import type { NodeCheckboxWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "../../api/plugin";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import { bindPressWidgetInteraction } from "../widget_interaction";
 import { createWidgetSurface, createWidgetValueText } from "../widget_lifecycle";
 import {

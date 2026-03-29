@@ -6,7 +6,7 @@
  */
 
 import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
-import type { LeaferGraphWidgetRenderInstance } from "../api/plugin";
+import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/contracts";
 
 type LeaferGraphSceneNodeViewState<
   TNodeState extends NodeRuntimeState = NodeRuntimeState

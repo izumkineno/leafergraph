@@ -14,7 +14,7 @@ import type {
 import type {
   LeaferGraphNodeExecutionState,
   LeaferGraphNodeResizeConstraint
-} from "../api/graph_api_types";
+} from "@leafergraph/contracts";
 import {
   resolveNodeCategoryBadgeLayout,
   resolveNodeShellLayout,

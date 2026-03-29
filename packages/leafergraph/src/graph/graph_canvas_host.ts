@@ -7,7 +7,7 @@
 
 import { App, Group } from "leafer-ui";
 import { addViewport } from "@leafer-in/viewport";
-import type { LeaferGraphThemeMode } from "../api/plugin";
+import type { LeaferGraphThemeMode } from "@leafergraph/contracts";
 
 interface LeaferGraphCanvasHostOptions {
   container: HTMLElement;

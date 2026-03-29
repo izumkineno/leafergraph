@@ -22,7 +22,7 @@ import type {
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,
   LeaferGraphWidgetEntry
-} from "../api/plugin";
+} from "@leafergraph/contracts";
 import { leaferGraphOnPlayNodeDefinition } from "../node/builtin/on_play_node";
 import { leaferGraphTimerNodeDefinition } from "../node/builtin/timer_node";
 import { BasicWidgetLibrary } from "../widgets/basic";

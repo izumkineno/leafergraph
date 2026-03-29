@@ -22,7 +22,7 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderInstance
-} from "./plugin";
+} from "@leafergraph/contracts";
 import { projectExternalRuntimeFeedback } from "../graph/graph_runtime_feedback_projection";
 import type {
   GraphOperation,
@@ -47,7 +47,7 @@ import type {
   LeaferGraphSelectionUpdateMode,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "./graph_api_types";
+} from "@leafergraph/contracts";
 import type { LeaferGraphRenderableNodeState } from "../graph/graph_runtime_types";
 import type { LeaferGraphBootstrapRuntimeLike } from "../graph/graph_bootstrap_host";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";

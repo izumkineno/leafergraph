@@ -12,7 +12,7 @@ import type {
   LeaferGraphConnectionPortState,
   LeaferGraphConnectionValidationResult,
   LeaferGraphSelectionUpdateMode
-} from "../api/graph_api_types";
+} from "@leafergraph/contracts";
 import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
 import {
