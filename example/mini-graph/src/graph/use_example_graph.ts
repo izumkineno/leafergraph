@@ -100,6 +100,15 @@ export interface ExampleCreateNodeFromRegistryInput {
   };
 }
 
+/** demo 内部维护的最小连线投影，专供右键菜单绑定与日志复用。 */
+export interface ExampleTrackedLinkEntry {
+  id: string;
+  sourceNodeId: string;
+  sourceSlot: string;
+  targetNodeId: string;
+  targetSlot: string;
+}
+
 /** 页面按钮会用到的动作集合。 */
 export interface ExampleGraphActions {
   play(): void;
@@ -109,6 +118,8 @@ export interface ExampleGraphActions {
   reset(): void;
   clearLog(): void;
   createNodeFromRegistry(input: ExampleCreateNodeFromRegistryInput): void;
+  removeNode(nodeId: string): void;
+  removeLink(linkId: string): void;
   registerAuthoringBundle(file: File): Promise<void>;
 }
 
@@ -176,6 +187,19 @@ function compareRegisteredNodes(
   return left.type.localeCompare(right.type, "zh-CN");
 }
 
+/** 把运行时 `GraphLink` 压缩成 demo 自己维护的最小连线元信息。 */
+function projectTrackedLink(
+  link: Pick<ReturnType<LeaferGraph["createLink"]>, "id" | "source" | "target">
+): ExampleTrackedLinkEntry {
+  return {
+    id: link.id,
+    sourceNodeId: link.source.nodeId,
+    sourceSlot: String(link.source.slot ?? ""),
+    targetNodeId: link.target.nodeId,
+    targetSlot: String(link.target.slot ?? "")
+  };
+}
+
 /**
  * 解析当前系统主题偏好。
  *
@@ -202,6 +226,7 @@ export function useExampleGraph(): UseExampleGraphResult {
   const graphRef = useRef<LeaferGraph | null>(null);
   const contextMenuRef = useRef<ExampleContextMenuHandle | null>(null);
   const registeredBundleFingerprintsRef = useRef(new Set<string>());
+  const trackedLinksRef = useRef(new Map<string, ExampleTrackedLinkEntry>());
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
   const [status, setStatus] = useState<ExampleGraphStatus>("loading");
   const [authoringBundleStatus, setAuthoringBundleStatus] =
@@ -247,6 +272,48 @@ export function useExampleGraph(): UseExampleGraphResult {
       .sort(compareRegisteredNodes);
   };
 
+  /** 记录一条正式连线，并立刻把它挂到右键菜单系统里。 */
+  const rememberTrackedLink = (link: ExampleTrackedLinkEntry): void => {
+    trackedLinksRef.current.set(link.id, link);
+    contextMenuRef.current?.bindLinkTarget(link);
+  };
+
+  /** 移除一条已跟踪连线，并同步清理对应的右键菜单 target。 */
+  const forgetTrackedLink = (
+    linkId: string
+  ): ExampleTrackedLinkEntry | undefined => {
+    const trackedLink = trackedLinksRef.current.get(linkId);
+    contextMenuRef.current?.unbindLinkTarget(linkId);
+    trackedLinksRef.current.delete(linkId);
+    return trackedLink;
+  };
+
+  /** 删除节点前后都需要用到“这个节点关联了哪些已跟踪连线”。 */
+  const listTrackedLinksByNodeId = (
+    nodeId: string
+  ): ExampleTrackedLinkEntry[] => {
+    const trackedLinks: ExampleTrackedLinkEntry[] = [];
+    for (const trackedLink of trackedLinksRef.current.values()) {
+      if (
+        trackedLink.sourceNodeId === nodeId ||
+        trackedLink.targetNodeId === nodeId
+      ) {
+        trackedLinks.push(trackedLink);
+      }
+    }
+
+    return trackedLinks;
+  };
+
+  /** reset / 销毁时统一清理所有连线挂载，避免残留失效 binding。 */
+  const clearTrackedLinks = (): void => {
+    for (const linkId of trackedLinksRef.current.keys()) {
+      contextMenuRef.current?.unbindLinkTarget(linkId);
+    }
+
+    trackedLinksRef.current.clear();
+  };
+
   /**
    * 把 demo 恢复为默认空画布。
    *
@@ -264,6 +331,7 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     graph.stop();
     graph.replaceGraphDocument(createEmptyExampleDocument());
+    clearTrackedLinks();
 
     scheduleFitView();
     appendLog("已恢复默认空画布");
@@ -350,8 +418,58 @@ export function useExampleGraph(): UseExampleGraphResult {
           error instanceof Error
             ? `从注册表添加节点失败：${error.message}`
             : `从注册表添加节点失败：${input.type}`
-        );
+          );
       }
+    },
+    removeNode(nodeId) {
+      const graph = graphRef.current;
+      if (!graph) {
+        appendLog("图实例尚未就绪，暂时无法删除节点");
+        return;
+      }
+
+      const relatedLinks = listTrackedLinksByNodeId(nodeId);
+      const snapshot = graph.getNodeSnapshot(nodeId);
+      const removed = graph.removeNode(nodeId);
+      if (!removed) {
+        appendLog(`删除节点失败：未找到节点 ${nodeId}`);
+        return;
+      }
+
+      for (const trackedLink of relatedLinks) {
+        forgetTrackedLink(trackedLink.id);
+      }
+
+      appendLog(
+        `已删除节点：${snapshot?.title?.trim() || nodeId} · ${
+          snapshot?.type ?? "unknown"
+        }${
+          relatedLinks.length
+            ? `，并清理 ${relatedLinks.length} 条关联连线`
+            : ""
+        }`
+      );
+    },
+    removeLink(linkId) {
+      const graph = graphRef.current;
+      if (!graph) {
+        appendLog("图实例尚未就绪，暂时无法删除连线");
+        return;
+      }
+
+      const trackedLink = trackedLinksRef.current.get(linkId);
+      const removed = graph.removeLink(linkId);
+      if (!removed) {
+        appendLog(`删除连线失败：未找到连线 ${linkId}`);
+        return;
+      }
+
+      forgetTrackedLink(linkId);
+      appendLog(
+        trackedLink
+          ? `已删除连线：${trackedLink.sourceNodeId}:${trackedLink.sourceSlot} -> ${trackedLink.targetNodeId}:${trackedLink.targetSlot}`
+          : `已删除连线：${linkId}`
+      );
     },
     async registerAuthoringBundle(file: File) {
       const graph = graphRef.current;
@@ -409,6 +527,8 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     let disposed = false;
     let cleanupRuntimeFeedback = (): void => {};
+    let cleanupInteractionCommit = (): void => {};
+    let cleanupNodeState = (): void => {};
     let cleanupThemeListener = (): void => {};
 
     /** 浏览器窗口尺寸变化后，重新让图内容适配视图。 */
@@ -432,9 +552,12 @@ export function useExampleGraph(): UseExampleGraphResult {
 
       disposed = true;
       cleanupRuntimeFeedback();
+      cleanupInteractionCommit();
+      cleanupNodeState();
       cleanupThemeListener();
       window.removeEventListener("resize", handleWindowResize);
 
+      clearTrackedLinks();
       contextMenuRef.current?.destroy();
       contextMenuRef.current = null;
       const graph = graphRef.current;
@@ -481,6 +604,54 @@ export function useExampleGraph(): UseExampleGraphResult {
           appendLog(formatRuntimeFeedback(event));
         });
 
+        /**
+         * mini-graph 当前没有 authority / editor 命令总线去消费交互提交事件，
+         * 因此这里本地回放最小的连线提交，把拖线结束后的 commit 真正落成正式 link。
+         *
+         * 节点移动、resize、折叠这类交互已经在宿主内部直接写回场景，
+         * 只有 `link.create.commit` 还需要在 pointer up 后显式转成正式 createLink。
+         */
+        cleanupInteractionCommit = graph.subscribeInteractionCommit((event) => {
+          if (event.type !== "link.create.commit") {
+            return;
+          }
+
+          try {
+            const link = graph.createLink(event.input);
+            rememberTrackedLink(projectTrackedLink(link));
+            appendLog(
+              `已创建连线：${link.source.nodeId}:${link.source.slot} -> ${link.target.nodeId}:${link.target.slot}`
+            );
+          } catch (error) {
+            appendLog(
+              error instanceof Error
+                ? `创建连线失败：${error.message}`
+                : "创建连线失败"
+            );
+          }
+        });
+
+        /**
+         * 节点右键菜单 target 跟随节点生命周期自动同步。
+         *
+         * 这样无论节点来自：
+         * - 右键菜单即时创建
+         * - 后续其它宿主动作
+         * - reset / 删除后的移除
+         *
+         * 菜单挂载都不需要页面层手动介入。
+         */
+        cleanupNodeState = graph.subscribeNodeState((event) => {
+          if (event.reason === "created" && event.exists) {
+            contextMenuRef.current?.bindNodeTarget(event.nodeId);
+            return;
+          }
+
+          if (event.reason === "removed" || !event.exists) {
+            contextMenuRef.current?.unbindNodeTarget(event.nodeId);
+          }
+        });
+
         window.addEventListener("resize", handleWindowResize);
         scheduleFitView();
         setStatus("ready");
@@ -489,7 +660,7 @@ export function useExampleGraph(): UseExampleGraphResult {
         appendLog("LeaferGraph 已完成初始化");
         appendLog("默认节点已移除，当前为空画布");
         appendLog("可点击顶部按钮选择编译后的 JS bundle 来注册 authoring 库");
-        appendLog("Leafer 右键菜单已就绪，可右键画布从当前注册表添加节点");
+        appendLog("Leafer 右键菜单已就绪，可右键画布添加节点，右键节点或连线执行删除");
       } catch (error) {
         if (disposed) {
           return;
@@ -536,8 +707,15 @@ export function useExampleGraph(): UseExampleGraphResult {
       clearLog: actions.clearLog,
       listRegisteredNodes,
       createNodeFromRegistry: actions.createNodeFromRegistry,
+      removeNode: actions.removeNode,
+      removeLink: actions.removeLink,
       appendLog
     });
+
+    // 菜单实例重建后，重新把当前仍然存在的连线 target 挂回去。
+    for (const trackedLink of trackedLinksRef.current.values()) {
+      contextMenuRef.current.bindLinkTarget(trackedLink);
+    }
 
     return () => {
       contextMenuRef.current?.destroy();
