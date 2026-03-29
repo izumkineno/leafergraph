@@ -22,6 +22,12 @@ import type { Group, Text } from "leafer-ui";
 /** 主包当前支持的主题模式。 */
 export type LeaferGraphThemeMode = "light" | "dark";
 
+/** 连线传播动画预设。 */
+export type LeaferGraphLinkPropagationAnimationPreset =
+  | "performance"
+  | "balanced"
+  | "expressive";
+
 /**
  * Widget 视觉 token。
  * 主包与外部自定义 renderer 都可以基于它在亮色 / 暗色模式间切换。
@@ -387,4 +393,5 @@ export interface LeaferGraphOptions {
   plugins?: LeaferGraphNodePlugin[];
   themeMode?: LeaferGraphThemeMode;
   widgetEditing?: LeaferGraphWidgetEditingOptions;
+  linkPropagationAnimation?: LeaferGraphLinkPropagationAnimationPreset | false;
 }

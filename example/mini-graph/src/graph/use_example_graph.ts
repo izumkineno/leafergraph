@@ -18,12 +18,14 @@ import {
   type LeaferGraph,
   type LeaferGraphCreateLinkInput,
   type LeaferGraphCreateNodeInput,
+  type LeaferGraphLinkPropagationAnimationPreset,
   type LeaferGraphThemeMode,
   type RuntimeFeedbackEvent
 } from "leafergraph";
 
 import {
-  loadAuthoringBundleRegistration
+  loadAuthoringBundleRegistration,
+  type ExampleAuthoringBundleRegistration
 } from "./example_authoring_bundle_loader";
 import { createEmptyExampleDocument } from "./example_document";
 import {
@@ -66,6 +68,11 @@ const EXAMPLE_CHAIN_STEPS = [
     id: "register-bundle",
     title: "选择编译后 JS 注册",
     description: "顶部按钮会选择单文件 ESM JS bundle，并把其中导出的 plugin 或 module 注册进 graph；注册后右键菜单会按分类展示新增节点。"
+  },
+  {
+    id: "animation-preset",
+    title: "运行时动画预设",
+    description: "顶部可切换 Off / Performance / Balanced / Expressive，对比不同连线传播反馈。"
   }
 ] as const;
 
@@ -78,6 +85,11 @@ export type ExampleAuthoringBundleStatus =
   | "registering"
   | "registered"
   | "error";
+
+/** demo 暴露给页面层的动画预设选项。 */
+export type ExampleLinkPropagationAnimationOption =
+  | LeaferGraphLinkPropagationAnimationPreset
+  | false;
 
 /** 单条日志在页面层的最小投影结构。 */
 export interface ExampleLogEntry {
@@ -94,6 +106,12 @@ export interface ExampleTrackedLinkEntry {
   targetSlot: string;
 }
 
+interface ExampleRegisteredBundleEntry {
+  fingerprint: string;
+  fileName: string;
+  registration: ExampleAuthoringBundleRegistration;
+}
+
 /** 页面按钮会用到的动作集合。 */
 export interface ExampleGraphActions {
   play(): void;
@@ -102,6 +120,9 @@ export interface ExampleGraphActions {
   fit(): void;
   reset(): void;
   clearLog(): void;
+  setLinkPropagationAnimationPreset(
+    preset: ExampleLinkPropagationAnimationOption
+  ): void;
   removeNode(nodeId: string): void;
   removeLink(linkId: string): void;
   registerAuthoringBundle(file: File): Promise<void>;
@@ -115,6 +136,7 @@ export interface UseExampleGraphResult {
   status: ExampleGraphStatus;
   authoringBundleStatus: ExampleAuthoringBundleStatus;
   registeredBundleCount: number;
+  linkPropagationAnimationPreset: ExampleLinkPropagationAnimationOption;
   errorMessage: string;
   stageBadges: readonly { id: string; label: string }[];
   chainSteps: readonly { id: string; title: string; description: string }[];
@@ -139,6 +161,24 @@ function formatRuntimeFeedback(event: RuntimeFeedbackEvent): string {
 /** 用文件名、大小和修改时间生成一个稳定的 bundle 指纹。 */
 function createBundleFingerprint(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function resolveAnimationPresetLabel(
+  preset: ExampleLinkPropagationAnimationOption
+): string {
+  if (preset === false) {
+    return "Off";
+  }
+
+  switch (preset) {
+    case "balanced":
+      return "Balanced";
+    case "expressive":
+      return "Expressive";
+    case "performance":
+    default:
+      return "Performance";
+  }
 }
 
 /** 把运行时 `GraphLink` 压缩成 demo 自己维护的最小连线元信息。 */
@@ -180,12 +220,18 @@ export function useExampleGraph(): UseExampleGraphResult {
   const graphRef = useRef<LeaferGraph | null>(null);
   const contextMenuRef = useRef<ExampleContextMenuHandle | null>(null);
   const registeredBundleFingerprintsRef = useRef(new Set<string>());
+  const registeredBundlesRef = useRef<ExampleRegisteredBundleEntry[]>([]);
   const trackedLinksRef = useRef(new Map<string, ExampleTrackedLinkEntry>());
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
   const [status, setStatus] = useState<ExampleGraphStatus>("loading");
   const [authoringBundleStatus, setAuthoringBundleStatus] =
     useState<ExampleAuthoringBundleStatus>("idle");
   const [registeredBundleCount, setRegisteredBundleCount] = useState(0);
+  const [
+    linkPropagationAnimationPreset,
+    setLinkPropagationAnimationPresetState
+  ] =
+    useState<ExampleLinkPropagationAnimationOption>("performance");
   const [errorMessage, setErrorMessage] = useState("");
 
   /** 追加一条日志，并把总量限制在可控范围内。 */
@@ -253,6 +299,33 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     trackedLinksRef.current.clear();
+  };
+
+  /** graph 重建后重放已成功注册过的 bundle，保持 demo 可继续使用这些节点。 */
+  const replayRegisteredBundles = async (
+    graph: LeaferGraph
+  ): Promise<boolean> => {
+    if (!registeredBundlesRef.current.length) {
+      return true;
+    }
+
+    try {
+      for (const entry of registeredBundlesRef.current) {
+        await entry.registration.apply(graph);
+      }
+
+      appendLog(
+        `已重放 ${registeredBundlesRef.current.length} 个 JS bundle 注册`
+      );
+      return true;
+    } catch (error) {
+      appendLog(
+        error instanceof Error
+          ? `重放 JS bundle 注册失败：${error.message}`
+          : "重放 JS bundle 注册失败"
+      );
+      return false;
+    }
   };
 
   /** 统一创建节点，并把日志语义收口到 hook 内部。 */
@@ -390,6 +463,23 @@ export function useExampleGraph(): UseExampleGraphResult {
     clearLog() {
       setLogs([]);
     },
+    setLinkPropagationAnimationPreset(preset) {
+      if (preset === linkPropagationAnimationPreset) {
+        return;
+      }
+
+      setStatus("loading");
+      setErrorMessage("");
+      setAuthoringBundleStatus(
+        registeredBundlesRef.current.length ? "registering" : "idle"
+      );
+      appendLog(
+        `切换连线传播动画预设：${resolveAnimationPresetLabel(
+          preset
+        )}，正在重建图实例`
+      );
+      setLinkPropagationAnimationPresetState(preset);
+    },
     removeNode(nodeId) {
       const graph = graphRef.current;
       if (!graph) {
@@ -464,6 +554,11 @@ export function useExampleGraph(): UseExampleGraphResult {
         const registration = await loadAuthoringBundleRegistration(file);
         await registration.apply(graph);
         registeredBundleFingerprintsRef.current.add(bundleFingerprint);
+        registeredBundlesRef.current.push({
+          fingerprint: bundleFingerprint,
+          fileName: file.name,
+          registration
+        });
         setRegisteredBundleCount(
           registeredBundleFingerprintsRef.current.size
         );
@@ -547,7 +642,8 @@ export function useExampleGraph(): UseExampleGraphResult {
       try {
         const graph = createLeaferGraph(stageHost, {
           document: createEmptyExampleDocument(),
-          themeMode: resolvePreferredThemeMode()
+          themeMode: resolvePreferredThemeMode(),
+          linkPropagationAnimation: linkPropagationAnimationPreset
         });
         graphRef.current = graph;
 
@@ -567,6 +663,15 @@ export function useExampleGraph(): UseExampleGraphResult {
           graph.destroy();
           return;
         }
+
+        const replaySucceeded = await replayRegisteredBundles(graph);
+        setAuthoringBundleStatus(
+          registeredBundlesRef.current.length
+            ? replaySucceeded
+              ? "registered"
+              : "error"
+            : "idle"
+        );
 
         // 统一订阅运行反馈，再投影成页面层可直接显示的中文日志。
         cleanupRuntimeFeedback = graph.subscribeRuntimeFeedback((event) => {
@@ -616,10 +721,14 @@ export function useExampleGraph(): UseExampleGraphResult {
         window.addEventListener("resize", handleWindowResize);
         scheduleFitView();
         setStatus("ready");
-        setAuthoringBundleStatus("idle");
         setErrorMessage("");
         appendLog("LeaferGraph 已完成初始化");
         appendLog("默认节点已移除，当前为空画布");
+        appendLog(
+          `当前连线传播动画预设：${resolveAnimationPresetLabel(
+            linkPropagationAnimationPreset
+          )}`
+        );
         appendLog("可点击顶部按钮选择编译后的 JS bundle 来注册 authoring 库");
         appendLog("Leafer 右键菜单已就绪，可右键画布添加节点，右键节点或连线执行删除");
       } catch (error) {
@@ -643,7 +752,7 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     return cleanup;
-  }, []);
+  }, [linkPropagationAnimationPreset]);
 
   useEffect(() => {
     if (status !== "ready") {
@@ -691,6 +800,7 @@ export function useExampleGraph(): UseExampleGraphResult {
     status,
     authoringBundleStatus,
     registeredBundleCount,
+    linkPropagationAnimationPreset,
     errorMessage,
     stageBadges: EXAMPLE_STAGE_BADGES,
     chainSteps: EXAMPLE_CHAIN_STEPS

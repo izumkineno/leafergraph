@@ -93,7 +93,9 @@ export function createLeaferGraphEntryRuntime(
     linkDefaultNodeWidth: NODE_SHELL_LAYOUT_METRICS.defaultNodeWidth,
     linkPortSize: NODE_SHELL_LAYOUT_METRICS.portSize,
     linkStroke: resolveDefaultLinkStroke(),
-    dataFlowAnimationStyle: createDefaultDataFlowAnimationStyleConfig()
+    dataFlowAnimationStyle: createDefaultDataFlowAnimationStyleConfig(
+      options.linkPropagationAnimation ?? "performance"
+    )
   });
   const ready = runtime.apiHost.initialize(options);
   ready.catch((error) => {

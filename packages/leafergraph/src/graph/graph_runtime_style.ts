@@ -5,7 +5,10 @@
  * 负责集中维护节点外壳、连线和视口使用的默认视觉常量与解析函数。
  */
 
-import type { LeaferGraphThemeMode } from "../api/plugin";
+import type {
+  LeaferGraphLinkPropagationAnimationPreset,
+  LeaferGraphThemeMode
+} from "../api/plugin";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import type { NodeShellRenderTheme } from "../node/node_shell";
 
@@ -61,6 +64,12 @@ const DATA_FLOW_LIGHT_GLOW_OPACITY = 0.24;
 const DATA_FLOW_FADE_IN_RATIO = 0.16;
 const DATA_FLOW_FADE_OUT_RATIO = 0.2;
 const DATA_FLOW_MAX_PARTICLES = 48;
+const DATA_FLOW_PULSE_DURATION_MS = 220;
+const DATA_FLOW_PULSE_DARK_OPACITY = 0.78;
+const DATA_FLOW_PULSE_LIGHT_OPACITY = 0.62;
+const DATA_FLOW_PULSE_BASE_STROKE_WIDTH = 4;
+const DATA_FLOW_PULSE_EXTRA_STROKE_WIDTH = 4;
+const DATA_FLOW_MAX_PULSES = 16;
 const MISSING_NODE_FILL = "rgba(220, 38, 38, 0.92)";
 const MISSING_NODE_STROKE = "rgba(127, 29, 29, 0.86)";
 const MISSING_NODE_PRESS_FILL = "rgba(185, 28, 28, 0.96)";
@@ -104,6 +113,14 @@ export interface LeaferGraphNodeShellStyleConfig {
 
 /** 数据流传输动画样式配置。 */
 export interface LeaferGraphDataFlowAnimationStyleConfig {
+  enabled: boolean;
+  preset: LeaferGraphLinkPropagationAnimationPreset;
+  pulseDurationMs: number;
+  pulseDarkOpacity: number;
+  pulseLightOpacity: number;
+  pulseBaseStrokeWidth: number;
+  pulseExtraStrokeWidth: number;
+  maxPulses: number;
   particleSize: number;
   glowSize: number;
   durationMs: number;
@@ -113,6 +130,29 @@ export interface LeaferGraphDataFlowAnimationStyleConfig {
   fadeInRatio: number;
   fadeOutRatio: number;
   maxParticles: number;
+}
+
+/** 关闭连线传播动画时使用的样式。 */
+export function createDisabledDataFlowAnimationStyleConfig(): LeaferGraphDataFlowAnimationStyleConfig {
+  return {
+    enabled: false,
+    preset: "performance",
+    pulseDurationMs: DATA_FLOW_PULSE_DURATION_MS,
+    pulseDarkOpacity: DATA_FLOW_PULSE_DARK_OPACITY,
+    pulseLightOpacity: DATA_FLOW_PULSE_LIGHT_OPACITY,
+    pulseBaseStrokeWidth: DATA_FLOW_PULSE_BASE_STROKE_WIDTH,
+    pulseExtraStrokeWidth: DATA_FLOW_PULSE_EXTRA_STROKE_WIDTH,
+    maxPulses: 0,
+    particleSize: DATA_FLOW_PARTICLE_SIZE,
+    glowSize: DATA_FLOW_GLOW_SIZE,
+    durationMs: DATA_FLOW_DURATION_MS,
+    coreOpacity: DATA_FLOW_CORE_OPACITY,
+    darkGlowOpacity: DATA_FLOW_DARK_GLOW_OPACITY,
+    lightGlowOpacity: DATA_FLOW_LIGHT_GLOW_OPACITY,
+    fadeInRatio: DATA_FLOW_FADE_IN_RATIO,
+    fadeOutRatio: DATA_FLOW_FADE_OUT_RATIO,
+    maxParticles: 0
+  };
 }
 
 /**
@@ -187,18 +227,76 @@ export function createDefaultNodeShellStyleConfig(): LeaferGraphNodeShellStyleCo
 }
 
 /** 创建默认的数据流传输动画样式配置。 */
-export function createDefaultDataFlowAnimationStyleConfig(): LeaferGraphDataFlowAnimationStyleConfig {
-  return {
-    particleSize: DATA_FLOW_PARTICLE_SIZE,
-    glowSize: DATA_FLOW_GLOW_SIZE,
-    durationMs: DATA_FLOW_DURATION_MS,
-    coreOpacity: DATA_FLOW_CORE_OPACITY,
-    darkGlowOpacity: DATA_FLOW_DARK_GLOW_OPACITY,
-    lightGlowOpacity: DATA_FLOW_LIGHT_GLOW_OPACITY,
-    fadeInRatio: DATA_FLOW_FADE_IN_RATIO,
-    fadeOutRatio: DATA_FLOW_FADE_OUT_RATIO,
-    maxParticles: DATA_FLOW_MAX_PARTICLES
-  };
+export function createDefaultDataFlowAnimationStyleConfig(
+  preset: LeaferGraphLinkPropagationAnimationPreset | false = "performance"
+): LeaferGraphDataFlowAnimationStyleConfig {
+  if (preset === false) {
+    return createDisabledDataFlowAnimationStyleConfig();
+  }
+
+  switch (preset) {
+    case "balanced":
+      return {
+        enabled: true,
+        preset,
+        pulseDurationMs: 260,
+        pulseDarkOpacity: 0.58,
+        pulseLightOpacity: 0.46,
+        pulseBaseStrokeWidth: 4,
+        pulseExtraStrokeWidth: 4,
+        maxPulses: 0,
+        particleSize: DATA_FLOW_PARTICLE_SIZE,
+        glowSize: DATA_FLOW_GLOW_SIZE,
+        durationMs: DATA_FLOW_DURATION_MS,
+        coreOpacity: DATA_FLOW_CORE_OPACITY,
+        darkGlowOpacity: DATA_FLOW_DARK_GLOW_OPACITY,
+        lightGlowOpacity: DATA_FLOW_LIGHT_GLOW_OPACITY,
+        fadeInRatio: DATA_FLOW_FADE_IN_RATIO,
+        fadeOutRatio: DATA_FLOW_FADE_OUT_RATIO,
+        maxParticles: DATA_FLOW_MAX_PARTICLES
+      };
+    case "expressive":
+      return {
+        enabled: true,
+        preset,
+        pulseDurationMs: 320,
+        pulseDarkOpacity: 0.68,
+        pulseLightOpacity: 0.54,
+        pulseBaseStrokeWidth: 4,
+        pulseExtraStrokeWidth: 5,
+        maxPulses: 24,
+        particleSize: 10,
+        glowSize: 24,
+        durationMs: 540,
+        coreOpacity: 1,
+        darkGlowOpacity: 0.42,
+        lightGlowOpacity: 0.3,
+        fadeInRatio: 0.14,
+        fadeOutRatio: 0.22,
+        maxParticles: 72
+      };
+    case "performance":
+    default:
+      return {
+        enabled: true,
+        preset: "performance",
+        pulseDurationMs: DATA_FLOW_PULSE_DURATION_MS,
+        pulseDarkOpacity: DATA_FLOW_PULSE_DARK_OPACITY,
+        pulseLightOpacity: DATA_FLOW_PULSE_LIGHT_OPACITY,
+        pulseBaseStrokeWidth: DATA_FLOW_PULSE_BASE_STROKE_WIDTH,
+        pulseExtraStrokeWidth: DATA_FLOW_PULSE_EXTRA_STROKE_WIDTH,
+        maxPulses: DATA_FLOW_MAX_PULSES,
+        particleSize: DATA_FLOW_PARTICLE_SIZE,
+        glowSize: DATA_FLOW_GLOW_SIZE,
+        durationMs: DATA_FLOW_DURATION_MS,
+        coreOpacity: DATA_FLOW_CORE_OPACITY,
+        darkGlowOpacity: DATA_FLOW_DARK_GLOW_OPACITY,
+        lightGlowOpacity: DATA_FLOW_LIGHT_GLOW_OPACITY,
+        fadeInRatio: DATA_FLOW_FADE_IN_RATIO,
+        fadeOutRatio: DATA_FLOW_FADE_OUT_RATIO,
+        maxParticles: 0
+      };
+  }
 }
 
 /** 默认连线描边色。 */

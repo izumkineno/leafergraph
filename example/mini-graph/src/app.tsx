@@ -14,6 +14,7 @@ import "./app.css";
 import {
   type ExampleAuthoringBundleStatus,
   type ExampleGraphStatus,
+  type ExampleLinkPropagationAnimationOption,
   useExampleGraph,
 } from "./graph/use_example_graph";
 
@@ -83,6 +84,12 @@ function resolveRegisterButtonLabel(
   }
 }
 
+function resolveAnimationPresetSelectValue(
+  preset: ExampleLinkPropagationAnimationOption,
+): "off" | "performance" | "balanced" | "expressive" {
+  return preset === false ? "off" : preset;
+}
+
 export function App() {
   const bundleInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -92,6 +99,7 @@ export function App() {
     authoringBundleStatus,
     chainSteps,
     errorMessage,
+    linkPropagationAnimationPreset,
     logs,
     registeredBundleCount,
     stageBadges,
@@ -127,13 +135,40 @@ export function App() {
           <p class="toolbar-description">
             这里直接通过公开 API 启动一个默认空画布，并让画布尽量占满页面。
             当前默认不注入任何节点；可以先选择编译后的单文件 JS bundle 来注册
-            authoring 库，再继续扩展图内容。
+            authoring 库，再继续扩展图内容。顶部还可以切换运行时连线动画预设，
+            用来对比性能优先和平衡表现两类反馈。
             右键画布即可验证 Leafer-first 上下文菜单，并从当前注册表直接添加节点。
           </p>
         </div>
 
         <div class="toolbar-side">
           <div class="toolbar-actions">
+            <label class="toolbar-select-wrap">
+              <span class="toolbar-select-label">Link Animation</span>
+              <select
+                class="toolbar-select"
+                value={resolveAnimationPresetSelectValue(
+                  linkPropagationAnimationPreset,
+                )}
+                disabled={status !== "ready"}
+                onInput={(event) => {
+                  const value = event.currentTarget.value as
+                    | "off"
+                    | "performance"
+                    | "balanced"
+                    | "expressive";
+                  actions.setLinkPropagationAnimationPreset(
+                    value === "off" ? false : value,
+                  );
+                }}
+              >
+                <option value="performance">Performance</option>
+                <option value="balanced">Balanced</option>
+                <option value="expressive">Expressive</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+
             {actionItems.map((item) => (
               <button
                 key={item.id}
@@ -159,6 +194,9 @@ export function App() {
 
             <div class="badge-row">
               <span class="stage-badge">Leafer Menu</span>
+              <span class="stage-badge">
+                Animation {resolveAnimationPresetSelectValue(linkPropagationAnimationPreset)}
+              </span>
               <span class="stage-badge">
                 Bundles {registeredBundleCount}
               </span>

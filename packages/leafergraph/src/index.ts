@@ -41,6 +41,7 @@ export {
   stopWidgetPointerEvent
 } from "./widgets/widget_interaction";
 export type {
+  LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,

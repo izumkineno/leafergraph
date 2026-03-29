@@ -3,16 +3,17 @@
  *
  * @remarks
  * 负责在正式 `setOutputData(...)` 命中真实连线传播时，
- * 在连线层上播放瞬时脉冲粒子动画。
+ * 在连线层上播放预设化的运行时反馈动画。
  */
 
 import type { GraphLink } from "@leafergraph/node";
+import { Arrow } from "@leafer-in/arrow";
 import { Group, Rect } from "leafer-ui";
 import type { LeaferGraphThemeMode } from "../api/plugin";
 import type { LeaferGraphLinkPropagationEvent } from "../api/graph_api_types";
 import type { LeaferGraphDataFlowAnimationStyleConfig } from "../graph/graph_runtime_style";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
-import { sampleLinkCurvePoint } from "./link";
+import { buildLinkPathFromCurve, sampleLinkCurvePoint } from "./link";
 import {
   resolveGraphLinkCurve,
   type LeaferGraphLinkNodeState
@@ -39,6 +40,24 @@ interface LeaferGraphLinkDataFlowAnimationHostOptions<
   ): () => void;
 }
 
+interface LeaferGraphResolvedAnimatedLink<
+  TNodeState extends LeaferGraphLinkNodeState
+> {
+  link: GraphLink;
+  sourceNode: TNodeState;
+  targetNode: TNodeState;
+  sourceSlot: number;
+  targetSlot: number;
+  color: string;
+}
+
+interface LeaferGraphActiveDataFlowPulse {
+  id: string;
+  linkId: string;
+  startedAt: number;
+  view: Arrow;
+}
+
 interface LeaferGraphActiveDataFlowParticle {
   id: string;
   linkId: string;
@@ -47,13 +66,14 @@ interface LeaferGraphActiveDataFlowParticle {
   core: Rect;
 }
 
+let dataFlowPulseSeed = 1;
 let dataFlowParticleSeed = 1;
 
 /**
  * 连线数据流动画宿主。
  *
  * @remarks
- * 第一版只做真实传播时的视觉反馈：
+ * 当前只负责真实传播时的视觉反馈：
  * - 不改变执行顺序
  * - 不等待动画结束
  * - 不覆盖连接预览线和缺失态
@@ -64,6 +84,8 @@ export class LeaferGraphLinkDataFlowAnimationHost<
   private readonly options: LeaferGraphLinkDataFlowAnimationHostOptions<TNodeState>;
 
   private readonly overlayGroup: Group;
+
+  private readonly activePulses: LeaferGraphActiveDataFlowPulse[] = [];
 
   private readonly activeParticles: LeaferGraphActiveDataFlowParticle[] = [];
 
@@ -103,15 +125,17 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.options.linkLayer.add(this.overlayGroup);
   }
 
-  /** 清空当前全部活动粒子，并停止 RAF 驱动。 */
+  /** 清空当前全部活动动画，并停止 RAF 驱动。 */
   clear(): void {
-    const hadParticles = this.activeParticles.length > 0;
+    const hadEffects =
+      this.activePulses.length > 0 || this.activeParticles.length > 0;
 
     this.stopLoop();
+    this.activePulses.length = 0;
     this.activeParticles.length = 0;
     this.overlayGroup.removeAll();
 
-    if (hadParticles) {
+    if (hadEffects) {
       this.options.renderFrame();
     }
   }
@@ -124,9 +148,73 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.overlayGroup.remove();
   }
 
-  /** 命中一条真实传播事件后，创建对应的脉冲粒子。 */
+  /** 命中一条真实传播事件后，按预设触发对应视觉反馈。 */
   private handleLinkPropagation(event: LeaferGraphLinkPropagationEvent): void {
-    if (this.shouldReduceMotion() || !this.ownerWindow) {
+    if (
+      !this.options.style.enabled ||
+      this.shouldReduceMotion() ||
+      !this.ownerWindow
+    ) {
+      return;
+    }
+
+    switch (this.options.style.preset) {
+      case "balanced":
+        this.triggerParticle(event);
+        break;
+      case "expressive":
+        this.triggerPulse(event);
+        this.triggerParticle(event);
+        break;
+      case "performance":
+      default:
+        this.triggerPulse(event);
+        break;
+    }
+
+    if (!this.hasActiveEffects()) {
+      return;
+    }
+
+    this.ensureLoop();
+    this.options.renderFrame();
+  }
+
+  /** 触发整条连线 pulse，高频场景下默认复用同一条 link 的现有 pulse。 */
+  private triggerPulse(event: LeaferGraphLinkPropagationEvent): void {
+    if (this.options.style.maxPulses <= 0) {
+      return;
+    }
+
+    const existingPulse = this.activePulses.find(
+      (pulse) => pulse.linkId === event.linkId
+    );
+    if (existingPulse) {
+      existingPulse.startedAt = this.now();
+      this.updatePulse(existingPulse, existingPulse.startedAt);
+      return;
+    }
+
+    const pulse = this.createPulse(event);
+    if (!pulse) {
+      return;
+    }
+
+    while (this.activePulses.length >= this.options.style.maxPulses) {
+      const oldestPulse = this.activePulses.shift();
+      if (oldestPulse) {
+        this.removePulse(oldestPulse);
+      }
+    }
+
+    this.activePulses.push(pulse);
+    this.overlayGroup.add(pulse.view);
+    this.updatePulse(pulse, this.now());
+  }
+
+  /** 触发 travelling comet。 */
+  private triggerParticle(event: LeaferGraphLinkPropagationEvent): void {
+    if (this.options.style.maxParticles <= 0) {
       return;
     }
 
@@ -145,31 +233,62 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.activeParticles.push(particle);
     this.overlayGroup.add([particle.glow, particle.core]);
     this.updateParticle(particle, this.now());
-    this.ensureLoop();
-    this.options.renderFrame();
   }
 
-  /** 创建单个瞬时粒子。 */
+  /** 创建单条连线 pulse。 */
+  private createPulse(
+    event: LeaferGraphLinkPropagationEvent
+  ): LeaferGraphActiveDataFlowPulse | null {
+    const resolvedLink = this.resolveAnimatedLink(event.linkId, event.sourceSlot);
+    if (!resolvedLink) {
+      return null;
+    }
+
+    const curve = resolveGraphLinkCurve({
+      source: resolvedLink.sourceNode,
+      target: resolvedLink.targetNode,
+      sourceSlot: resolvedLink.sourceSlot,
+      targetSlot: resolvedLink.targetSlot,
+      layoutMetrics: this.options.layoutMetrics,
+      defaultNodeWidth: this.options.defaultNodeWidth,
+      portSize: this.options.portSize
+    });
+    const view = new Arrow({
+      name: `graph-link-data-flow-pulse-${dataFlowPulseSeed}`,
+      path: buildLinkPathFromCurve(curve),
+      endArrow: "none",
+      fill: "transparent",
+      stroke: resolvedLink.color,
+      strokeWidth:
+        this.options.style.pulseBaseStrokeWidth +
+        this.options.style.pulseExtraStrokeWidth,
+      strokeCap: "round",
+      strokeJoin: "round",
+      opacity: this.resolvePulseOpacity(0),
+      hittable: false,
+      hitSelf: false
+    });
+
+    const pulseId = `link-pulse:${event.linkId}:${dataFlowPulseSeed}`;
+    dataFlowPulseSeed += 1;
+
+    return {
+      id: pulseId,
+      linkId: event.linkId,
+      startedAt: this.now(),
+      view
+    };
+  }
+
+  /** 创建 travelling comet。 */
   private createParticle(
     event: LeaferGraphLinkPropagationEvent
   ): LeaferGraphActiveDataFlowParticle | null {
-    const link = this.options.graphLinks.get(event.linkId);
-    if (!link) {
+    const resolvedLink = this.resolveAnimatedLink(event.linkId, event.sourceSlot);
+    if (!resolvedLink) {
       return null;
     }
 
-    const sourceNode = this.options.graphNodes.get(link.source.nodeId);
-    const targetNode = this.options.graphNodes.get(link.target.nodeId);
-    if (!sourceNode || !targetNode) {
-      return null;
-    }
-
-    const color = resolveSlotColor(
-      sourceNode,
-      event.sourceSlot,
-      this.options.slotTypeFillMap,
-      this.options.linkStroke
-    );
     const glow = new Rect({
       name: `graph-link-data-flow-glow-${dataFlowParticleSeed}`,
       x: 0,
@@ -177,7 +296,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       width: this.options.style.glowSize,
       height: this.options.style.glowSize,
       cornerRadius: 999,
-      fill: color,
+      fill: resolvedLink.color,
       opacity: 0,
       hitSelf: false,
       hitChildren: false
@@ -189,7 +308,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       width: this.options.style.particleSize,
       height: this.options.style.particleSize,
       cornerRadius: 999,
-      fill: color,
+      fill: resolvedLink.color,
       opacity: 0,
       hitSelf: false,
       hitChildren: false
@@ -207,25 +326,37 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     };
   }
 
-  /** 统一推进一帧粒子动画。 */
+  /** 统一推进一帧动画。 */
   private updateFrame = (timestamp: number): void => {
     this.frameId = null;
 
-    if (!this.activeParticles.length) {
+    if (!this.hasActiveEffects()) {
       return;
     }
 
-    if (this.shouldReduceMotion()) {
+    if (!this.options.style.enabled || this.shouldReduceMotion()) {
       this.clear();
       return;
     }
 
     let hasVisualMutation = false;
 
+    for (let index = this.activePulses.length - 1; index >= 0; index -= 1) {
+      const pulse = this.activePulses[index];
+      const active = this.updatePulse(pulse, timestamp);
+      if (!active) {
+        this.activePulses.splice(index, 1);
+        this.removePulse(pulse);
+        hasVisualMutation = true;
+        continue;
+      }
+
+      hasVisualMutation = true;
+    }
+
     for (let index = this.activeParticles.length - 1; index >= 0; index -= 1) {
       const particle = this.activeParticles[index];
       const active = this.updateParticle(particle, timestamp);
-
       if (!active) {
         this.activeParticles.splice(index, 1);
         this.removeParticle(particle);
@@ -241,24 +372,55 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       this.options.renderFrame();
     }
 
-    if (this.activeParticles.length) {
+    if (this.hasActiveEffects()) {
       this.ensureLoop();
     }
   };
 
-  /** 更新单个粒子的当前位置和透明度。 */
+  /** 更新单条连线 pulse 的路径、透明度和描边宽度。 */
+  private updatePulse(
+    pulse: LeaferGraphActiveDataFlowPulse,
+    timestamp: number
+  ): boolean {
+    const resolvedLink = this.resolveAnimatedLink(pulse.linkId);
+    if (!resolvedLink) {
+      return false;
+    }
+
+    const progress = clamp01(
+      (timestamp - pulse.startedAt) / this.options.style.pulseDurationMs
+    );
+    if (progress >= 1) {
+      return false;
+    }
+
+    const curve = resolveGraphLinkCurve({
+      source: resolvedLink.sourceNode,
+      target: resolvedLink.targetNode,
+      sourceSlot: resolvedLink.sourceSlot,
+      targetSlot: resolvedLink.targetSlot,
+      layoutMetrics: this.options.layoutMetrics,
+      defaultNodeWidth: this.options.defaultNodeWidth,
+      portSize: this.options.portSize
+    });
+    const inverseProgress = 1 - easeOutCubic(progress);
+    pulse.view.path = buildLinkPathFromCurve(curve);
+    pulse.view.stroke = resolvedLink.color;
+    pulse.view.opacity = this.resolvePulseOpacity(progress);
+    pulse.view.strokeWidth =
+      this.options.style.pulseBaseStrokeWidth +
+      this.options.style.pulseExtraStrokeWidth * inverseProgress;
+    pulse.view.forceUpdate();
+    return true;
+  }
+
+  /** 更新 travelling comet 的当前位置和透明度。 */
   private updateParticle(
     particle: LeaferGraphActiveDataFlowParticle,
     timestamp: number
   ): boolean {
-    const link = this.options.graphLinks.get(particle.linkId);
-    if (!link) {
-      return false;
-    }
-
-    const sourceNode = this.options.graphNodes.get(link.source.nodeId);
-    const targetNode = this.options.graphNodes.get(link.target.nodeId);
-    if (!sourceNode || !targetNode) {
+    const resolvedLink = this.resolveAnimatedLink(particle.linkId);
+    if (!resolvedLink) {
       return false;
     }
 
@@ -270,10 +432,10 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     }
 
     const curve = resolveGraphLinkCurve({
-      source: sourceNode,
-      target: targetNode,
-      sourceSlot: normalizeSafeSlot(link.source.slot),
-      targetSlot: normalizeSafeSlot(link.target.slot),
+      source: resolvedLink.sourceNode,
+      target: resolvedLink.targetNode,
+      sourceSlot: resolvedLink.sourceSlot,
+      targetSlot: resolvedLink.targetSlot,
       layoutMetrics: this.options.layoutMetrics,
       defaultNodeWidth: this.options.defaultNodeWidth,
       portSize: this.options.portSize
@@ -284,9 +446,12 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       this.options.style.fadeInRatio,
       this.options.style.fadeOutRatio
     );
+
+    particle.glow.fill = resolvedLink.color;
     particle.glow.x = point[0] - this.options.style.glowSize / 2;
     particle.glow.y = point[1] - this.options.style.glowSize / 2;
     particle.glow.opacity = this.resolveGlowOpacity() * opacity;
+    particle.core.fill = resolvedLink.color;
     particle.core.x = point[0] - this.options.style.particleSize / 2;
     particle.core.y = point[1] - this.options.style.particleSize / 2;
     particle.core.opacity = this.options.style.coreOpacity * opacity;
@@ -295,10 +460,54 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     return true;
   }
 
+  /** 根据当前图状态解析一条可动画化的连线。 */
+  private resolveAnimatedLink(
+    linkId: string,
+    sourceSlotOverride?: number
+  ): LeaferGraphResolvedAnimatedLink<TNodeState> | null {
+    const link = this.options.graphLinks.get(linkId);
+    if (!link) {
+      return null;
+    }
+
+    const sourceNode = this.options.graphNodes.get(link.source.nodeId);
+    const targetNode = this.options.graphNodes.get(link.target.nodeId);
+    if (!sourceNode || !targetNode) {
+      return null;
+    }
+
+    const sourceSlot = normalizeSafeSlot(sourceSlotOverride ?? link.source.slot);
+    const targetSlot = normalizeSafeSlot(link.target.slot);
+
+    return {
+      link,
+      sourceNode,
+      targetNode,
+      sourceSlot,
+      targetSlot,
+      color: resolveSlotColor(
+        sourceNode,
+        sourceSlot,
+        this.options.slotTypeFillMap,
+        this.options.linkStroke
+      )
+    };
+  }
+
+  /** 删除单条 pulse 图元。 */
+  private removePulse(pulse: LeaferGraphActiveDataFlowPulse): void {
+    pulse.view.remove();
+  }
+
   /** 删除单个粒子图元。 */
   private removeParticle(particle: LeaferGraphActiveDataFlowParticle): void {
     particle.glow.remove();
     particle.core.remove();
+  }
+
+  /** 当前是否还有活动动画。 */
+  private hasActiveEffects(): boolean {
+    return this.activePulses.length > 0 || this.activeParticles.length > 0;
   }
 
   /** 若当前没有活动 RAF，则启动统一动画循环。 */
@@ -320,7 +529,16 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.frameId = null;
   }
 
-  /** 解析当前主题模式下的 glow 透明度。 */
+  /** 解析当前主题模式下 pulse 的基础透明度。 */
+  private resolvePulseOpacity(progress: number): number {
+    const baseOpacity =
+      this.options.getThemeMode() === "dark"
+        ? this.options.style.pulseDarkOpacity
+        : this.options.style.pulseLightOpacity;
+    return baseOpacity * (1 - clamp01(progress));
+  }
+
+  /** 解析当前主题模式下 glow 透明度。 */
   private resolveGlowOpacity(): number {
     return this.options.getThemeMode() === "dark"
       ? this.options.style.darkGlowOpacity

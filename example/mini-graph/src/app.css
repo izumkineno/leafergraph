@@ -69,6 +69,52 @@
   gap: 5px;
 }
 
+.toolbar-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--overlay-section-bg);
+}
+
+.toolbar-select-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.toolbar-select {
+  appearance: none;
+  min-height: 28px;
+  padding: 4px 26px 4px 8px;
+  border: 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, transparent 50%, var(--muted) 50%) calc(100% - 12px)
+      calc(50% - 1px) / 6px 6px no-repeat,
+    linear-gradient(45deg, var(--muted) 50%, transparent 50%) calc(100% - 8px)
+      calc(50% - 1px) / 6px 6px no-repeat,
+    transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toolbar-select:focus {
+  outline: none;
+}
+
+.toolbar-select:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
 /* 按钮与状态区域再做一层垂直组织。 */
 .toolbar-meta {
   display: flex;
