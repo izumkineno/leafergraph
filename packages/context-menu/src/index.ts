@@ -9,6 +9,7 @@ export {
   type LeaferContextMenuGroupItem,
   type LeaferContextMenuItem,
   type LeaferContextMenuOptions,
+  type LeaferContextMenuResolver,
   type LeaferContextMenuRadioItem,
   type LeaferContextMenuSeparatorItem,
   type LeaferContextMenuSubmenuItem,
@@ -16,3 +17,14 @@ export {
   type LeaferContextMenuTargetKind,
   type LeaferPointerMenuEvent
 } from "./leafer_context_menu";
+
+export {
+  registerLeaferContextMenuBuiltins
+} from "./builtins/registry";
+
+export type {
+  LeaferContextMenuBuiltinFeatureFlags,
+  LeaferContextMenuBuiltinOptions,
+  LeaferContextMenuClipboardFragment,
+  LeaferContextMenuClipboardState
+} from "./builtins/types";

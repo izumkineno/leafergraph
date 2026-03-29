@@ -21,7 +21,9 @@
     "test": "bun test --preload ./tests/setup.ts ./tests"
   },
   "dependencies": {
-    "leafer-ui": "^2.0.3"
+    "@leafergraph/node": "workspace:*",
+    "leafer-ui": "^2.0.3",
+    "leafergraph": "workspace:*"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.0.10"

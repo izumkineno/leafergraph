@@ -11,9 +11,13 @@
  * 这样页面壳和图运行时可以保持清晰分层。
  */
 import { useEffect, useRef, useState } from "preact/hooks";
+import type { NodeRuntimeState } from "@leafergraph/node";
 import {
   createLeaferGraph,
+  type GraphLink,
   type LeaferGraph,
+  type LeaferGraphCreateLinkInput,
+  type LeaferGraphCreateNodeInput,
   type LeaferGraphThemeMode,
   type RuntimeFeedbackEvent
 } from "leafergraph";
@@ -81,25 +85,6 @@ export interface ExampleLogEntry {
   message: string;
 }
 
-type ExampleRegisteredNodeDefinition = ReturnType<LeaferGraph["listNodes"]>[number];
-
-/** 右键菜单“从注册表添加节点”会消费的最小节点投影。 */
-export interface ExampleRegisteredNodeEntry {
-  type: string;
-  title: string;
-  category: string;
-  description?: string;
-}
-
-/** 从当前注册表创建节点时使用的最小输入。 */
-export interface ExampleCreateNodeFromRegistryInput {
-  type: string;
-  position: {
-    x: number;
-    y: number;
-  };
-}
-
 /** demo 内部维护的最小连线投影，专供右键菜单绑定与日志复用。 */
 export interface ExampleTrackedLinkEntry {
   id: string;
@@ -117,7 +102,6 @@ export interface ExampleGraphActions {
   fit(): void;
   reset(): void;
   clearLog(): void;
-  createNodeFromRegistry(input: ExampleCreateNodeFromRegistryInput): void;
   removeNode(nodeId: string): void;
   removeLink(linkId: string): void;
   registerAuthoringBundle(file: File): Promise<void>;
@@ -155,36 +139,6 @@ function formatRuntimeFeedback(event: RuntimeFeedbackEvent): string {
 /** 用文件名、大小和修改时间生成一个稳定的 bundle 指纹。 */
 function createBundleFingerprint(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`;
-}
-
-/** 把 `NodeDefinition` 压缩成菜单需要的最小节点信息。 */
-function projectRegisteredNode(
-  definition: ExampleRegisteredNodeDefinition
-): ExampleRegisteredNodeEntry {
-  return {
-    type: definition.type,
-    title: definition.title?.trim() || definition.type,
-    category: definition.category?.trim() || "未分类",
-    description: definition.description?.trim() || undefined
-  };
-}
-
-/** 统一排序注册表节点，避免菜单层重复做同样的整理逻辑。 */
-function compareRegisteredNodes(
-  left: ExampleRegisteredNodeEntry,
-  right: ExampleRegisteredNodeEntry
-): number {
-  const categoryOrder = left.category.localeCompare(right.category, "zh-CN");
-  if (categoryOrder !== 0) {
-    return categoryOrder;
-  }
-
-  const titleOrder = left.title.localeCompare(right.title, "zh-CN");
-  if (titleOrder !== 0) {
-    return titleOrder;
-  }
-
-  return left.type.localeCompare(right.type, "zh-CN");
 }
 
 /** 把运行时 `GraphLink` 压缩成 demo 自己维护的最小连线元信息。 */
@@ -259,19 +213,6 @@ export function useExampleGraph(): UseExampleGraphResult {
     });
   };
 
-  /** 读取当前 graph 已注册的节点定义，并投影成菜单需要的结构。 */
-  const listRegisteredNodes = (): ExampleRegisteredNodeEntry[] => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return [];
-    }
-
-    return graph
-      .listNodes()
-      .map((definition) => projectRegisteredNode(definition))
-      .sort(compareRegisteredNodes);
-  };
-
   /** 记录一条正式连线，并立刻把它挂到右键菜单系统里。 */
   const rememberTrackedLink = (link: ExampleTrackedLinkEntry): void => {
     trackedLinksRef.current.set(link.id, link);
@@ -312,6 +253,61 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     trackedLinksRef.current.clear();
+  };
+
+  /** 统一创建节点，并把日志语义收口到 hook 内部。 */
+  const createNodeWithLogging = (
+    input: LeaferGraphCreateNodeInput
+  ): NodeRuntimeState => {
+    const graph = graphRef.current;
+    if (!graph) {
+      throw new Error("图实例尚未就绪，暂时无法创建节点");
+    }
+
+    try {
+      const nextNode = graph.createNode(input);
+      appendLog(
+        `已通过右键菜单创建节点：${nextNode.title} · ${nextNode.type} @ (${Math.round(
+          nextNode.layout.x
+        )}, ${Math.round(nextNode.layout.y)})`
+      );
+      return nextNode;
+    } catch (error) {
+      const typeLabel =
+        typeof input.type === "string" && input.type.trim()
+          ? input.type
+          : "unknown";
+      appendLog(
+        error instanceof Error
+          ? `创建节点失败：${error.message}`
+          : `创建节点失败：${typeLabel}`
+      );
+      throw error;
+    }
+  };
+
+  /** 统一创建正式连线，并同步接入 demo 自己的连线跟踪与日志。 */
+  const createLinkWithLogging = (
+    input: LeaferGraphCreateLinkInput
+  ): GraphLink => {
+    const graph = graphRef.current;
+    if (!graph) {
+      throw new Error("图实例尚未就绪，暂时无法创建连线");
+    }
+
+    try {
+      const link = graph.createLink(input);
+      rememberTrackedLink(projectTrackedLink(link));
+      appendLog(
+        `已创建连线：${link.source.nodeId}:${link.source.slot} -> ${link.target.nodeId}:${link.target.slot}`
+      );
+      return link;
+    } catch (error) {
+      appendLog(
+        error instanceof Error ? `创建连线失败：${error.message}` : "创建连线失败"
+      );
+      throw error;
+    }
   };
 
   /**
@@ -393,33 +389,6 @@ export function useExampleGraph(): UseExampleGraphResult {
     },
     clearLog() {
       setLogs([]);
-    },
-    createNodeFromRegistry(input) {
-      const graph = graphRef.current;
-      if (!graph) {
-        appendLog("图实例尚未就绪，暂时无法从注册表创建节点");
-        return;
-      }
-
-      try {
-        const nextNode = graph.createNode({
-          type: input.type,
-          x: input.position.x,
-          y: input.position.y
-        });
-
-        appendLog(
-          `已从注册表添加节点：${nextNode.title} · ${nextNode.type} @ (${Math.round(
-            nextNode.layout.x
-          )}, ${Math.round(nextNode.layout.y)})`
-        );
-      } catch (error) {
-        appendLog(
-          error instanceof Error
-            ? `从注册表添加节点失败：${error.message}`
-            : `从注册表添加节点失败：${input.type}`
-          );
-      }
     },
     removeNode(nodeId) {
       const graph = graphRef.current;
@@ -617,17 +586,9 @@ export function useExampleGraph(): UseExampleGraphResult {
           }
 
           try {
-            const link = graph.createLink(event.input);
-            rememberTrackedLink(projectTrackedLink(link));
-            appendLog(
-              `已创建连线：${link.source.nodeId}:${link.source.slot} -> ${link.target.nodeId}:${link.target.slot}`
-            );
-          } catch (error) {
-            appendLog(
-              error instanceof Error
-                ? `创建连线失败：${error.message}`
-                : "创建连线失败"
-            );
+            createLinkWithLogging(event.input);
+          } catch {
+            // 创建失败日志已经在 `createLinkWithLogging(...)` 内统一记录。
           }
         });
 
@@ -705,8 +666,8 @@ export function useExampleGraph(): UseExampleGraphResult {
       fit: actions.fit,
       reset: actions.reset,
       clearLog: actions.clearLog,
-      listRegisteredNodes,
-      createNodeFromRegistry: actions.createNodeFromRegistry,
+      createNode: createNodeWithLogging,
+      createLink: createLinkWithLogging,
       removeNode: actions.removeNode,
       removeLink: actions.removeLink,
       appendLog

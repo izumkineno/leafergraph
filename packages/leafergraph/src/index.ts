@@ -125,6 +125,7 @@ export type {
 } from "./api/graph_document_diff";
 export {
   applyGraphDocumentDiffToDocument,
+  createCreateNodeInputFromNodeSnapshot,
   createUpdateNodeInputFromNodeSnapshot
 } from "./api/graph_document_diff";
 export {

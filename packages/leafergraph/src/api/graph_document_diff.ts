@@ -132,6 +132,40 @@ export function createUpdateNodeInputFromNodeSnapshot(
   };
 }
 
+/**
+ * 把正式节点快照恢复为 `createNode(...)` 可直接消费的输入。
+ *
+ * @remarks
+ * 这条 helper 专门服务复制 / 粘贴、模板恢复和未来 editor 的局部反序列化。
+ * 默认会保留原始 `id`，调用方如果希望粘贴成新节点，应在外层显式移除或覆写。
+ */
+export function createCreateNodeInputFromNodeSnapshot(
+  node: NodeSerializeResult
+): LeaferGraphCreateNodeInput {
+  return {
+    id: node.id,
+    type: node.type,
+    ...(node.title !== undefined ? { title: node.title } : {}),
+    x: node.layout.x,
+    y: node.layout.y,
+    ...(node.layout.width !== undefined ? { width: node.layout.width } : {}),
+    ...(node.layout.height !== undefined ? { height: node.layout.height } : {}),
+    ...(node.properties !== undefined
+      ? { properties: structuredClone(node.properties) }
+      : {}),
+    ...(node.propertySpecs !== undefined
+      ? { propertySpecs: structuredClone(node.propertySpecs) }
+      : {}),
+    ...(node.inputs !== undefined ? { inputs: structuredClone(node.inputs) } : {}),
+    ...(node.outputs !== undefined
+      ? { outputs: structuredClone(node.outputs) }
+      : {}),
+    ...(node.widgets !== undefined ? { widgets: structuredClone(node.widgets) } : {}),
+    ...(node.data !== undefined ? { data: structuredClone(node.data) } : {}),
+    ...(node.flags !== undefined ? { flags: structuredClone(node.flags) } : {})
+  };
+}
+
 export function applyGraphDocumentDiffToDocument(
   currentDocument: GraphDocument,
   diff: GraphDocumentDiff

@@ -65,7 +65,7 @@ type LeaferContextMenuRenderableIcon =
   | Node
   | ((ownerDocument: Document) => Node);
 
-type LeaferContextMenuResolver = (
+export type LeaferContextMenuResolver = (
   context: LeaferContextMenuContext
 ) => LeaferContextMenuItem[] | null | undefined;
 
@@ -240,6 +240,11 @@ export interface LeaferContextMenu {
   bindTarget(binding: LeaferContextMenuBinding): this;
   unbindTarget(key: string): this;
   setResolver(resolver?: LeaferContextMenuResolver): this;
+  registerResolver(
+    key: string,
+    resolver: LeaferContextMenuResolver
+  ): () => void;
+  unregisterResolver(key: string): this;
   open(
     context: LeaferContextMenuContext,
     items?: LeaferContextMenuItem[]
@@ -253,7 +258,8 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
   private readonly app: App;
   private readonly adapter: InternalLeaferContextMenuAdapter;
   private readonly controller: InternalContextMenuController;
-  private resolveItems?: LeaferContextMenuResolver;
+  private baseResolver?: LeaferContextMenuResolver;
+  private readonly registeredResolvers = new Map<string, LeaferContextMenuResolver>();
 
   constructor(options: LeaferContextMenuOptions) {
     this.app = options.app;
@@ -261,7 +267,7 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
       options.host ??
       options.container.ownerDocument.body ??
       options.container;
-    this.resolveItems = options.resolveItems;
+    this.baseResolver = options.resolveItems;
     this.adapter = createLeaferContextMenuAdapter({
       app: options.app,
       container: options.container,
@@ -283,10 +289,7 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
       submenuTriggerMode: options.submenuTriggerMode,
       openDelay: options.openDelay,
       closeDelay: options.closeDelay,
-      resolveItems: (context) =>
-        this.resolveItems?.(toPublicContext(context))?.map((item) =>
-          toInternalItem(item)
-        ),
+      resolveItems: (context) => this.resolveAllItems(toPublicContext(context)),
       onBeforeOpen: (context) =>
         options.onBeforeOpen?.(toPublicContext(context)),
       onOpen: (context) => {
@@ -348,12 +351,32 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
   }
 
   setResolver(resolver?: LeaferContextMenuResolver): this {
-    this.resolveItems = resolver;
-    this.controller.setResolver((context) =>
-      this.resolveItems?.(toPublicContext(context))?.map((item) =>
-        toInternalItem(item)
-      )
-    );
+    this.baseResolver = resolver;
+    this.refreshControllerResolver();
+    return this;
+  }
+
+  registerResolver(
+    key: string,
+    resolver: LeaferContextMenuResolver
+  ): () => void {
+    const normalizedKey = normalizeResolverKey(key);
+    this.registeredResolvers.set(normalizedKey, resolver);
+    this.refreshControllerResolver();
+
+    return () => {
+      if (this.registeredResolvers.get(normalizedKey) !== resolver) {
+        return;
+      }
+
+      this.registeredResolvers.delete(normalizedKey);
+      this.refreshControllerResolver();
+    };
+  }
+
+  unregisterResolver(key: string): this {
+    this.registeredResolvers.delete(normalizeResolverKey(key));
+    this.refreshControllerResolver();
     return this;
   }
 
@@ -379,12 +402,49 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     this.adapter.destroy();
     this.controller.destroy();
   }
+
+  /** 把基础 resolver 和全部注册 resolver 合并成当前正式菜单结果。 */
+  private resolveAllItems(
+    context: LeaferContextMenuContext
+  ): InternalContextMenuItem[] {
+    const resolvedItems: LeaferContextMenuItem[] = [];
+
+    const baseItems = this.baseResolver?.(context);
+    if (baseItems?.length) {
+      resolvedItems.push(...baseItems);
+    }
+
+    for (const resolver of this.registeredResolvers.values()) {
+      const items = resolver(context);
+      if (items?.length) {
+        resolvedItems.push(...items);
+      }
+    }
+
+    return resolvedItems.map((item) => toInternalItem(item));
+  }
+
+  /** 每次 resolver 变更后都统一刷新控制器入口，避免外层自己关心合并逻辑。 */
+  private refreshControllerResolver(): void {
+    this.controller.setResolver((context) =>
+      this.resolveAllItems(toPublicContext(context))
+    );
+  }
 }
 
 export function createLeaferContextMenu(
   options: LeaferContextMenuOptions
 ): LeaferContextMenu {
   return new LeaferContextMenuImpl(options);
+}
+
+function normalizeResolverKey(key: string): string {
+  const normalizedKey = key.trim();
+  if (!normalizedKey) {
+    throw new Error("右键菜单 resolver 键名不能为空");
+  }
+
+  return normalizedKey;
 }
 
 function toInternalBinding(

@@ -2,37 +2,28 @@
  * 最小空画布 demo 的右键菜单桥接模块。
  *
  * @remarks
- * 当前 demo 仍然保持“最小宿主页”定位，但右键菜单已经承担三类职责：
- * - Leafer-first 右键菜单实例创建
- * - 画布 / 节点 / 连线 菜单项解析
- * - 节点 / 连线 target 绑定与解绑
- * - 统一销毁入口
+ * 这个文件只做两层接线：
+ * - 先启用 `@leafergraph/context-menu` 内建通用功能
+ * - 再补上 `mini-graph` 自己特有的 demo 动作
+ *
+ * 这样通用右键能力能沉到包内复用，而 demo 仍能保留自己的说明性动作。
  */
 
 import {
   createLeaferContextMenu,
+  registerLeaferContextMenuBuiltins,
+  type LeaferContextMenu,
   type LeaferContextMenuContext,
   type LeaferContextMenuItem
 } from "@leafergraph/context-menu";
-import type { LeaferGraph } from "leafergraph";
+import type { NodeRuntimeState } from "@leafergraph/node";
 import type {
-  ExampleCreateNodeFromRegistryInput,
-  ExampleRegisteredNodeEntry,
-  ExampleTrackedLinkEntry
-} from "./use_example_graph";
-
-interface LeaferWorldPointResolver {
-  getWorldPointByClient?(
-    clientPoint: {
-      clientX: number;
-      clientY: number;
-    },
-    updateClient?: boolean
-  ): {
-    x: number;
-    y: number;
-  };
-}
+  GraphLink,
+  LeaferGraph,
+  LeaferGraphCreateLinkInput,
+  LeaferGraphCreateNodeInput
+} from "leafergraph";
+import type { ExampleTrackedLinkEntry } from "./use_example_graph";
 
 /** 创建 demo 菜单时需要的宿主能力。 */
 export interface CreateExampleContextMenuOptions {
@@ -44,8 +35,8 @@ export interface CreateExampleContextMenuOptions {
   fit(): void;
   reset(): void;
   clearLog(): void;
-  listRegisteredNodes(): ExampleRegisteredNodeEntry[];
-  createNodeFromRegistry(input: ExampleCreateNodeFromRegistryInput): void;
+  createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState;
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink;
   removeNode(nodeId: string): void;
   removeLink(linkId: string): void;
   appendLog(message: string): void;
@@ -64,7 +55,8 @@ export interface ExampleContextMenuHandle {
  * 创建一个专供 `mini-graph` 使用的右键菜单控制器。
  *
  * @remarks
- * 画布 target 由菜单包默认处理；节点和连线 target 则由 demo 在这里显式绑定。
+ * - 通用功能全部来自 builtins
+ * - demo 自己只额外注册 Reset / Clear Log / 信息记录等补丁动作
  */
 export function createExampleContextMenu(
   options: CreateExampleContextMenuOptions
@@ -73,20 +65,62 @@ export function createExampleContextMenu(
     app: options.graph.app,
     container: options.container,
     host: resolveContextMenuHost(options.container),
-    // demo 端统一用 hover 展开子菜单；混合设备是否需要退化由菜单包内部判断。
-    submenuTriggerMode: "hover",
-    resolveItems(context) {
-      if (context.target.kind === "node") {
-        return createNodeMenuItems(options, context);
-      }
+    // demo 端统一使用 hover 展开子菜单。
+    submenuTriggerMode: "hover"
+  });
 
-      if (context.target.kind === "link") {
-        return createLinkMenuItems(options, context);
-      }
-
-      return createCanvasMenuItems(options, context);
+  const disposeBuiltins = registerLeaferContextMenuBuiltins(menu, {
+    graph: options.graph,
+    features: {
+      canvasAddNode: true,
+      canvasPaste: true,
+      canvasControls: true,
+      nodeRunFromHere: true,
+      nodeCopy: true,
+      nodeDelete: true,
+      linkDelete: true
+    },
+    play() {
+      options.play();
+    },
+    step() {
+      options.step();
+    },
+    stop() {
+      options.stop();
+    },
+    fitView() {
+      options.fit();
+    },
+    playFromNode(nodeId) {
+      const changed = options.graph.playFromNode(nodeId, {
+        source: "context-menu"
+      });
+      const snapshot = options.graph.getNodeSnapshot(nodeId);
+      options.appendLog(
+        changed
+          ? `已从节点开始运行：${snapshot?.title?.trim() || nodeId}`
+          : `从该节点开始运行未产生新执行：${snapshot?.title?.trim() || nodeId}`
+      );
+    },
+    nodeFactory(input) {
+      return options.createNode(input);
+    },
+    createLink(input) {
+      return options.createLink(input);
+    },
+    removeNode(nodeId) {
+      options.removeNode(nodeId);
+    },
+    removeLink(linkId) {
+      options.removeLink(linkId);
     }
   });
+
+  const disposeExampleResolver = menu.registerResolver(
+    "mini-graph-extra",
+    (context) => createExampleMenuItems(options, context)
+  );
 
   return {
     bindNodeTarget(nodeId): void {
@@ -102,77 +136,48 @@ export function createExampleContextMenu(
       menu.unbindTarget(createLinkMenuBindingKey(linkId));
     },
     destroy(): void {
+      disposeExampleResolver();
+      disposeBuiltins();
       menu.destroy();
     }
   };
 }
 
-/** 画布菜单：承载运行控制和 demo 辅助动作。 */
-function createCanvasMenuItems(
+/** demo 额外菜单项只保留说明型动作，不再重复实现通用内建动作。 */
+function createExampleMenuItems(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
 ): LeaferContextMenuItem[] {
+  if (context.target.kind === "node") {
+    return createNodeMenuItems(options, context);
+  }
+
+  if (context.target.kind === "link") {
+    return createLinkMenuItems(options, context);
+  }
+
+  return createCanvasMenuItems(options);
+}
+
+/** 画布菜单只保留 demo 专属动作，其余运行与建点能力全部走 builtins。 */
+function createCanvasMenuItems(
+  options: CreateExampleContextMenuOptions
+): LeaferContextMenuItem[] {
   return [
     {
-      kind: "submenu",
-      key: "canvas-runtime",
-      label: "运行控制",
-      children: [
-        {
-          key: "canvas-play",
-          label: "Play",
-          onSelect() {
-            options.play();
-          }
-        },
-        {
-          key: "canvas-step",
-          label: "Step",
-          onSelect() {
-            options.step();
-          }
-        },
-        {
-          key: "canvas-stop",
-          label: "Stop",
-          onSelect() {
-            options.stop();
-          }
-        }
-      ]
+      key: "demo-canvas-clear-log",
+      label: "Clear Log",
+      order: 80,
+      onSelect() {
+        options.clearLog();
+        options.appendLog("已通过右键菜单清空运行日志");
+      }
     },
+    { kind: "separator", key: "demo-canvas-divider", order: 89 },
     {
-      kind: "submenu",
-      key: "canvas-actions",
-      label: "画布操作",
-      children: [
-        {
-          key: "canvas-fit",
-          label: "Fit View",
-          onSelect() {
-            options.fit();
-          }
-        },
-        {
-          key: "canvas-clear-log",
-          label: "Clear Log",
-          onSelect() {
-            options.clearLog();
-            options.appendLog("已通过右键菜单清空运行日志");
-          }
-        }
-      ]
-    },
-    {
-      kind: "submenu",
-      key: "canvas-add-node",
-      label: "从注册表添加节点",
-      children: createRegisteredNodeCategoryItems(options, context)
-    },
-    { kind: "separator", key: "canvas-divider" },
-    {
-      key: "canvas-reset",
+      key: "demo-canvas-reset",
       label: "Reset Example",
+      order: 90,
       onSelect() {
         options.reset();
       }
@@ -180,81 +185,7 @@ function createCanvasMenuItems(
   ];
 }
 
-/** 按分类组织当前已注册节点，让菜单层级在节点增多时仍然清晰。 */
-function createRegisteredNodeCategoryItems(
-  options: CreateExampleContextMenuOptions,
-  context: LeaferContextMenuContext
-): LeaferContextMenuItem[] {
-  const registeredNodes = options.listRegisteredNodes();
-  if (!registeredNodes.length) {
-    return [
-      {
-        key: "canvas-add-node-empty",
-        label: "暂无可添加节点",
-        disabled: true
-      }
-    ];
-  }
-
-  const groupedNodes = new Map<string, ExampleRegisteredNodeEntry[]>();
-  for (const entry of registeredNodes) {
-    const currentEntries = groupedNodes.get(entry.category);
-    if (currentEntries) {
-      currentEntries.push(entry);
-      continue;
-    }
-
-    groupedNodes.set(entry.category, [entry]);
-  }
-
-  const categoryItems: LeaferContextMenuItem[] = [];
-  for (const [category, entries] of groupedNodes) {
-    const children = entries.map((entry) =>
-      createRegisteredNodeActionItem(options, context, entry)
-    );
-    if (!children.length) {
-      continue;
-    }
-
-    categoryItems.push({
-      kind: "submenu",
-      key: `canvas-add-node-category:${category}`,
-      label: category,
-      children
-    });
-  }
-
-  return categoryItems.length
-    ? categoryItems
-    : [
-        {
-          key: "canvas-add-node-empty",
-          label: "暂无可添加节点",
-          disabled: true
-        }
-      ];
-}
-
-/** 单个节点菜单项只负责把类型和坐标交给 hook，由 hook 完成真正建点。 */
-function createRegisteredNodeActionItem(
-  options: CreateExampleContextMenuOptions,
-  rootContext: LeaferContextMenuContext,
-  entry: ExampleRegisteredNodeEntry
-): LeaferContextMenuItem {
-  return {
-    key: `canvas-add-node:${entry.type}`,
-    label: entry.title,
-    description: entry.description,
-    onSelect(actionContext) {
-      options.createNodeFromRegistry({
-        type: entry.type,
-        position: resolveCreateNodePosition(options, actionContext ?? rootContext)
-      });
-    }
-  };
-}
-
-/** 节点菜单只保留最小但实用的上下文动作。 */
+/** 节点菜单只追加说明型动作，删除与运行动作交给 builtins。 */
 function createNodeMenuItems(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
@@ -265,8 +196,9 @@ function createNodeMenuItems(
 
   return [
     {
-      key: "node-log-info",
+      key: "demo-node-log-info",
       label: "记录节点信息",
+      order: 80,
       disabled: !nodeId,
       onSelect() {
         if (!nodeId) {
@@ -279,25 +211,11 @@ function createNodeMenuItems(
         );
       }
     },
-    { kind: "separator", key: "node-divider" },
-    {
-      key: "node-remove",
-      label: "删除节点",
-      danger: true,
-      disabled: !nodeId,
-      onSelect() {
-        if (!nodeId) {
-          options.appendLog("当前节点缺少 nodeId，无法删除");
-          return;
-        }
-
-        options.removeNode(nodeId);
-      }
-    }
+    { kind: "separator", key: "demo-node-divider", order: 89 }
   ];
 }
 
-/** 连线菜单聚焦在“看清端点”和“立即删除”这两类最小动作。 */
+/** 连线菜单只追加说明型动作，删除动作交给 builtins。 */
 function createLinkMenuItems(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
@@ -317,8 +235,9 @@ function createLinkMenuItems(
 
   return [
     {
-      key: "link-log-info",
+      key: "demo-link-log-info",
       label: "记录连线信息",
+      order: 80,
       disabled: !linkId,
       onSelect() {
         if (!linkId) {
@@ -329,57 +248,8 @@ function createLinkMenuItems(
         options.appendLog(`连线信息：${summary}`);
       }
     },
-    { kind: "separator", key: "link-divider" },
-    {
-      key: "link-remove",
-      label: "删除连线",
-      danger: true,
-      disabled: !linkId,
-      onSelect() {
-        if (!linkId) {
-          options.appendLog("当前连线缺少 linkId，无法删除");
-          return;
-        }
-
-        options.removeLink(linkId);
-      }
-    }
+    { kind: "separator", key: "demo-link-divider", order: 89 }
   ];
-}
-
-/** 优先使用 Leafer 菜单事件给出的图坐标；缺失时回退到当前可视区域中心。 */
-function resolveCreateNodePosition(
-  options: CreateExampleContextMenuOptions,
-  context: LeaferContextMenuContext
-): {
-  x: number;
-  y: number;
-} {
-  if (context.worldPoint) {
-    return {
-      x: context.worldPoint.x,
-      y: context.worldPoint.y
-    };
-  }
-
-  const rect = options.container.getBoundingClientRect();
-  const app = options.graph.app as typeof options.graph.app & LeaferWorldPointResolver;
-  const worldPoint = app.getWorldPointByClient?.(
-    {
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2
-    },
-    true
-  );
-
-  if (worldPoint) {
-    return worldPoint;
-  }
-
-  return {
-    x: context.containerPoint.x,
-    y: context.containerPoint.y
-  };
 }
 
 /** 菜单浮层统一挂到文档 body，避免被 demo 画布容器裁剪。 */
@@ -404,7 +274,7 @@ function createLinkMenuBindingKey(linkId: string): string {
  * 这里顺手把节点标题和类型一起放进 meta，避免菜单 resolver 再反查 graph。
  */
 function bindNodeContextMenuTarget(
-  menu: ReturnType<typeof createLeaferContextMenu>,
+  menu: LeaferContextMenu,
   options: CreateExampleContextMenuOptions,
   nodeId: string
 ): void {
@@ -428,7 +298,7 @@ function bindNodeContextMenuTarget(
  * 因此 demo 直接使用 hook 维护的最小连线元信息作为菜单 meta。
  */
 function bindLinkContextMenuTarget(
-  menu: ReturnType<typeof createLeaferContextMenu>,
+  menu: LeaferContextMenu,
   options: CreateExampleContextMenuOptions,
   link: ExampleTrackedLinkEntry
 ): void {
