@@ -111,12 +111,16 @@ export class WatchNode extends BaseNode {
   onExecute(ctx) {
     const inputValue = ctx.getInput("value");
     ctx.state.value = inputValue;
-    const display = toDisplayText(inputValue);
+    // 节点标题保持紧凑，避免超长文本把头部挤坏；状态面板则尽量保留完整值。
+    const titleDisplay = toDisplayText(inputValue);
+    const panelDisplay = toDisplayText(inputValue, Number.POSITIVE_INFINITY);
     setNodeTitle(
       ctx.node,
-      display.length > 22 ? `Watch ${display.slice(0, 22)}…` : `Watch ${display}`
+      titleDisplay.length > 22
+        ? `Watch ${titleDisplay.slice(0, 22)}…`
+        : `Watch ${titleDisplay}`
     );
-    updateStatus(ctx, `LIVE\n${display}`);
+    updateStatus(ctx, `LIVE\n${panelDisplay}`);
   }
 }
 

@@ -77,6 +77,11 @@ export interface NodeShellLayout {
   widgets: NodeShellWidgetLayout[];
 }
 
+interface ResolvedNodeWidgetLayouts {
+  widgetBounds: LeaferGraphWidgetBounds;
+  layouts: NodeShellWidgetLayout[];
+}
+
 /**
  * 当前布局模块只依赖节点运行时状态中的结构字段。
  * 它不需要知道节点定义注册表、颜色或交互状态。
@@ -199,6 +204,72 @@ export function resolveNodeCategoryBadgeLayout(
 }
 
 /**
+ * 计算节点内每个 Widget 的最终布局。
+ *
+ * @remarks
+ * 当节点被手动拉高后，Widget 图层的可用高度会变大；
+ * 这里会把多出来的空间优先分配给最后一个 Widget，
+ * 避免像 Watch 这类展示型面板仍然停留在固定高度，底部留下大块空白。
+ */
+function resolveNodeWidgetLayouts(
+  widgets: NodeLayoutSource["widgets"],
+  width: number,
+  widgetTop: number,
+  totalHeight: number,
+  metrics: NodeShellLayoutMetrics
+): ResolvedNodeWidgetLayouts {
+  const widgetBounds: LeaferGraphWidgetBounds = {
+    x: metrics.sectionPaddingX,
+    y: widgetTop,
+    width: width - metrics.sectionPaddingX * 2,
+    height: Math.max(0, totalHeight - widgetTop)
+  };
+
+  if (!widgets.length) {
+    return {
+      widgetBounds,
+      layouts: []
+    };
+  }
+
+  const preferredHeights = widgets.map((widget) =>
+    resolveNodeWidgetPreferredHeight(widget, metrics)
+  );
+  const preferredTotalHeight = preferredHeights.reduce(
+    (total, height) => total + height,
+    0
+  );
+  const availableContentHeight = Math.max(
+    0,
+    widgetBounds.height -
+      metrics.widgetPaddingY * 2 -
+      metrics.widgetGap * Math.max(0, widgets.length - 1)
+  );
+  const extraHeight = Math.max(0, availableContentHeight - preferredTotalHeight);
+
+  const layouts = widgets.map((_, index) => {
+    const isLastWidget = index === widgets.length - 1;
+    const height = preferredHeights[index] + (isLastWidget ? extraHeight : 0);
+
+    return {
+      index,
+      preferredHeight: preferredHeights[index],
+      bounds: {
+        x: 0,
+        y: 0,
+        width: widgetBounds.width,
+        height
+      }
+    };
+  });
+
+  return {
+    widgetBounds,
+    layouts
+  };
+}
+
+/**
  * 统一计算节点壳布局结果。
  * 当前不包含颜色、字体和交互态，只输出纯几何信息。
  */
@@ -217,12 +288,6 @@ export function resolveNodeShellLayout(
   const widgetTop = collapsed
     ? metrics.headerHeight
     : resolveNodeWidgetTop(slotCount, metrics);
-  const widgetBounds: LeaferGraphWidgetBounds = {
-    x: metrics.sectionPaddingX,
-    y: widgetTop,
-    width: width - metrics.sectionPaddingX * 2,
-    height: Math.max(0, widgetSectionHeight)
-  };
   const height = collapsed
     ? metrics.headerHeight
     : Math.max(
@@ -234,6 +299,13 @@ export function resolveNodeShellLayout(
           widgetSectionHeight,
         metrics.defaultNodeMinHeight
       );
+  const { widgetBounds, layouts: widgetLayouts } = resolveNodeWidgetLayouts(
+    collapsed ? [] : node.widgets,
+    width,
+    widgetTop,
+    height,
+    metrics
+  );
 
   return {
     width,
@@ -245,24 +317,12 @@ export function resolveNodeShellLayout(
     widgetTop,
     widgetSectionHeight,
     hasWidgets: !collapsed && node.widgets.length > 0,
-    widgetBounds: {
-      ...widgetBounds,
-      height: Math.max(0, height - widgetTop)
-    },
+    widgetBounds,
     widgetGap: metrics.widgetGap,
     widgetPaddingY: metrics.widgetPaddingY,
     inputs,
     outputs,
     ports,
-    widgets: node.widgets.map((widget, index) => ({
-      index,
-      preferredHeight: resolveNodeWidgetPreferredHeight(widget, metrics),
-      bounds: {
-        x: 0,
-        y: 0,
-        width: widgetBounds.width,
-        height: resolveNodeWidgetPreferredHeight(widget, metrics)
-      }
-    }))
+    widgets: widgetLayouts
   };
 }

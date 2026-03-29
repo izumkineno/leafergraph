@@ -36,6 +36,25 @@ interface StatusTheme {
   fontFamily?: string;
 }
 
+interface TextMeasureStyle {
+  fontSize: number;
+  fontFamily?: string;
+  fontWeight?: string;
+}
+
+let cachedTextMeasureContext: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null | undefined;
+
+interface StatusReadoutGeometry {
+  surfaceY: number;
+  surfaceHeight: number;
+  chipY: number;
+  statusLineY: number;
+  statusLineWidth: number;
+  detailLineY: number;
+  detailLineWidth: number;
+  detailLineHeight: number;
+}
+
 function normalizeStatusValue(value: unknown): string {
   if (value === undefined || value === null) {
     return "";
@@ -90,16 +109,237 @@ function resolveTheme(ctx: DevWidgetContext<string>): StatusTheme {
   };
 }
 
+/**
+ * 根据当前 widget 边界解析状态面板几何。
+ *
+ * @remarks
+ * Watch 节点等展示型控件会随着节点拉高获得更多可用高度，
+ * 这里让 readout 面板真正吃到这部分空间，而不是维持固定 66px。
+ */
+function resolveGeometry(
+  bounds: DevWidgetContext<string>["bounds"]
+): StatusReadoutGeometry {
+  const surfaceY = 16;
+  const minimumSurfaceHeight = 66;
+  const surfaceHeight = Math.max(bounds.height - surfaceY, minimumSurfaceHeight);
+  const chipY = surfaceY + 12;
+  const statusLineY = surfaceY + 7;
+  const detailLineY = surfaceY + 30;
+  const statusLineWidth = Math.max(bounds.width - 40, 0);
+  const detailLineWidth = Math.max(bounds.width - 24, 0);
+  const detailLineHeight = Math.max(surfaceHeight - 38, 14);
+
+  return {
+    surfaceY,
+    surfaceHeight,
+    chipY,
+    statusLineY,
+    statusLineWidth,
+    detailLineY,
+    detailLineWidth,
+    detailLineHeight
+  };
+}
+
+/**
+ * 按当前 widget 可用尺寸动态折叠文本。
+ *
+ * @remarks
+ * 这里不再提前按固定长度裁切，而是根据当前宽高估算：
+ * - 一行大约能容纳多少字符
+ * - 当前区域最多能显示多少行
+ * 超出后只在最后一行补一个省略号。
+ */
+function clampTextToBounds(options: {
+  text: string;
+  width: number;
+  height?: number;
+  textStyle: TextMeasureStyle;
+  maxLines?: number;
+}): string {
+  const normalizedText = options.text.replace(/\r\n/g, "\n");
+  const lineHeight = Math.max(
+    options.textStyle.fontSize * 1.45,
+    options.textStyle.fontSize + 2
+  );
+  const maxLines =
+    options.maxLines ??
+    Math.max(1, Math.floor((options.height ?? lineHeight) / lineHeight));
+
+  if (!normalizedText || maxLines <= 0) {
+    return normalizedText;
+  }
+
+  if (options.width <= 4) {
+    return maxLines > 0 ? "…" : "";
+  }
+
+  const lines: string[] = [];
+  let currentLine = "";
+  let currentWidth = 0;
+  let truncated = false;
+
+  for (const character of normalizedText) {
+    if (character === "\n") {
+      lines.push(currentLine);
+      currentLine = "";
+      currentWidth = 0;
+      if (lines.length >= maxLines) {
+        truncated = true;
+        break;
+      }
+      continue;
+    }
+
+    const characterWidth = measureTextWidth(character, options.textStyle);
+    if (
+      currentLine &&
+      currentWidth + characterWidth > options.width
+    ) {
+      lines.push(currentLine);
+      currentLine = "";
+      currentWidth = 0;
+      if (lines.length >= maxLines) {
+        truncated = true;
+        break;
+      }
+    }
+
+    currentLine += character;
+    currentWidth += characterWidth;
+  }
+
+  if (!truncated && (currentLine || !lines.length)) {
+    lines.push(currentLine);
+  }
+
+  if (lines.length > maxLines) {
+    lines.length = maxLines;
+    truncated = true;
+  }
+
+  if (!truncated) {
+    return lines.join("\n");
+  }
+
+  const visibleLines = lines.slice(0, maxLines);
+  const lastLineIndex = Math.max(0, visibleLines.length - 1);
+  visibleLines[lastLineIndex] = appendEllipsisWithinWidth(
+    visibleLines[lastLineIndex] ?? "",
+    options.width,
+    options.textStyle
+  );
+
+  return visibleLines.join("\n");
+}
+
+/** 为最后一行补省略号，同时保证补完后仍不超出当前宽度。 */
+function appendEllipsisWithinWidth(
+  line: string,
+  width: number,
+  textStyle: TextMeasureStyle
+): string {
+  const ellipsis = "…";
+  const ellipsisWidth = measureTextWidth(ellipsis, textStyle);
+
+  if (!line) {
+    return ellipsis;
+  }
+
+  let nextLine = line;
+  while (
+    nextLine &&
+    measureTextWidth(`${nextLine}${ellipsis}`, textStyle) > width
+  ) {
+    nextLine = nextLine.slice(0, -1);
+  }
+
+  if (!nextLine && ellipsisWidth > width) {
+    return "";
+  }
+
+  return `${nextLine}${ellipsis}`;
+}
+
+/** 优先使用真实字体测量宽度，失败时再回退到轻量估算。 */
+function measureTextWidth(text: string, textStyle: TextMeasureStyle): number {
+  const context = getTextMeasureContext();
+  if (context) {
+    context.font = buildCanvasFont(textStyle);
+    return context.measureText(text).width;
+  }
+
+  let width = 0;
+  for (const character of text) {
+    width += estimateCharacterWidth(character, textStyle.fontSize);
+  }
+  return width;
+}
+
+/** 粗略区分 CJK / ASCII / 空白字符宽度，用于动态折叠估算。 */
+function estimateCharacterWidth(character: string, fontSize: number): number {
+  if (character === " ") {
+    return fontSize * 0.35;
+  }
+
+  if (/[\t]/u.test(character)) {
+    return fontSize * 0.7;
+  }
+
+  if (/[\x00-\xff]/u.test(character)) {
+    return fontSize * 0.62;
+  }
+
+  return fontSize;
+}
+
+function getTextMeasureContext():
+  | CanvasRenderingContext2D
+  | OffscreenCanvasRenderingContext2D
+  | null {
+  if (cachedTextMeasureContext !== undefined) {
+    return cachedTextMeasureContext;
+  }
+
+  if (typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    cachedTextMeasureContext = canvas.getContext("2d");
+    return cachedTextMeasureContext;
+  }
+
+  if (typeof OffscreenCanvas !== "undefined") {
+    cachedTextMeasureContext = new OffscreenCanvas(1, 1).getContext("2d");
+    return cachedTextMeasureContext;
+  }
+
+  cachedTextMeasureContext = null;
+  return cachedTextMeasureContext;
+}
+
+function buildCanvasFont(textStyle: TextMeasureStyle): string {
+  const fontWeight = textStyle.fontWeight ?? "400";
+  const fontFamily = textStyle.fontFamily?.trim() || "sans-serif";
+  return `${fontWeight} ${textStyle.fontSize}px ${fontFamily}`;
+}
+
 function syncStatusReadout(
   state: StatusReadoutState,
   value: unknown,
   options: StatusReadoutOptions,
-  theme: StatusTheme
+  theme: StatusTheme,
+  bounds: DevWidgetContext<string>["bounds"]
 ): void {
+  const geometry = resolveGeometry(bounds);
   const textValue = normalizeStatusValue(value);
   const [headline, ...rest] = (textValue || options.emptyText).split("\n");
+  const detailText = rest.join("\n") || options.description;
+
+  state.surface.y = geometry.surfaceY;
+  state.surface.width = bounds.width;
+  state.surface.height = geometry.surfaceHeight;
 
   state.label.text = options.label;
+  state.label.width = bounds.width;
   state.label.fill = theme.labelFill;
   state.label.fontFamily = theme.fontFamily;
 
@@ -108,12 +348,35 @@ function syncStatusReadout(
 
   state.chip.fill = theme.accentFill;
   state.chip.stroke = theme.accentStroke;
+  state.chip.y = geometry.chipY;
 
-  state.statusLine.text = headline || options.emptyText;
+  state.statusLine.y = geometry.statusLineY;
+  state.statusLine.width = geometry.statusLineWidth;
+  state.statusLine.text = clampTextToBounds({
+    text: headline || options.emptyText,
+    width: geometry.statusLineWidth,
+    textStyle: {
+      fontSize: 12,
+      fontFamily: theme.fontFamily,
+      fontWeight: "600"
+    },
+    maxLines: 1
+  });
   state.statusLine.fill = theme.valueFill;
   state.statusLine.fontFamily = theme.fontFamily;
 
-  state.detailLine.text = rest.join("\n") || options.description;
+  state.detailLine.y = geometry.detailLineY;
+  state.detailLine.width = geometry.detailLineWidth;
+  state.detailLine.height = geometry.detailLineHeight;
+  state.detailLine.text = clampTextToBounds({
+    text: detailText,
+    width: geometry.detailLineWidth,
+    height: geometry.detailLineHeight,
+    textStyle: {
+      fontSize: 10,
+      fontFamily: theme.fontFamily
+    }
+  });
   state.detailLine.fill = theme.mutedFill;
   state.detailLine.fontFamily = theme.fontFamily;
 }
@@ -130,12 +393,13 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
   mount(ctx: DevWidgetContext<string>) {
     const options = resolveOptions(ctx.widget.options);
     const theme = resolveTheme(ctx);
+    const geometry = resolveGeometry(ctx.bounds);
 
     const surface = new ctx.ui.Rect({
       x: 0,
-      y: 16,
+      y: geometry.surfaceY,
       width: ctx.bounds.width,
-      height: 66,
+      height: geometry.surfaceHeight,
       cornerRadius: 16,
       fill: theme.fieldFill,
       stroke: theme.fieldStroke,
@@ -145,7 +409,7 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
 
     const chip = new ctx.ui.Rect({
       x: 12,
-      y: 28,
+      y: geometry.chipY,
       width: 8,
       height: 8,
       cornerRadius: 999,
@@ -169,26 +433,29 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
 
     const statusLine = new ctx.ui.Text({
       x: 28,
-      y: 23,
-      width: Math.max(ctx.bounds.width - 40, 0),
+      y: geometry.statusLineY,
+      width: geometry.statusLineWidth,
       text: "",
       fill: theme.valueFill,
       fontFamily: theme.fontFamily,
       fontSize: 12,
       fontWeight: "600",
       textWrap: "break",
+      textOverflow: "show",
       hittable: false
     });
 
     const detailLine = new ctx.ui.Text({
       x: 12,
-      y: 46,
-      width: Math.max(ctx.bounds.width - 24, 0),
+      y: geometry.detailLineY,
+      width: geometry.detailLineWidth,
+      height: geometry.detailLineHeight,
       text: options.description,
       fill: theme.mutedFill,
       fontFamily: theme.fontFamily,
       fontSize: 10,
       textWrap: "break",
+      textOverflow: "show",
       hittable: false
     });
 
@@ -201,7 +468,7 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
     };
 
     ctx.group.add([label, surface, chip, statusLine, detailLine]);
-    syncStatusReadout(state, ctx.value, options, theme);
+    syncStatusReadout(state, ctx.value, options, theme, ctx.bounds);
     return state;
   }
 
@@ -214,7 +481,13 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
       return;
     }
 
-    syncStatusReadout(state, nextValue, resolveOptions(ctx.widget.options), resolveTheme(ctx));
+    syncStatusReadout(
+      state,
+      nextValue,
+      resolveOptions(ctx.widget.options),
+      resolveTheme(ctx),
+      ctx.bounds
+    );
   }
 
   destroy(state: StatusReadoutState | void) {

@@ -130,7 +130,16 @@ export function updateStatus(
   value: unknown
 ): void {
   try {
-    ctx.setWidget(AUTHORING_BASIC_STATUS_WIDGET_NAME, toDisplayText(value, 180));
+    /**
+     * 状态面板是可拉伸的展示区，字符串一旦在这里被二次截断，
+     * 后续即使把节点拉高，也无法再恢复完整内容。
+     * 因此这里对“已经整理好的字符串状态”直接原样写入，
+     * 只在非字符串值时做一次兜底格式化。
+     */
+    ctx.setWidget(
+      AUTHORING_BASIC_STATUS_WIDGET_NAME,
+      typeof value === "string" ? value : toDisplayText(value, 180)
+    );
   } catch {
     // Some nodes intentionally omit the shared status widget.
   }
