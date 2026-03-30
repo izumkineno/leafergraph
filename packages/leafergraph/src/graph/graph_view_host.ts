@@ -8,7 +8,7 @@
 import type { App, Group } from "leafer-ui";
 import type { NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphSelectionUpdateMode } from "@leafergraph/contracts";
-import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
+import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
 
 /**
  * `@leafer-in/view` 通过副作用扩展方式把 `zoom(...)` 方法挂到 Leafer 实例上。

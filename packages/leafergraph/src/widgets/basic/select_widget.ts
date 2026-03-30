@@ -11,7 +11,7 @@ import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import {
   bindPressWidgetInteraction,
   type LeaferGraphWidgetPointerEvent
-} from "../widget_interaction";
+} from "@leafergraph/widget-runtime";
 import { WIDGET_FIELD_Y } from "./constants";
 import { WidgetFieldView } from "./field_view";
 import { BasicWidgetController, runtimeRequestRender } from "./template";

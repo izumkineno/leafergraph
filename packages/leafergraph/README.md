@@ -13,10 +13,12 @@
 当前仓库处于一轮兼容式拆分阶段：
 
 - 公共契约真源已经迁到 `@leafergraph/contracts`
+- Widget runtime 真源已经迁到 `@leafergraph/widget-runtime`
 - `leafergraph` 根入口仍继续 re-export 这些契约
+- `leafergraph` 根入口仍继续 re-export 常用 Widget runtime helper
 - `leafergraph/graph-document-diff` 子路径仍继续可用
 
-这意味着外部当前仍可继续从 `leafergraph` 导入原有公共类型；但在 workspace 内部，新增实现应优先直接依赖 `@leafergraph/contracts`
+这意味着外部当前仍可继续从 `leafergraph` 导入原有公共类型和常用 Widget helper；但在 workspace 内部，新增实现应优先直接依赖 `@leafergraph/contracts` 和 `@leafergraph/widget-runtime`
 
 如果你只想知道“怎么用”，从这份 README 开始即可。  
 如果你要扩插件、接 Widget、读内部实现或排查刷新链路，请按下面的深链继续读。
@@ -47,6 +49,7 @@
 | `@leafergraph/node` | 节点定义、模块、注册表、图文档模型、序列化类型 | Leafer 场景、交互、渲染宿主 |
 | `@leafergraph/execution` | 执行链、传播、图级 `play/step/stop`、执行反馈、系统执行节点 | Leafer scene、节点壳、Widget 渲染、宿主状态投影 |
 | `@leafergraph/contracts` | 插件协议、Widget 契约、图操作类型、运行反馈类型、图文档 diff helper | 主包 facade、场景宿主、节点交互实现 |
+| `@leafergraph/widget-runtime` | Widget 注册表、生命周期 helper、编辑宿主、交互 helper | 图主题装配、内建基础控件库、主包 facade |
 | `leafergraph` | 图运行时、渲染、交互基础设施、宿主反馈、公共 API | 宿主 UI、authority transport、bundle 协议 |
 | 外部宿主 / 页面壳层 | 页面组织、bundle 装配、外围命令和协议接线 | 主包运行时真源 |
 

@@ -23,10 +23,10 @@ import type {
   LeaferGraphOptions,
   LeaferGraphWidgetEntry
 } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
 import { leaferGraphOnPlayNodeDefinition } from "../node/builtin/on_play_node";
 import { leaferGraphTimerNodeDefinition } from "../node/builtin/timer_node";
 import { BasicWidgetLibrary } from "../widgets/basic";
-import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
 
 /** 已安装插件的登记信息。 */
 interface InstalledPluginRecord {

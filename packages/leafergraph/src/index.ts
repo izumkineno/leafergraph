@@ -34,12 +34,18 @@ export type {
 } from "@leafergraph/node";
 export {
   LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
+  LeaferGraphWidgetRegistry,
   bindLinearWidgetDrag,
   bindPressWidgetInteraction,
+  createWidgetHitArea,
+  createWidgetLabel,
+  createWidgetLifecycleRenderer,
+  createWidgetSurface,
+  createWidgetValueText,
   isWidgetInteractionTarget,
   resolveLinearWidgetProgressFromEvent,
   stopWidgetPointerEvent
-} from "./widgets/widget_interaction";
+} from "@leafergraph/widget-runtime";
 export type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphNodePlugin,
@@ -130,14 +136,6 @@ export {
   createCreateNodeInputFromNodeSnapshot,
   createUpdateNodeInputFromNodeSnapshot
 } from "@leafergraph/contracts/graph-document-diff";
-export {
-  createWidgetHitArea,
-  createWidgetLabel,
-  createWidgetLifecycleRenderer,
-  createWidgetSurface,
-  createWidgetValueText
-} from "./widgets/widget_lifecycle";
-export { LeaferGraphWidgetRegistry } from "./widgets/widget_registry";
 export type {
   LeaferGraphLinearWidgetDragOptions,
   LeaferGraphPressWidgetInteractionOptions,
@@ -145,7 +143,7 @@ export type {
   LeaferGraphWidgetEventTargetLike,
   LeaferGraphWidgetInteractionBinding,
   LeaferGraphWidgetPointerEvent
-} from "./widgets/widget_interaction";
+} from "@leafergraph/widget-runtime";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphOptions,

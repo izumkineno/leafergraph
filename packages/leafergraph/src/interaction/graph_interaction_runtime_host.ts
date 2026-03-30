@@ -13,7 +13,7 @@ import type {
   LeaferGraphConnectionValidationResult,
   LeaferGraphSelectionUpdateMode
 } from "@leafergraph/contracts";
-import type { LeaferGraphWidgetPointerEvent } from "../widgets/widget_interaction";
+import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
 import {
   PORT_DIRECTION_LEFT,

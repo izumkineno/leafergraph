@@ -5,7 +5,7 @@
  * 负责内建按钮控件的渲染、状态同步和动作派发。
  */
 
-import { bindPressWidgetInteraction } from "../widget_interaction";
+import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import type { NodeButtonWidgetOptions, NodeWidgetSpec } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import { WidgetFieldView } from "./field_view";

@@ -8,6 +8,7 @@
 
 import type { App, Group } from "leafer-ui";
 import type { LeaferGraphOptions } from "@leafergraph/contracts";
+import { createMissingWidgetRenderer } from "@leafergraph/widget-runtime";
 import type { LeaferGraphApiHost } from "../api/graph_api_host";
 import { createLeaferGraphRuntimeAssembly } from "./graph_runtime_assembly";
 import { normalizeGraphLinkSlotIndex } from "./graph_mutation_host";
@@ -29,7 +30,6 @@ import type {
   GraphRuntimeState
 } from "./graph_runtime_types";
 import { resolveBasicWidgetTheme } from "../widgets/basic";
-import { createMissingWidgetRenderer } from "../widgets/widget_host";
 
 /**
  * 主包入口运行时结果。

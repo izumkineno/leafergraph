@@ -8,7 +8,7 @@
 import type { Rect, Text } from "leafer-ui";
 import type { NodeSliderWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
-import { bindLinearWidgetDrag } from "../widget_interaction";
+import { bindLinearWidgetDrag } from "@leafergraph/widget-runtime";
 import {
   createWidgetFieldSurface,
   createWidgetFocusRing,
@@ -17,7 +17,7 @@ import {
   createWidgetSurface,
   createWidgetValueText,
   setWidgetFocusState
-} from "../widget_lifecycle";
+} from "@leafergraph/widget-runtime";
 import {
   WIDGET_FIELD_MIN_HEIGHT,
   WIDGET_FIELD_Y,

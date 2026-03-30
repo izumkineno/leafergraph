@@ -14,7 +14,7 @@ import {
   createWidgetLabel,
   createWidgetValueText,
   setWidgetFocusState
-} from "../widget_lifecycle";
+} from "@leafergraph/widget-runtime";
 import {
   WIDGET_FIELD_FONT_SIZE,
   WIDGET_FIELD_MIN_HEIGHT,

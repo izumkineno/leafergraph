@@ -13,7 +13,7 @@ import type {
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetTextEditRequest
 } from "@leafergraph/contracts";
-import { bindPressWidgetInteraction } from "../widget_interaction";
+import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import {
   WIDGET_FIELD_FONT_SIZE,
   WIDGET_FIELD_MIN_HEIGHT,

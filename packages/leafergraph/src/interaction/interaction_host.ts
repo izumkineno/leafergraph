@@ -21,7 +21,7 @@ import {
   isWidgetInteractionTarget,
   type LeaferGraphWidgetEventSource,
   type LeaferGraphWidgetPointerEvent
-} from "../widgets/widget_interaction";
+} from "@leafergraph/widget-runtime";
 
 /** 拖拽中的节点状态。 */
 interface GraphDragState {

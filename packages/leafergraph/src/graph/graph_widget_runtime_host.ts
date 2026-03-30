@@ -17,9 +17,9 @@ import type {
 import { LeaferGraphThemeHost } from "./graph_theme_host";
 import {
   LeaferGraphWidgetEditingManager,
+  LeaferGraphWidgetRegistry,
   resolveWidgetEditingOptions
-} from "../widgets/widget_editing";
-import { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
+} from "@leafergraph/widget-runtime";
 
 /**
  * Widget 环境装配输入。

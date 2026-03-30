@@ -5,7 +5,7 @@
  * 负责汇总内建基础 Widget，并生成可注册的完整条目列表。
  */
 
-import { createWidgetLifecycleRenderer } from "../widget_lifecycle";
+import { createWidgetLifecycleRenderer } from "@leafergraph/widget-runtime";
 import { ButtonFieldController } from "./button_widget";
 import { CheckboxFieldController } from "./checkbox_widget";
 import { RadioFieldController } from "./radio_widget";

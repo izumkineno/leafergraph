@@ -33,9 +33,9 @@ import type {
   LeaferGraphNodeStateChangeEvent,
   LeaferGraphNodeStateChangeReason
 } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
 import type { LeaferGraphRenderableNodeState } from "../graph/graph_runtime_types";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
-import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
 
 type LeaferGraphRuntimeNodeViewState<
   TNodeState extends LeaferGraphRenderableNodeState

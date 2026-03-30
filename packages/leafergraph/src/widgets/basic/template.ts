@@ -15,7 +15,7 @@ import type {
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import type {
   LeaferGraphWidgetInteractionBinding
-} from "../widget_interaction";
+} from "@leafergraph/widget-runtime";
 import type {
   BasicWidgetLifecycle,
   BasicWidgetLifecycleState,

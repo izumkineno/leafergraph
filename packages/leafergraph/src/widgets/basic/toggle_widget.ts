@@ -8,8 +8,11 @@
 import type { Rect, Text } from "leafer-ui";
 import type { NodeToggleWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
-import { bindPressWidgetInteraction } from "../widget_interaction";
-import { createWidgetSurface, createWidgetValueText } from "../widget_lifecycle";
+import {
+  bindPressWidgetInteraction,
+  createWidgetSurface,
+  createWidgetValueText
+} from "@leafergraph/widget-runtime";
 import {
   WIDGET_FIELD_FONT_SIZE,
   WIDGET_FIELD_PADDING_X,

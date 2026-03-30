@@ -8,6 +8,11 @@
 
 import { NodeRegistry } from "@leafergraph/node";
 import type { LeaferGraphThemeMode, LeaferGraphWidgetEditingContext } from "@leafergraph/contracts";
+import {
+  LeaferGraphWidgetHost,
+  type LeaferGraphWidgetEditingManager,
+  type LeaferGraphWidgetRegistry
+} from "@leafergraph/widget-runtime";
 import { LeaferGraphInteractionRuntimeHost } from "../interaction/graph_interaction_runtime_host";
 import { LeaferGraphInteractionHost } from "../interaction/interaction_host";
 import { createLeaferGraphInteractionCommitSource } from "../interaction/interaction_commit_source";
@@ -18,8 +23,6 @@ import { LeaferGraphNodeRuntimeHost } from "../node/node_runtime_host";
 import { LeaferGraphNodeShellHost } from "../node/node_shell_host";
 import type { NodeShellLayoutMetrics } from "../node/node_layout";
 import type { NodeShellRenderTheme } from "../node/node_shell";
-import { LeaferGraphWidgetHost } from "../widgets/widget_host";
-import type { LeaferGraphWidgetRegistry } from "../widgets/widget_registry";
 import type { LeaferGraphCanvasState } from "./graph_canvas_host";
 import type { LeaferGraphCanvasHost } from "./graph_canvas_host";
 import { LeaferGraphMutationHost } from "./graph_mutation_host";
@@ -38,7 +41,6 @@ import { LeaferGraphRestoreHost } from "./graph_restore_host";
 import type { LeaferGraphThemeHost } from "./graph_theme_host";
 import { LeaferGraphThemeRuntimeHost } from "./graph_theme_runtime_host";
 import { LeaferGraphViewHost } from "./graph_view_host";
-import type { LeaferGraphWidgetEditingManager } from "../widgets/widget_editing";
 
 /**
  * 图场景运行时装配输入。
