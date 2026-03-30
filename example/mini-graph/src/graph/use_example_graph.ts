@@ -11,6 +11,7 @@
  * 这样页面壳和图运行时可以保持清晰分层。
  */
 import { useEffect, useRef, useState } from "preact/hooks";
+import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import type { NodeRuntimeState } from "@leafergraph/node";
 import {
   createLeaferGraph,
@@ -677,6 +678,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       try {
         const graph = createLeaferGraph(stageHost, {
           document: createEmptyExampleDocument(),
+          plugins: [leaferGraphBasicKitPlugin],
           themeMode: resolvePreferredThemeMode(),
           linkPropagationAnimation: linkPropagationAnimationPreset
         });

@@ -382,7 +382,7 @@ export function resolveDefaultNodeShellRenderTheme(
     selectedRingOutset: SELECTED_RING_OUTSET,
     selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
     selectedRingOpacity: 0.92,
-    resizeHandleFill: "rgba(15, 23, 42, 0.06)",
+    resizeHandleFill: "rgba(255, 255, 255, 0.001)",
     resizeHandleStroke: "rgba(15, 23, 42, 0.72)",
     resizeHandleStrokeWidth: 1.85,
     cardFill: "rgba(255, 255, 255, 0.96)",

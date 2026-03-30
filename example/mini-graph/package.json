@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/basic-kit": "workspace:*",
     "@leafergraph/context-menu": "workspace:*",
     "@leafergraph/execution": "workspace:*",
     "@leafergraph/node": "workspace:*",

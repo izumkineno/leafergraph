@@ -144,6 +144,11 @@ await graph.ready;
 
 如果初始 `document` 已经依赖这些作者层节点类型，插件必须在启动期就进入 `plugins` 链，或至少先安装 plugin 再恢复文档；不能等文档恢复完成后再补装。
 
+补充边界：
+
+- `@leafergraph/authoring` 不会顺带提供 `system/on-play`、`system/timer` 或基础 widgets
+- 如果宿主还需要这套默认内容，请额外显式安装 `@leafergraph/basic-kit`
+
 ## 当前合同
 
 作者层 v1 当前默认遵守这些合同：

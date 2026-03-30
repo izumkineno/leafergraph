@@ -1,21 +1,26 @@
 /**
- * 基础 Widget 主题模块。
+ * Widget runtime 默认主题模块。
  *
  * @remarks
- * 负责亮色和暗色两套基础控件主题 token。
+ * 负责提供不依赖基础内容包的默认 Widget 主题 token，
+ * 让宿主即使未安装 `@leafergraph/basic-kit` 也能获得稳定主题真源。
  */
 
-import type { LeaferGraphThemeMode } from "@leafergraph/contracts";
-import type { BasicWidgetTheme } from "./types";
+import type {
+  LeaferGraphThemeMode,
+  LeaferGraphWidgetThemeTokens
+} from "@leafergraph/contracts";
 
 /**
- * 亮暗两套基础控件主题。
- * 控件视觉刻意做成“专业编辑器面板”语义，而不是纯装饰玻璃块：
- * - 字段使用明确边框和焦点环
- * - 菜单和按钮拥有稳定的层次
- * - 暗色模式强调低眩光，亮色模式强调清晰轮廓
+ * 解析 Widget runtime 默认主题。
+ *
+ * @remarks
+ * 这组 token 对应的是运行时默认编辑控件观感，
+ * 并不要求调用方同时安装基础 widgets。
  */
-export function resolveBasicWidgetTheme(mode: LeaferGraphThemeMode): BasicWidgetTheme {
+export function resolveDefaultWidgetTheme(
+  mode: LeaferGraphThemeMode
+): LeaferGraphWidgetThemeTokens {
   if (mode === "dark") {
     return {
       fontFamily: '"Inter", "IBM Plex Sans", "Segoe UI", sans-serif',
@@ -100,3 +105,11 @@ export function resolveBasicWidgetTheme(mode: LeaferGraphThemeMode): BasicWidget
     accentFallback: "#2563EB"
   };
 }
+
+/**
+ * `resolveDefaultWidgetTheme(...)` 的兼容别名。
+ *
+ * @remarks
+ * 保留一个迁移阶段，方便旧引用逐步切换到新命名。
+ */
+export const resolveBasicWidgetTheme = resolveDefaultWidgetTheme;

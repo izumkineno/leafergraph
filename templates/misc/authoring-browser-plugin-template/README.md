@@ -111,18 +111,21 @@ bun run build
 ## ESM 宿主接入
 
 ```ts
+import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import { createLeaferGraph } from "leafergraph";
 import authoringBrowserTemplatePlugin, {
   authoringBrowserTemplateDemoDocument
 } from "@template/authoring-browser-plugin-template";
 
 const graph = createLeaferGraph(container, {
-  plugins: [authoringBrowserTemplatePlugin],
+  plugins: [leaferGraphBasicKitPlugin, authoringBrowserTemplatePlugin],
   document: authoringBrowserTemplateDemoDocument
 });
 
 await graph.ready;
 ```
+
+这里额外安装 `@leafergraph/basic-kit`，是因为模板 demo 文档里包含 `system/on-play`。
 
 ## browser bundle 加载顺序
 

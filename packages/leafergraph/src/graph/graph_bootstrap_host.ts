@@ -2,7 +2,7 @@
  * 图启动装配宿主模块。
  *
  * @remarks
- * 负责内建 Widget 注册、模块安装、插件安装以及启动期图恢复顺序。
+ * 负责模块安装、插件安装以及启动期图恢复顺序。
  */
 
 import * as NodeSDK from "@leafergraph/node";
@@ -24,9 +24,6 @@ import type {
   LeaferGraphWidgetEntry
 } from "@leafergraph/contracts";
 import type { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
-import { leaferGraphOnPlayNodeDefinition } from "../node/builtin/on_play_node";
-import { leaferGraphTimerNodeDefinition } from "../node/builtin/timer_node";
-import { BasicWidgetLibrary } from "../widgets/basic";
 
 /** 已安装插件的登记信息。 */
 interface InstalledPluginRecord {
@@ -78,45 +75,16 @@ export interface LeaferGraphBootstrapRuntimeLike {
 /**
  * 启动装配宿主。
  * 当前集中收口：
- * 1. 内建 Widget 注册
- * 2. 节点模块安装
- * 3. 插件安装与插件上下文组装
- * 4. 启动期 `modules/plugins/graph` 初始化顺序
- * 4. 启动期 `modules/plugins/document` 初始化顺序
+ * 1. 节点模块安装
+ * 2. 插件安装与插件上下文组装
+ * 3. 启动期 `modules/plugins/document` 初始化顺序
  */
 export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike {
   private readonly options: LeaferGraphBootstrapHostOptions;
   private readonly installedPlugins = new Map<string, InstalledPluginRecord>();
-  private builtinWidgetsRegistered = false;
-  private builtinNodesRegistered = false;
 
   constructor(options: LeaferGraphBootstrapHostOptions) {
     this.options = options;
-  }
-
-  /** 确保内建 Widget 只注册一次，避免重复覆盖外部状态。 */
-  ensureBuiltinWidgetsRegistered(): void {
-    if (this.builtinWidgetsRegistered) {
-      return;
-    }
-
-    const builtinWidgets = new BasicWidgetLibrary().createEntries();
-    for (const entry of builtinWidgets) {
-      this.options.widgetRegistry.registerWidget(entry, { overwrite: true });
-    }
-
-    this.builtinWidgetsRegistered = true;
-  }
-
-  /** 确保内建入口节点只注册一次。 */
-  ensureBuiltinNodesRegistered(): void {
-    if (this.builtinNodesRegistered) {
-      return;
-    }
-
-    this.registerNode(leaferGraphOnPlayNodeDefinition, { overwrite: true });
-    this.registerNode(leaferGraphTimerNodeDefinition, { overwrite: true });
-    this.builtinNodesRegistered = true;
   }
 
   /** 安装一个静态节点模块。 */
@@ -137,9 +105,6 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
    * @param plugin - 待安装的插件对象。
    */
   async use(plugin: LeaferGraphNodePlugin): Promise<void> {
-    this.ensureBuiltinWidgetsRegistered();
-    this.ensureBuiltinNodesRegistered();
-
     if (this.installedPlugins.has(plugin.name)) {
       return;
     }
@@ -192,14 +157,11 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
 
   /**
    * 执行启动期安装流程，然后恢复初始文档。
-   * 顺序保持为：内建 Widget -> 模块 -> 插件 -> 文档恢复。
+   * 顺序保持为：模块 -> 插件 -> 文档恢复。
    *
    * @param options - 主包初始化配置。
    */
   async initialize(options: LeaferGraphOptions): Promise<void> {
-    this.ensureBuiltinWidgetsRegistered();
-    this.ensureBuiltinNodesRegistered();
-
     // 模块优先进入注册表，后续插件才能安全查询并复用这些节点定义。
     for (const module of options.modules ?? []) {
       this.installModule(module);

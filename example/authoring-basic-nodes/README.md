@@ -45,3 +45,7 @@ bun run build
 ```
 
 This build only emits ESM library output into `dist/`.
+
+If your host also needs the default `system/on-play` / `system/timer` nodes or
+the basic widget set, install `@leafergraph/basic-kit` separately. This package
+only provides the authoring nodes and widget entries it defines itself.

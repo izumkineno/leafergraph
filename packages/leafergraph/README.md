@@ -14,6 +14,7 @@
 
 - 公共契约真源已经迁到 `@leafergraph/contracts`
 - Widget runtime 真源已经迁到 `@leafergraph/widget-runtime`
+- 基础 widgets + 系统节点已经迁到 `@leafergraph/basic-kit`
 - `leafergraph` 根入口仍继续 re-export 这些契约
 - `leafergraph` 根入口仍继续 re-export 常用 Widget runtime helper
 - `leafergraph/graph-document-diff` 子路径仍继续可用
@@ -49,7 +50,8 @@
 | `@leafergraph/node` | 节点定义、模块、注册表、图文档模型、序列化类型 | Leafer 场景、交互、渲染宿主 |
 | `@leafergraph/execution` | 执行链、传播、图级 `play/step/stop`、执行反馈、系统执行节点 | Leafer scene、节点壳、Widget 渲染、宿主状态投影 |
 | `@leafergraph/contracts` | 插件协议、Widget 契约、图操作类型、运行反馈类型、图文档 diff helper | 主包 facade、场景宿主、节点交互实现 |
-| `@leafergraph/widget-runtime` | Widget 注册表、生命周期 helper、编辑宿主、交互 helper | 图主题装配、内建基础控件库、主包 facade |
+| `@leafergraph/widget-runtime` | Widget 注册表、生命周期 helper、编辑宿主、交互 helper、默认 Widget 主题 | 图主题装配、基础控件内容包、主包 facade |
+| `@leafergraph/basic-kit` | 基础 widgets、`system/on-play` / `system/timer`、默认内容 plugin | Widget runtime 真源、图宿主装配 |
 | `leafergraph` | 图运行时、渲染、交互基础设施、宿主反馈、公共 API | 宿主 UI、authority transport、bundle 协议 |
 | 外部宿主 / 页面壳层 | 页面组织、bundle 装配、外围命令和协议接线 | 主包运行时真源 |
 
@@ -86,6 +88,17 @@ const graph = createLeaferGraph(container, {
 });
 
 await graph.ready;
+```
+
+如果你还希望这张图显式拥有默认系统节点和基础 widgets，请额外安装 `@leafergraph/basic-kit`：
+
+```ts
+import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
+
+const graph = createLeaferGraph(container, {
+  document: documentData,
+  plugins: [leaferGraphBasicKitPlugin]
+});
 ```
 
 ### 2. 注册一个节点，再创建实例
@@ -217,9 +230,19 @@ graph.destroy();
 
 它们是纯工具，不依赖图实例，适合 session 或同步链在实例外先处理文档。
 
-## 内建执行入口
+## 默认内容包里的执行入口
 
-主包当前默认内建两个系统节点：
+`leafergraph` 主包不再默认内装系统节点。
+
+如果你想继续使用默认的启动事件和定时节点，推荐显式安装：
+
+```ts
+import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
+```
+
+或直接从 `@leafergraph/basic-kit/node` 消费它们的正式定义。
+
+`@leafergraph/basic-kit` 当前提供两个系统节点：
 
 | 节点类型 | 作用 |
 | --- | --- |
@@ -247,7 +270,7 @@ graph.destroy();
 - `options.propagation` 会带来源连线、来源输出槽位和目标输入槽位信息
 - 非 `event` 输入继续沿用 `onExecute(...)` 数据流执行语义
 
-如果你在作者层节点里要消费图级定时契约，可以直接使用主包导出的：
+如果你在作者层节点里要消费图级定时契约，可以直接使用 `@leafergraph/basic-kit/node` 导出的：
 
 - `LEAFER_GRAPH_TIMER_NODE_TYPE`
 - `LEAFER_GRAPH_TIMER_DEFAULT_INTERVAL_MS`

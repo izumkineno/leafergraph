@@ -113,6 +113,7 @@ export class LeaferGraphCanvasHost {
   /**
    * 接入 `@leafer-in/viewport` 的最小工作区视口能力。
    * 当前阶段只打开最常用的缩放和平移语义，不接管节点拖拽。
+   * 这里显式使用自由平移，避免节点靠近边缘时被 viewport 的 limit 阻尼“卡”在画布内。
    */
   private setupViewport(app: App): void {
     addViewport(app.tree, {
@@ -123,7 +124,7 @@ export class LeaferGraphCanvasHost {
       move: {
         holdSpaceKey: true,
         holdMiddleKey: true,
-        scroll: "limit"
+        scroll: true
       }
     });
   }

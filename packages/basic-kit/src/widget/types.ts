@@ -14,14 +14,14 @@ import type {
 } from "@leafergraph/contracts";
 
 /**
- * 基础 Widget 主题直接复用主包公开的 token。
- * 这样内建与外部扩展都能共享同一套亮暗色语义。
+ * 基础 Widget 主题直接复用 widget runtime 公开的 token 结构。
+ * 这样 basic-kit 与外部扩展都能共享同一套亮暗色语义。
  */
 export type BasicWidgetTheme = LeaferGraphWidgetThemeTokens;
 
 /**
- * 主包内建 Widget 的注册条目。
- * 每个条目都同时包含定义和 renderer，直接对应主包正式 Widget 注册表的输入结构。
+ * basic-kit 的基础 Widget 注册条目。
+ * 每个条目都同时包含定义和 renderer，直接对应正式 Widget 注册表的输入结构。
  */
 export type BasicWidgetEntry = LeaferGraphWidgetEntry;
 

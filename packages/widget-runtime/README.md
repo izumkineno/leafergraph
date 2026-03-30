@@ -9,18 +9,20 @@
 - `LeaferGraphWidgetEditingManager`
 - Widget lifecycle helper
 - Widget interaction helper
+- 默认 Widget 主题解析：`resolveDefaultWidgetTheme`
 - 缺失态 Widget renderer 与无副作用编辑上下文
 
 它不负责这些能力：
 
 - `LeaferGraph` 主包 facade
 - 图主题装配与主包 runtime assembly
-- 内建基础控件库 `widgets/basic/*`
+- `@leafergraph/basic-kit` 里的基础控件库
 
 当前兼容策略是：
 
 - `leafergraph` 根入口仍继续 re-export 常用 Widget helper 和 `LeaferGraphWidgetRegistry`
 - workspace 内部新增实现应优先直接依赖 `@leafergraph/widget-runtime`
+- `resolveBasicWidgetTheme` 目前保留为 `resolveDefaultWidgetTheme` 的兼容别名
 
 常用命令：
 

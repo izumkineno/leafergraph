@@ -26,7 +26,6 @@ export type {
   ResolvedTextDisplay,
   WidgetAnchorTarget
 } from "./types";
-export { resolveBasicWidgetTheme } from "./theme";
 
 /**
  * 基础 Widget 库。
@@ -70,6 +69,6 @@ export class BasicWidgetLibrary {
 
 /**
  * 旧命名的兼容别名。
- * 现阶段主包内部已经改为直接消费完整 Widget 条目。
+ * 现阶段建议宿主直接消费完整 Widget 条目。
  */
 export const BasicWidgetRendererLibrary = BasicWidgetLibrary;

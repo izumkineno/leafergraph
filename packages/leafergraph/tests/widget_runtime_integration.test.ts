@@ -42,7 +42,7 @@ function createContainer(): HTMLDivElement {
 }
 
 describe("widget_runtime_integration", () => {
-  test("LeaferGraph 启动后应保留内建基础 Widget 注册", async () => {
+  test("LeaferGraph 启动后默认不再注册基础 Widget", async () => {
     const container = createContainer();
     const graph = createLeaferGraph(container, {
       document: createEmptyDocument()
@@ -50,9 +50,9 @@ describe("widget_runtime_integration", () => {
 
     await graph.ready;
 
-    expect(graph.getWidget("input")?.type).toBe("input");
-    expect(graph.getWidget("slider")?.type).toBe("slider");
-    expect(graph.listWidgets().some((entry) => entry.type === "button")).toBe(true);
+    expect(graph.getWidget("input")).toBeUndefined();
+    expect(graph.getWidget("slider")).toBeUndefined();
+    expect(graph.listWidgets()).toHaveLength(0);
 
     graph.destroy();
     container.remove();

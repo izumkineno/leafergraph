@@ -8,7 +8,10 @@
 
 import type { App, Group } from "leafer-ui";
 import type { LeaferGraphOptions } from "@leafergraph/contracts";
-import { createMissingWidgetRenderer } from "@leafergraph/widget-runtime";
+import {
+  createMissingWidgetRenderer,
+  resolveDefaultWidgetTheme
+} from "@leafergraph/widget-runtime";
 import type { LeaferGraphApiHost } from "../api/graph_api_host";
 import { createLeaferGraphRuntimeAssembly } from "./graph_runtime_assembly";
 import { normalizeGraphLinkSlotIndex } from "./graph_mutation_host";
@@ -29,7 +32,6 @@ import type {
   GraphNodeViewState,
   GraphRuntimeState
 } from "./graph_runtime_types";
-import { resolveBasicWidgetTheme } from "../widgets/basic";
 
 /**
  * 主包入口运行时结果。
@@ -83,7 +85,7 @@ export function createLeaferGraphEntryRuntime(
     createMissingWidgetRenderer,
     resolveWidgetTheme: (mode) => ({
       mode,
-      tokens: resolveBasicWidgetTheme(mode)
+      tokens: resolveDefaultWidgetTheme(mode)
     }),
     nodeShellLayoutMetrics: NODE_SHELL_LAYOUT_METRICS,
     nodeShellStyle: createDefaultNodeShellStyleConfig(),
