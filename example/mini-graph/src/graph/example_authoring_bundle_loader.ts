@@ -9,10 +9,8 @@
  */
 
 import type { NodeModule } from "@leafergraph/node";
-import type {
-  LeaferGraph,
-  LeaferGraphNodePlugin
-} from "leafergraph";
+import type { LeaferGraphNodePlugin } from "@leafergraph/contracts";
+import type { LeaferGraph } from "leafergraph";
 
 const GLOBAL_DEPENDENCY_KEY = "__LEAFERGRAPH_MINI_AUTHORING_BUNDLE_DEPS__";
 const dependencyShimUrlCache = new Map<string, string>();
@@ -25,6 +23,8 @@ const RUNTIME_DEPENDENCY_LOADERS: Record<string, RuntimeDependencyLoader> = {
     (await import("@leafergraph/authoring")) as RuntimeDependencyNamespace,
   "@leafergraph/execution": async () =>
     (await import("@leafergraph/execution")) as RuntimeDependencyNamespace,
+  "@leafergraph/contracts": async () =>
+    (await import("@leafergraph/contracts")) as RuntimeDependencyNamespace,
   "@leafergraph/node": async () =>
     (await import("@leafergraph/node")) as RuntimeDependencyNamespace,
   "leafer-ui": async () =>

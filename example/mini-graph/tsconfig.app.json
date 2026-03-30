@@ -9,7 +9,10 @@
     "skipLibCheck": true,
     "paths": {
       "@leafergraph/basic-kit": ["../../packages/basic-kit/src/index.ts"],
+      "@leafergraph/contracts": ["../../packages/contracts/src/index.ts"],
       "@leafergraph/context-menu": ["../../packages/context-menu/src/index.ts"],
+      "@leafergraph/context-menu-builtins": ["../../packages/context-menu-builtins/src/index.ts"],
+      "@leafergraph/theme": ["../../packages/theme/src/index.ts"],
       "react": ["./node_modules/preact/compat/"],
       "react-dom": ["./node_modules/preact/compat/"]
     },

@@ -23,9 +23,11 @@
 - `packages/authoring`
   - 面向节点 / Widget 作者的 authoring SDK，服务 bundle、注册与开发者接入
 - `packages/leafergraph`
-  - Leafer-first 图运行时主包，负责场景装配、交互基础设施、视口和宿主 facade
+  - Leafer-first 图运行时主包，负责场景装配、交互基础设施、视口和宿主 facade，不再聚合 re-export 其它真源包
 - `packages/context-menu`
-  - Leafer-first 右键菜单包，负责 DOM 菜单运行时与 builtins 功能层
+  - Leafer-first 右键菜单 runtime 包，负责 DOM 菜单运行时
+- `packages/context-menu-builtins`
+  - `leafergraph` 节点图右键菜单 builtins 集成层，负责复制、粘贴、删除、运行等内建动作
 - `templates/`
   - 可复制出去的模板工程与模板分类入口
 - `docs/`
@@ -55,6 +57,7 @@ flowchart LR
         leafergraphPkg["leafergraph"]
         basicKitPkg["@leafergraph/basic-kit"]
         contextMenuPkg["@leafergraph/context-menu"]
+        contextMenuBuiltinsPkg["@leafergraph/context-menu-builtins"]
         authoringPkg["@leafergraph/authoring"]
     end
 
@@ -84,10 +87,11 @@ flowchart LR
     basicKitPkg --> widgetRuntimePkg
 
     contextMenuPkg --> configPkg
-    contextMenuPkg --> contractsPkg
-    contextMenuPkg --> nodePkg
     contextMenuPkg --> themePkg
-    contextMenuPkg --> leafergraphPkg
+
+    contextMenuBuiltinsPkg --> contextMenuPkg
+    contextMenuBuiltinsPkg --> contractsPkg
+    contextMenuBuiltinsPkg --> nodePkg
 
     authoringPkg -.-> contractsPkg
     authoringPkg -.-> execPkg
@@ -108,6 +112,7 @@ flowchart LR
 - 执行与契约层：`@leafergraph/execution`、`@leafergraph/contracts`
 - 运行时支撑层：`@leafergraph/widget-runtime`
 - 内容与宿主层：`@leafergraph/basic-kit`、`leafergraph`、`@leafergraph/context-menu`
+- 菜单集成层：`@leafergraph/context-menu-builtins`
 - 作者层：`@leafergraph/authoring`
 
 其中 `@leafergraph/contracts` 可以直接理解成“跨包公共协议层”：
@@ -151,15 +156,16 @@ flowchart LR
   - `@leafergraph/widget-runtime`
 - `@leafergraph/context-menu`
   - `@leafergraph/config`
+  - `@leafergraph/theme`
+- `@leafergraph/context-menu-builtins`
+  - `@leafergraph/context-menu`
   - `@leafergraph/contracts`
   - `@leafergraph/node`
-  - `@leafergraph/theme`
-  - `leafergraph`
 - `@leafergraph/authoring`
   - 当前不通过 `dependencies` 直接绑定 workspace 包
   - 通过 `peerDependencies` 对齐 `@leafergraph/contracts`、`@leafergraph/execution`、`@leafergraph/node`、`@leafergraph/theme` 和 `leafergraph`
 
-如果你想从底层往上理解当前仓库，建议先按 `node -> theme -> config -> execution -> contracts -> widget-runtime -> leafergraph -> context-menu / basic-kit / authoring` 这条链阅读。
+如果你想从底层往上理解当前仓库，建议先按 `node -> theme -> config -> execution -> contracts -> widget-runtime -> leafergraph -> context-menu -> context-menu-builtins / basic-kit / authoring` 这条链阅读。
 
 ## 推荐阅读顺序
 
@@ -171,11 +177,12 @@ flowchart LR
 6. [`packages/widget-runtime/README.md`](./packages/widget-runtime/README.md)
 7. [`packages/leafergraph/README.md`](./packages/leafergraph/README.md)
 8. [`packages/basic-kit/README.md`](./packages/basic-kit/README.md)
-9. [`packages/authoring/README.md`](./packages/authoring/README.md)
-10. [`packages/context-menu/README.md`](./packages/context-menu/README.md)
-11. [`packages/leafergraph/使用与扩展指南.md`](./packages/leafergraph/使用与扩展指南.md)
-12. [`packages/leafergraph/内部架构地图.md`](./packages/leafergraph/内部架构地图.md)
-13. [`templates/README.md`](./templates/README.md)
+9. [`packages/context-menu/README.md`](./packages/context-menu/README.md)
+10. [`packages/context-menu-builtins/README.md`](./packages/context-menu-builtins/README.md)
+11. [`packages/authoring/README.md`](./packages/authoring/README.md)
+12. [`packages/leafergraph/使用与扩展指南.md`](./packages/leafergraph/使用与扩展指南.md)
+13. [`packages/leafergraph/内部架构地图.md`](./packages/leafergraph/内部架构地图.md)
+14. [`templates/README.md`](./templates/README.md)
 
 如果你更关心当前仍在维护的设计文档，优先看：
 
@@ -200,6 +207,7 @@ bun run build:basic-kit
 bun run build:authoring
 bun run build:leafergraph
 bun run build:context-menu
+bun run build:context-menu-builtins
 ```
 
 当前文档不再把聚合 `build`、`editor`、`sync`、`openrpc` 相关脚本写成推荐入口，因为这些目录与旧文档已经不再对应当前仓库结构。

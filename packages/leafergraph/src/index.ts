@@ -3,20 +3,15 @@
  * leafergraph 主包公共入口。
  *
  * @remarks
- * 负责导出公共 API、公共类型与宿主工厂，并把包级文档锚定到入口文件。
+ * 负责导出 runtime façade 与宿主工厂，并把包级文档锚定到入口文件。
  */
 
 import type { App, Group } from "leafer-ui";
-import * as LeaferUI from "leafer-ui";
 import "@leafer-in/find";
 import "@leafer-in/flow";
 import "@leafer-in/resize";
 import "@leafer-in/state";
 import "@leafer-in/view";
-export {
-  normalizeLeaferGraphConfig,
-  resolveDefaultLeaferGraphConfig
-} from "@leafergraph/config";
 import {
   type GraphDocument,
   type GraphLink,
@@ -28,152 +23,6 @@ import {
   type RegisterNodeOptions,
   type RegisterWidgetOptions
 } from "@leafergraph/node";
-export { LeaferUI };
-export type {
-  AdapterBinding,
-  CapabilityProfile,
-  GraphDocument,
-  GraphLink,
-  GraphLinkEndpoint
-} from "@leafergraph/node";
-export {
-  LEAFER_GRAPH_WIDGET_HIT_AREA_NAME,
-  LeaferGraphWidgetRegistry,
-  bindLinearWidgetDrag,
-  bindPressWidgetInteraction,
-  createWidgetHitArea,
-  createWidgetLabel,
-  createWidgetLifecycleRenderer,
-  createWidgetSurface,
-  createWidgetValueText,
-  isWidgetInteractionTarget,
-  resolveLinearWidgetProgressFromEvent,
-  stopWidgetPointerEvent
-} from "@leafergraph/widget-runtime";
-export type {
-  LeaferGraphConfig,
-  LeaferGraphGraphConfig,
-  LeaferGraphGraphRuntimeConfig,
-  LeaferGraphGraphViewConfig,
-  LeaferGraphLeaferAppConfig,
-  LeaferGraphLeaferConfig,
-  LeaferGraphLeaferEditorConfig,
-  LeaferGraphLeaferFindConfig,
-  LeaferGraphLeaferFlowConfig,
-  LeaferGraphLeaferMoveScrollMode,
-  LeaferGraphLeaferPluginConfig,
-  LeaferGraphLeaferResizeConfig,
-  LeaferGraphLeaferStateConfig,
-  LeaferGraphLeaferTextEditorConfig,
-  LeaferGraphLeaferTreeConfig,
-  LeaferGraphLeaferViewConfig,
-  LeaferGraphLeaferViewportConfig,
-  LeaferGraphLeaferViewportMoveConfig,
-  LeaferGraphLeaferViewportZoomConfig,
-  LeaferGraphWidgetConfig,
-  LeaferGraphWidgetEditingConfig,
-  LeaferGraphWidgetEditingOptions,
-  NormalizedLeaferGraphConfig
-} from "@leafergraph/config";
-export type {
-  LeaferGraphNodePlugin,
-  LeaferGraphNodePluginContext,
-  LeaferGraphOptions,
-  LeaferGraphWidgetBounds,
-  LeaferGraphWidgetEntry,
-  LeaferGraphWidgetEditingContext,
-  LeaferGraphWidgetFocusBinding,
-  LeaferGraphWidgetRenderInstance,
-  LeaferGraphWidgetRenderer,
-  LeaferGraphWidgetRendererContext,
-  LeaferGraphWidgetRendererLike,
-  LeaferGraphWidgetTextEditRequest,
-  LeaferGraphWidgetLifecycle,
-  LeaferGraphWidgetLifecycleState,
-  LeaferGraphWidgetOptionsMenuRequest
-} from "@leafergraph/contracts";
-export type {
-  LeaferGraphContextMenuThemeTokens,
-  LeaferGraphDataFlowAnimationStyleConfig,
-  LeaferGraphGraphThemeTokens,
-  LeaferGraphLinkPropagationAnimationPreset,
-  LeaferGraphNodeShellStyleConfig,
-  LeaferGraphThemeBundle,
-  LeaferGraphThemeMode,
-  LeaferGraphThemePreset,
-  LeaferGraphThemePresetId,
-  LeaferGraphWidgetThemeContext,
-  LeaferGraphWidgetThemeTokens,
-  NodeShellLayoutMetrics,
-  NodeShellRenderTheme
-} from "@leafergraph/theme";
-export type {
-  ExecutionFeedbackAdapter,
-  ExecutionFeedbackEvent,
-  GraphExecutionFeedbackEvent,
-  LeaferGraphActionExecutionOptions,
-  GraphDocumentUpdateOperation,
-  GraphOperation,
-  GraphOperationApplyResult,
-  LeaferGraphInteractionCommitEvent,
-  LeaferGraphInteractionActivityMode,
-  LeaferGraphInteractionActivityState,
-  LinkCreateInteractionCommitEvent,
-  LinkPropagationFeedbackEvent,
-  LeaferGraphNodeMoveCommitEntry,
-  LeaferGraphLinkPropagationEvent,
-  NodeCollapseInteractionCommitEvent,
-  NodeExecutionFeedbackEvent,
-  NodeMoveInteractionCommitEvent,
-  NodeResizeInteractionCommitEvent,
-  NodeWidgetInteractionCommitEvent,
-  LeaferGraphExecutionContext,
-  LeaferGraphExecutionSource,
-  LeaferGraphGraphExecutionEvent,
-  LeaferGraphGraphExecutionEventType,
-  LeaferGraphGraphExecutionState,
-  LeaferGraphGraphExecutionStatus,
-  RuntimeAdapter,
-  RuntimeFeedbackEvent,
-  LeaferGraphConnectionPortState,
-  LeaferGraphNodeExecutionEvent,
-  LeaferGraphNodeStateChangeEvent,
-  LeaferGraphNodeStateChangeReason,
-  LeaferGraphNodeInspectorState,
-  LeaferGraphNodeIoValueEntry,
-  LeaferGraphNodeExecutionState,
-  LeaferGraphNodeExecutionStatus,
-  LeaferGraphNodeExecutionTrigger,
-  LeaferGraphPropagatedExecutionMetadata,
-  LeaferGraphConnectionValidationResult,
-  LeaferGraphCreateLinkInput,
-  LeaferGraphCreateNodeInput,
-  LeaferGraphMoveNodeInput,
-  LeaferGraphNodeResizeConstraint,
-  LeaferGraphSelectionUpdateMode,
-  LeaferGraphNodeSlotInput,
-  LeaferGraphResizeNodeInput,
-  LeaferGraphUpdateDocumentInput,
-  LeaferGraphUpdateNodeInput
-} from "@leafergraph/contracts";
-export type {
-  ApplyGraphDocumentDiffResult,
-  GraphDocumentDiff,
-  GraphDocumentFieldChange
-} from "@leafergraph/contracts/graph-document-diff";
-export {
-  applyGraphDocumentDiffToDocument,
-  createCreateNodeInputFromNodeSnapshot,
-  createUpdateNodeInputFromNodeSnapshot
-} from "@leafergraph/contracts/graph-document-diff";
-export type {
-  LeaferGraphLinearWidgetDragOptions,
-  LeaferGraphPressWidgetInteractionOptions,
-  LeaferGraphWidgetEventSource,
-  LeaferGraphWidgetEventTargetLike,
-  LeaferGraphWidgetInteractionBinding,
-  LeaferGraphWidgetPointerEvent
-} from "@leafergraph/widget-runtime";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphOptions,

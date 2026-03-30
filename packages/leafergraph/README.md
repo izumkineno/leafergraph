@@ -1,75 +1,62 @@
 # leafergraph
 
-`leafergraph` 是当前工作区里的 Leafer-first 节点图主包。
+`leafergraph` 是 LeaferGraph workspace 的 runtime-only 主包。
 
-它的职责不是承接 editor 页面壳层，也不是复制 `@leafergraph/node` 的模型 SDK，而是作为 Leafer 宿主与图 façade，负责下面这些正式能力：
+它负责把正式图模型恢复成 Leafer 场景，并提供稳定的实例 façade：
 
-- 把 `GraphDocument` 恢复成可交互、可执行、可局部刷新的 Leafer 场景
-- 管理节点、连线、Widget、主题、视图和交互宿主
-- 消费 `@leafergraph/execution` 并把执行态投影回 Leafer scene
-- 对外暴露稳定的图 API、宿主级运行反馈 API 和扩展入口
-- 为外部页面和未来宿主 / runtime 适配层提供统一运行时基础
+- 创建和销毁图实例
+- 恢复 `GraphDocument`
+- 注册节点、模块、Widget 和插件
+- 处理节点拖拽、缩放、连线、选区和视口
+- 执行 `play / step / stop / playFromNode(...)`
+- 订阅宿主级运行反馈与交互提交事件
 
-当前仓库处于一轮兼容式拆分阶段：
+它不再负责：
 
-- 公共契约真源已经迁到 `@leafergraph/contracts`
-- 非视觉配置真源已经迁到 `@leafergraph/config`
-- Widget runtime 真源已经迁到 `@leafergraph/widget-runtime`
-- 基础 widgets + 系统节点已经迁到 `@leafergraph/basic-kit`
-- `leafergraph` 根入口仍继续 re-export 这些契约
-- `leafergraph` 根入口仍继续 re-export 常用 Widget runtime helper
-- `leafergraph/graph-document-diff` 子路径仍继续可用
-
-这意味着外部当前仍可继续从 `leafergraph` 导入原有公共类型和常用 Widget helper；但在 workspace 内部，新增实现应优先直接依赖 `@leafergraph/contracts` 和 `@leafergraph/widget-runtime`
-
-如果你只想知道“怎么用”，从这份 README 开始即可。  
-如果你要扩插件、接 Widget、读内部实现或排查刷新链路，请按下面的深链继续读。
+- 聚合 re-export `@leafergraph/node`、`@leafergraph/contracts`、`@leafergraph/theme`、`@leafergraph/config`
+- 提供旧的 diff compatibility 子路径
+- 作为 workspace 的 umbrella convenience package
 
 ## 适用场景
 
-`leafergraph` 适合这些场景：
+适合：
 
-- 在浏览器里创建一个节点图画布，并用 Leafer 渲染节点、连线和 Widget
+- 在浏览器里创建一个节点图画布
 - 从正式 `GraphDocument` 恢复一张图
 - 在运行时注册节点、模块、Widget 或插件
-- 在本地执行图级 `play / step / stop` 或节点级 `playFromNode(...)`
-- 订阅节点执行、图执行、节点状态和连线传播反馈
-- 对接外部宿主、remote runtime feedback 或外部调试面板
+- 对接外部页面、调试面板或 runtime feedback 消费链
 
-它不直接负责这些事情：
+不适合：
 
-- workspace 页面布局和 UI 壳层
-- authority transport、session、OpenRPC、bundle loader
-- `@leafergraph/node` 的节点模型定义和序列化真源
+- 作为图模型真源
+- 承载主题 preset 或 config 默认值
+- 取代菜单、authoring、bundle loader 等外层宿主逻辑
 
 ## 包边界
 
-这四个包的关系是当前最重要的前置认知：
-
-| 包 | 负责什么 | 不负责什么 |
-| --- | --- | --- |
-| `@leafergraph/node` | 节点定义、模块、注册表、图文档模型、序列化类型 | Leafer 场景、交互、渲染宿主 |
-| `@leafergraph/execution` | 执行链、传播、图级 `play/step/stop`、执行反馈、系统执行节点 | Leafer scene、节点壳、Widget 渲染、宿主状态投影 |
-| `@leafergraph/contracts` | 插件协议、Widget 契约、图操作类型、运行反馈类型、图文档 diff helper | 主包 facade、场景宿主、节点交互实现 |
-| `@leafergraph/widget-runtime` | Widget 注册表、生命周期 helper、编辑宿主、交互 helper、默认 Widget 主题 | 图主题装配、基础控件内容包、主包 facade |
-| `@leafergraph/basic-kit` | 基础 widgets、`system/on-play` / `system/timer`、默认内容 plugin | Widget runtime 真源、图宿主装配 |
-| `leafergraph` | 图运行时、渲染、交互基础设施、宿主反馈、公共 API | 宿主 UI、authority transport、bundle 协议 |
-| 外部宿主 / 页面壳层 | 页面组织、bundle 装配、外围命令和协议接线 | 主包运行时真源 |
+| 包 | 真源职责 |
+| --- | --- |
+| `@leafergraph/node` | `GraphDocument`、`GraphLink`、`NodeDefinition`、`NodeModule` |
+| `@leafergraph/contracts` | `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`、Widget 契约、图操作与 diff helper |
+| `@leafergraph/theme` | 主题 mode、preset、graph/widget/context-menu 视觉 token |
+| `@leafergraph/config` | 非视觉配置、默认值 resolver、normalize helper |
+| `@leafergraph/widget-runtime` | Widget registry、renderer lifecycle、editing 与 interaction helper |
+| `@leafergraph/basic-kit` | 基础 widgets、系统节点、默认内容 plugin |
+| `leafergraph` | 图运行时、Leafer 场景装配、交互基础设施、实例 façade |
 
 一个实用判断是：
 
-- 定义“节点是什么”，去 `@leafergraph/node`
-- 定义“节点怎么执行、怎么传播”，去 `@leafergraph/execution`
-- 定义“插件、图操作和运行反馈这些公共契约是什么”，去 `@leafergraph/contracts`
-- 让“节点图跑起来、显示出来、可交互”，用 `leafergraph`
-- 做“宿主页面、菜单、bundle 面板和外围协议接线”，放在主包外处理
+- “图长什么样”去 `@leafergraph/node`
+- “图怎么跑、怎么扩、怎么描述公共输入输出”去 `@leafergraph/contracts`
+- “图怎么显示、怎么交互、怎么执行实例方法”用 `leafergraph`
 
 ## 五分钟上手
 
 ### 1. 创建图实例
 
 ```ts
-import { createLeaferGraph, type GraphDocument } from "leafergraph";
+import type { GraphDocument } from "@leafergraph/node";
+import { createLeaferGraph } from "leafergraph";
 
 const container = document.getElementById("app");
 if (!container) {
@@ -91,7 +78,7 @@ const graph = createLeaferGraph(container, {
 await graph.ready;
 ```
 
-如果你还希望这张图显式拥有默认系统节点和基础 widgets，请额外安装 `@leafergraph/basic-kit`：
+### 2. 显式安装默认内容包
 
 ```ts
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
@@ -102,27 +89,17 @@ const graph = createLeaferGraph(container, {
 });
 ```
 
-### 2. 注册一个节点，再创建实例
-
-`NodeDefinition` 属于 `@leafergraph/node`，不是 `leafergraph` 直接导出的公共类型：
+### 3. 注册一个节点定义
 
 ```ts
 import type { NodeDefinition } from "@leafergraph/node";
-import { createLeaferGraph } from "leafergraph";
 
 const helloNode: NodeDefinition = {
   type: "example/hello",
   title: "Hello Node",
   category: "Examples",
-  outputs: [{ name: "Text", type: "string" }],
-  onExecute(node, _context, api) {
-    node.title = "Hello Executed";
-    api?.setOutputData(0, "hello");
-  }
+  outputs: [{ name: "Text", type: "string" }]
 };
-
-const graph = createLeaferGraph(container);
-await graph.ready;
 
 graph.registerNode(helloNode, { overwrite: true });
 graph.createNode({
@@ -133,176 +110,52 @@ graph.createNode({
 });
 ```
 
-### 3. 跑一次执行链
+## 真源导入映射
 
-```ts
-graph.play();
-```
+- 图模型
+  - `GraphDocument`、`GraphLink`、`NodeDefinition`、`NodeModule` -> `@leafergraph/node`
+- 公共契约
+  - `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`、`LeaferGraphWidgetEntry` -> `@leafergraph/contracts`
+- 文档 diff
+  - `applyGraphDocumentDiffToDocument(...)`、`createUpdateNodeInputFromNodeSnapshot(...)` -> `@leafergraph/contracts/graph-document-diff`
+- 主题
+  - `LeaferGraphThemeMode`、`LeaferGraphLinkPropagationAnimationPreset`、Widget theme context -> `@leafergraph/theme`
+- 配置
+  - `normalizeLeaferGraphConfig(...)`、`resolveDefaultLeaferGraphConfig(...)` -> `@leafergraph/config`
+- Widget runtime helper
+  - registry、interaction、render helper -> `@leafergraph/widget-runtime`
+- 默认内容
+  - `leaferGraphBasicKitPlugin`、系统节点、基础 widgets -> `@leafergraph/basic-kit`
 
-如果你要从某个节点直接起跑：
+## 主包对外 API
 
-```ts
-graph.playFromNode("hello-1");
-```
-
-### 4. 销毁
-
-```ts
-graph.destroy();
-```
-
-## 核心概念
-
-| 概念 | 作用 |
-| --- | --- |
-| `GraphDocument` | 正式图快照，包含节点、连线和图级元数据 |
-| `GraphOperation` | 正式图操作，表达节点/连线/文档的增删改移 |
-| `GraphDocumentDiff` | 文档增量，适合 authority 或同步链做增量投影 |
-| `NodeModule` | 一组可批量安装的节点定义 |
-| `LeaferGraphNodePlugin` | 主包运行时插件，能注册节点、模块和 Widget |
-| `LeaferGraphWidgetEntry` | 一个完整 Widget 条目，包含定义和 renderer |
-| `ExecutionFeedbackEvent` | 纯执行反馈事件，只覆盖节点执行、图执行和连线传播 |
-| `RuntimeFeedbackEvent` | 宿主级运行反馈事件，等于 `ExecutionFeedbackEvent + node.state` |
-
-## 对外 API 导航
-
-`src/index.ts` 当前对外暴露的内容，建议按下面几组理解：
-
-### 1. 图宿主入口
+主包根入口现在只保留 runtime façade：
 
 - `LeaferGraph`
 - `createLeaferGraph(...)`
 
-这是最常用的一组入口。你通常会先创建实例，再调用：
+创建实例后，你会主要使用这些实例方法：
 
 - `replaceGraphDocument(...)`
 - `applyGraphOperation(...)`
 - `applyGraphDocumentDiff(...)`
 - `play / step / stop / playFromNode(...)`
-- `subscribe*` 系列
+- `registerNode(...) / registerWidget(...) / installModule(...) / use(...)`
+- `subscribeRuntimeFeedback(...) / subscribeInteractionCommit(...)`
 
-### 2. 正式图与运行反馈类型
+如果你要写静态类型，优先从真源包导入，而不是期待主包继续转发。
 
-- `GraphDocument`
-- `GraphLink`
-- `GraphOperation`
-- `GraphOperationApplyResult`
-- `GraphDocumentDiff`
-- `RuntimeFeedbackEvent`
-- `LeaferGraphNodeExecutionEvent`
-- `LeaferGraphGraphExecutionEvent`
-- `LeaferGraphNodeInspectorState`
+## 推荐阅读
 
-这组类型适合外部页面、调试工具和 authority/runtime 适配层消费。
-
-### 3. 插件与 Widget 扩展契约
-
-- `LeaferGraphNodePlugin`
-- `LeaferGraphNodePluginContext`
-- `LeaferGraphOptions`
-- `LeaferGraphWidgetEntry`
-- `LeaferGraphWidgetRendererContext`
-- `LeaferGraphWidgetLifecycle`
-- `LeaferGraphWidgetRegistry`
-
-这组类型和工具适合扩节点、扩 Widget 或自定义宿主行为。
-
-### 4. 交互与 Widget 辅助
-
-- `bindPressWidgetInteraction(...)`
-- `bindLinearWidgetDrag(...)`
-- `createWidgetHitArea(...)`
-- `createWidgetLabel(...)`
-- `createWidgetSurface(...)`
-- `createWidgetValueText(...)`
-
-这组入口是“在主包公共边界内能直接复用的交互/渲染 helper”。
-
-补充说明：
-
-- 右键菜单已经完全移到 `@leafergraph/context-menu`
-- 主包当前不再导出菜单兼容入口
-- 如果你要做画布、节点或连线右键菜单，请直接使用 `@leafergraph/context-menu`
-
-### 5. 文档 diff 工具
-
-- `applyGraphDocumentDiffToDocument(...)`
-- `createUpdateNodeInputFromNodeSnapshot(...)`
-
-它们是纯工具，不依赖图实例，适合 session 或同步链在实例外先处理文档。
-
-## 默认内容包里的执行入口
-
-`leafergraph` 主包不再默认内装系统节点。
-
-如果你想继续使用默认的启动事件和定时节点，推荐显式安装：
-
-```ts
-import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
-```
-
-或直接从 `@leafergraph/basic-kit/node` 消费它们的正式定义。
-
-`@leafergraph/basic-kit` 当前提供两个系统节点：
-
-| 节点类型 | 作用 |
-| --- | --- |
-| `system/on-play` | 图级 `play / step` 的启动事件节点 |
-| `system/timer` | 图级定时触发节点，接受 `Start` 输入，输出 `Tick` |
-
-它们的语义是：
-
-- `system/on-play`
-  - 只在图级 `play / step` 中作为启动事件节点使用
-  - 会把当前 `LeaferGraphExecutionContext` 写到输出槽位 `0`
-- `system/timer`
-  - 需要上游 `Start` 才会建立图级循环
-  - `playFromNode(...)` 场景下只执行一次，不建立图级循环
-  - `immediate=false` 时，首次执行只注册定时器，不立即输出 `Tick`
-
-## Event 输入语义
-
-主包当前对 `event` 输入使用下面这套稳定语义：
-
-- 连线传播命中目标输入槽位 `type === "event"` 时
-  - 如果节点定义实现了 `onAction(...)`
-  - 主包会调用 `onAction(node, input.name, payload, options, api)`
-- `options.executionContext` 会带当前正式执行上下文
-- `options.propagation` 会带来源连线、来源输出槽位和目标输入槽位信息
-- 非 `event` 输入继续沿用 `onExecute(...)` 数据流执行语义
-
-如果你在作者层节点里要消费图级定时契约，可以直接使用 `@leafergraph/basic-kit/node` 导出的：
-
-- `LEAFER_GRAPH_TIMER_NODE_TYPE`
-- `LEAFER_GRAPH_TIMER_DEFAULT_INTERVAL_MS`
-- `LeaferGraphTimerRegistration`
-- `LeaferGraphTimerRuntimePayload`
-
-`onTrigger(...)` 当前仍不建议作为 v1 稳定依赖。
-
-如果你只关心“运行时刷新到底发生了什么”，直接看：
-
-- [渲染刷新策略](./渲染刷新策略.md)
-
-## 推荐阅读路径
-
-按不同目标，建议这样读：
-
-### 我想直接用这个包
+### 我想直接使用主包
 
 1. 先读这份 README
 2. 再看 [使用与扩展指南](./使用与扩展指南.md)
 
-### 我想扩节点、扩 Widget、扩插件
+### 我想看内部装配链
 
-1. 先读 [使用与扩展指南](./使用与扩展指南.md)
-2. 再回看 `@leafergraph/node` 里的模型定义
-
-### 我想读源码或排查问题
-
-1. 先读这份 README 的边界和 API 导航
-2. 再看 [内部架构地图](./内部架构地图.md)
-3. 如果问题与刷新或执行时机相关，再看 [渲染刷新策略](./渲染刷新策略.md)
+1. [内部架构地图](./内部架构地图.md)
+2. [渲染刷新策略](./渲染刷新策略.md)
 
 ## 常用命令
 
@@ -311,21 +164,3 @@ import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 ```bash
 bun run build:leafergraph
 ```
-
-如果你改的是主包文档或公开类型，至少跑一次：
-
-```bash
-bun run build:leafergraph
-```
-
-## 深链文档
-
-- [使用与扩展指南](./使用与扩展指南.md)
-  - 面向使用者
-  - 讲怎么创建图、同步文档、注册节点、装插件、扩 Widget、跑执行链
-- [内部架构地图](./内部架构地图.md)
-  - 面向维护者
-  - 讲装配链、目录职责、关键宿主和源码阅读顺序
-- [渲染刷新策略](./渲染刷新策略.md)
-  - 面向性能、刷新和执行链排查
-  - 讲整图替换、局部刷新、执行期刷新和外围消费链

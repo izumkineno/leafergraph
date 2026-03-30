@@ -6,9 +6,9 @@ import type {
   LeaferGraphWidgetBounds,
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetLifecycle,
-  LeaferGraphWidgetRendererContext,
-  LeaferGraphWidgetThemeContext
-} from "leafergraph";
+  LeaferGraphWidgetRendererContext
+} from "@leafergraph/contracts";
+import type { LeaferGraphWidgetThemeContext } from "@leafergraph/theme";
 
 import {
   BaseNode,

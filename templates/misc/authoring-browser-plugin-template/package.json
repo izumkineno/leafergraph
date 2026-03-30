@@ -25,9 +25,9 @@
   },
   "devDependencies": {
     "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/contracts": "workspace:*",
     "@leafergraph/node": "workspace:*",
     "leafer-ui": "^2.0.3",
-    "leafergraph": "workspace:*",
     "typescript": "~5.9.3",
     "vite": "^8.0.0"
   }

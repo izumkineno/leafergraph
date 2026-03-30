@@ -5,15 +5,30 @@ import preact from "@preact/preset-vite";
 export default defineConfig({
   plugins: [preact()],
   resolve: {
-    alias: {
-      "@leafergraph/basic-kit": resolve(
-        __dirname,
-        "../../packages/basic-kit/src/index.ts"
-      ),
-      "@leafergraph/context-menu": resolve(
-        __dirname,
-        "../../packages/context-menu/src/index.ts"
-      )
-    }
+    alias: [
+      {
+        find: /^@leafergraph\/basic-kit$/,
+        replacement: resolve(__dirname, "../../packages/basic-kit/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/contracts$/,
+        replacement: resolve(__dirname, "../../packages/contracts/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/context-menu$/,
+        replacement: resolve(__dirname, "../../packages/context-menu/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/context-menu-builtins$/,
+        replacement: resolve(
+          __dirname,
+          "../../packages/context-menu-builtins/src/index.ts"
+        )
+      },
+      {
+        find: /^@leafergraph\/theme$/,
+        replacement: resolve(__dirname, "../../packages/theme/src/index.ts")
+      }
+    ]
   }
 });

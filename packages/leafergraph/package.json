@@ -10,10 +10,6 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
-    },
-    "./graph-document-diff": {
-      "types": "./src/graph_document_diff.ts",
-      "import": "./src/graph_document_diff.ts"
     }
   },
   "files": [
