@@ -3,7 +3,7 @@
  *
  * @remarks
  * 这个文件只做两层接线：
- * - 先启用 `@leafergraph/context-menu` 内建通用功能
+ * - 先启用 `@leafergraph/context-menu-builtins` 内建节点图动作
  * - 再补上 `mini-graph` 自己特有的 demo 动作
  *
  * 这样通用右键能力能沉到包内复用，而 demo 仍能保留自己的说明性动作。
@@ -11,19 +11,27 @@
 
 import {
   createLeaferContextMenu,
-  registerLeaferContextMenuBuiltins,
   type LeaferContextMenu,
   type LeaferContextMenuContext,
   type LeaferContextMenuItem
 } from "@leafergraph/context-menu";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import {
+  registerLeaferGraphContextMenuBuiltins,
+  type LeaferGraphContextMenuBuiltinsHost
+} from "@leafergraph/context-menu-builtins";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
 import type {
-  GraphLink,
-  LeaferGraph,
   LeaferGraphCreateLinkInput,
-  LeaferGraphCreateNodeInput,
-  LeaferGraphThemeMode
+  LeaferGraphCreateNodeInput
+} from "@leafergraph/contracts";
+import type { LeaferGraphThemeMode } from "@leafergraph/theme";
+import type {
+  LeaferGraph,
 } from "leafergraph";
+import {
+  EXAMPLE_EVENT_RELAY_NODE_TYPE,
+  EXAMPLE_TICK_MONITOR_NODE_TYPE
+} from "./example_demo_plugin";
 import type { ExampleTrackedLinkEntry } from "./use_example_graph";
 
 /** 创建 demo 菜单时需要的宿主能力。 */
@@ -45,6 +53,10 @@ export interface CreateExampleContextMenuOptions {
   resolveThemeMode(): LeaferGraphThemeMode;
 }
 
+const SYSTEM_ON_PLAY_NODE_TYPE = "system/on-play";
+const SYSTEM_TIMER_NODE_TYPE = "system/timer";
+const DEMO_CHAIN_NODE_GAP_X = 360;
+
 /** 外部除了销毁外，还需要在节点和连线生命周期变化时同步菜单 target。 */
 export interface ExampleContextMenuHandle {
   bindNodeTarget(nodeId: string): void;
@@ -64,6 +76,7 @@ export interface ExampleContextMenuHandle {
 export function createExampleContextMenu(
   options: CreateExampleContextMenuOptions
 ): ExampleContextMenuHandle {
+  const builtinsHost = createExampleBuiltinsHost(options);
   const menu = createLeaferContextMenu({
     app: options.graph.app,
     container: options.container,
@@ -77,8 +90,8 @@ export function createExampleContextMenu(
     }
   });
 
-  const disposeBuiltins = registerLeaferContextMenuBuiltins(menu, {
-    graph: options.graph,
+  const disposeBuiltins = registerLeaferGraphContextMenuBuiltins(menu, {
+    host: builtinsHost,
     features: {
       canvasAddNode: true,
       canvasPaste: true,
@@ -87,44 +100,6 @@ export function createExampleContextMenu(
       nodeCopy: true,
       nodeDelete: true,
       linkDelete: true
-    },
-    play() {
-      options.play();
-    },
-    step() {
-      options.step();
-    },
-    stop() {
-      options.stop();
-    },
-    fitView() {
-      options.fit();
-    },
-    playFromNode(nodeId) {
-      const changed = options.graph.playFromNode(nodeId, {
-        source: "context-menu"
-      });
-      const snapshot = options.graph.getNodeSnapshot(nodeId);
-      options.appendLog(
-        changed
-          ? `已从节点开始运行：${snapshot?.title?.trim() || nodeId}`
-          : `从该节点开始运行未产生新执行：${snapshot?.title?.trim() || nodeId}`
-      );
-    },
-    nodeFactory(input) {
-      return options.createNode(input);
-    },
-    createLink(input) {
-      return options.createLink(input);
-    },
-    removeNode(nodeId) {
-      options.removeNode(nodeId);
-    },
-    removeNodes(nodeIds) {
-      options.removeNodes(nodeIds);
-    },
-    removeLink(linkId) {
-      options.removeLink(linkId);
     }
   });
 
@@ -154,6 +129,69 @@ export function createExampleContextMenu(
   };
 }
 
+function createExampleBuiltinsHost(
+  options: CreateExampleContextMenuOptions
+): LeaferGraphContextMenuBuiltinsHost {
+  return {
+    listNodes() {
+      return options.graph.listNodes();
+    },
+    getNodeSnapshot(nodeId) {
+      return options.graph.getNodeSnapshot(nodeId);
+    },
+    findLinksByNode(nodeId) {
+      return options.graph.findLinksByNode(nodeId);
+    },
+    isNodeSelected(nodeId) {
+      return options.graph.isNodeSelected(nodeId);
+    },
+    listSelectedNodeIds() {
+      return options.graph.listSelectedNodeIds();
+    },
+    setSelectedNodeIds(nodeIds, mode) {
+      return options.graph.setSelectedNodeIds(nodeIds, mode);
+    },
+    createNode(input, _context) {
+      return options.createNode(input);
+    },
+    createLink(input, _context) {
+      return options.createLink(input);
+    },
+    play(_context) {
+      options.play();
+    },
+    step(_context) {
+      options.step();
+    },
+    stop(_context) {
+      options.stop();
+    },
+    fitView(_context) {
+      options.fit();
+    },
+    playFromNode(nodeId, _context) {
+      const changed = options.graph.playFromNode(nodeId, {
+        source: "context-menu"
+      });
+      const snapshot = options.graph.getNodeSnapshot(nodeId);
+      options.appendLog(
+        changed
+          ? `已从节点开始运行：${snapshot?.title?.trim() || nodeId}`
+          : `从该节点开始运行未产生新执行：${snapshot?.title?.trim() || nodeId}`
+      );
+    },
+    removeNode(nodeId, _context) {
+      options.removeNode(nodeId);
+    },
+    removeNodes(nodeIds, _context) {
+      options.removeNodes(nodeIds);
+    },
+    removeLink(linkId, _context) {
+      options.removeLink(linkId);
+    }
+  };
+}
+
 /** demo 额外菜单项只保留说明型动作，不再重复实现通用内建动作。 */
 function createExampleMenuItems(
   options: CreateExampleContextMenuOptions,
@@ -167,14 +205,24 @@ function createExampleMenuItems(
     return createLinkMenuItems(options, context);
   }
 
-  return createCanvasMenuItems(options);
+  return createCanvasMenuItems(options, context);
 }
 
 /** 画布菜单只保留 demo 专属动作，其余运行与建点能力全部走 builtins。 */
 function createCanvasMenuItems(
-  options: CreateExampleContextMenuOptions
+  options: CreateExampleContextMenuOptions,
+  context: LeaferContextMenuContext
 ): LeaferContextMenuItem[] {
   return [
+    {
+      key: "demo-canvas-insert-animation-chain",
+      label: "插入动画示例链",
+      description: "Start Event -> Timer -> Event Relay -> Tick Monitor",
+      order: 72,
+      onSelect() {
+        insertAnimationDemoChain(options, context);
+      }
+    },
     {
       key: "demo-canvas-clear-log",
       label: "Clear Log",
@@ -194,6 +242,60 @@ function createCanvasMenuItems(
       }
     }
   ];
+}
+
+function insertAnimationDemoChain(
+  options: CreateExampleContextMenuOptions,
+  context: LeaferContextMenuContext
+): void {
+  const origin = resolveCanvasCreatePosition(context);
+
+  try {
+    const startNode = options.createNode({
+      type: SYSTEM_ON_PLAY_NODE_TYPE,
+      x: origin.x,
+      y: origin.y
+    });
+    const timerNode = options.createNode({
+      type: SYSTEM_TIMER_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X,
+      y: origin.y
+    });
+    const relayNode = options.createNode({
+      type: EXAMPLE_EVENT_RELAY_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X * 2,
+      y: origin.y
+    });
+    const monitorNode = options.createNode({
+      type: EXAMPLE_TICK_MONITOR_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X * 3,
+      y: origin.y
+    });
+
+    options.createLink({
+      source: { nodeId: startNode.id, slot: 0 },
+      target: { nodeId: timerNode.id, slot: 0 }
+    });
+    options.createLink({
+      source: { nodeId: timerNode.id, slot: 0 },
+      target: { nodeId: relayNode.id, slot: 0 }
+    });
+    options.createLink({
+      source: { nodeId: relayNode.id, slot: 0 },
+      target: { nodeId: monitorNode.id, slot: 0 }
+    });
+
+    options.fit();
+    options.appendLog(
+      "已插入动画示例链：Start Event -> Timer -> Event Relay -> Tick Monitor"
+    );
+  } catch (error) {
+    options.appendLog(
+      error instanceof Error
+        ? `插入动画示例链失败：${error.message}`
+        : "插入动画示例链失败"
+    );
+  }
 }
 
 /** 节点菜单只追加说明型动作，删除与运行动作交给 builtins。 */
@@ -266,6 +368,23 @@ function createLinkMenuItems(
 /** 菜单浮层统一挂到文档 body，避免被 demo 画布容器裁剪。 */
 function resolveContextMenuHost(container: HTMLElement): HTMLElement {
   return container.ownerDocument.body ?? container;
+}
+
+function resolveCanvasCreatePosition(context: Pick<
+  LeaferContextMenuContext,
+  "worldPoint" | "containerPoint"
+>) {
+  if (context.worldPoint) {
+    return {
+      x: context.worldPoint.x,
+      y: context.worldPoint.y
+    };
+  }
+
+  return {
+    x: context.containerPoint.x,
+    y: context.containerPoint.y
+  };
 }
 
 /** 节点 target 统一使用稳定 binding key，方便重绑和清理。 */

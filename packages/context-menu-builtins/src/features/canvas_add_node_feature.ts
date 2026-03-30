@@ -1,6 +1,6 @@
 import type { NodeDefinition } from "@leafergraph/node";
-import type { LeaferContextMenuItem } from "../../leafer_context_menu";
-import type { LeaferContextMenuBuiltinFeatureDefinition } from "../types";
+import type { LeaferContextMenuItem } from "@leafergraph/context-menu";
+import type { LeaferGraphContextMenuBuiltinFeatureDefinition } from "../types";
 
 interface RegisteredNodeProjection {
   type: string;
@@ -9,9 +9,9 @@ interface RegisteredNodeProjection {
   description?: string;
 }
 
-export const canvasAddNodeFeature: LeaferContextMenuBuiltinFeatureDefinition = {
+export const canvasAddNodeFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "canvasAddNode",
-  register({ graph, registerResolver, createNode }) {
+  register({ host, registerResolver, createNode }) {
     return registerResolver("canvas-add-node", (context) => {
       if (context.target.kind !== "canvas") {
         return [];
@@ -23,7 +23,7 @@ export const canvasAddNodeFeature: LeaferContextMenuBuiltinFeatureDefinition = {
           key: "builtin-canvas-add-node",
           label: "从注册表添加节点",
           order: 30,
-          children: createCategoryItems(graph.listNodes(), (type) => {
+          children: createCategoryItems(host.listNodes(), (type) => {
             const position = resolveCanvasCreatePosition(context);
             createNode(
               {

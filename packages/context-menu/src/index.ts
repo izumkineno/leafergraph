@@ -26,14 +26,3 @@ export {
   normalizeLeaferContextMenuConfig,
   resolveDefaultLeaferContextMenuConfig
 } from "@leafergraph/config";
-
-export {
-  registerLeaferContextMenuBuiltins
-} from "./builtins/registry";
-
-export type {
-  LeaferContextMenuBuiltinFeatureFlags,
-  LeaferContextMenuBuiltinOptions,
-  LeaferContextMenuClipboardFragment,
-  LeaferContextMenuClipboardState
-} from "./builtins/types";

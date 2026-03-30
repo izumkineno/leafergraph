@@ -1,6 +1,6 @@
-import type { LeaferContextMenuBuiltinFeatureDefinition } from "../types";
+import type { LeaferGraphContextMenuBuiltinFeatureDefinition } from "../types";
 
-export const canvasControlsFeature: LeaferContextMenuBuiltinFeatureDefinition = {
+export const canvasControlsFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "canvasControls",
   register({ registerResolver, play, step, stop, fitView }) {
     return registerResolver("canvas-controls", (context) => {

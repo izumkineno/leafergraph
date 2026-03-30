@@ -1,15 +1,18 @@
-import type { LeaferContextMenuBuiltinFeatureDefinition } from "../types";
+import type {
+  LeaferGraphContextMenuBuiltinFeatureDefinition,
+  LeaferGraphContextMenuBuiltinsHost
+} from "../types";
 
-export const nodeDeleteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
+export const nodeDeleteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "nodeDelete",
-  register({ graph, registerResolver, removeNode, removeNodes }) {
+  register({ host, registerResolver, removeNode, removeNodes }) {
     return registerResolver("node-delete", (context) => {
       const nodeId = context.target.kind === "node" ? context.target.id : undefined;
       if (!nodeId) {
         return [];
       }
 
-      const selectedNodeIds = resolveDeleteNodeIds(graph, nodeId);
+      const selectedNodeIds = resolveDeleteNodeIds(host, nodeId);
       return [
         {
           key: "builtin-node-delete",
@@ -17,7 +20,7 @@ export const nodeDeleteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
           order: 90,
           danger: true,
           onSelect() {
-            const nextSelectedNodeIds = resolveDeleteNodeIds(graph, nodeId);
+            const nextSelectedNodeIds = resolveDeleteNodeIds(host, nodeId);
             if (nextSelectedNodeIds.length > 1) {
               removeNodes(nextSelectedNodeIds, context);
               return;
@@ -32,16 +35,16 @@ export const nodeDeleteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
 };
 
 function resolveDeleteNodeIds(
-  graph: Pick<
-    import("leafergraph").LeaferGraph,
+  host: Pick<
+    LeaferGraphContextMenuBuiltinsHost,
     "isNodeSelected" | "listSelectedNodeIds"
   >,
   nodeId: string
 ): string[] {
-  if (!graph.isNodeSelected(nodeId)) {
+  if (!host.isNodeSelected(nodeId)) {
     return [nodeId];
   }
 
-  const selectedNodeIds = graph.listSelectedNodeIds();
+  const selectedNodeIds = host.listSelectedNodeIds();
   return selectedNodeIds.length ? selectedNodeIds : [nodeId];
 }

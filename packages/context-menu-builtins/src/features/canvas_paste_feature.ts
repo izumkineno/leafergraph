@@ -1,9 +1,10 @@
 import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/contracts/graph-document-diff";
-import type { LeaferContextMenuContext } from "../../leafer_context_menu";
+import type { LeaferContextMenuContext } from "@leafergraph/context-menu";
 import type {
-  LeaferContextMenuBuiltinFeatureDefinition,
-  LeaferContextMenuBuiltinFeatureRegistrationContext,
-  LeaferContextMenuClipboardFragment
+  LeaferGraphContextMenuBuiltinFeatureDefinition,
+  LeaferGraphContextMenuBuiltinFeatureRegistrationContext,
+  LeaferGraphContextMenuBuiltinsHost,
+  LeaferGraphContextMenuClipboardFragment
 } from "../types";
 
 const DEFAULT_PASTE_OFFSET = {
@@ -11,9 +12,9 @@ const DEFAULT_PASTE_OFFSET = {
   y: 24
 } as const;
 
-export const canvasPasteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
+export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "canvasPaste",
-  register({ clipboard, graph, options, registerResolver, createLink, createNode }) {
+  register({ clipboard, host, options, registerResolver, createLink, createNode }) {
     return registerResolver("canvas-paste", (context) => {
       if (context.target.kind !== "canvas") {
         return [];
@@ -34,7 +35,7 @@ export const canvasPasteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
             const offset = options.pasteOffset ?? DEFAULT_PASTE_OFFSET;
             pasteClipboardFragment({
               fragment,
-              graph,
+              host,
               createLink,
               createNode,
               context,
@@ -48,10 +49,10 @@ export const canvasPasteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
 };
 
 function pasteClipboardFragment(input: {
-  fragment: LeaferContextMenuClipboardFragment;
-  graph: Pick<import("leafergraph").LeaferGraph, "setSelectedNodeIds">;
-  createNode: LeaferContextMenuBuiltinFeatureRegistrationContext["createNode"];
-  createLink: LeaferContextMenuBuiltinFeatureRegistrationContext["createLink"];
+  fragment: LeaferGraphContextMenuClipboardFragment;
+  host: Pick<LeaferGraphContextMenuBuiltinsHost, "setSelectedNodeIds">;
+  createNode: LeaferGraphContextMenuBuiltinFeatureRegistrationContext["createNode"];
+  createLink: LeaferGraphContextMenuBuiltinFeatureRegistrationContext["createLink"];
   context: LeaferContextMenuContext;
   offset: {
     x: number;
@@ -109,10 +110,10 @@ function pasteClipboardFragment(input: {
     }, input.context);
   }
 
-  input.graph.setSelectedNodeIds(createdNodeIds, "replace");
+  input.host.setSelectedNodeIds(createdNodeIds, "replace");
 }
 
-function resolveFragmentOrigin(fragment: LeaferContextMenuClipboardFragment): {
+function resolveFragmentOrigin(fragment: LeaferGraphContextMenuClipboardFragment): {
   x: number;
   y: number;
 } {

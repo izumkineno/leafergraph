@@ -1,16 +1,20 @@
-import type { LeaferContextMenuBuiltinFeatureDefinition } from "../types";
+import type { GraphLink } from "@leafergraph/node";
+import type {
+  LeaferGraphContextMenuBuiltinFeatureDefinition,
+  LeaferGraphContextMenuBuiltinsHost
+} from "../types";
 
-export const nodeCopyFeature: LeaferContextMenuBuiltinFeatureDefinition = {
+export const nodeCopyFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "nodeCopy",
-  register({ clipboard, graph, registerResolver }) {
+  register({ clipboard, host, registerResolver }) {
     return registerResolver("node-copy", (context) => {
       const nodeId = context.target.kind === "node" ? context.target.id : undefined;
       if (!nodeId) {
         return [];
       }
 
-      const selectedNodeIds = resolveCopyNodeIds(graph, nodeId);
-      const snapshot = graph.getNodeSnapshot(nodeId);
+      const selectedNodeIds = resolveCopyNodeIds(host, nodeId);
+      const snapshot = host.getNodeSnapshot(nodeId);
       return [
         {
           key: "builtin-node-copy",
@@ -18,9 +22,9 @@ export const nodeCopyFeature: LeaferContextMenuBuiltinFeatureDefinition = {
           order: 20,
           disabled: !snapshot,
           onSelect() {
-            const nextSelectedNodeIds = resolveCopyNodeIds(graph, nodeId);
+            const nextSelectedNodeIds = resolveCopyNodeIds(host, nodeId);
             const snapshots = nextSelectedNodeIds
-              .map((selectedNodeId) => graph.getNodeSnapshot(selectedNodeId))
+              .map((selectedNodeId) => host.getNodeSnapshot(selectedNodeId))
               .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
             if (!snapshots.length) {
               clipboard.clear();
@@ -28,7 +32,7 @@ export const nodeCopyFeature: LeaferContextMenuBuiltinFeatureDefinition = {
             }
 
             const copiedNodeIds = new Set(snapshots.map((entry) => entry.id));
-            const links = collectInnerLinks(graph, copiedNodeIds);
+            const links = collectInnerLinks(host, copiedNodeIds);
 
             clipboard.setFragment({
               nodes: snapshots,
@@ -42,28 +46,28 @@ export const nodeCopyFeature: LeaferContextMenuBuiltinFeatureDefinition = {
 };
 
 function resolveCopyNodeIds(
-  graph: Pick<
-    import("leafergraph").LeaferGraph,
+  host: Pick<
+    LeaferGraphContextMenuBuiltinsHost,
     "isNodeSelected" | "listSelectedNodeIds"
   >,
   nodeId: string
 ): string[] {
-  if (!graph.isNodeSelected(nodeId)) {
+  if (!host.isNodeSelected(nodeId)) {
     return [nodeId];
   }
 
-  const selectedNodeIds = graph.listSelectedNodeIds();
+  const selectedNodeIds = host.listSelectedNodeIds();
   return selectedNodeIds.length ? selectedNodeIds : [nodeId];
 }
 
 function collectInnerLinks(
-  graph: Pick<import("leafergraph").LeaferGraph, "findLinksByNode">,
+  host: Pick<LeaferGraphContextMenuBuiltinsHost, "findLinksByNode">,
   nodeIds: ReadonlySet<string>
-) {
-  const linksById = new Map<string, ReturnType<typeof graph.findLinksByNode>[number]>();
+): GraphLink[] {
+  const linksById = new Map<string, ReturnType<typeof host.findLinksByNode>[number]>();
 
   for (const nodeId of nodeIds) {
-    for (const link of graph.findLinksByNode(nodeId)) {
+    for (const link of host.findLinksByNode(nodeId)) {
       if (
         nodeIds.has(link.source.nodeId) &&
         nodeIds.has(link.target.nodeId)

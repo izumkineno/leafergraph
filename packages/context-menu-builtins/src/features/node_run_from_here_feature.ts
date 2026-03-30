@@ -1,6 +1,6 @@
-import type { LeaferContextMenuBuiltinFeatureDefinition } from "../types";
+import type { LeaferGraphContextMenuBuiltinFeatureDefinition } from "../types";
 
-export const nodeRunFromHereFeature: LeaferContextMenuBuiltinFeatureDefinition = {
+export const nodeRunFromHereFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "nodeRunFromHere",
   register({ playFromNode, registerResolver }) {
     return registerResolver("node-run-from-here", (context) => {

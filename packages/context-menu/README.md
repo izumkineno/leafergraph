@@ -1,6 +1,6 @@
 # @leafergraph/context-menu
 
-`@leafergraph/context-menu` 是一个 Leafer-first 的右键菜单包。
+`@leafergraph/context-menu` 是一个纯 Leafer-first 的右键菜单 runtime 包。
 
 它的产品定位已经明确收口：
 
@@ -102,6 +102,8 @@ const menu = createLeaferContextMenu({
 });
 ```
 
+如果你希望直接拿到 `leafergraph` 节点图内建动作，请额外安装并接入 `@leafergraph/context-menu-builtins`。
+
 ## 默认交互语义
 
 - 根菜单默认由 Leafer `pointer.menu` 打开
@@ -177,5 +179,6 @@ interface LeaferContextMenuTarget {
 ## 与 leafergraph 的关系
 
 - `leafergraph` 主包不再导出旧菜单兼容入口
-- 右键菜单现在请直接使用 `@leafergraph/context-menu`
+- 右键菜单 runtime 请直接使用 `@leafergraph/context-menu`
+- 节点图内建菜单动作请使用 `@leafergraph/context-menu-builtins`
 - `example/mini-graph` 是当前最小的 Leafer 菜单接入示例之一

@@ -135,9 +135,11 @@ export function App() {
           <p class="toolbar-description">
             这里直接通过公开 API 启动一个默认空画布，并让画布尽量占满页面。
             当前默认不注入任何节点；可以先选择编译后的单文件 JS bundle 来注册
-            authoring 库，再继续扩展图内容。顶部还可以切换运行时连线动画预设，
+            authoring 库，再继续扩展图内容。顶部默认使用更容易观察的
+            Expressive 连线动画预设，也可以继续切换其它运行时动画预设，
             用来对比性能优先和平衡表现两类反馈。
-            右键画布即可验证 Leafer-first 上下文菜单，并从当前注册表直接添加节点。
+            右键画布即可验证 Leafer-first 上下文菜单，并直接插入动画示例链，
+            或从当前注册表继续添加 System / Example 节点。
           </p>
         </div>
 
@@ -260,7 +262,7 @@ export function App() {
             <ol class="log-list">
               {logs.map((entry) => (
                 <li
-                  key={`${entry.timestamp}-${entry.message}`}
+                  key={entry.id}
                   class="log-item"
                 >
                   <span class="log-time">{formatLogTime(entry.timestamp)}</span>

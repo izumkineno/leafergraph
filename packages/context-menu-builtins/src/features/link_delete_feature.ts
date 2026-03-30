@@ -1,6 +1,6 @@
-import type { LeaferContextMenuBuiltinFeatureDefinition } from "../types";
+import type { LeaferGraphContextMenuBuiltinFeatureDefinition } from "../types";
 
-export const linkDeleteFeature: LeaferContextMenuBuiltinFeatureDefinition = {
+export const linkDeleteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "linkDelete",
   register({ registerResolver, removeLink }) {
     return registerResolver("link-delete", (context) => {

@@ -12,22 +12,26 @@
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import type {
+  LeaferGraphCreateLinkInput,
+  LeaferGraphCreateNodeInput,
+  RuntimeFeedbackEvent
+} from "@leafergraph/contracts";
+import type {
+  LeaferGraphLinkPropagationAnimationPreset,
+  LeaferGraphThemeMode
+} from "@leafergraph/theme";
 import {
   createLeaferGraph,
-  type GraphLink,
-  type LeaferGraph,
-  type LeaferGraphCreateLinkInput,
-  type LeaferGraphCreateNodeInput,
-  type LeaferGraphLinkPropagationAnimationPreset,
-  type LeaferGraphThemeMode,
-  type RuntimeFeedbackEvent
+  type LeaferGraph
 } from "leafergraph";
 
 import {
   loadAuthoringBundleRegistration,
   type ExampleAuthoringBundleRegistration
 } from "./example_authoring_bundle_loader";
+import { miniGraphExampleDemoPlugin } from "./example_demo_plugin";
 import { createEmptyExampleDocument } from "./example_document";
 import {
   createExampleContextMenu,
@@ -63,7 +67,8 @@ const EXAMPLE_CHAIN_STEPS = [
   {
     id: "context-menu",
     title: "右键菜单入口",
-    description: "右键画布可打开菜单，并从当前节点注册表里直接创建节点。"
+    description:
+      "右键画布可直接插入动画示例链，或从当前节点注册表里创建 System / Example 节点。"
   },
   {
     id: "register-bundle",
@@ -73,7 +78,8 @@ const EXAMPLE_CHAIN_STEPS = [
   {
     id: "animation-preset",
     title: "运行时动画预设",
-    description: "顶部可切换 Off / Performance / Balanced / Expressive，对比不同连线传播反馈。"
+    description:
+      "顶部可切换 Off / Performance / Balanced / Expressive；demo 默认使用 Expressive，方便直接观察连线传播反馈。"
   }
 ] as const;
 
@@ -94,6 +100,7 @@ export type ExampleLinkPropagationAnimationOption =
 
 /** 单条日志在页面层的最小投影结构。 */
 export interface ExampleLogEntry {
+  id: number;
   timestamp: number;
   message: string;
 }
@@ -224,6 +231,7 @@ export function useExampleGraph(): UseExampleGraphResult {
   const registeredBundleFingerprintsRef = useRef(new Set<string>());
   const registeredBundlesRef = useRef<ExampleRegisteredBundleEntry[]>([]);
   const trackedLinksRef = useRef(new Map<string, ExampleTrackedLinkEntry>());
+  const logEntrySeedRef = useRef(1);
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
   const [status, setStatus] = useState<ExampleGraphStatus>("loading");
   const [authoringBundleStatus, setAuthoringBundleStatus] =
@@ -233,14 +241,18 @@ export function useExampleGraph(): UseExampleGraphResult {
     linkPropagationAnimationPreset,
     setLinkPropagationAnimationPresetState
   ] =
-    useState<ExampleLinkPropagationAnimationOption>("performance");
+    useState<ExampleLinkPropagationAnimationOption>("expressive");
   const [errorMessage, setErrorMessage] = useState("");
 
   /** 追加一条日志，并把总量限制在可控范围内。 */
   const appendLog = (message: string): void => {
+    const logEntryId = logEntrySeedRef.current;
+    logEntrySeedRef.current += 1;
+
     setLogs((currentLogs) =>
       [
         {
+          id: logEntryId,
           timestamp: Date.now(),
           message
         },
@@ -680,7 +692,7 @@ export function useExampleGraph(): UseExampleGraphResult {
         themeModeRef.current = resolvePreferredThemeMode();
         const graph = createLeaferGraph(stageHost, {
           document: createEmptyExampleDocument(),
-          plugins: [leaferGraphBasicKitPlugin],
+          plugins: [leaferGraphBasicKitPlugin, miniGraphExampleDemoPlugin],
           themeMode: themeModeRef.current,
           config: {
             graph: {
@@ -775,6 +787,9 @@ export function useExampleGraph(): UseExampleGraphResult {
           `当前连线传播动画预设：${resolveAnimationPresetLabel(
             linkPropagationAnimationPreset
           )}`
+        );
+        appendLog(
+          "右键画布可直接插入动画示例链，或从 Example 分类添加 Event Relay / Tick Monitor"
         );
         appendLog("可点击顶部按钮选择编译后的 JS bundle 来注册 authoring 库");
         appendLog("Leafer 右键菜单已就绪，可右键画布添加节点，右键节点或连线执行删除");
