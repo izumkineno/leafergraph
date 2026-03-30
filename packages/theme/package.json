@@ -1,0 +1,39 @@
+{
+  "name": "@leafergraph/theme",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./widget": {
+      "types": "./src/widget/index.ts",
+      "import": "./src/widget/index.ts"
+    },
+    "./graph": {
+      "types": "./src/graph/index.ts",
+      "import": "./src/graph/index.ts"
+    },
+    "./context-menu": {
+      "types": "./src/context-menu/index.ts",
+      "import": "./src/context-menu/index.ts"
+    },
+    "./registry": {
+      "types": "./src/registry/index.ts",
+      "import": "./src/registry/index.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "bun test ./tests"
+  }
+}

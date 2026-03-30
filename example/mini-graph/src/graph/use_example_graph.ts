@@ -220,6 +220,7 @@ export function useExampleGraph(): UseExampleGraphResult {
   // `graphRef` 只在 hook 内部持有，避免页面层直接耦合运行时细节。
   const graphRef = useRef<LeaferGraph | null>(null);
   const contextMenuRef = useRef<ExampleContextMenuHandle | null>(null);
+  const themeModeRef = useRef<LeaferGraphThemeMode>(resolvePreferredThemeMode());
   const registeredBundleFingerprintsRef = useRef(new Set<string>());
   const registeredBundlesRef = useRef<ExampleRegisteredBundleEntry[]>([]);
   const trackedLinksRef = useRef(new Map<string, ExampleTrackedLinkEntry>());
@@ -676,17 +677,20 @@ export function useExampleGraph(): UseExampleGraphResult {
      */
     const bootstrap = async (): Promise<void> => {
       try {
+        themeModeRef.current = resolvePreferredThemeMode();
         const graph = createLeaferGraph(stageHost, {
           document: createEmptyExampleDocument(),
           plugins: [leaferGraphBasicKitPlugin],
-          themeMode: resolvePreferredThemeMode(),
+          themeMode: themeModeRef.current,
           linkPropagationAnimation: linkPropagationAnimationPreset
         });
         graphRef.current = graph;
 
         const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
         const handleThemeChange = (): void => {
-          graph.setThemeMode(resolvePreferredThemeMode());
+          const nextThemeMode = resolvePreferredThemeMode();
+          themeModeRef.current = nextThemeMode;
+          graph.setThemeMode(nextThemeMode);
         };
 
         // 主题切换时只刷新图主题，不重新创建图实例。
@@ -817,7 +821,8 @@ export function useExampleGraph(): UseExampleGraphResult {
       removeNode: actions.removeNode,
       removeNodes: removeNodesWithLogging,
       removeLink: actions.removeLink,
-      appendLog
+      appendLog,
+      resolveThemeMode: () => themeModeRef.current
     });
 
     // 菜单实例重建后，重新把当前仍然存在的连线 target 挂回去。

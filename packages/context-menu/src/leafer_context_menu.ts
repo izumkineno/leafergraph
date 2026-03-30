@@ -9,6 +9,11 @@
  */
 
 import type { App } from "leafer-ui";
+import {
+  resolveThemePreset,
+  type LeaferGraphThemeMode,
+  type LeaferGraphThemePresetId
+} from "@leafergraph/theme";
 import { createLeaferContextMenuAdapter } from "./adapters/leafer";
 import {
   LEAFER_GRAPH_POINTER_MENU_EVENT,
@@ -220,6 +225,8 @@ export interface LeaferContextMenuOptions {
   submenuTriggerMode?: LeaferSubmenuTriggerMode;
   openDelay?: number;
   closeDelay?: number;
+  themePreset?: LeaferGraphThemePresetId;
+  resolveThemeMode?(): LeaferGraphThemeMode;
 }
 
 export interface LeaferContextMenu {
@@ -283,7 +290,12 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     this.controller = createContextMenuController({
       renderer: createDomContextMenuRenderer({
         host,
-        className: options.className
+        className: options.className,
+        resolveThemeTokens: () => {
+          const themeMode = options.resolveThemeMode?.() ?? "light";
+          return resolveThemePreset(options.themePreset).modes[themeMode]
+            .contextMenu;
+        }
       }),
       adapters: [this.adapter],
       submenuTriggerMode: options.submenuTriggerMode,

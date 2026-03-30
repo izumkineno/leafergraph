@@ -11,14 +11,16 @@ import "@leafer-in/text-editor";
 import type { App } from "leafer-ui";
 import type {
   LeaferGraphWidgetTextEditFrame,
-  LeaferGraphThemeMode,
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetEditingOptions,
   LeaferGraphWidgetFocusBinding,
   LeaferGraphWidgetOptionsMenuRequest,
   LeaferGraphWidgetTextEditRequest,
-  LeaferGraphWidgetThemeContext
 } from "@leafergraph/contracts";
+import type {
+  LeaferGraphThemeMode,
+  LeaferGraphWidgetThemeContext
+} from "@leafergraph/theme";
 
 const LEAFER_GRAPH_WIDGET_OVERLAY_STYLE_ID = "leafergraph-widget-overlay-style";
 const LEAFER_GRAPH_WIDGET_MENU_CLASS = "leafergraph-widget-menu";

@@ -11,9 +11,9 @@ import type { NodeRuntimeState } from "@leafergraph/node";
 import type {
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetRenderInstance,
-  LeaferGraphWidgetRenderer,
-  LeaferGraphWidgetThemeContext
+  LeaferGraphWidgetRenderer
 } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetThemeContext } from "@leafergraph/theme";
 import { LeaferGraphWidgetRegistry } from "./widget_registry";
 
 const MISSING_WIDGET_FILL = "rgba(220, 38, 38, 0.92)";

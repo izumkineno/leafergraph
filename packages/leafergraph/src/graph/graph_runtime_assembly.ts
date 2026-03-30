@@ -8,11 +8,13 @@
 import { NodeRegistry } from "@leafergraph/node";
 import { LeaferGraphLocalExecutionFeedbackAdapter } from "@leafergraph/execution";
 import type {
-  LeaferGraphThemeMode,
   LeaferGraphWidgetEditingOptions,
-  LeaferGraphWidgetRenderer,
-  LeaferGraphWidgetThemeContext
+  LeaferGraphWidgetRenderer
 } from "@leafergraph/contracts";
+import type {
+  LeaferGraphThemeMode,
+  LeaferGraphWidgetThemeContext
+} from "@leafergraph/theme";
 import {
   LeaferGraphApiHost,
   type LeaferGraphApiRuntime

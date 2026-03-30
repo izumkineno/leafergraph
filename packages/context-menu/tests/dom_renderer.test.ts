@@ -299,6 +299,64 @@ describe("@leafergraph/context-menu dom renderer", () => {
 
     controller.destroy();
   });
+
+  it("会在每次打开时重新解析并应用主题 token", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    let currentTheme = {
+      fontFamily: '"IBM Plex Sans", sans-serif',
+      background: "rgb(12, 34, 56)",
+      panelBorder: "rgb(65, 77, 88)",
+      shadow: "0 10px 20px rgba(0, 0, 0, 0.2)",
+      color: "rgb(240, 244, 248)",
+      muted: "rgb(120, 132, 144)",
+      hoverBackground: "rgb(30, 60, 90)",
+      danger: "rgb(210, 60, 60)",
+      separator: "rgb(80, 92, 104)",
+      check: "rgb(90, 160, 240)",
+      panelRadius: 18,
+      panelPadding: 10,
+      panelMinWidth: 260,
+      panelMaxWidth: 360,
+      itemRadius: 12,
+      itemPaddingX: 16,
+      itemPaddingY: 12,
+      groupLabelPaddingX: 14,
+      groupLabelPaddingTop: 7,
+      groupLabelPaddingBottom: 5
+    };
+
+    const controller = createContextMenuController({
+      renderer: createDomContextMenuRenderer({
+        resolveThemeTokens: () => currentTheme
+      })
+    });
+
+    controller.open(createContext(container), [{ key: "rename", label: "重命名" }]);
+
+    const root = document.querySelector<HTMLDivElement>(".leafergraph-context-menu");
+    expect(root?.style.getPropertyValue("--lgcm-bg")).toBe("rgb(12, 34, 56)");
+    expect(root?.style.getPropertyValue("--lgcm-panel-min-width")).toBe("260px");
+    expect(root?.style.getPropertyValue("--lgcm-font-family")).toContain(
+      "IBM Plex Sans"
+    );
+
+    controller.close();
+
+    currentTheme = {
+      ...currentTheme,
+      background: "rgb(240, 248, 255)",
+      panelMinWidth: 280
+    };
+
+    controller.open(createContext(container), [{ key: "rename", label: "重命名" }]);
+
+    expect(root?.style.getPropertyValue("--lgcm-bg")).toBe("rgb(240, 248, 255)");
+    expect(root?.style.getPropertyValue("--lgcm-panel-min-width")).toBe("280px");
+
+    controller.destroy();
+  });
 });
 
 function createContext(container: HTMLElement): ContextMenuContext {

@@ -8,7 +8,7 @@
 import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
-} from "@leafergraph/contracts";
+} from "@leafergraph/theme";
 import type { LeaferGraphThemeRuntimeLike } from "./graph_theme_runtime_host";
 
 /**

@@ -8,23 +8,16 @@
 
 import type { App, Group } from "leafer-ui";
 import type { LeaferGraphOptions } from "@leafergraph/contracts";
-import {
-  createMissingWidgetRenderer,
-  resolveDefaultWidgetTheme
-} from "@leafergraph/widget-runtime";
+import { createMissingWidgetRenderer } from "@leafergraph/widget-runtime";
+import { resolveThemePreset, type LeaferGraphThemeMode } from "@leafergraph/theme";
+import type { LeaferGraphGraphThemeTokens } from "@leafergraph/theme/graph";
 import type { LeaferGraphApiHost } from "../api/graph_api_host";
 import { createLeaferGraphRuntimeAssembly } from "./graph_runtime_assembly";
 import { normalizeGraphLinkSlotIndex } from "./graph_mutation_host";
 import {
-  NODE_SHELL_LAYOUT_METRICS,
   VIEWPORT_MAX_SCALE,
   VIEWPORT_MIN_SCALE,
-  createDefaultDataFlowAnimationStyleConfig,
-  createDefaultNodeShellStyleConfig,
-  resolveDefaultCanvasBackground,
-  resolveDefaultLinkStroke,
-  resolveDefaultNodeShellRenderTheme,
-  resolveDefaultSelectedStroke
+  createDisabledDataFlowAnimationStyleConfig
 } from "./graph_runtime_style";
 import type {
   GraphLinkViewState,
@@ -66,6 +59,10 @@ export function createLeaferGraphEntryRuntime(
   container: HTMLElement,
   options: LeaferGraphOptions = {}
 ): LeaferGraphEntryRuntime {
+  const initialThemeMode: LeaferGraphThemeMode = options.themeMode ?? "light";
+  const themePreset = resolveThemePreset(options.themePreset);
+  const initialThemeBundle = themePreset.modes[initialThemeMode];
+  const initialGraphTheme = initialThemeBundle.graph;
   const graphState: GraphRuntimeState = {
     nodes: new Map(),
     links: new Map()
@@ -78,26 +75,27 @@ export function createLeaferGraphEntryRuntime(
     nodeViews,
     linkViews,
     fill: options.fill,
-    themeMode: options.themeMode,
+    themeMode: initialThemeMode,
     widgetEditing: options.widgetEditing,
     viewportMinScale: VIEWPORT_MIN_SCALE,
     viewportMaxScale: VIEWPORT_MAX_SCALE,
     createMissingWidgetRenderer,
     resolveWidgetTheme: (mode) => ({
       mode,
-      tokens: resolveDefaultWidgetTheme(mode)
+      tokens: themePreset.modes[mode].widget
     }),
-    nodeShellLayoutMetrics: NODE_SHELL_LAYOUT_METRICS,
-    nodeShellStyle: createDefaultNodeShellStyleConfig(),
-    resolveCanvasBackground: (mode) => resolveDefaultCanvasBackground(mode),
-    resolveSelectedStroke: (mode) => resolveDefaultSelectedStroke(mode),
+    nodeShellLayoutMetrics: initialGraphTheme.nodeShellLayoutMetrics,
+    nodeShellStyle: initialGraphTheme.nodeShellStyle,
+    resolveCanvasBackground: (mode) => themePreset.modes[mode].graph.canvasBackground,
+    resolveSelectedStroke: (mode) => themePreset.modes[mode].graph.selectedStroke,
     resolveNodeShellRenderTheme: (mode) =>
-      resolveDefaultNodeShellRenderTheme(mode),
+      themePreset.modes[mode].graph.nodeShellRenderTheme,
     normalizeLinkSlotIndex: (slot) => normalizeGraphLinkSlotIndex(slot),
-    linkDefaultNodeWidth: NODE_SHELL_LAYOUT_METRICS.defaultNodeWidth,
-    linkPortSize: NODE_SHELL_LAYOUT_METRICS.portSize,
-    linkStroke: resolveDefaultLinkStroke(),
-    dataFlowAnimationStyle: createDefaultDataFlowAnimationStyleConfig(
+    linkDefaultNodeWidth: initialGraphTheme.nodeShellLayoutMetrics.defaultNodeWidth,
+    linkPortSize: initialGraphTheme.nodeShellLayoutMetrics.portSize,
+    linkStroke: initialGraphTheme.linkStroke,
+    dataFlowAnimationStyle: resolveConfiguredDataFlowAnimationStyle(
+      initialGraphTheme,
       options.linkPropagationAnimation ?? "performance"
     )
   });
@@ -110,4 +108,34 @@ export function createLeaferGraphEntryRuntime(
     ...runtime,
     ready
   };
+}
+
+function resolveConfiguredDataFlowAnimationStyle(
+  graphTheme: LeaferGraphGraphThemeTokens,
+  preset: LeaferGraphOptions["linkPropagationAnimation"]
+) {
+  if (preset === false) {
+    const disabledStyle = createDisabledDataFlowAnimationStyleConfig();
+    const performanceStyle = graphTheme.dataFlowAnimationStyles.performance;
+
+    return {
+      ...performanceStyle,
+      ...disabledStyle,
+      pulseDurationMs: performanceStyle.pulseDurationMs,
+      pulseDarkOpacity: performanceStyle.pulseDarkOpacity,
+      pulseLightOpacity: performanceStyle.pulseLightOpacity,
+      pulseBaseStrokeWidth: performanceStyle.pulseBaseStrokeWidth,
+      pulseExtraStrokeWidth: performanceStyle.pulseExtraStrokeWidth,
+      particleSize: performanceStyle.particleSize,
+      glowSize: performanceStyle.glowSize,
+      durationMs: performanceStyle.durationMs,
+      coreOpacity: performanceStyle.coreOpacity,
+      darkGlowOpacity: performanceStyle.darkGlowOpacity,
+      lightGlowOpacity: performanceStyle.lightGlowOpacity,
+      fadeInRatio: performanceStyle.fadeInRatio,
+      fadeOutRatio: performanceStyle.fadeOutRatio
+    };
+  }
+
+  return graphTheme.dataFlowAnimationStyles[preset ?? "performance"];
 }

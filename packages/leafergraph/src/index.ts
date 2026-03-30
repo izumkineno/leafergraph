@@ -47,11 +47,9 @@ export {
   stopWidgetPointerEvent
 } from "@leafergraph/widget-runtime";
 export type {
-  LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,
-  LeaferGraphThemeMode,
   LeaferGraphWidgetBounds,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetEditingContext,
@@ -62,12 +60,25 @@ export type {
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetRendererLike,
   LeaferGraphWidgetTextEditRequest,
-  LeaferGraphWidgetThemeContext,
-  LeaferGraphWidgetThemeTokens,
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetLifecycleState,
   LeaferGraphWidgetOptionsMenuRequest
 } from "@leafergraph/contracts";
+export type {
+  LeaferGraphContextMenuThemeTokens,
+  LeaferGraphDataFlowAnimationStyleConfig,
+  LeaferGraphGraphThemeTokens,
+  LeaferGraphLinkPropagationAnimationPreset,
+  LeaferGraphNodeShellStyleConfig,
+  LeaferGraphThemeBundle,
+  LeaferGraphThemeMode,
+  LeaferGraphThemePreset,
+  LeaferGraphThemePresetId,
+  LeaferGraphWidgetThemeContext,
+  LeaferGraphWidgetThemeTokens,
+  NodeShellLayoutMetrics,
+  NodeShellRenderTheme
+} from "@leafergraph/theme";
 export type {
   ExecutionFeedbackAdapter,
   ExecutionFeedbackEvent,
@@ -138,9 +149,9 @@ export type {
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphOptions,
-  LeaferGraphThemeMode,
   LeaferGraphWidgetEntry
 } from "@leafergraph/contracts";
+import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import {
   createUpdateNodeInputFromNodeSnapshot,
   type ApplyGraphDocumentDiffResult,

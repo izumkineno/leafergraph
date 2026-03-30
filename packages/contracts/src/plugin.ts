@@ -18,76 +18,13 @@ import type {
   WidgetDefinition,
   NodeWidgetOptionItem
 } from "@leafergraph/node";
+import type {
+  LeaferGraphLinkPropagationAnimationPreset,
+  LeaferGraphThemeMode,
+  LeaferGraphThemePresetId,
+  LeaferGraphWidgetThemeContext
+} from "@leafergraph/theme";
 import type { Group, Text } from "leafer-ui";
-
-/** 主包当前支持的主题模式。 */
-export type LeaferGraphThemeMode = "light" | "dark";
-
-/** 连线传播动画预设。 */
-export type LeaferGraphLinkPropagationAnimationPreset =
-  | "performance"
-  | "balanced"
-  | "expressive";
-
-/**
- * Widget 视觉 token。
- * 主包与外部自定义 renderer 都可以基于它在亮色 / 暗色模式间切换。
- *
- * @remarks
- * 这里约定的是“编辑器控件层”的视觉 token，而不是节点卡片整体样式。
- * 外部 Widget 如果想保持和内建控件一致的观感，优先复用这组 token。
- */
-export interface LeaferGraphWidgetThemeTokens {
-  fontFamily: string;
-  labelFill: string;
-  valueFill: string;
-  mutedFill: string;
-  disabledFill: string;
-  fieldFill: string;
-  fieldHoverFill: string;
-  fieldFocusFill: string;
-  fieldStroke: string;
-  fieldHoverStroke: string;
-  fieldFocusStroke: string;
-  fieldDisabledFill: string;
-  fieldDisabledStroke: string;
-  fieldRadius: number;
-  fieldShadow: string;
-  focusRing: string;
-  separatorFill: string;
-  trackFill: string;
-  trackActiveFill: string;
-  thumbFill: string;
-  thumbStroke: string;
-  menuFill: string;
-  menuStroke: string;
-  menuShadow: string;
-  menuTextFill: string;
-  menuMutedFill: string;
-  menuActiveFill: string;
-  menuActiveTextFill: string;
-  menuDangerFill: string;
-  buttonPrimaryFill: string;
-  buttonPrimaryHoverFill: string;
-  buttonSecondaryFill: string;
-  buttonSecondaryHoverFill: string;
-  buttonGhostFill: string;
-  buttonGhostHoverFill: string;
-  buttonTextFill: string;
-  buttonGhostTextFill: string;
-  accentFallback: string;
-}
-
-/**
- * Widget 渲染时可读取的主题上下文。
- *
- * @remarks
- * `mode` 用来做亮暗分支判断，`tokens` 提供实际颜色、圆角和阴影等视觉值。
- */
-export interface LeaferGraphWidgetThemeContext {
-  mode: LeaferGraphThemeMode;
-  tokens: LeaferGraphWidgetThemeTokens;
-}
 
 /**
  * 文本编辑浮层的几何信息。
@@ -392,6 +329,7 @@ export interface LeaferGraphOptions {
   document?: GraphDocument;
   modules?: NodeModule[];
   plugins?: LeaferGraphNodePlugin[];
+  themePreset?: LeaferGraphThemePresetId;
   themeMode?: LeaferGraphThemeMode;
   widgetEditing?: LeaferGraphWidgetEditingOptions;
   linkPropagationAnimation?: LeaferGraphLinkPropagationAnimationPreset | false;

@@ -14,6 +14,8 @@
   - 纯执行内核，负责执行链、传播、图级运行状态机和执行反馈
 - `packages/context-menu`
   - Leafer-first 右键菜单包，唯一正式触发源是 Leafer `pointer.menu`
+- `packages/theme`
+  - 主题 preset 注册表与 graph/widget/context-menu 视觉主题真源
 - `packages/leafergraph`
   - Leafer-first 图运行时宿主、交互基础设施和宿主侧反馈投影
 - `templates/`
@@ -47,6 +49,7 @@
 bun install
 bun run build:node
 bun run build:execution
+bun run build:theme
 bun run build:authoring
 bun run build:context-menu
 bun run build:leafergraph

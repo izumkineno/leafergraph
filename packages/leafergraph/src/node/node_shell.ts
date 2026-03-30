@@ -7,63 +7,14 @@
 
 import "@leafer-in/flow";
 import { Box, Group, Path, Rect, Text } from "leafer-ui";
+export type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
+import type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./node_layout";
 import {
   resolveNodePortHitAreaBounds,
   type NodeShellPortLayout
 } from "./node_port";
 import { resolveSlotCornerRadius } from "./node_slot_style";
-
-/**
- * 节点壳渲染需要的样式主题。
- * 当前先由主包集中传入，后续可继续抽成真正的主题系统。
- */
-export interface NodeShellRenderTheme {
-  nodeRadius: number;
-  headerHeight: number;
-  selectedRingOutset: number;
-  selectedRingStrokeWidth: number;
-  selectedRingOpacity: number;
-  resizeHandleFill: string;
-  resizeHandleStroke: string;
-  resizeHandleStrokeWidth: number;
-  cardFill: string;
-  cardStroke: string;
-  headerFill: string;
-  headerDividerFill: string;
-  titleFill: string;
-  titleFontFamily: string;
-  titleFontSize: number;
-  titleFontWeight: string;
-  titleX: number;
-  titleY: number;
-  categoryFill: string;
-  categoryStroke: string;
-  categoryTextFill: string;
-  categoryFontFamily: string;
-  categoryFontSize: number;
-  categoryFontWeight: string;
-  errorBadgeFill: string;
-  errorBadgeStroke: string;
-  errorBadgeTextFill: string;
-  signalGlowX: number;
-  signalGlowY: number;
-  signalGlowSize: number;
-  signalGlowOpacity: number;
-  signalLightX: number;
-  signalLightY: number;
-  signalLightSize: number;
-  signalHitPadding: number;
-  widgetFill: string;
-  inputPortFill: string;
-  outputPortFill: string;
-  portStroke: string;
-  portStrokeWidth: number;
-  slotLabelFill: string;
-  slotLabelFontFamily: string;
-  slotLabelFontSize: number;
-  slotLabelFontWeight: string;
-}
 
 /**
  * 节点壳渲染入口的输入。

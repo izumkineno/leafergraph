@@ -11,9 +11,9 @@ import type {
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetLifecycle,
-  LeaferGraphWidgetRendererContext,
-  LeaferGraphWidgetThemeContext
+  LeaferGraphWidgetRendererContext
 } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetThemeContext } from "@leafergraph/theme";
 import type { Group } from "leafer-ui";
 
 import {

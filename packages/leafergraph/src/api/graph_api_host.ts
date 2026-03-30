@@ -19,10 +19,10 @@ import type {
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphOptions,
-  LeaferGraphThemeMode,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderInstance
 } from "@leafergraph/contracts";
+import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import { projectExternalRuntimeFeedback } from "../graph/graph_runtime_feedback_projection";
 import type {
   GraphOperation,

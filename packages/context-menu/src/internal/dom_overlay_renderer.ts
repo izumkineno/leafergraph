@@ -19,6 +19,7 @@ import {
   isFocusableContextMenuItem,
   resolveContextMenuLevelItems
 } from "../core/normalize";
+import type { LeaferGraphContextMenuThemeTokens } from "@leafergraph/theme/context-menu";
 import type {
   ContextMenuController,
   ContextMenuItem,
@@ -36,6 +37,7 @@ const SUBMENU_PANEL_GAP = 6;
 
 const CONTEXT_MENU_STYLE_TEXT = `
 .${CONTEXT_MENU_ROOT_CLASS} {
+  --lgcm-font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --lgcm-bg: rgba(255, 255, 255, 0.96);
   --lgcm-panel-border: rgba(15, 23, 42, 0.08);
   --lgcm-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
@@ -45,12 +47,22 @@ const CONTEXT_MENU_STYLE_TEXT = `
   --lgcm-danger: #b42318;
   --lgcm-separator: rgba(148, 163, 184, 0.22);
   --lgcm-check: #2563eb;
+  --lgcm-panel-radius: 14px;
+  --lgcm-panel-padding: 8px;
+  --lgcm-panel-min-width: 220px;
+  --lgcm-panel-max-width: 320px;
+  --lgcm-item-radius: 10px;
+  --lgcm-item-padding-x: 12px;
+  --lgcm-item-padding-y: 10px;
+  --lgcm-group-label-padding-x: 12px;
+  --lgcm-group-label-padding-top: 6px;
+  --lgcm-group-label-padding-bottom: 4px;
   position: fixed;
   inset: 0;
   z-index: 2147483647;
   pointer-events: none;
   user-select: none;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--lgcm-font-family);
 }
 
 .${CONTEXT_MENU_ROOT_CLASS}[data-open="false"] {
@@ -61,11 +73,11 @@ const CONTEXT_MENU_STYLE_TEXT = `
   position: fixed;
   top: 0;
   left: 0;
-  min-width: 220px;
-  max-width: 320px;
-  padding: 8px;
+  min-width: var(--lgcm-panel-min-width);
+  max-width: var(--lgcm-panel-max-width);
+  padding: var(--lgcm-panel-padding);
   border: 1px solid var(--lgcm-panel-border);
-  border-radius: 14px;
+  border-radius: var(--lgcm-panel-radius);
   background: var(--lgcm-bg);
   box-shadow: var(--lgcm-shadow);
   backdrop-filter: blur(18px);
@@ -82,7 +94,10 @@ const CONTEXT_MENU_STYLE_TEXT = `
 }
 
 .${CONTEXT_MENU_ROOT_CLASS}__group-label {
-  padding: 6px 12px 4px;
+  padding:
+    var(--lgcm-group-label-padding-top)
+    var(--lgcm-group-label-padding-x)
+    var(--lgcm-group-label-padding-bottom);
   color: var(--lgcm-muted);
   font-size: 11px;
   font-weight: 600;
@@ -94,9 +109,9 @@ const CONTEXT_MENU_STYLE_TEXT = `
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: var(--lgcm-item-padding-y) var(--lgcm-item-padding-x);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--lgcm-item-radius);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -181,38 +196,16 @@ const CONTEXT_MENU_STYLE_TEXT = `
   margin: 6px 4px;
   background: var(--lgcm-separator);
 }
-
-@media (prefers-color-scheme: dark) {
-  .${CONTEXT_MENU_ROOT_CLASS} {
-    --lgcm-bg: rgba(15, 23, 42, 0.95);
-    --lgcm-panel-border: rgba(148, 163, 184, 0.22);
-    --lgcm-shadow: 0 22px 48px rgba(2, 6, 23, 0.42);
-    --lgcm-color: #e2e8f0;
-    --lgcm-muted: #94a3b8;
-    --lgcm-hover-bg: rgba(96, 165, 250, 0.18);
-    --lgcm-danger: #fda29b;
-    --lgcm-separator: rgba(148, 163, 184, 0.18);
-    --lgcm-check: #93c5fd;
-  }
-}
 `;
-
-export interface DomContextMenuThemeTokens {
-  background: string;
-  panelBorder: string;
-  shadow: string;
-  color: string;
-  muted: string;
-  hoverBackground: string;
-  danger: string;
-  separator: string;
-  check: string;
-}
 
 export interface CreateDomContextMenuRendererOptions {
   host?: HTMLElement;
   className?: string;
-  themeTokens?: Partial<DomContextMenuThemeTokens>;
+  resolveThemeTokens?():
+    | LeaferGraphContextMenuThemeTokens
+    | Partial<LeaferGraphContextMenuThemeTokens>
+    | null
+    | undefined;
 }
 
 export interface DomContextMenuRenderer extends ContextMenuRenderer {}
@@ -230,7 +223,7 @@ type FocusableContextMenuItem = Exclude<
 class DomContextMenuRendererImpl implements DomContextMenuRenderer {
   private readonly host?: HTMLElement;
   private readonly className?: string;
-  private readonly themeTokens?: Partial<DomContextMenuThemeTokens>;
+  private readonly resolveThemeTokens?: CreateDomContextMenuRendererOptions["resolveThemeTokens"];
   private controller: ContextMenuController | null = null;
   private state: ContextMenuOpenState = {
     open: false,
@@ -251,7 +244,7 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
   constructor(options: CreateDomContextMenuRendererOptions) {
     this.host = options.host;
     this.className = options.className;
-    this.themeTokens = options.themeTokens;
+    this.resolveThemeTokens = options.resolveThemeTokens;
   }
 
   connect(controller: ContextMenuController): () => void {
@@ -321,6 +314,7 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
 
     injectContextMenuStyle(ownerDocument);
     const rootElement = this.ensureRootElement(ownerDocument);
+    this.applyThemeTokens(rootElement);
     rootElement.dataset.open = "true";
     rootElement.setAttribute("aria-hidden", "false");
     this.attachGlobalListeners(ownerDocument);
@@ -391,11 +385,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
   }
 
   private applyThemeTokens(rootElement: HTMLDivElement): void {
-    if (!this.themeTokens) {
+    const themeTokens = this.resolveThemeTokens?.();
+    if (!themeTokens) {
       return;
     }
 
-    const styleMap: Array<[keyof DomContextMenuThemeTokens, string]> = [
+    const styleMap: Array<[keyof LeaferGraphContextMenuThemeTokens, string]> = [
+      ["fontFamily", "--lgcm-font-family"],
       ["background", "--lgcm-bg"],
       ["panelBorder", "--lgcm-panel-border"],
       ["shadow", "--lgcm-shadow"],
@@ -404,13 +400,26 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
       ["hoverBackground", "--lgcm-hover-bg"],
       ["danger", "--lgcm-danger"],
       ["separator", "--lgcm-separator"],
-      ["check", "--lgcm-check"]
+      ["check", "--lgcm-check"],
+      ["panelRadius", "--lgcm-panel-radius"],
+      ["panelPadding", "--lgcm-panel-padding"],
+      ["panelMinWidth", "--lgcm-panel-min-width"],
+      ["panelMaxWidth", "--lgcm-panel-max-width"],
+      ["itemRadius", "--lgcm-item-radius"],
+      ["itemPaddingX", "--lgcm-item-padding-x"],
+      ["itemPaddingY", "--lgcm-item-padding-y"],
+      ["groupLabelPaddingX", "--lgcm-group-label-padding-x"],
+      ["groupLabelPaddingTop", "--lgcm-group-label-padding-top"],
+      ["groupLabelPaddingBottom", "--lgcm-group-label-padding-bottom"]
     ];
 
     for (const [tokenKey, cssVariable] of styleMap) {
-      const value = this.themeTokens[tokenKey];
-      if (value) {
-        rootElement.style.setProperty(cssVariable, value);
+      const value = themeTokens[tokenKey];
+      if (value !== undefined && value !== null) {
+        rootElement.style.setProperty(
+          cssVariable,
+          typeof value === "number" ? `${value}px` : value
+        );
       }
     }
   }

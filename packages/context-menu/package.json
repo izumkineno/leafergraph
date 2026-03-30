@@ -23,6 +23,7 @@
   "dependencies": {
     "@leafergraph/contracts": "workspace:*",
     "@leafergraph/node": "workspace:*",
+    "@leafergraph/theme": "workspace:*",
     "leafer-ui": "^2.0.3",
     "leafergraph": "workspace:*"
   },

@@ -9,9 +9,9 @@ import type { Rect, Text } from "leafer-ui";
 import type {
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetLifecycle,
-  LeaferGraphWidgetRendererContext,
-  LeaferGraphWidgetThemeTokens
+  LeaferGraphWidgetRendererContext
 } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetThemeTokens } from "@leafergraph/theme";
 
 /**
  * 基础 Widget 主题直接复用 widget runtime 公开的 token 结构。

@@ -241,6 +241,15 @@ function createFakeGraph(): LeaferGraph & {
     findLinksByNode(nodeId: string) {
       return nodeId === "node-1" ? links : [];
     },
+    isNodeSelected() {
+      return false;
+    },
+    listSelectedNodeIds() {
+      return [];
+    },
+    setSelectedNodeIds() {
+      return [];
+    },
     createNode(input: LeaferGraphCreateNodeInput) {
       createdNodes.push(input);
       nodeSeed += 1;

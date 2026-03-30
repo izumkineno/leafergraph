@@ -7,7 +7,8 @@
  */
 
 import { NodeRegistry } from "@leafergraph/node";
-import type { LeaferGraphThemeMode, LeaferGraphWidgetEditingContext } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetEditingContext } from "@leafergraph/contracts";
+import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import {
   LeaferGraphWidgetHost,
   type LeaferGraphWidgetEditingManager,

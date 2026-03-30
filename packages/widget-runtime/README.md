@@ -9,7 +9,6 @@
 - `LeaferGraphWidgetEditingManager`
 - Widget lifecycle helper
 - Widget interaction helper
-- 默认 Widget 主题解析：`resolveDefaultWidgetTheme`
 - 缺失态 Widget renderer 与无副作用编辑上下文
 
 它不负责这些能力：
@@ -22,7 +21,8 @@
 
 - `leafergraph` 根入口仍继续 re-export 常用 Widget helper 和 `LeaferGraphWidgetRegistry`
 - workspace 内部新增实现应优先直接依赖 `@leafergraph/widget-runtime`
-- `resolveBasicWidgetTheme` 目前保留为 `resolveDefaultWidgetTheme` 的兼容别名
+- 默认 Widget 主题真源已经迁到 `@leafergraph/theme/widget`
+- `resolveDefaultWidgetTheme` / `resolveBasicWidgetTheme` 现在应从 `@leafergraph/theme/widget` 导入
 
 常用命令：
 

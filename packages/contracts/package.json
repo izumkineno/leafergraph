@@ -27,6 +27,7 @@
   "dependencies": {
     "@leafergraph/execution": "workspace:*",
     "@leafergraph/node": "workspace:*",
+    "@leafergraph/theme": "workspace:*",
     "leafer-ui": "^2.0.3"
   }
 }

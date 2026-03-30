@@ -7,30 +7,10 @@
 
 import type { NodeRuntimeState } from "@leafergraph/node";
 import type { LeaferGraphWidgetBounds } from "@leafergraph/contracts";
+export type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
+import type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
 import type { NodeShellPortLayout } from "./node_port";
 import { resolveNodePortsLayout } from "./node_port";
-
-/**
- * 节点壳布局所需的全部度量参数。
- * 这一层只关心尺寸与坐标，不关心具体颜色、描边或交互状态。
- */
-export interface NodeShellLayoutMetrics {
-  defaultNodeWidth: number;
-  defaultNodeMinHeight: number;
-  headerHeight: number;
-  sectionPaddingX: number;
-  sectionPaddingY: number;
-  slotRowHeight: number;
-  slotRowGap: number;
-  portSize: number;
-  widgetHeight: number;
-  widgetGap: number;
-  widgetPaddingY: number;
-  categoryPillHeight: number;
-  categoryPillMinWidth: number;
-  categoryCharWidth: number;
-  slotTextWidth: number;
-}
 
 /**
  * 节点分类徽标的布局结果。

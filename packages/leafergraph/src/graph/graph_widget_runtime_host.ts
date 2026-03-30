@@ -8,12 +8,14 @@
 
 import type { App } from "leafer-ui";
 import type {
-  LeaferGraphThemeMode,
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetEditingOptions,
-  LeaferGraphWidgetRenderer,
-  LeaferGraphWidgetThemeContext
+  LeaferGraphWidgetRenderer
 } from "@leafergraph/contracts";
+import type {
+  LeaferGraphThemeMode,
+  LeaferGraphWidgetThemeContext
+} from "@leafergraph/theme";
 import { LeaferGraphThemeHost } from "./graph_theme_host";
 import {
   LeaferGraphWidgetEditingManager,

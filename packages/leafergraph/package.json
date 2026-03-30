@@ -28,6 +28,7 @@
     "@leafergraph/contracts": "workspace:*",
     "@leafergraph/execution": "workspace:*",
     "@leafergraph/node": "workspace:*",
+    "@leafergraph/theme": "workspace:*",
     "@leafergraph/widget-runtime": "workspace:*",
     "@leafer-in/arrow": "^2.0.3",
     "@leafer-in/export": "^2.0.3",

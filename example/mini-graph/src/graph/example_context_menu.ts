@@ -21,7 +21,8 @@ import type {
   GraphLink,
   LeaferGraph,
   LeaferGraphCreateLinkInput,
-  LeaferGraphCreateNodeInput
+  LeaferGraphCreateNodeInput,
+  LeaferGraphThemeMode
 } from "leafergraph";
 import type { ExampleTrackedLinkEntry } from "./use_example_graph";
 
@@ -41,6 +42,7 @@ export interface CreateExampleContextMenuOptions {
   removeNodes(nodeIds: readonly string[]): void;
   removeLink(linkId: string): void;
   appendLog(message: string): void;
+  resolveThemeMode(): LeaferGraphThemeMode;
 }
 
 /** 外部除了销毁外，还需要在节点和连线生命周期变化时同步菜单 target。 */
@@ -66,6 +68,7 @@ export function createExampleContextMenu(
     app: options.graph.app,
     container: options.container,
     host: resolveContextMenuHost(options.container),
+    resolveThemeMode: options.resolveThemeMode,
     // demo 端统一使用 hover 展开子菜单。
     submenuTriggerMode: "hover"
   });

@@ -28,6 +28,9 @@ import { createLeaferContextMenu } from "@leafergraph/context-menu";
 const menu = createLeaferContextMenu({
   app: graph.app,
   container,
+  resolveThemeMode() {
+    return "dark";
+  },
   resolveItems(context) {
     if (context.target.kind === "node") {
       return [
@@ -76,6 +79,13 @@ menu.destroy();
 
 如果节点或连线在 `replaceGraphDocument(...)` 之后被重建，需要重新绑定新的 view 引用。
 
+如果你希望右键菜单跟随宿主视觉主题，推荐同时传：
+
+- `themePreset`
+- `resolveThemeMode()`
+
+菜单会在每次打开时重新解析 `@leafergraph/theme` 中对应 preset + mode 的 token。
+
 ## 默认交互语义
 
 - 根菜单默认由 Leafer `pointer.menu` 打开
@@ -119,6 +129,8 @@ menu.destroy();
 - `bindTarget(binding)`
 - `unbindTarget(key)`
 - `setResolver(resolver?)`
+- `registerResolver(key, resolver)`
+- `unregisterResolver(key)`
 - `open(context, items?)`
 - `close()`
 - `isOpen()`
