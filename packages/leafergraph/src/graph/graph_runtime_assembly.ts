@@ -12,6 +12,7 @@ import type {
 } from "@leafergraph/contracts";
 import type { NormalizedLeaferGraphConfig } from "@leafergraph/config";
 import type {
+  LeaferGraphGraphThemeTokens,
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/theme";
@@ -48,6 +49,7 @@ interface LeaferGraphRuntimeAssemblyOptions<
   themeMode?: LeaferGraphThemeMode;
   createMissingWidgetRenderer(): LeaferGraphWidgetRenderer;
   resolveWidgetTheme(mode: LeaferGraphThemeMode): LeaferGraphWidgetThemeContext;
+  resolveGraphTheme(mode: LeaferGraphThemeMode): LeaferGraphGraphThemeTokens;
   nodeShellLayoutMetrics: NodeShellLayoutMetrics;
   nodeShellStyle: LeaferGraphNodeShellStyleConfig;
   resolveCanvasBackground(mode: LeaferGraphThemeMode): string;
@@ -121,6 +123,7 @@ export function createLeaferGraphRuntimeAssembly<
     widgetEditingContext: widgetEnvironment.widgetEditingContext,
     requestRender,
     renderFrame,
+    resolveGraphTheme: options.resolveGraphTheme,
     nodeShellLayoutMetrics: options.nodeShellLayoutMetrics,
     nodeShellStyle: options.nodeShellStyle,
     resolveSelectedStroke: options.resolveSelectedStroke,

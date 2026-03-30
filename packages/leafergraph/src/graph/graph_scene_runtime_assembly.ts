@@ -8,7 +8,10 @@
 
 import { NodeRegistry } from "@leafergraph/node";
 import type { LeaferGraphWidgetEditingContext } from "@leafergraph/contracts";
-import type { LeaferGraphThemeMode } from "@leafergraph/theme";
+import type {
+  LeaferGraphGraphThemeTokens,
+  LeaferGraphThemeMode
+} from "@leafergraph/theme";
 import {
   LeaferGraphWidgetHost,
   type LeaferGraphWidgetEditingManager,
@@ -66,6 +69,7 @@ export interface LeaferGraphSceneRuntimeAssemblyOptions<
   widgetEditingContext: LeaferGraphWidgetEditingContext;
   requestRender(): void;
   renderFrame(): void;
+  resolveGraphTheme(mode: LeaferGraphThemeMode): LeaferGraphGraphThemeTokens;
   nodeShellLayoutMetrics: NodeShellLayoutMetrics;
   nodeShellStyle: LeaferGraphNodeShellStyleConfig;
   resolveSelectedStroke(mode: LeaferGraphThemeMode): string;
@@ -252,9 +256,12 @@ export function createLeaferGraphSceneRuntimeAssembly<
     layoutMetrics: options.nodeShellLayoutMetrics,
     defaultNodeWidth: options.linkDefaultNodeWidth,
     portSize: options.linkPortSize,
-    stroke: options.linkStroke,
-    slotTypeFillMap: options.nodeShellStyle.slotTypeFillMap,
-    genericPortFill: options.nodeShellStyle.genericPortFill
+    resolveLinkStroke: () =>
+      options.resolveGraphTheme(options.themeHost.getMode()).linkStroke,
+    resolveSlotTypeFillMap: () =>
+      options.resolveGraphTheme(options.themeHost.getMode()).nodeShellStyle.slotTypeFillMap,
+    resolveGenericPortFill: () =>
+      options.resolveGraphTheme(options.themeHost.getMode()).nodeShellStyle.genericPortFill
   });
 
   sceneHost = new LeaferGraphSceneHost({
@@ -320,9 +327,21 @@ export function createLeaferGraphSceneRuntimeAssembly<
     layoutMetrics: options.nodeShellLayoutMetrics,
     defaultNodeWidth: options.linkDefaultNodeWidth,
     portSize: options.linkPortSize,
-    linkStroke: options.linkStroke,
-    slotTypeFillMap: options.nodeShellStyle.slotTypeFillMap,
-    style: options.dataFlowAnimationStyle,
+    resolveLinkStroke: () =>
+      options.resolveGraphTheme(options.themeHost.getMode()).linkStroke,
+    resolveSlotTypeFillMap: () =>
+      options.resolveGraphTheme(options.themeHost.getMode()).nodeShellStyle.slotTypeFillMap,
+    resolveStyle: () => {
+      const graphTheme = options.resolveGraphTheme(options.themeHost.getMode());
+      const preset = options.dataFlowAnimationStyle.preset;
+
+      return options.dataFlowAnimationStyle.enabled
+        ? graphTheme.dataFlowAnimationStyles[preset]
+        : {
+            ...graphTheme.dataFlowAnimationStyles.performance,
+            ...options.dataFlowAnimationStyle
+          };
+    },
     getThemeMode: () => options.themeHost.getMode(),
     requestRender: options.requestRender,
     renderFrame: options.renderFrame,

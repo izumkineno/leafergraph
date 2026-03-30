@@ -95,9 +95,9 @@ interface LeaferGraphLinkHostOptions<TNodeState extends LeaferGraphLinkNodeState
   layoutMetrics: NodeShellLayoutMetrics;
   defaultNodeWidth: number;
   portSize: number;
-  stroke: string;
-  slotTypeFillMap: Readonly<Record<string, string>>;
-  genericPortFill: string;
+  resolveLinkStroke(): string;
+  resolveSlotTypeFillMap(): Readonly<Record<string, string>>;
+  resolveGenericPortFill(): string;
   strokeWidth?: number;
 }
 
@@ -265,9 +265,9 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
   private resolveLinkStroke(source: TNodeState, sourceSlot: number): string {
     return (
       resolveNodeSlotFill(source, "output", sourceSlot, {
-        slotTypeFillMap: this.options.slotTypeFillMap,
-        genericFill: this.options.genericPortFill
-      }) ?? this.options.stroke
+        slotTypeFillMap: this.options.resolveSlotTypeFillMap(),
+        genericFill: this.options.resolveGenericPortFill()
+      }) ?? this.options.resolveLinkStroke()
     );
   }
 

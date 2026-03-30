@@ -4,7 +4,19 @@ GlobalRegistrator.register({
   url: "http://localhost/"
 });
 
-class FakeCanvasRenderingContext2D {}
+class FakeCanvasRenderingContext2D {
+  measureText(text = "") {
+    return {
+      width: String(text).length * 8,
+      actualBoundingBoxAscent: 8,
+      actualBoundingBoxDescent: 2,
+      actualBoundingBoxLeft: 0,
+      actualBoundingBoxRight: String(text).length * 8,
+      fontBoundingBoxAscent: 8,
+      fontBoundingBoxDescent: 2
+    };
+  }
+}
 class FakePath2D {}
 
 if (!("CanvasRenderingContext2D" in globalThis)) {
@@ -24,7 +36,7 @@ if (
   typeof HTMLCanvasElement.prototype.getContext !== "function"
 ) {
   HTMLCanvasElement.prototype.getContext = () =>
-    ({}) as CanvasRenderingContext2D;
+    new FakeCanvasRenderingContext2D() as CanvasRenderingContext2D;
 }
 
 if (
@@ -33,5 +45,5 @@ if (
   HTMLCanvasElement.prototype.getContext("2d") === null
 ) {
   HTMLCanvasElement.prototype.getContext = () =>
-    ({}) as CanvasRenderingContext2D;
+    new FakeCanvasRenderingContext2D() as CanvasRenderingContext2D;
 }

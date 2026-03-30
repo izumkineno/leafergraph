@@ -79,6 +79,7 @@ export function createLeaferGraphEntryRuntime(
     config: resolvedConfig,
     themeMode: initialThemeMode,
     createMissingWidgetRenderer,
+    resolveGraphTheme: (mode) => themePreset.modes[mode].graph,
     resolveWidgetTheme: (mode) => ({
       mode,
       tokens: themePreset.modes[mode].widget

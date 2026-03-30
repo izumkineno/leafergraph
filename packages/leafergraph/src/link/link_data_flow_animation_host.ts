@@ -29,9 +29,9 @@ interface LeaferGraphLinkDataFlowAnimationHostOptions<
   layoutMetrics: NodeShellLayoutMetrics;
   defaultNodeWidth: number;
   portSize: number;
-  linkStroke: string;
-  slotTypeFillMap: Readonly<Record<string, string>>;
-  style: LeaferGraphDataFlowAnimationStyleConfig;
+  resolveLinkStroke(): string;
+  resolveSlotTypeFillMap(): Readonly<Record<string, string>>;
+  resolveStyle(): LeaferGraphDataFlowAnimationStyleConfig;
   getThemeMode(): LeaferGraphThemeMode;
   requestRender(): void;
   renderFrame(): void;
@@ -150,15 +150,16 @@ export class LeaferGraphLinkDataFlowAnimationHost<
 
   /** 命中一条真实传播事件后，按预设触发对应视觉反馈。 */
   private handleLinkPropagation(event: LeaferGraphLinkPropagationEvent): void {
+    const style = this.getStyle();
     if (
-      !this.options.style.enabled ||
+      !style.enabled ||
       this.shouldReduceMotion() ||
       !this.ownerWindow
     ) {
       return;
     }
 
-    switch (this.options.style.preset) {
+    switch (style.preset) {
       case "balanced":
         this.triggerParticle(event);
         break;
@@ -182,7 +183,8 @@ export class LeaferGraphLinkDataFlowAnimationHost<
 
   /** 触发整条连线 pulse，高频场景下默认复用同一条 link 的现有 pulse。 */
   private triggerPulse(event: LeaferGraphLinkPropagationEvent): void {
-    if (this.options.style.maxPulses <= 0) {
+    const style = this.getStyle();
+    if (style.maxPulses <= 0) {
       return;
     }
 
@@ -200,7 +202,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       return;
     }
 
-    while (this.activePulses.length >= this.options.style.maxPulses) {
+    while (this.activePulses.length >= style.maxPulses) {
       const oldestPulse = this.activePulses.shift();
       if (oldestPulse) {
         this.removePulse(oldestPulse);
@@ -214,7 +216,8 @@ export class LeaferGraphLinkDataFlowAnimationHost<
 
   /** 触发 travelling comet。 */
   private triggerParticle(event: LeaferGraphLinkPropagationEvent): void {
-    if (this.options.style.maxParticles <= 0) {
+    const style = this.getStyle();
+    if (style.maxParticles <= 0) {
       return;
     }
 
@@ -223,7 +226,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       return;
     }
 
-    while (this.activeParticles.length >= this.options.style.maxParticles) {
+    while (this.activeParticles.length >= style.maxParticles) {
       const oldestParticle = this.activeParticles.shift();
       if (oldestParticle) {
         this.removeParticle(oldestParticle);
@@ -253,15 +256,15 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       defaultNodeWidth: this.options.defaultNodeWidth,
       portSize: this.options.portSize
     });
+    const style = this.getStyle();
     const view = new Arrow({
       name: `graph-link-data-flow-pulse-${dataFlowPulseSeed}`,
       path: buildLinkPathFromCurve(curve),
       endArrow: "none",
       fill: "transparent",
-      stroke: resolvedLink.color,
+      stroke: this.resolvePulseStrokeColor(resolvedLink.color),
       strokeWidth:
-        this.options.style.pulseBaseStrokeWidth +
-        this.options.style.pulseExtraStrokeWidth,
+        style.pulseBaseStrokeWidth + style.pulseExtraStrokeWidth,
       strokeCap: "round",
       strokeJoin: "round",
       opacity: this.resolvePulseOpacity(0),
@@ -288,13 +291,14 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     if (!resolvedLink) {
       return null;
     }
+    const style = this.getStyle();
 
     const glow = new Rect({
       name: `graph-link-data-flow-glow-${dataFlowParticleSeed}`,
       x: 0,
       y: 0,
-      width: this.options.style.glowSize,
-      height: this.options.style.glowSize,
+      width: style.glowSize,
+      height: style.glowSize,
       cornerRadius: 999,
       fill: resolvedLink.color,
       opacity: 0,
@@ -305,8 +309,8 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       name: `graph-link-data-flow-core-${dataFlowParticleSeed}`,
       x: 0,
       y: 0,
-      width: this.options.style.particleSize,
-      height: this.options.style.particleSize,
+      width: style.particleSize,
+      height: style.particleSize,
       cornerRadius: 999,
       fill: resolvedLink.color,
       opacity: 0,
@@ -334,7 +338,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       return;
     }
 
-    if (!this.options.style.enabled || this.shouldReduceMotion()) {
+    if (!this.getStyle().enabled || this.shouldReduceMotion()) {
       this.clear();
       return;
     }
@@ -388,7 +392,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     }
 
     const progress = clamp01(
-      (timestamp - pulse.startedAt) / this.options.style.pulseDurationMs
+      (timestamp - pulse.startedAt) / this.getStyle().pulseDurationMs
     );
     if (progress >= 1) {
       return false;
@@ -404,12 +408,12 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       portSize: this.options.portSize
     });
     const inverseProgress = 1 - easeOutCubic(progress);
+    const style = this.getStyle();
     pulse.view.path = buildLinkPathFromCurve(curve);
-    pulse.view.stroke = resolvedLink.color;
+    pulse.view.stroke = this.resolvePulseStrokeColor(resolvedLink.color);
     pulse.view.opacity = this.resolvePulseOpacity(progress);
     pulse.view.strokeWidth =
-      this.options.style.pulseBaseStrokeWidth +
-      this.options.style.pulseExtraStrokeWidth * inverseProgress;
+      style.pulseBaseStrokeWidth + style.pulseExtraStrokeWidth * inverseProgress;
     pulse.view.forceUpdate();
     return true;
   }
@@ -425,7 +429,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     }
 
     const progress = clamp01(
-      (timestamp - particle.startedAt) / this.options.style.durationMs
+      (timestamp - particle.startedAt) / this.getStyle().durationMs
     );
     if (progress >= 1) {
       return false;
@@ -440,21 +444,22 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       defaultNodeWidth: this.options.defaultNodeWidth,
       portSize: this.options.portSize
     });
+    const style = this.getStyle();
     const point = sampleLinkCurvePoint(curve, easeOutCubic(progress));
     const opacity = resolveParticleOpacity(
       progress,
-      this.options.style.fadeInRatio,
-      this.options.style.fadeOutRatio
+      style.fadeInRatio,
+      style.fadeOutRatio
     );
 
     particle.glow.fill = resolvedLink.color;
-    particle.glow.x = point[0] - this.options.style.glowSize / 2;
-    particle.glow.y = point[1] - this.options.style.glowSize / 2;
+    particle.glow.x = point[0] - style.glowSize / 2;
+    particle.glow.y = point[1] - style.glowSize / 2;
     particle.glow.opacity = this.resolveGlowOpacity() * opacity;
     particle.core.fill = resolvedLink.color;
-    particle.core.x = point[0] - this.options.style.particleSize / 2;
-    particle.core.y = point[1] - this.options.style.particleSize / 2;
-    particle.core.opacity = this.options.style.coreOpacity * opacity;
+    particle.core.x = point[0] - style.particleSize / 2;
+    particle.core.y = point[1] - style.particleSize / 2;
+    particle.core.opacity = style.coreOpacity * opacity;
     particle.glow.forceUpdate();
     particle.core.forceUpdate();
     return true;
@@ -488,8 +493,8 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       color: resolveSlotColor(
         sourceNode,
         sourceSlot,
-        this.options.slotTypeFillMap,
-        this.options.linkStroke
+        this.options.resolveSlotTypeFillMap(),
+        this.options.resolveLinkStroke()
       )
     };
   }
@@ -531,18 +536,40 @@ export class LeaferGraphLinkDataFlowAnimationHost<
 
   /** 解析当前主题模式下 pulse 的基础透明度。 */
   private resolvePulseOpacity(progress: number): number {
+    const style = this.getStyle();
     const baseOpacity =
       this.options.getThemeMode() === "dark"
-        ? this.options.style.pulseDarkOpacity
-        : this.options.style.pulseLightOpacity;
+        ? style.pulseDarkOpacity
+        : style.pulseLightOpacity;
     return baseOpacity * (1 - clamp01(progress));
   }
 
   /** 解析当前主题模式下 glow 透明度。 */
   private resolveGlowOpacity(): number {
+    const style = this.getStyle();
     return this.options.getThemeMode() === "dark"
-      ? this.options.style.darkGlowOpacity
-      : this.options.style.lightGlowOpacity;
+      ? style.darkGlowOpacity
+      : style.lightGlowOpacity;
+  }
+
+  /**
+   * pulse 不能继续和底线使用完全同色。
+   * 同色叠加在已经不透明的底线上时，中间大部分像素几乎不会变化，
+   * 默认 performance 预设肉眼就只剩两侧一点宽度差，看起来像没有动画。
+   */
+  private resolvePulseStrokeColor(baseColor: string): string {
+    const mixedColor = mixColorToward(
+      baseColor,
+      "#ffffff",
+      this.options.getThemeMode() === "dark" ? 0.78 : 0.88
+    );
+
+    return mixedColor ?? baseColor;
+  }
+
+  /** 每次按当前主题模式读取动画样式，避免继续使用初始化快照。 */
+  private getStyle(): LeaferGraphDataFlowAnimationStyleConfig {
+    return this.options.resolveStyle();
   }
 
   /** 当前环境是否要求减少动态效果。 */
@@ -649,6 +676,113 @@ function clamp01(value: number): number {
 function easeOutCubic(progress: number): number {
   const safeProgress = clamp01(progress);
   return 1 - Math.pow(1 - safeProgress, 3);
+}
+
+function mixColorToward(
+  baseColor: string,
+  targetColor: string,
+  ratio: number
+): string | null {
+  const baseRgba = parseCssColor(baseColor);
+  const targetRgba = parseCssColor(targetColor);
+  if (!baseRgba || !targetRgba) {
+    return null;
+  }
+
+  const safeRatio = clamp01(ratio);
+  const mixedAlpha = baseRgba.a + (targetRgba.a - baseRgba.a) * safeRatio;
+
+  return formatCssColor({
+    r: mixChannel(baseRgba.r, targetRgba.r, safeRatio),
+    g: mixChannel(baseRgba.g, targetRgba.g, safeRatio),
+    b: mixChannel(baseRgba.b, targetRgba.b, safeRatio),
+    a: mixedAlpha
+  });
+}
+
+function mixChannel(base: number, target: number, ratio: number): number {
+  return Math.round(base + (target - base) * clamp01(ratio));
+}
+
+function parseCssColor(
+  color: string
+): { r: number; g: number; b: number; a: number } | null {
+  const normalized = color.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.startsWith("#")) {
+    return parseHexColor(normalized);
+  }
+
+  const rgbaMatch = normalized.match(
+    /^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*(?:,\s*([0-9.]+)\s*)?\)$/i
+  );
+  if (!rgbaMatch) {
+    return null;
+  }
+
+  return {
+    r: clampColorChannel(Number(rgbaMatch[1])),
+    g: clampColorChannel(Number(rgbaMatch[2])),
+    b: clampColorChannel(Number(rgbaMatch[3])),
+    a: clampAlpha(Number(rgbaMatch[4] ?? 1))
+  };
+}
+
+function parseHexColor(
+  color: string
+): { r: number; g: number; b: number; a: number } | null {
+  const hex = color.slice(1);
+  if (hex.length === 3 || hex.length === 4) {
+    const [r, g, b, a = "f"] = hex.split("");
+    return {
+      r: clampColorChannel(Number.parseInt(r + r, 16)),
+      g: clampColorChannel(Number.parseInt(g + g, 16)),
+      b: clampColorChannel(Number.parseInt(b + b, 16)),
+      a: clampAlpha(Number.parseInt(a + a, 16) / 255)
+    };
+  }
+
+  if (hex.length === 6 || hex.length === 8) {
+    return {
+      r: clampColorChannel(Number.parseInt(hex.slice(0, 2), 16)),
+      g: clampColorChannel(Number.parseInt(hex.slice(2, 4), 16)),
+      b: clampColorChannel(Number.parseInt(hex.slice(4, 6), 16)),
+      a: clampAlpha(
+        hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1
+      )
+    };
+  }
+
+  return null;
+}
+
+function formatCssColor(color: {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}): string {
+  const alpha = Math.round(clampAlpha(color.a) * 1000) / 1000;
+  return `rgba(${clampColorChannel(color.r)}, ${clampColorChannel(color.g)}, ${clampColorChannel(color.b)}, ${alpha})`;
+}
+
+function clampColorChannel(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(255, Math.max(0, Math.round(value)));
+}
+
+function clampAlpha(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(1, Math.max(0, value));
 }
 
 function resolveParticleOpacity(
