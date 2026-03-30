@@ -9,7 +9,7 @@
  *
  * 真正的图生命周期与交互动作都收口在 `useExampleGraph()`。
  */
-import { useRef } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import "./app.css";
 import {
   type ExampleAuthoringBundleStatus,
@@ -92,6 +92,8 @@ function resolveAnimationPresetSelectValue(
 
 export function App() {
   const bundleInputRef = useRef<HTMLInputElement | null>(null);
+  const [isChainCollapsed, setIsChainCollapsed] = useState(false);
+  const [isLogCollapsed, setIsLogCollapsed] = useState(false);
 
   // 页面层只消费 hook 投影后的数据，不直接操作图实例。
   const {
@@ -233,46 +235,92 @@ export function App() {
         <div class="graph-host" ref={stageRef} />
 
         {/* 左上角浮层：固定展示当前 demo 的空画布说明。 */}
-        <aside class="graph-overlay graph-overlay--chain">
-          <p class="overlay-label">Canvas Notes</p>
-          <ol class="chain-list">
-            {chainSteps.map((step) => (
-              <li key={step.id} class="chain-item">
-                <p class="chain-item-title">{step.title}</p>
-                <p class="chain-item-description">{step.description}</p>
-              </li>
-            ))}
-          </ol>
-        </aside>
-
-        {/* 右下角浮层：展示运行反馈和初始化错误。 */}
-        <aside class="graph-overlay graph-overlay--log">
+        <aside
+          class={`graph-overlay graph-overlay--chain ${isChainCollapsed ? "graph-overlay--collapsed" : ""}`}
+        >
           <div class="overlay-header">
-            <p class="overlay-label">Runtime Log</p>
-            <span class="overlay-count">{logs.length}</span>
+            <p class="overlay-label">Canvas Notes</p>
+            <div class="overlay-actions">
+              <span class="overlay-count">{chainSteps.length}</span>
+              <button
+                type="button"
+                class="overlay-toggle"
+                aria-expanded={!isChainCollapsed}
+                aria-controls="mini-graph-canvas-notes"
+                onClick={() => {
+                  setIsChainCollapsed((currentValue) => !currentValue);
+                }}
+              >
+                {isChainCollapsed ? "展开" : "折叠"}
+              </button>
+            </div>
           </div>
 
-          {errorMessage ? (
-            <p class="overlay-error" role="alert">
-              {errorMessage}
-            </p>
-          ) : null}
-
-          {logs.length > 0 ? (
-            <ol class="log-list">
-              {logs.map((entry) => (
-                <li
-                  key={entry.id}
-                  class="log-item"
-                >
-                  <span class="log-time">{formatLogTime(entry.timestamp)}</span>
-                  <span class="log-message">{entry.message}</span>
+          {!isChainCollapsed ? (
+            <ol id="mini-graph-canvas-notes" class="chain-list">
+              {chainSteps.map((step) => (
+                <li key={step.id} class="chain-item">
+                  <p class="chain-item-title">{step.title}</p>
+                  <p class="chain-item-description">{step.description}</p>
                 </li>
               ))}
             </ol>
+          ) : null}
+        </aside>
+
+        {/* 右下角浮层：展示运行反馈和初始化错误。 */}
+        <aside
+          class={`graph-overlay graph-overlay--log ${isLogCollapsed ? "graph-overlay--collapsed" : ""}`}
+        >
+          <div class="overlay-header">
+            <p class="overlay-label">Runtime Log</p>
+            <div class="overlay-actions">
+              <span class="overlay-count">{logs.length}</span>
+              <button
+                type="button"
+                class="overlay-toggle"
+                aria-expanded={!isLogCollapsed}
+                aria-controls="mini-graph-runtime-log"
+                onClick={() => {
+                  setIsLogCollapsed((currentValue) => !currentValue);
+                }}
+              >
+                {isLogCollapsed ? "展开" : "折叠"}
+              </button>
+            </div>
+          </div>
+
+          {!isLogCollapsed ? (
+            <>
+              {errorMessage ? (
+                <p class="overlay-error" role="alert">
+                  {errorMessage}
+                </p>
+              ) : null}
+
+              {logs.length > 0 ? (
+                <ol id="mini-graph-runtime-log" class="log-list">
+                  {logs.map((entry) => (
+                    <li
+                      key={entry.id}
+                      class="log-item"
+                    >
+                      <span class="log-time">{formatLogTime(entry.timestamp)}</span>
+                      <span class="log-message">{entry.message}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p class="overlay-empty">
+                  等待运行反馈。当前默认没有节点，可以先选择编译后的 JS bundle 来注册，然后右键画布从注册表添加节点。
+                </p>
+              )}
+            </>
           ) : (
-            <p class="overlay-empty">
-              等待运行反馈。当前默认没有节点，可以先选择编译后的 JS bundle 来注册，然后右键画布从注册表添加节点。
+            <p class="overlay-empty overlay-empty--compact">
+              {logs.length > 0
+                ? "运行日志已折叠"
+                : "暂无运行日志"}
             </p>
           )}
         </aside>

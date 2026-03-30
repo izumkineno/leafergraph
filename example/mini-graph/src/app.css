@@ -293,6 +293,12 @@
   gap: 10px;
 }
 
+.overlay-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* 浮层的小号标题。 */
 .overlay-label {
   margin: 0;
@@ -318,6 +324,49 @@
   font-weight: 700;
 }
 
+.overlay-toggle {
+  appearance: none;
+  border: 1px solid var(--overlay-border);
+  border-radius: 999px;
+  min-height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.overlay-toggle:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: var(--overlay-section-bg);
+}
+
+.overlay-toggle:active {
+  transform: translateY(0);
+}
+
+.graph-overlay--collapsed {
+  gap: 8px;
+}
+
+.graph-overlay--chain.graph-overlay--collapsed {
+  width: auto;
+  max-width: calc(100% - 24px);
+}
+
+.graph-overlay--log.graph-overlay--collapsed {
+  width: auto;
+  max-width: min(320px, calc(100% - 24px));
+}
+
 /* 空日志提示与错误提示。 */
 .overlay-empty,
 .overlay-error {
@@ -328,6 +377,10 @@
 
 .overlay-empty {
   color: var(--muted);
+}
+
+.overlay-empty--compact {
+  font-size: 11px;
 }
 
 .overlay-error {

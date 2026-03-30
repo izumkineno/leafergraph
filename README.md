@@ -28,6 +28,8 @@
   - Leafer-first 右键菜单 runtime 包，负责 DOM 菜单运行时
 - `packages/context-menu-builtins`
   - `leafergraph` 节点图右键菜单 builtins 集成层，负责复制、粘贴、删除、运行等内建动作
+- `example/`
+  - 当前仍在维护的示例工程，主要包括 `mini-graph` 与 `authoring-basic-nodes`
 - `templates/`
   - 可复制出去的模板工程与模板分类入口
 - `docs/`
@@ -197,10 +199,11 @@ flowchart LR
 
 ```bash
 bun install
+bun run check:boundaries
 bun run build:node
+bun run build:execution
 bun run build:theme
 bun run build:config
-bun run build:execution
 bun run build:contracts
 bun run build:widget-runtime
 bun run build:basic-kit
@@ -208,9 +211,33 @@ bun run build:authoring
 bun run build:leafergraph
 bun run build:context-menu
 bun run build:context-menu-builtins
+bun run test:core
+bun run test:smoke
+bun run test
 ```
 
-当前文档不再把聚合 `build`、`editor`、`sync`、`openrpc` 相关脚本写成推荐入口，因为这些目录与旧文档已经不再对应当前仓库结构。
+命令约定：
+
+- `build:*`
+  - 只覆盖正式包，以及当前仍在维护的 example 构建入口
+- `test:core`
+  - 运行正式包测试；当前已覆盖 `node`、`execution`、`theme`、`contracts`、`widget-runtime`、`basic-kit`、`authoring`、`context-menu`、`context-menu-builtins`
+- `test:smoke`
+  - 运行 `example/` 与活动模板的 `check/build` 级 smoke，不启动 dev server，也不替代 UI 行为测试
+- `test`
+  - 先跑边界检查，再跑正式包测试和 smoke
+
+当前文档不再把 `editor`、`sync`、`openrpc`、旧 Python authority/backend 相关脚本写成推荐入口，因为这些入口已经不对应当前 workspace 结构。
+
+## 测试分层
+
+- 正式包测试
+  - 锁定模型、执行、契约、runtime 支撑与集成包的单元/集成行为
+- example/template smoke
+  - 锁定真源导入、bundle 出口和 workspace 构建链不漂移
+
+如果你在排查“某个 API 行为为什么坏了”，优先跑正式包测试。  
+如果你在排查“迁移后 example 或模板为什么又构建坏了”，优先跑 smoke。
 
 ## 模板入口
 
