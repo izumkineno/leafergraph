@@ -682,7 +682,13 @@ export function useExampleGraph(): UseExampleGraphResult {
           document: createEmptyExampleDocument(),
           plugins: [leaferGraphBasicKitPlugin],
           themeMode: themeModeRef.current,
-          linkPropagationAnimation: linkPropagationAnimationPreset
+          config: {
+            graph: {
+              runtime: {
+                linkPropagationAnimation: linkPropagationAnimationPreset
+              }
+            }
+          }
         });
         graphRef.current = graph;
 

@@ -1,11 +1,8 @@
-/** fitView 默认内边距。 */
-export const DEFAULT_FIT_VIEW_PADDING = 64;
-
-/** 画布视口缩放下限。 */
-export const VIEWPORT_MIN_SCALE = 0.2;
-
-/** 画布视口缩放上限。 */
-export const VIEWPORT_MAX_SCALE = 4;
+export {
+  DEFAULT_FIT_VIEW_PADDING,
+  VIEWPORT_MAX_SCALE,
+  VIEWPORT_MIN_SCALE
+} from "@leafergraph/config/graph";
 export type {
   LeaferGraphDataFlowAnimationStyleConfig,
   LeaferGraphNodeShellStyleConfig,

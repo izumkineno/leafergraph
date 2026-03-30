@@ -9,9 +9,13 @@
 import type { App } from "leafer-ui";
 import type {
   LeaferGraphWidgetEditingContext,
-  LeaferGraphWidgetEditingOptions,
   LeaferGraphWidgetRenderer
 } from "@leafergraph/contracts";
+import type {
+  NormalizedLeaferGraphLeaferEditorConfig,
+  NormalizedLeaferGraphLeaferTextEditorConfig,
+  NormalizedLeaferGraphWidgetConfig
+} from "@leafergraph/config";
 import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
@@ -19,8 +23,7 @@ import type {
 import { LeaferGraphThemeHost } from "./graph_theme_host";
 import {
   LeaferGraphWidgetEditingManager,
-  LeaferGraphWidgetRegistry,
-  resolveWidgetEditingOptions
+  LeaferGraphWidgetRegistry
 } from "@leafergraph/widget-runtime";
 
 /**
@@ -34,7 +37,9 @@ export interface LeaferGraphWidgetEnvironmentOptions {
   app: App;
   container: HTMLElement;
   themeMode?: LeaferGraphThemeMode;
-  widgetEditing?: LeaferGraphWidgetEditingOptions;
+  widgetConfig: NormalizedLeaferGraphWidgetConfig;
+  leaferEditorConfig: NormalizedLeaferGraphLeaferEditorConfig;
+  leaferTextEditorConfig: NormalizedLeaferGraphLeaferTextEditorConfig;
   createMissingWidgetRenderer(): LeaferGraphWidgetRenderer;
   resolveWidgetTheme(mode: LeaferGraphThemeMode): LeaferGraphWidgetThemeContext;
 }
@@ -64,19 +69,17 @@ export function createLeaferGraphWidgetEnvironment(
   const widgetRegistry = new LeaferGraphWidgetRegistry(
     options.createMissingWidgetRenderer()
   );
-  const resolvedEditing = resolveWidgetEditingOptions(
-    options.themeMode ?? "light",
-    options.widgetEditing
-  );
   const themeHost = new LeaferGraphThemeHost({
-    initialMode: resolvedEditing.themeMode,
+    initialMode: options.themeMode ?? "light",
     resolveWidgetTheme: options.resolveWidgetTheme
   });
   const widgetEditingManager = new LeaferGraphWidgetEditingManager({
     app: options.app,
     container: options.container,
     theme: themeHost.getWidgetTheme(),
-    editing: resolvedEditing.editing
+    editing: options.widgetConfig.editing,
+    editorConfig: options.leaferEditorConfig,
+    textEditorConfig: options.leaferTextEditorConfig
   });
 
   return {

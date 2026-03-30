@@ -10,6 +10,11 @@
 
 import type { App } from "leafer-ui";
 import {
+  normalizeLeaferContextMenuConfig,
+  type LeaferContextMenuConfig,
+  type LeaferContextMenuSubmenuTriggerMode
+} from "@leafergraph/config";
+import {
   resolveThemePreset,
   type LeaferGraphThemeMode,
   type LeaferGraphThemePresetId
@@ -73,8 +78,6 @@ type LeaferContextMenuRenderableIcon =
 export type LeaferContextMenuResolver = (
   context: LeaferContextMenuContext
 ) => LeaferContextMenuItem[] | null | undefined;
-
-type LeaferSubmenuTriggerMode = "hover" | "click" | "hover+click";
 
 interface LeaferContextMenuBindingResolverInput {
   app: App;
@@ -164,7 +167,7 @@ export interface LeaferContextMenuSubmenuItem
   lazyChildren?(
     context: LeaferContextMenuContext
   ): LeaferContextMenuItem[] | Promise<LeaferContextMenuItem[]>;
-  submenuTriggerMode?: LeaferSubmenuTriggerMode;
+  submenuTriggerMode?: LeaferContextMenuSubmenuTriggerMode;
   openDelay?: number;
   closeDelay?: number;
 }
@@ -222,9 +225,7 @@ export interface LeaferContextMenuOptions {
   onBeforeOpen?(context: LeaferContextMenuContext): boolean | void;
   onOpen?(context: LeaferContextMenuContext): void;
   onClose?(context?: LeaferContextMenuContext): void;
-  submenuTriggerMode?: LeaferSubmenuTriggerMode;
-  openDelay?: number;
-  closeDelay?: number;
+  config?: LeaferContextMenuConfig;
   themePreset?: LeaferGraphThemePresetId;
   resolveThemeMode?(): LeaferGraphThemeMode;
 }
@@ -270,6 +271,7 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
 
   constructor(options: LeaferContextMenuOptions) {
     this.app = options.app;
+    const resolvedConfig = normalizeLeaferContextMenuConfig(options.config);
     const host =
       options.host ??
       options.container.ownerDocument.body ??
@@ -298,9 +300,9 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
         }
       }),
       adapters: [this.adapter],
-      submenuTriggerMode: options.submenuTriggerMode,
-      openDelay: options.openDelay,
-      closeDelay: options.closeDelay,
+      submenuTriggerMode: resolvedConfig.submenu.triggerMode,
+      openDelay: resolvedConfig.submenu.openDelay,
+      closeDelay: resolvedConfig.submenu.closeDelay,
       resolveItems: (context) => this.resolveAllItems(toPublicContext(context)),
       onBeforeOpen: (context) =>
         options.onBeforeOpen?.(toPublicContext(context)),

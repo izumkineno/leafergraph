@@ -8,17 +8,17 @@
 
 import type { App, Group } from "leafer-ui";
 import type { LeaferGraphOptions } from "@leafergraph/contracts";
+import {
+  normalizeLeaferGraphConfig,
+  type NormalizedLeaferGraphConfig
+} from "@leafergraph/config";
 import { createMissingWidgetRenderer } from "@leafergraph/widget-runtime";
 import { resolveThemePreset, type LeaferGraphThemeMode } from "@leafergraph/theme";
 import type { LeaferGraphGraphThemeTokens } from "@leafergraph/theme/graph";
 import type { LeaferGraphApiHost } from "../api/graph_api_host";
 import { createLeaferGraphRuntimeAssembly } from "./graph_runtime_assembly";
 import { normalizeGraphLinkSlotIndex } from "./graph_mutation_host";
-import {
-  VIEWPORT_MAX_SCALE,
-  VIEWPORT_MIN_SCALE,
-  createDisabledDataFlowAnimationStyleConfig
-} from "./graph_runtime_style";
+import { createDisabledDataFlowAnimationStyleConfig } from "./graph_runtime_style";
 import type {
   GraphLinkViewState,
   GraphNodeState,
@@ -38,6 +38,7 @@ export interface LeaferGraphEntryRuntime {
   linkLayer: Group;
   nodeLayer: Group;
   apiHost: LeaferGraphApiHost<GraphNodeState, GraphNodeViewState>;
+  defaultFitViewPadding: number;
   ready: Promise<void>;
 }
 
@@ -60,6 +61,7 @@ export function createLeaferGraphEntryRuntime(
   options: LeaferGraphOptions = {}
 ): LeaferGraphEntryRuntime {
   const initialThemeMode: LeaferGraphThemeMode = options.themeMode ?? "light";
+  const resolvedConfig = normalizeLeaferGraphConfig(options.config);
   const themePreset = resolveThemePreset(options.themePreset);
   const initialThemeBundle = themePreset.modes[initialThemeMode];
   const initialGraphTheme = initialThemeBundle.graph;
@@ -74,11 +76,8 @@ export function createLeaferGraphEntryRuntime(
     graphState,
     nodeViews,
     linkViews,
-    fill: options.fill,
+    config: resolvedConfig,
     themeMode: initialThemeMode,
-    widgetEditing: options.widgetEditing,
-    viewportMinScale: VIEWPORT_MIN_SCALE,
-    viewportMaxScale: VIEWPORT_MAX_SCALE,
     createMissingWidgetRenderer,
     resolveWidgetTheme: (mode) => ({
       mode,
@@ -96,7 +95,7 @@ export function createLeaferGraphEntryRuntime(
     linkStroke: initialGraphTheme.linkStroke,
     dataFlowAnimationStyle: resolveConfiguredDataFlowAnimationStyle(
       initialGraphTheme,
-      options.linkPropagationAnimation ?? "performance"
+      resolvedConfig
     )
   });
   const ready = runtime.apiHost.initialize(options);
@@ -106,14 +105,17 @@ export function createLeaferGraphEntryRuntime(
 
   return {
     ...runtime,
+    defaultFitViewPadding: resolvedConfig.graph.view.defaultFitPadding,
     ready
   };
 }
 
 function resolveConfiguredDataFlowAnimationStyle(
   graphTheme: LeaferGraphGraphThemeTokens,
-  preset: LeaferGraphOptions["linkPropagationAnimation"]
+  config: NormalizedLeaferGraphConfig
 ) {
+  const preset = config.graph.runtime.linkPropagationAnimation;
+
   if (preset === false) {
     const disabledStyle = createDisabledDataFlowAnimationStyleConfig();
     const performanceStyle = graphTheme.dataFlowAnimationStyles.performance;
@@ -137,5 +139,5 @@ function resolveConfiguredDataFlowAnimationStyle(
     };
   }
 
-  return graphTheme.dataFlowAnimationStyles[preset ?? "performance"];
+  return graphTheme.dataFlowAnimationStyles[preset];
 }

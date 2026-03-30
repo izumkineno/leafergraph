@@ -17,6 +17,15 @@ export {
   type LeaferContextMenuTargetKind,
   type LeaferPointerMenuEvent
 } from "./leafer_context_menu";
+export type {
+  LeaferContextMenuConfig,
+  LeaferContextMenuSubmenuConfig,
+  LeaferContextMenuSubmenuTriggerMode
+} from "@leafergraph/config";
+export {
+  normalizeLeaferContextMenuConfig,
+  resolveDefaultLeaferContextMenuConfig
+} from "@leafergraph/config";
 
 export {
   registerLeaferContextMenuBuiltins

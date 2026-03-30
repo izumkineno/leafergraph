@@ -86,13 +86,29 @@ menu.destroy();
 
 菜单会在每次打开时重新解析 `@leafergraph/theme` 中对应 preset + mode 的 token。
 
+如果你希望调整子菜单交互默认值，请通过 `config` 传入：
+
+```ts
+const menu = createLeaferContextMenu({
+  app: graph.app,
+  container,
+  config: {
+    submenu: {
+      triggerMode: "hover",
+      openDelay: 0,
+      closeDelay: 100
+    }
+  }
+});
+```
+
 ## 默认交互语义
 
 - 根菜单默认由 Leafer `pointer.menu` 打开
 - 子菜单默认触发策略是 `hover+click`
 - 粗指针环境会自动把 hover 退化为 click
-- 默认 `openDelay = 0`
-- 默认 `closeDelay = 100`
+- 默认 `config.submenu.openDelay = 0`
+- 默认 `config.submenu.closeDelay = 100`
 - 默认支持：
   - `action`
   - `separator`

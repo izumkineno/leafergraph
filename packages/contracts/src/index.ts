@@ -8,4 +8,5 @@
 
 export type * from "./plugin";
 export type * from "./graph_api_types";
+export type * from "@leafergraph/config";
 export * from "./graph_document_diff";

@@ -70,7 +70,11 @@ export function createExampleContextMenu(
     host: resolveContextMenuHost(options.container),
     resolveThemeMode: options.resolveThemeMode,
     // demo 端统一使用 hover 展开子菜单。
-    submenuTriggerMode: "hover"
+    config: {
+      submenu: {
+        triggerMode: "hover"
+      }
+    }
   });
 
   const disposeBuiltins = registerLeaferContextMenuBuiltins(menu, {

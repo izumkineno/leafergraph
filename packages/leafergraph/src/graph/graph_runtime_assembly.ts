@@ -8,9 +8,9 @@
 import { NodeRegistry } from "@leafergraph/node";
 import { LeaferGraphLocalExecutionFeedbackAdapter } from "@leafergraph/execution";
 import type {
-  LeaferGraphWidgetEditingOptions,
   LeaferGraphWidgetRenderer
 } from "@leafergraph/contracts";
+import type { NormalizedLeaferGraphConfig } from "@leafergraph/config";
 import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
@@ -44,11 +44,8 @@ interface LeaferGraphRuntimeAssemblyOptions<
   graphState: GraphRuntimeState<TNodeState>;
   nodeViews: Map<string, NodeViewState<TNodeState>>;
   linkViews: GraphLinkViewState<TNodeState>[];
-  fill?: string;
+  config: NormalizedLeaferGraphConfig;
   themeMode?: LeaferGraphThemeMode;
-  widgetEditing?: LeaferGraphWidgetEditingOptions;
-  viewportMinScale: number;
-  viewportMaxScale: number;
   createMissingWidgetRenderer(): LeaferGraphWidgetRenderer;
   resolveWidgetTheme(mode: LeaferGraphThemeMode): LeaferGraphWidgetThemeContext;
   nodeShellLayoutMetrics: NodeShellLayoutMetrics;
@@ -84,18 +81,21 @@ export function createLeaferGraphRuntimeAssembly<
 ): LeaferGraphRuntimeAssemblyResult<TNodeState> {
   const canvasHost = new LeaferGraphCanvasHost({
     container: options.container,
-    fill: options.fill,
+    fill: options.config.graph.fill,
     themeMode: options.themeMode,
     resolveBackground: options.resolveCanvasBackground,
-    viewportMinScale: options.viewportMinScale,
-    viewportMaxScale: options.viewportMaxScale
+    leaferAppConfig: options.config.leafer.app,
+    leaferTreeConfig: options.config.leafer.tree,
+    leaferViewportConfig: options.config.leafer.viewport
   });
   const canvasState = canvasHost.mount();
   const widgetEnvironment = createLeaferGraphWidgetEnvironment({
     app: canvasState.app,
     container: options.container,
     themeMode: options.themeMode,
-    widgetEditing: options.widgetEditing,
+    widgetConfig: options.config.widget,
+    leaferEditorConfig: options.config.leafer.editor,
+    leaferTextEditorConfig: options.config.leafer.textEditor,
     createMissingWidgetRenderer: options.createMissingWidgetRenderer,
     resolveWidgetTheme: options.resolveWidgetTheme
   });

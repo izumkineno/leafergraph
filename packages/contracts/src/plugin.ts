@@ -19,11 +19,13 @@ import type {
   NodeWidgetOptionItem
 } from "@leafergraph/node";
 import type {
-  LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode,
   LeaferGraphThemePresetId,
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/theme";
+import type {
+  LeaferGraphConfig
+} from "@leafergraph/config";
 import type { Group, Text } from "leafer-ui";
 
 /**
@@ -94,19 +96,6 @@ export interface LeaferGraphWidgetFocusBinding {
   key: string;
   onFocusChange?(focused: boolean): void;
   onKeyDown?(event: KeyboardEvent): boolean;
-}
-
-/**
- * Widget 编辑宿主配置。
- *
- * @remarks
- * 这组配置决定主包是否启用真实文本编辑、是否桥接官方文本编辑器，
- * 以及是否允许离散选项控件打开浮层菜单。
- */
-export interface LeaferGraphWidgetEditingOptions {
-  enabled?: boolean;
-  useOfficialTextEditor?: boolean;
-  allowOptionsMenu?: boolean;
 }
 
 /**
@@ -325,12 +314,10 @@ export interface LeaferGraphNodePlugin {
  * 其中 `document` 是正式图输入，`modules/plugins` 负责扩展节点和 Widget 生态。
  */
 export interface LeaferGraphOptions {
-  fill?: string;
   document?: GraphDocument;
   modules?: NodeModule[];
   plugins?: LeaferGraphNodePlugin[];
   themePreset?: LeaferGraphThemePresetId;
   themeMode?: LeaferGraphThemeMode;
-  widgetEditing?: LeaferGraphWidgetEditingOptions;
-  linkPropagationAnimation?: LeaferGraphLinkPropagationAnimationPreset | false;
+  config?: LeaferGraphConfig;
 }

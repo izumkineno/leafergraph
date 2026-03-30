@@ -25,6 +25,7 @@
     "build": "tsc -p tsconfig.build.json && vite build"
   },
   "dependencies": {
+    "@leafergraph/config": "workspace:*",
     "@leafergraph/contracts": "workspace:*",
     "@leafergraph/execution": "workspace:*",
     "@leafergraph/node": "workspace:*",

@@ -12,13 +12,16 @@ import type { App } from "leafer-ui";
 import type {
   LeaferGraphWidgetTextEditFrame,
   LeaferGraphWidgetEditingContext,
-  LeaferGraphWidgetEditingOptions,
   LeaferGraphWidgetFocusBinding,
   LeaferGraphWidgetOptionsMenuRequest,
-  LeaferGraphWidgetTextEditRequest,
+  LeaferGraphWidgetTextEditRequest
 } from "@leafergraph/contracts";
 import type {
-  LeaferGraphThemeMode,
+  NormalizedLeaferGraphLeaferEditorConfig,
+  NormalizedLeaferGraphLeaferTextEditorConfig,
+  NormalizedLeaferGraphWidgetEditingConfig
+} from "@leafergraph/config";
+import type {
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/theme";
 
@@ -352,7 +355,9 @@ export class LeaferGraphWidgetEditingManager
 
   private readonly app: EditorHostApp;
   private readonly container: HTMLElement;
-  private readonly options: Required<LeaferGraphWidgetEditingOptions>;
+  private readonly options: NormalizedLeaferGraphWidgetEditingConfig;
+  private readonly editorConfig?: NormalizedLeaferGraphLeaferEditorConfig;
+  private readonly textEditorConfig?: NormalizedLeaferGraphLeaferTextEditorConfig;
   private theme: LeaferGraphWidgetThemeContext;
   private editor: Editor | null = null;
   private followEditorFrame = 0;
@@ -404,17 +409,17 @@ export class LeaferGraphWidgetEditingManager
     app: App;
     container: HTMLElement;
     theme: LeaferGraphWidgetThemeContext;
-    editing?: LeaferGraphWidgetEditingOptions;
+    editing: NormalizedLeaferGraphWidgetEditingConfig;
+    editorConfig?: NormalizedLeaferGraphLeaferEditorConfig;
+    textEditorConfig?: NormalizedLeaferGraphLeaferTextEditorConfig;
   }) {
     this.app = options.app as EditorHostApp;
     this.container = options.container;
     this.theme = options.theme;
     this.ownerWindow = this.container.ownerDocument.defaultView ?? window;
-    this.options = {
-      enabled: options.editing?.enabled ?? false,
-      useOfficialTextEditor: options.editing?.useOfficialTextEditor ?? true,
-      allowOptionsMenu: options.editing?.allowOptionsMenu ?? true
-    };
+    this.options = options.editing;
+    this.editorConfig = options.editorConfig;
+    this.textEditorConfig = options.textEditorConfig;
     this.enabled = this.options.enabled;
 
     // 浮层样式只需要向当前宿主 window 注入一次，避免 editor 多实例时重复插入。
@@ -714,7 +719,12 @@ export class LeaferGraphWidgetEditingManager
       return this.editor;
     }
 
-    const editor = new Editor();
+    const editor = new Editor({
+      ...(this.editorConfig?.raw ?? {}),
+      ...(this.textEditorConfig?.raw
+        ? { textEditor: this.textEditorConfig.raw }
+        : {})
+    });
     editor.visible = false;
     editor.hittable = false;
     const host = this.app as App & {
@@ -999,30 +1009,4 @@ export function createDisabledWidgetEditingContext(): LeaferGraphWidgetEditingCo
   };
 }
 
-/**
- * 根据主题模式解析一份安全的 Widget 编辑配置。
- *
- * @remarks
- * 当前返回值会把所有可选字段展开成 `Required<>` 结构，
- * 方便主包后续运行时直接消费，不再重复处理默认值。
- *
- * @param mode - 当前主题模式。
- * @param options - 调用方传入的可选编辑配置。
- * @returns 归一化后的主题模式与编辑配置。
- */
-export function resolveWidgetEditingOptions(
-  mode: LeaferGraphThemeMode,
-  options?: LeaferGraphWidgetEditingOptions
-): {
-  themeMode: LeaferGraphThemeMode;
-  editing: Required<LeaferGraphWidgetEditingOptions>;
-} {
-  return {
-    themeMode: mode,
-    editing: {
-      enabled: options?.enabled ?? false,
-      useOfficialTextEditor: options?.useOfficialTextEditor ?? true,
-      allowOptionsMenu: options?.allowOptionsMenu ?? true
-    }
-  };
-}
+export { resolveWidgetEditingOptions } from "@leafergraph/config/widget";

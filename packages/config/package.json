@@ -1,5 +1,5 @@
 {
-  "name": "@leafergraph/contracts",
+  "name": "@leafergraph/config",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,9 +11,21 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
-    "./graph-document-diff": {
-      "types": "./src/graph_document_diff.ts",
-      "import": "./src/graph_document_diff.ts"
+    "./graph": {
+      "types": "./src/graph/index.ts",
+      "import": "./src/graph/index.ts"
+    },
+    "./context-menu": {
+      "types": "./src/context-menu/index.ts",
+      "import": "./src/context-menu/index.ts"
+    },
+    "./widget": {
+      "types": "./src/widget/index.ts",
+      "import": "./src/widget/index.ts"
+    },
+    "./leafer": {
+      "types": "./src/leafer/index.ts",
+      "import": "./src/leafer/index.ts"
     }
   },
   "files": [
@@ -25,9 +37,6 @@
     "test": "bun test ./tests"
   },
   "dependencies": {
-    "@leafergraph/config": "workspace:*",
-    "@leafergraph/execution": "workspace:*",
-    "@leafergraph/node": "workspace:*",
     "@leafergraph/theme": "workspace:*",
     "leafer-ui": "^2.0.3"
   }

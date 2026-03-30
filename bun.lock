@@ -74,10 +74,19 @@
         "@happy-dom/global-registrator": "^20.0.10",
       },
     },
+    "packages/config": {
+      "name": "@leafergraph/config",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/theme": "workspace:*",
+        "leafer-ui": "^2.0.3",
+      },
+    },
     "packages/context-menu": {
       "name": "@leafergraph/context-menu",
       "version": "0.1.0",
       "dependencies": {
+        "@leafergraph/config": "workspace:*",
         "@leafergraph/contracts": "workspace:*",
         "@leafergraph/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
@@ -92,6 +101,7 @@
       "name": "@leafergraph/contracts",
       "version": "0.1.0",
       "dependencies": {
+        "@leafergraph/config": "workspace:*",
         "@leafergraph/execution": "workspace:*",
         "@leafergraph/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
@@ -119,6 +129,7 @@
         "@leafer-in/view": "^2.0.3",
         "@leafer-in/viewport": "^2.0.3",
         "@leafer-ui/worker": "^2.0.3",
+        "@leafergraph/config": "workspace:*",
         "@leafergraph/contracts": "workspace:*",
         "@leafergraph/execution": "workspace:*",
         "@leafergraph/node": "workspace:*",
@@ -141,6 +152,7 @@
       "dependencies": {
         "@leafer-in/editor": "^2.0.3",
         "@leafer-in/text-editor": "^2.0.3",
+        "@leafergraph/config": "workspace:*",
         "@leafergraph/contracts": "workspace:*",
         "@leafergraph/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
@@ -431,6 +443,8 @@
     "@leafergraph/authoring-basic-nodes": ["@leafergraph/authoring-basic-nodes@workspace:example/authoring-basic-nodes"],
 
     "@leafergraph/basic-kit": ["@leafergraph/basic-kit@workspace:packages/basic-kit"],
+
+    "@leafergraph/config": ["@leafergraph/config@workspace:packages/config"],
 
     "@leafergraph/context-menu": ["@leafergraph/context-menu@workspace:packages/context-menu"],
 

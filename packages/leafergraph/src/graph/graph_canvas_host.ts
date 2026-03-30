@@ -7,6 +7,11 @@
 
 import { App, Group } from "leafer-ui";
 import { addViewport } from "@leafer-in/viewport";
+import type {
+  NormalizedLeaferGraphLeaferAppConfig,
+  NormalizedLeaferGraphLeaferTreeConfig,
+  NormalizedLeaferGraphLeaferViewportConfig
+} from "@leafergraph/config";
 import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 
 interface LeaferGraphCanvasHostOptions {
@@ -14,8 +19,9 @@ interface LeaferGraphCanvasHostOptions {
   fill?: string;
   themeMode?: LeaferGraphThemeMode;
   resolveBackground(mode: LeaferGraphThemeMode): string;
-  viewportMinScale: number;
-  viewportMaxScale: number;
+  leaferAppConfig: NormalizedLeaferGraphLeaferAppConfig;
+  leaferTreeConfig: NormalizedLeaferGraphLeaferTreeConfig;
+  leaferViewportConfig: NormalizedLeaferGraphLeaferViewportConfig;
 }
 
 export interface LeaferGraphCanvasState {
@@ -44,13 +50,20 @@ export class LeaferGraphCanvasHost {
   mount(): LeaferGraphCanvasState {
     this.prepareContainer();
 
+    const appRaw = this.options.leaferAppConfig.raw ?? {};
+    const appTreeRaw =
+      appRaw.tree && typeof appRaw.tree === "object" ? appRaw.tree : undefined;
     const app = new App({
+      ...appRaw,
       view: this.options.container,
       fill: this.options.fill ?? "transparent",
-      pixelSnap: true,
-      usePartRender: true,
-      usePartLayout: true,
-      tree: {}
+      pixelSnap: this.options.leaferAppConfig.pixelSnap,
+      usePartRender: this.options.leaferAppConfig.usePartRender,
+      usePartLayout: this.options.leaferAppConfig.usePartLayout,
+      tree: {
+        ...(appTreeRaw ?? {}),
+        ...(this.options.leaferTreeConfig.raw ?? {})
+      }
     });
     const root = new Group({ name: "leafergraph-root" });
     const linkLayer = new Group({
@@ -116,15 +129,28 @@ export class LeaferGraphCanvasHost {
    * 这里显式使用自由平移，避免节点靠近边缘时被 viewport 的 limit 阻尼“卡”在画布内。
    */
   private setupViewport(app: App): void {
+    const viewportRaw = this.options.leaferViewportConfig.raw ?? {};
+    const viewportRawZoom =
+      viewportRaw.zoom && typeof viewportRaw.zoom === "object"
+        ? viewportRaw.zoom
+        : undefined;
+    const viewportRawMove =
+      viewportRaw.move && typeof viewportRaw.move === "object"
+        ? viewportRaw.move
+        : undefined;
+
     addViewport(app.tree, {
+      ...viewportRaw,
       zoom: {
-        min: this.options.viewportMinScale,
-        max: this.options.viewportMaxScale
+        ...(viewportRawZoom ?? {}),
+        min: this.options.leaferViewportConfig.zoom.min,
+        max: this.options.leaferViewportConfig.zoom.max
       },
       move: {
-        holdSpaceKey: true,
-        holdMiddleKey: true,
-        scroll: true
+        ...(viewportRawMove ?? {}),
+        holdSpaceKey: this.options.leaferViewportConfig.move.holdSpaceKey,
+        holdMiddleKey: this.options.leaferViewportConfig.move.holdMiddleKey,
+        scroll: this.options.leaferViewportConfig.move.scroll
       }
     });
   }

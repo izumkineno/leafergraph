@@ -13,6 +13,7 @@
 当前仓库处于一轮兼容式拆分阶段：
 
 - 公共契约真源已经迁到 `@leafergraph/contracts`
+- 非视觉配置真源已经迁到 `@leafergraph/config`
 - Widget runtime 真源已经迁到 `@leafergraph/widget-runtime`
 - 基础 widgets + 系统节点已经迁到 `@leafergraph/basic-kit`
 - `leafergraph` 根入口仍继续 re-export 这些契约

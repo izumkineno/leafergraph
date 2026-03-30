@@ -13,6 +13,10 @@ import "@leafer-in/flow";
 import "@leafer-in/resize";
 import "@leafer-in/state";
 import "@leafer-in/view";
+export {
+  normalizeLeaferGraphConfig,
+  resolveDefaultLeaferGraphConfig
+} from "@leafergraph/config";
 import {
   type GraphDocument,
   type GraphLink,
@@ -47,13 +51,37 @@ export {
   stopWidgetPointerEvent
 } from "@leafergraph/widget-runtime";
 export type {
+  LeaferGraphConfig,
+  LeaferGraphGraphConfig,
+  LeaferGraphGraphRuntimeConfig,
+  LeaferGraphGraphViewConfig,
+  LeaferGraphLeaferAppConfig,
+  LeaferGraphLeaferConfig,
+  LeaferGraphLeaferEditorConfig,
+  LeaferGraphLeaferFindConfig,
+  LeaferGraphLeaferFlowConfig,
+  LeaferGraphLeaferMoveScrollMode,
+  LeaferGraphLeaferPluginConfig,
+  LeaferGraphLeaferResizeConfig,
+  LeaferGraphLeaferStateConfig,
+  LeaferGraphLeaferTextEditorConfig,
+  LeaferGraphLeaferTreeConfig,
+  LeaferGraphLeaferViewConfig,
+  LeaferGraphLeaferViewportConfig,
+  LeaferGraphLeaferViewportMoveConfig,
+  LeaferGraphLeaferViewportZoomConfig,
+  LeaferGraphWidgetConfig,
+  LeaferGraphWidgetEditingConfig,
+  LeaferGraphWidgetEditingOptions,
+  NormalizedLeaferGraphConfig
+} from "@leafergraph/config";
+export type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,
   LeaferGraphWidgetBounds,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetEditingContext,
-  LeaferGraphWidgetEditingOptions,
   LeaferGraphWidgetFocusBinding,
   LeaferGraphWidgetRenderInstance,
   LeaferGraphWidgetRenderer,
@@ -159,9 +187,6 @@ import {
 } from "@leafergraph/contracts/graph-document-diff";
 import type { LeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
 import { createLeaferGraphEntryRuntime } from "./graph/graph_entry_runtime";
-import {
-  DEFAULT_FIT_VIEW_PADDING
-} from "./graph/graph_runtime_style";
 import type {
   GraphOperation,
   GraphOperationApplyResult,
@@ -272,6 +297,7 @@ export class LeaferGraph {
   readonly ready: Promise<void>;
 
   private readonly apiHost: LeaferGraphEntryRuntime["apiHost"];
+  private readonly defaultFitViewPadding: number;
 
   /** 创建图宿主，并在内部异步完成模块与插件安装。 */
   constructor(container: HTMLElement, options: LeaferGraphOptions = {}) {
@@ -282,6 +308,7 @@ export class LeaferGraph {
     this.linkLayer = runtime.linkLayer;
     this.nodeLayer = runtime.nodeLayer;
     this.apiHost = runtime.apiHost;
+    this.defaultFitViewPadding = runtime.defaultFitViewPadding;
     this.ready = runtime.ready;
   }
 
@@ -352,7 +379,7 @@ export class LeaferGraph {
    * 这是对 `@leafer-in/view` 的最小封装，优先以节点视图为参考对象，
    * 避免把背景或未来的屏幕层 overlay 一起纳入适配范围。
    */
-  fitView(padding = DEFAULT_FIT_VIEW_PADDING): boolean {
+  fitView(padding = this.defaultFitViewPadding): boolean {
     return this.apiHost.fitView(padding);
   }
 
