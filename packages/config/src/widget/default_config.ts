@@ -1,4 +1,3 @@
-import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import type {
   LeaferGraphWidgetConfig,
   LeaferGraphWidgetEditingConfig,
@@ -54,10 +53,10 @@ export function normalizeLeaferGraphWidgetConfig(
  * 真正的默认值真源已经迁到 `@leafergraph/config/widget`。
  */
 export function resolveWidgetEditingOptions(
-  mode: LeaferGraphThemeMode,
+  mode: "light" | "dark",
   options?: LeaferGraphWidgetEditingConfig
 ): {
-  themeMode: LeaferGraphThemeMode;
+  themeMode: "light" | "dark";
   editing: NormalizedLeaferGraphWidgetEditingConfig;
 } {
   return {

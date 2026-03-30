@@ -37,7 +37,6 @@
     "test": "bun test ./tests"
   },
   "dependencies": {
-    "@leafergraph/theme": "workspace:*",
     "leafer-ui": "^2.0.3"
   }
 }

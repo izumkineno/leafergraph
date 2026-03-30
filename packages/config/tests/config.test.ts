@@ -1,10 +1,30 @@
 import { describe, expect, test } from "bun:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   normalizeLeaferContextMenuConfig,
   normalizeLeaferGraphConfig,
   resolveDefaultLeaferContextMenuConfig,
   resolveDefaultLeaferGraphConfig
 } from "../src";
+
+function listFilesRecursively(rootPath: string): string[] {
+  const files: string[] = [];
+
+  for (const entry of readdirSync(rootPath, { withFileTypes: true })) {
+    const entryPath = join(rootPath, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...listFilesRecursively(entryPath));
+      continue;
+    }
+
+    files.push(entryPath);
+  }
+
+  return files;
+}
 
 describe("@leafergraph/config", () => {
   test("默认主包配置应返回完整可消费结构", () => {
@@ -128,5 +148,35 @@ describe("@leafergraph/config", () => {
         closeDelay: 100
       }
     });
+  });
+
+  test("不应声明任何 workspace 本地包依赖", () => {
+    const packageJson = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8")
+    ) as {
+      dependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+
+    const dependencyNames = [
+      ...Object.keys(packageJson.dependencies ?? {}),
+      ...Object.keys(packageJson.peerDependencies ?? {})
+    ];
+
+    expect(
+      dependencyNames.filter((name) => name.startsWith("@leafergraph/"))
+    ).toEqual([]);
+  });
+
+  test("源码不应 import 任何 workspace 本地包", () => {
+    const srcRootPath = fileURLToPath(new URL("../src/", import.meta.url));
+    const sourceFiles = listFilesRecursively(srcRootPath).filter((filePath) =>
+      filePath.endsWith(".ts")
+    );
+
+    for (const filePath of sourceFiles) {
+      const content = readFileSync(filePath, "utf8");
+      expect(content).not.toMatch(/from\s+["']@leafergraph\//);
+    }
   });
 });
