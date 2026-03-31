@@ -66,6 +66,11 @@ export function createLeaferGraphEntryRuntime(
   const initialThemeBundle = themePreset.modes[initialThemeMode];
   const initialGraphTheme = initialThemeBundle.graph;
   const graphState: GraphRuntimeState = {
+    document: {
+      documentId: "local-document",
+      revision: 0,
+      appKind: "leafergraph-local"
+    },
     nodes: new Map(),
     links: new Map()
   };

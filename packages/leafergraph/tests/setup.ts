@@ -5,6 +5,47 @@ GlobalRegistrator.register({
 });
 
 class FakeCanvasRenderingContext2D {
+  beginPath() {}
+  closePath() {}
+  moveTo() {}
+  lineTo() {}
+  bezierCurveTo() {}
+  quadraticCurveTo() {}
+  arc() {}
+  arcTo() {}
+  ellipse() {}
+  rect() {}
+  fill() {}
+  stroke() {}
+  clip() {}
+  save() {}
+  restore() {}
+  translate() {}
+  scale() {}
+  rotate() {}
+  clearRect() {}
+  fillRect() {}
+  strokeRect() {}
+  setTransform() {}
+  resetTransform() {}
+  setLineDash() {}
+  getLineDash() {
+    return [];
+  }
+  createLinearGradient() {
+    return {
+      addColorStop() {}
+    };
+  }
+  createRadialGradient() {
+    return {
+      addColorStop() {}
+    };
+  }
+  createPattern() {
+    return null;
+  }
+  drawImage() {}
   measureText(text = "") {
     return {
       width: String(text).length * 8,

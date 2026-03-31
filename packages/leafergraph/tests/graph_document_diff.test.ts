@@ -69,6 +69,12 @@ describe("graph_document_diff", () => {
     const widgetValueCalls: unknown[] = [];
     let updateNodeCalled = false;
     const fakeGraph = {
+      apiHost: {
+        runWithoutHistoryCapture<T>(callback: () => T): T {
+          return callback();
+        },
+        notifyHistoryReset() {}
+      },
       nodeLayer: {
         findId(id: string) {
           return id === "widget-node-1-0" ? { id } : undefined;

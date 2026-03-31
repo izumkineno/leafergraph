@@ -37,6 +37,10 @@ class LeaferGraphContextMenuClipboardStore
 
 const sharedClipboardStore = new LeaferGraphContextMenuClipboardStore();
 
+export function createLeaferGraphContextMenuClipboardStore(): LeaferGraphContextMenuClipboardState {
+  return new LeaferGraphContextMenuClipboardStore();
+}
+
 export function getSharedLeaferGraphContextMenuClipboardStore(): LeaferGraphContextMenuClipboardState {
   return sharedClipboardStore;
 }

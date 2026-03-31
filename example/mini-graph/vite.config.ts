@@ -26,6 +26,17 @@ export default defineConfig({
         )
       },
       {
+        find: /^@leafergraph\/undo-redo$/,
+        replacement: resolve(__dirname, "../../packages/undo-redo/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/undo-redo\/graph$/,
+        replacement: resolve(
+          __dirname,
+          "../../packages/undo-redo/src/graph/index.ts"
+        )
+      },
+      {
         find: /^@leafergraph\/theme$/,
         replacement: resolve(__dirname, "../../packages/theme/src/index.ts")
       }

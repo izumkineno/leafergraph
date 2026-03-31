@@ -15,6 +15,12 @@ export const VIEWPORT_MAX_SCALE = 4;
 /** 连线传播动画默认预设。 */
 export const DEFAULT_LINK_PROPAGATION_ANIMATION_PRESET = "performance";
 
+/** 默认最多保留的历史条数。 */
+export const DEFAULT_HISTORY_MAX_ENTRIES = 100;
+
+/** 默认在文档同步时清空历史。 */
+export const DEFAULT_HISTORY_RESET_ON_DOCUMENT_SYNC = true;
+
 /** 返回一份完整的默认图级配置。 */
 export function resolveDefaultLeaferGraphGraphConfig(): NormalizedLeaferGraphGraphConfig {
   return {
@@ -24,6 +30,10 @@ export function resolveDefaultLeaferGraphGraphConfig(): NormalizedLeaferGraphGra
     },
     runtime: {
       linkPropagationAnimation: DEFAULT_LINK_PROPAGATION_ANIMATION_PRESET
+    },
+    history: {
+      maxEntries: DEFAULT_HISTORY_MAX_ENTRIES,
+      resetOnDocumentSync: DEFAULT_HISTORY_RESET_ON_DOCUMENT_SYNC
     }
   };
 }
@@ -44,6 +54,15 @@ export function normalizeLeaferGraphGraphConfig(
       linkPropagationAnimation:
         config?.runtime?.linkPropagationAnimation ??
         defaults.runtime.linkPropagationAnimation
+    },
+    history: {
+      maxEntries: Math.max(
+        0,
+        Math.floor(config?.history?.maxEntries ?? defaults.history.maxEntries)
+      ),
+      resetOnDocumentSync:
+        config?.history?.resetOnDocumentSync ??
+        defaults.history.resetOnDocumentSync
     }
   };
 }

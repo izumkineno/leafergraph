@@ -82,6 +82,22 @@ const packageRules = {
       "@leafergraph/node"
     ]
   },
+  "@leafergraph/shortcuts": {
+    allowedWorkspaceDeps: [],
+    allowedSourceImports: []
+  },
+  "@leafergraph/undo-redo": {
+    allowedWorkspaceDeps: [
+      "@leafergraph/config",
+      "@leafergraph/contracts",
+      "@leafergraph/node"
+    ],
+    allowedSourceImports: [
+      "@leafergraph/config",
+      "@leafergraph/contracts",
+      "@leafergraph/node"
+    ]
+  },
   "@leafergraph/authoring": {
     allowedWorkspaceDeps: [
       "@leafergraph/contracts",

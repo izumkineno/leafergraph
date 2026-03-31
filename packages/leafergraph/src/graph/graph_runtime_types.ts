@@ -5,7 +5,7 @@
  * 负责声明主包内部节点、连线和图状态容器所需的共享类型。
  */
 
-import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphDocument, GraphLink, NodeRuntimeState } from "@leafergraph/node";
 import type { GraphNodeDisplayProperties } from "@leafergraph/contracts";
 import type { GraphLinkViewState as LeaferGraphLinkHostViewState } from "../link/link_host";
 import type { NodeViewState as LeaferGraphNodeHostViewState } from "../node/node_host";
@@ -21,9 +21,13 @@ export type LeaferGraphRenderableNodeState = NodeRuntimeState & {
 };
 
 /** 主包内部统一图状态容器。 */
+export type GraphDocumentRootState = Omit<GraphDocument, "nodes" | "links">;
+
+/** 主包内部统一图状态容器。 */
 export interface GraphRuntimeState<
   TNodeState extends LeaferGraphRenderableNodeState = LeaferGraphRenderableNodeState
 > {
+  document: GraphDocumentRootState;
   nodes: Map<string, TNodeState>;
   links: Map<string, GraphLink>;
 }

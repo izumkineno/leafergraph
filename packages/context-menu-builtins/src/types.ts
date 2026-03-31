@@ -27,6 +27,23 @@ export interface LeaferGraphContextMenuClipboardState {
   hasFragment(): boolean;
 }
 
+export type LeaferGraphContextMenuBuiltinActionId =
+  | "graph.copy"
+  | "graph.cut"
+  | "graph.paste"
+  | "graph.duplicate"
+  | "graph.select-all"
+  | "graph.delete-selection"
+  | "graph.undo"
+  | "graph.redo";
+
+export interface LeaferGraphContextMenuBuiltinHistoryHost {
+  undo(): boolean;
+  redo(): boolean;
+  canUndo?(): boolean;
+  canRedo?(): boolean;
+}
+
 export type LeaferGraphContextMenuBuiltinFeatureToggle =
   | boolean
   | {
@@ -37,14 +54,21 @@ export interface LeaferGraphContextMenuBuiltinFeatureFlags {
   canvasAddNode?: LeaferGraphContextMenuBuiltinFeatureToggle;
   canvasPaste?: LeaferGraphContextMenuBuiltinFeatureToggle;
   canvasControls?: LeaferGraphContextMenuBuiltinFeatureToggle;
+  canvasUndo?: LeaferGraphContextMenuBuiltinFeatureToggle;
+  canvasRedo?: LeaferGraphContextMenuBuiltinFeatureToggle;
+  canvasSelectAll?: LeaferGraphContextMenuBuiltinFeatureToggle;
+  canvasDeleteSelection?: LeaferGraphContextMenuBuiltinFeatureToggle;
   nodeRunFromHere?: LeaferGraphContextMenuBuiltinFeatureToggle;
   nodeCopy?: LeaferGraphContextMenuBuiltinFeatureToggle;
+  nodeCut?: LeaferGraphContextMenuBuiltinFeatureToggle;
+  nodeDuplicate?: LeaferGraphContextMenuBuiltinFeatureToggle;
   nodeDelete?: LeaferGraphContextMenuBuiltinFeatureToggle;
   linkDelete?: LeaferGraphContextMenuBuiltinFeatureToggle;
 }
 
 export interface LeaferGraphContextMenuBuiltinsHost {
   listNodes(): readonly NodeDefinition[];
+  listNodeIds?(): readonly string[];
   getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined;
   findLinksByNode(nodeId: string): readonly GraphLink[];
   isNodeSelected(nodeId: string): boolean;
@@ -76,8 +100,12 @@ export interface LeaferGraphContextMenuBuiltinsHost {
 
 export interface LeaferGraphContextMenuBuiltinOptions {
   host: LeaferGraphContextMenuBuiltinsHost;
-  features: LeaferGraphContextMenuBuiltinFeatureFlags;
+  features?: LeaferGraphContextMenuBuiltinFeatureFlags;
   clipboard?: LeaferGraphContextMenuClipboardState;
+  history?: LeaferGraphContextMenuBuiltinHistoryHost;
+  resolveShortcutLabel?(
+    actionId: LeaferGraphContextMenuBuiltinActionId
+  ): string | undefined;
   pasteOffset?: {
     x: number;
     y: number;
@@ -88,11 +116,15 @@ export interface LeaferGraphContextMenuBuiltinFeatureRegistrationContext {
   menu: LeaferContextMenu;
   host: LeaferGraphContextMenuBuiltinsHost;
   clipboard: LeaferGraphContextMenuClipboardState;
+  history?: LeaferGraphContextMenuBuiltinHistoryHost;
   options: LeaferGraphContextMenuBuiltinOptions;
   registerResolver(
     key: string,
     resolver: LeaferContextMenuResolver
   ): () => void;
+  resolveShortcutLabel(
+    actionId: LeaferGraphContextMenuBuiltinActionId
+  ): string | undefined;
   createNode(
     input: LeaferGraphCreateNodeInput,
     context: LeaferContextMenuContext

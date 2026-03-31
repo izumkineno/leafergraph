@@ -12,12 +12,26 @@
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
-import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import {
+  createLeaferGraphContextMenuClipboardStore,
+  type LeaferGraphContextMenuClipboardFragment
+} from "@leafergraph/context-menu-builtins";
+import {
+  bindLeaferGraphUndoRedo,
+  type BoundLeaferGraphUndoRedo
+} from "@leafergraph/undo-redo/graph";
+import type { UndoRedoControllerState } from "@leafergraph/undo-redo";
+import {
+  bindLeaferGraphShortcuts,
+  type BoundLeaferGraphShortcuts
+} from "@leafergraph/shortcuts/graph";
+import type { GraphLink, NodeRuntimeState, NodeSerializeResult } from "@leafergraph/node";
 import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   RuntimeFeedbackEvent
 } from "@leafergraph/contracts";
+import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/contracts/graph-document-diff";
 import type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode
@@ -43,6 +57,21 @@ const DEFAULT_FIT_VIEW_PADDING = 120;
 
 /** 运行日志最多保留的条目数，避免长时间运行后面板无限膨胀。 */
 const MAX_LOG_ENTRIES = 60;
+
+/** demo 默认历史配置；`graph.history` 是真源，但不会因为写了 config 就自动启用历史。 */
+const EXAMPLE_GRAPH_HISTORY_CONFIG = {
+  maxEntries: 100,
+  resetOnDocumentSync: true
+} as const;
+
+/** Widget 文本编辑器当前会把 DOM 挂到 body，这里用 class 统一判断编辑态。 */
+const WIDGET_TEXT_EDITOR_SELECTOR = ".leafergraph-widget-text-editor";
+
+/** 键盘 paste / duplicate 没有画布点击点时，沿用和菜单 builtins 一致的偏移量。 */
+const DEFAULT_CLIPBOARD_PASTE_OFFSET = {
+  x: 24,
+  y: 24
+} as const;
 
 /** 画布顶部辅助 badge，强调这个 demo 的定位。 */
 const EXAMPLE_STAGE_BADGES = [
@@ -122,6 +151,8 @@ interface ExampleRegisteredBundleEntry {
 
 /** 页面按钮会用到的动作集合。 */
 export interface ExampleGraphActions {
+  undo(): void;
+  redo(): void;
   play(): void;
   step(): void;
   stop(): void;
@@ -140,6 +171,7 @@ export interface ExampleGraphActions {
 export interface UseExampleGraphResult {
   stageRef: { current: HTMLDivElement | null };
   logs: readonly ExampleLogEntry[];
+  historyState: ExampleHistoryState;
   actions: ExampleGraphActions;
   status: ExampleGraphStatus;
   authoringBundleStatus: ExampleAuthoringBundleStatus;
@@ -149,6 +181,8 @@ export interface UseExampleGraphResult {
   stageBadges: readonly { id: string; label: string }[];
   chainSteps: readonly { id: string; title: string; description: string }[];
 }
+
+export type ExampleHistoryState = UndoRedoControllerState;
 
 /** 把统一运行反馈事件压缩成一行简洁中文日志。 */
 function formatRuntimeFeedback(event: RuntimeFeedbackEvent): string {
@@ -202,6 +236,115 @@ function projectTrackedLink(
   };
 }
 
+function projectTrackedLinkFromCreateInput(
+  input: LeaferGraphCreateLinkInput
+): ExampleTrackedLinkEntry | null {
+  if (!input.id) {
+    return null;
+  }
+
+  return {
+    id: input.id,
+    sourceNodeId: input.source.nodeId,
+    sourceSlot: String(input.source.slot ?? ""),
+    targetNodeId: input.target.nodeId,
+    targetSlot: String(input.target.slot ?? "")
+  };
+}
+
+function createClipboardFragmentFromNodeIds(
+  graph: LeaferGraph,
+  nodeIds: readonly string[]
+): LeaferGraphContextMenuClipboardFragment | null {
+  const snapshots = nodeIds
+    .map((nodeId) => graph.getNodeSnapshot(nodeId))
+    .filter((entry): entry is NodeSerializeResult => Boolean(entry));
+  if (!snapshots.length) {
+    return null;
+  }
+
+  const copiedNodeIds = new Set(snapshots.map((entry) => entry.id));
+  const linksById = new Map<string, GraphLink>();
+
+  for (const nodeId of copiedNodeIds) {
+    for (const link of graph.findLinksByNode(nodeId)) {
+      if (
+        copiedNodeIds.has(link.source.nodeId) &&
+        copiedNodeIds.has(link.target.nodeId)
+      ) {
+        linksById.set(link.id, link);
+      }
+    }
+  }
+
+  return {
+    nodes: snapshots,
+    links: [...linksById.values()]
+  };
+}
+
+function pasteClipboardFragmentToGraph(input: {
+  graph: LeaferGraph;
+  fragment: LeaferGraphContextMenuClipboardFragment;
+  offset?: {
+    x: number;
+    y: number;
+  };
+}): string[] {
+  const offset = input.offset ?? DEFAULT_CLIPBOARD_PASTE_OFFSET;
+  const delta = {
+    x: offset.x,
+    y: offset.y
+  };
+  const nodeIdMap = new Map<string, string>();
+  const createdNodeIds: string[] = [];
+
+  for (const snapshot of input.fragment.nodes) {
+    const nextNodeInput = createCreateNodeInputFromNodeSnapshot(snapshot);
+    const createdNode = input.graph.createNode({
+      ...nextNodeInput,
+      id: undefined,
+      x: snapshot.layout.x + delta.x,
+      y: snapshot.layout.y + delta.y
+    });
+    nodeIdMap.set(snapshot.id, createdNode.id);
+    createdNodeIds.push(createdNode.id);
+  }
+
+  for (const link of input.fragment.links) {
+    const sourceNodeId = nodeIdMap.get(link.source.nodeId);
+    const targetNodeId = nodeIdMap.get(link.target.nodeId);
+    if (!sourceNodeId || !targetNodeId) {
+      continue;
+    }
+
+    input.graph.createLink({
+      source: {
+        nodeId: sourceNodeId,
+        slot: link.source.slot
+      },
+      target: {
+        nodeId: targetNodeId,
+        slot: link.target.slot
+      }
+    });
+  }
+
+  input.graph.setSelectedNodeIds(createdNodeIds, "replace");
+  return createdNodeIds;
+}
+
+function createEmptyHistoryState(): ExampleHistoryState {
+  return {
+    canUndo: false,
+    canRedo: false,
+    undoCount: 0,
+    redoCount: 0,
+    nextUndoLabel: undefined,
+    nextRedoLabel: undefined
+  };
+}
+
 /**
  * 解析当前系统主题偏好。
  *
@@ -226,13 +369,19 @@ export function useExampleGraph(): UseExampleGraphResult {
 
   // `graphRef` 只在 hook 内部持有，避免页面层直接耦合运行时细节。
   const graphRef = useRef<LeaferGraph | null>(null);
+  const undoRedoBindingRef = useRef<BoundLeaferGraphUndoRedo | null>(null);
+  const shortcutsBindingRef = useRef<BoundLeaferGraphShortcuts | null>(null);
   const contextMenuRef = useRef<ExampleContextMenuHandle | null>(null);
+  const clipboardStoreRef = useRef(createLeaferGraphContextMenuClipboardStore());
   const themeModeRef = useRef<LeaferGraphThemeMode>(resolvePreferredThemeMode());
+  const nodeIdsRef = useRef(new Set<string>());
   const registeredBundleFingerprintsRef = useRef(new Set<string>());
   const registeredBundlesRef = useRef<ExampleRegisteredBundleEntry[]>([]);
   const trackedLinksRef = useRef(new Map<string, ExampleTrackedLinkEntry>());
   const logEntrySeedRef = useRef(1);
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
+  const [historyState, setHistoryState] =
+    useState<ExampleHistoryState>(createEmptyHistoryState);
   const [status, setStatus] = useState<ExampleGraphStatus>("loading");
   const [authoringBundleStatus, setAuthoringBundleStatus] =
     useState<ExampleAuthoringBundleStatus>("idle");
@@ -315,6 +464,33 @@ export function useExampleGraph(): UseExampleGraphResult {
     trackedLinksRef.current.clear();
   };
 
+  /** 根据当前节点集重建 demo 的连线 target 缓存，供 undo/redo 和 document restore 后复用。 */
+  const syncTrackedLinksFromGraph = (): void => {
+    const graph = graphRef.current;
+    if (!graph) {
+      clearTrackedLinks();
+      return;
+    }
+
+    const nextTrackedLinks = new Map<string, ExampleTrackedLinkEntry>();
+    for (const nodeId of nodeIdsRef.current) {
+      for (const link of graph.findLinksByNode(nodeId)) {
+        nextTrackedLinks.set(link.id, projectTrackedLink(link));
+      }
+    }
+
+    for (const existingLinkId of [...trackedLinksRef.current.keys()]) {
+      if (!nextTrackedLinks.has(existingLinkId)) {
+        forgetTrackedLink(existingLinkId);
+      }
+    }
+
+    for (const trackedLink of nextTrackedLinks.values()) {
+      trackedLinksRef.current.set(trackedLink.id, trackedLink);
+      contextMenuRef.current?.bindLinkTarget(trackedLink);
+    }
+  };
+
   /** 批量删除节点，并把关联连线清理与日志语义统一收口。 */
   const removeNodesWithLogging = (nodeIds: readonly string[]): void => {
     const graph = graphRef.current;
@@ -374,6 +550,114 @@ export function useExampleGraph(): UseExampleGraphResult {
         linkIdsToForget.size ? `，并清理 ${linkIdsToForget.size} 条关联连线` : ""
       }`
     );
+  };
+
+  /** 键盘复制只操作当前选区，并复用和右键菜单一致的 clipboard store。 */
+  const copySelectedNodesToClipboard = (): boolean => {
+    const graph = graphRef.current;
+    if (!graph) {
+      return false;
+    }
+
+    const selectedNodeIds = graph.listSelectedNodeIds();
+    if (!selectedNodeIds.length) {
+      return false;
+    }
+
+    const fragment = createClipboardFragmentFromNodeIds(graph, selectedNodeIds);
+    if (!fragment) {
+      clipboardStoreRef.current.clear();
+      return false;
+    }
+
+    clipboardStoreRef.current.setFragment(fragment);
+    appendLog(
+      fragment.nodes.length > 1
+        ? `已复制 ${fragment.nodes.length} 个节点到剪贴板`
+        : `已复制节点：${fragment.nodes[0]?.title?.trim() || fragment.nodes[0]?.id}`
+    );
+    return true;
+  };
+
+  /** 剪切沿用复制语义写入 clipboard，再复用现有删除路径统一日志和连线清理。 */
+  const cutSelectedNodesToClipboard = (): boolean => {
+    const graph = graphRef.current;
+    if (!graph) {
+      return false;
+    }
+
+    const selectedNodeIds = graph.listSelectedNodeIds();
+    if (!selectedNodeIds.length) {
+      return false;
+    }
+
+    const fragment = createClipboardFragmentFromNodeIds(graph, selectedNodeIds);
+    if (!fragment) {
+      clipboardStoreRef.current.clear();
+      return false;
+    }
+
+    clipboardStoreRef.current.setFragment(fragment);
+    removeNodesWithLogging(selectedNodeIds);
+    graph.clearSelectedNodes();
+    return true;
+  };
+
+  /** 粘贴使用裸 graph API，避免快捷键一次性粘贴时产生逐节点日志噪声。 */
+  const pasteNodesFromClipboard = (): boolean => {
+    const graph = graphRef.current;
+    if (!graph) {
+      return false;
+    }
+
+    const fragment = clipboardStoreRef.current.getFragment();
+    if (!fragment?.nodes.length) {
+      return false;
+    }
+
+    const createdNodeIds = pasteClipboardFragmentToGraph({
+      graph,
+      fragment,
+      offset: DEFAULT_CLIPBOARD_PASTE_OFFSET
+    });
+    syncTrackedLinksFromGraph();
+    appendLog(
+      createdNodeIds.length > 1
+        ? `已粘贴 ${createdNodeIds.length} 个节点`
+        : `已粘贴节点：${createdNodeIds[0]}`
+    );
+    return Boolean(createdNodeIds.length);
+  };
+
+  /** duplicate 直接基于当前选区创建临时 fragment，不覆盖已有 clipboard。 */
+  const duplicateSelectedNodes = (): boolean => {
+    const graph = graphRef.current;
+    if (!graph) {
+      return false;
+    }
+
+    const selectedNodeIds = graph.listSelectedNodeIds();
+    if (!selectedNodeIds.length) {
+      return false;
+    }
+
+    const fragment = createClipboardFragmentFromNodeIds(graph, selectedNodeIds);
+    if (!fragment) {
+      return false;
+    }
+
+    const createdNodeIds = pasteClipboardFragmentToGraph({
+      graph,
+      fragment,
+      offset: DEFAULT_CLIPBOARD_PASTE_OFFSET
+    });
+    syncTrackedLinksFromGraph();
+    appendLog(
+      createdNodeIds.length > 1
+        ? `已创建 ${createdNodeIds.length} 个节点副本`
+        : `已创建节点副本：${createdNodeIds[0]}`
+    );
+    return Boolean(createdNodeIds.length);
   };
 
   /** graph 重建后重放已成功注册过的 bundle，保持 demo 可继续使用这些节点。 */
@@ -481,6 +765,52 @@ export function useExampleGraph(): UseExampleGraphResult {
     appendLog("已恢复默认空画布");
   };
 
+  /** 统一执行撤回/重做，并在成功后同步 demo 自己维护的节点图元缓存。 */
+  const runHistoryAction = (
+    direction: "undo" | "redo",
+    options?: {
+      log?: boolean;
+    }
+  ): boolean => {
+    const controller = undoRedoBindingRef.current?.controller;
+    const shouldLog = options?.log ?? true;
+    if (!controller) {
+      if (shouldLog) {
+        appendLog("undo / redo 扩展尚未启用");
+      }
+      return false;
+    }
+
+    const state = controller.getState();
+    const label =
+      direction === "undo" ? state.nextUndoLabel : state.nextRedoLabel;
+    const changed =
+      direction === "undo" ? controller.undo() : controller.redo();
+
+    if (!changed) {
+      if (shouldLog) {
+        appendLog(
+          direction === "undo" ? "没有可撤回的历史" : "没有可重做的历史"
+        );
+      }
+      return false;
+    }
+
+    queueMicrotask(() => {
+      syncTrackedLinksFromGraph();
+    });
+
+    if (shouldLog) {
+      appendLog(
+        direction === "undo"
+          ? `已撤回：${label ?? "上一条操作"}`
+          : `已重做：${label ?? "下一条操作"}`
+      );
+    }
+
+    return true;
+  };
+
   /**
    * 页面控制按钮对应的动作集合。
    *
@@ -488,6 +818,12 @@ export function useExampleGraph(): UseExampleGraphResult {
    * 这样页面层只管绑定按钮，不需要重复写判空逻辑。
    */
   const actions: ExampleGraphActions = {
+    undo() {
+      runHistoryAction("undo");
+    },
+    redo() {
+      runHistoryAction("redo");
+    },
     play() {
       const graph = graphRef.current;
       if (!graph) {
@@ -640,8 +976,9 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     let disposed = false;
     let cleanupRuntimeFeedback = (): void => {};
-    let cleanupInteractionCommit = (): void => {};
+    let cleanupHistory = (): void => {};
     let cleanupNodeState = (): void => {};
+    let cleanupUndoRedo = (): void => {};
     let cleanupThemeListener = (): void => {};
 
     /** 浏览器窗口尺寸变化后，重新让图内容适配视图。 */
@@ -665,12 +1002,16 @@ export function useExampleGraph(): UseExampleGraphResult {
 
       disposed = true;
       cleanupRuntimeFeedback();
-      cleanupInteractionCommit();
+      cleanupHistory();
       cleanupNodeState();
+      cleanupUndoRedo();
       cleanupThemeListener();
       window.removeEventListener("resize", handleWindowResize);
 
       clearTrackedLinks();
+      setHistoryState(createEmptyHistoryState());
+      nodeIdsRef.current.clear();
+      shortcutsBindingRef.current = null;
       contextMenuRef.current?.destroy();
       contextMenuRef.current = null;
       const graph = graphRef.current;
@@ -690,17 +1031,21 @@ export function useExampleGraph(): UseExampleGraphResult {
     const bootstrap = async (): Promise<void> => {
       try {
         themeModeRef.current = resolvePreferredThemeMode();
+        nodeIdsRef.current.clear();
+        setHistoryState(createEmptyHistoryState());
+        const graphConfig = {
+          graph: {
+            runtime: {
+              linkPropagationAnimation: linkPropagationAnimationPreset
+            },
+            history: EXAMPLE_GRAPH_HISTORY_CONFIG
+          }
+        };
         const graph = createLeaferGraph(stageHost, {
           document: createEmptyExampleDocument(),
           plugins: [leaferGraphBasicKitPlugin, miniGraphExampleDemoPlugin],
           themeMode: themeModeRef.current,
-          config: {
-            graph: {
-              runtime: {
-                linkPropagationAnimation: linkPropagationAnimationPreset
-              }
-            }
-          }
+          config: graphConfig
         });
         graphRef.current = graph;
 
@@ -737,24 +1082,48 @@ export function useExampleGraph(): UseExampleGraphResult {
           appendLog(formatRuntimeFeedback(event));
         });
 
-        /**
-         * mini-graph 当前没有 authority / editor 命令总线去消费交互提交事件，
-         * 因此这里本地回放最小的连线提交，把拖线结束后的 commit 真正落成正式 link。
-         *
-         * 节点移动、resize、折叠这类交互已经在宿主内部直接写回场景，
-         * 只有 `link.create.commit` 还需要在 pointer up 后显式转成正式 createLink。
-         */
-        cleanupInteractionCommit = graph.subscribeInteractionCommit((event) => {
-          if (event.type !== "link.create.commit") {
+        cleanupHistory = graph.subscribeHistory((event) => {
+          if (
+            event.type !== "history.record" ||
+            event.record.kind !== "operation" ||
+            event.record.source !== "interaction.commit"
+          ) {
             return;
           }
 
-          try {
-            createLinkWithLogging(event.input);
-          } catch {
-            // 创建失败日志已经在 `createLinkWithLogging(...)` 内统一记录。
+          for (const operation of event.record.redoOperations) {
+            if (operation.type !== "link.create") {
+              continue;
+            }
+
+            const trackedLink = projectTrackedLinkFromCreateInput(operation.input);
+            if (!trackedLink || trackedLinksRef.current.has(trackedLink.id)) {
+              continue;
+            }
+
+            rememberTrackedLink(trackedLink);
+            appendLog(
+              `已通过拖线创建连线：${trackedLink.sourceNodeId}:${trackedLink.sourceSlot} -> ${trackedLink.targetNodeId}:${trackedLink.targetSlot}`
+            );
           }
         });
+
+        const undoRedoBinding = bindLeaferGraphUndoRedo({
+          host: graph,
+          config: graphConfig.graph.history
+        });
+        undoRedoBindingRef.current = undoRedoBinding;
+        const unsubscribeHistoryState = undoRedoBinding.controller.subscribeState(
+          (state: ExampleHistoryState) => {
+            setHistoryState({ ...state });
+          }
+        );
+        cleanupUndoRedo = () => {
+          unsubscribeHistoryState();
+          undoRedoBindingRef.current = null;
+          undoRedoBinding.destroy();
+          setHistoryState(createEmptyHistoryState());
+        };
 
         /**
          * 节点右键菜单 target 跟随节点生命周期自动同步。
@@ -768,11 +1137,13 @@ export function useExampleGraph(): UseExampleGraphResult {
          */
         cleanupNodeState = graph.subscribeNodeState((event) => {
           if (event.reason === "created" && event.exists) {
+            nodeIdsRef.current.add(event.nodeId);
             contextMenuRef.current?.bindNodeTarget(event.nodeId);
             return;
           }
 
           if (event.reason === "removed" || !event.exists) {
+            nodeIdsRef.current.delete(event.nodeId);
             contextMenuRef.current?.unbindNodeTarget(event.nodeId);
           }
         });
@@ -787,6 +1158,9 @@ export function useExampleGraph(): UseExampleGraphResult {
           `当前连线传播动画预设：${resolveAnimationPresetLabel(
             linkPropagationAnimationPreset
           )}`
+        );
+        appendLog(
+          `历史已启用：最多保留 ${undoRedoBinding.config.maxEntries} 条，文档同步重置=${undoRedoBinding.config.resetOnDocumentSync ? "on" : "off"}`
         );
         appendLog(
           "右键画布可直接插入动画示例链，或从 Example 分类添加 Event Relay / Tick Monitor"
@@ -837,12 +1211,33 @@ export function useExampleGraph(): UseExampleGraphResult {
       fit: actions.fit,
       reset: actions.reset,
       clearLog: actions.clearLog,
+      listNodeIds() {
+        return [...nodeIdsRef.current];
+      },
       createNode: createNodeWithLogging,
       createLink: createLinkWithLogging,
       removeNode: actions.removeNode,
       removeNodes: removeNodesWithLogging,
       removeLink: actions.removeLink,
       appendLog,
+      clipboard: clipboardStoreRef.current,
+      history: {
+        undo() {
+          return runHistoryAction("undo");
+        },
+        redo() {
+          return runHistoryAction("redo");
+        },
+        canUndo() {
+          return undoRedoBindingRef.current?.controller.getState().canUndo ?? false;
+        },
+        canRedo() {
+          return undoRedoBindingRef.current?.controller.getState().canRedo ?? false;
+        }
+      },
+      resolveShortcutLabel(actionId) {
+        return shortcutsBindingRef.current?.resolveShortcutLabel(actionId);
+      },
       resolveThemeMode: () => themeModeRef.current
     });
 
@@ -857,9 +1252,121 @@ export function useExampleGraph(): UseExampleGraphResult {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (status !== "ready") {
+      return;
+    }
+
+    const graph = graphRef.current;
+    const stageHost = stageRef.current;
+    if (!graph || !stageHost) {
+      return;
+    }
+
+    const shortcutsBinding = bindLeaferGraphShortcuts({
+      target: stageHost.ownerDocument,
+      scopeElement: stageHost,
+      host: {
+        listNodeIds() {
+          return [...nodeIdsRef.current];
+        },
+        listSelectedNodeIds() {
+          return graph.listSelectedNodeIds();
+        },
+        setSelectedNodeIds(nodeIds: readonly string[]) {
+          return graph.setSelectedNodeIds(nodeIds);
+        },
+        clearSelectedNodes() {
+          return graph.clearSelectedNodes();
+        },
+        removeNode(nodeId: string) {
+          actions.removeNode(nodeId);
+        },
+        fitView() {
+          actions.fit();
+        },
+        play() {
+          actions.play();
+        },
+        step() {
+          actions.step();
+        },
+        stop() {
+          actions.stop();
+        },
+        isTextEditingActive() {
+          return Boolean(
+            stageHost.ownerDocument.querySelector(WIDGET_TEXT_EDITOR_SELECTOR)
+          );
+        },
+        isContextMenuOpen() {
+          return contextMenuRef.current?.isOpen() ?? false;
+        },
+        getInteractionActivityState() {
+          return graph.getInteractionActivityState();
+        }
+      },
+      clipboard: {
+        copySelection() {
+          return copySelectedNodesToClipboard();
+        },
+        cutSelection() {
+          return cutSelectedNodesToClipboard();
+        },
+        pasteClipboard() {
+          return pasteNodesFromClipboard();
+        },
+        duplicateSelection() {
+          return duplicateSelectedNodes();
+        },
+        canCopySelection() {
+          return graph.listSelectedNodeIds().length > 0;
+        },
+        canCutSelection() {
+          return graph.listSelectedNodeIds().length > 0;
+        },
+        canPasteClipboard() {
+          return clipboardStoreRef.current.hasFragment();
+        },
+        canDuplicateSelection() {
+          return graph.listSelectedNodeIds().length > 0;
+        }
+      },
+      history: {
+        undo() {
+          return runHistoryAction("undo");
+        },
+        redo() {
+          return runHistoryAction("redo");
+        },
+        canUndo() {
+          return undoRedoBindingRef.current?.controller.getState().canUndo ?? false;
+        },
+        canRedo() {
+          return undoRedoBindingRef.current?.controller.getState().canRedo ?? false;
+        }
+      }
+    });
+    shortcutsBindingRef.current = shortcutsBinding;
+
+    const shortcutLabel = (functionId: Parameters<
+      typeof shortcutsBinding.resolveShortcutLabel
+    >[0]): string =>
+      shortcutsBinding.resolveShortcutLabel(functionId) ?? "未绑定";
+    appendLog(
+      `快捷键已就绪：${shortcutLabel("graph.copy")} 复制，${shortcutLabel("graph.cut")} 剪切，${shortcutLabel("graph.paste")} 粘贴，${shortcutLabel("graph.duplicate")} 复制副本，${shortcutLabel("graph.select-all")} 全选，${shortcutLabel("graph.delete-selection")} 删除，${shortcutLabel("graph.undo")} 撤回，${shortcutLabel("graph.redo")} 重做`
+    );
+
+    return () => {
+      shortcutsBindingRef.current = null;
+      shortcutsBinding.destroy();
+    };
+  }, [status]);
+
   return {
     stageRef,
     logs,
+    historyState,
     actions,
     status,
     authoringBundleStatus,

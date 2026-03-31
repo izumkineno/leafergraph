@@ -18,6 +18,7 @@ import type {
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
 } from "@leafergraph/contracts";
+import type { GraphDocumentRootState } from "./graph_runtime_types";
 
 type LeaferGraphSceneRuntimeNodeViewState<
   TNodeState extends NodeRuntimeState = NodeRuntimeState
@@ -98,6 +99,7 @@ interface LeaferGraphSceneRuntimeHostOptions<
   TNodeState extends NodeRuntimeState,
   TNodeViewState extends LeaferGraphSceneRuntimeNodeViewState<TNodeState>
 > {
+  graphDocument: GraphDocumentRootState;
   graphNodes: Map<string, TNodeState>;
   nodeViews: Map<string, TNodeViewState>;
   sceneHost: LeaferGraphSceneRuntimeSceneHostLike<TNodeViewState>;
@@ -353,9 +355,9 @@ export class LeaferGraphSceneRuntimeHost<
    * @param input - 连线创建输入。
    * @returns 连线安全副本。
    */
-  createLink(input: LeaferGraphCreateLinkInput): GraphLink {
+  createLink(input: LeaferGraphCreateLinkInput, source = "api"): GraphLink {
     const result = this.applyGraphOperationInternal(
-      createGraphOperation("api", {
+      createGraphOperation(source, {
         type: "link.create",
         input: structuredClone(input)
       })
@@ -421,6 +423,9 @@ export class LeaferGraphSceneRuntimeHost<
       switch (operation.type) {
         case "document.update": {
           const changed = hasDocumentRootPatch(operation.input);
+          if (changed) {
+            patchGraphDocumentRoot(this.options.graphDocument, operation.input);
+          }
           return {
             accepted: true,
             changed,
@@ -746,6 +751,31 @@ function hasDocumentRootPatch(input: LeaferGraphUpdateDocumentInput): boolean {
     input.capabilityProfile !== undefined ||
     input.adapterBinding !== undefined
   );
+}
+
+function patchGraphDocumentRoot(
+  document: GraphDocumentRootState,
+  input: LeaferGraphUpdateDocumentInput
+): void {
+  if (input.appKind !== undefined) {
+    document.appKind = input.appKind;
+  }
+
+  if (input.meta !== undefined) {
+    document.meta = input.meta ? structuredClone(input.meta) : undefined;
+  }
+
+  if (input.capabilityProfile !== undefined) {
+    document.capabilityProfile = input.capabilityProfile
+      ? structuredClone(input.capabilityProfile)
+      : undefined;
+  }
+
+  if (input.adapterBinding !== undefined) {
+    document.adapterBinding = input.adapterBinding
+      ? structuredClone(input.adapterBinding)
+      : undefined;
+  }
 }
 
 function isSameLinkEndpoint(

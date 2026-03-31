@@ -112,9 +112,20 @@ function compareRegisteredNodes(
 }
 
 function resolveCanvasCreatePosition(context: {
+  pagePoint: { x: number; y: number };
   worldPoint?: { x: number; y: number };
   containerPoint: { x: number; y: number };
 }) {
+  if (
+    Number.isFinite(context.pagePoint.x) &&
+    Number.isFinite(context.pagePoint.y)
+  ) {
+    return {
+      x: context.pagePoint.x,
+      y: context.pagePoint.y
+    };
+  }
+
   if (context.worldPoint) {
     return {
       x: context.worldPoint.x,

@@ -17,6 +17,8 @@ import {
 } from "@leafergraph/context-menu";
 import {
   registerLeaferGraphContextMenuBuiltins,
+  type LeaferGraphContextMenuBuiltinActionId,
+  type LeaferGraphContextMenuClipboardState,
   type LeaferGraphContextMenuBuiltinsHost
 } from "@leafergraph/context-menu-builtins";
 import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
@@ -44,12 +46,23 @@ export interface CreateExampleContextMenuOptions {
   fit(): void;
   reset(): void;
   clearLog(): void;
+  listNodeIds(): readonly string[];
   createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState;
   createLink(input: LeaferGraphCreateLinkInput): GraphLink;
   removeNode(nodeId: string): void;
   removeNodes(nodeIds: readonly string[]): void;
   removeLink(linkId: string): void;
   appendLog(message: string): void;
+  clipboard: LeaferGraphContextMenuClipboardState;
+  history?: {
+    undo(): boolean;
+    redo(): boolean;
+    canUndo?(): boolean;
+    canRedo?(): boolean;
+  };
+  resolveShortcutLabel?(
+    actionId: LeaferGraphContextMenuBuiltinActionId
+  ): string | undefined;
   resolveThemeMode(): LeaferGraphThemeMode;
 }
 
@@ -63,6 +76,7 @@ export interface ExampleContextMenuHandle {
   unbindNodeTarget(nodeId: string): void;
   bindLinkTarget(link: ExampleTrackedLinkEntry): void;
   unbindLinkTarget(linkId: string): void;
+  isOpen(): boolean;
   destroy(): void;
 }
 
@@ -92,15 +106,9 @@ export function createExampleContextMenu(
 
   const disposeBuiltins = registerLeaferGraphContextMenuBuiltins(menu, {
     host: builtinsHost,
-    features: {
-      canvasAddNode: true,
-      canvasPaste: true,
-      canvasControls: true,
-      nodeRunFromHere: true,
-      nodeCopy: true,
-      nodeDelete: true,
-      linkDelete: true
-    }
+    clipboard: options.clipboard,
+    history: options.history,
+    resolveShortcutLabel: options.resolveShortcutLabel
   });
 
   const disposeExampleResolver = menu.registerResolver(
@@ -121,6 +129,9 @@ export function createExampleContextMenu(
     unbindLinkTarget(linkId): void {
       menu.unbindTarget(createLinkMenuBindingKey(linkId));
     },
+    isOpen(): boolean {
+      return menu.isOpen();
+    },
     destroy(): void {
       disposeExampleResolver();
       disposeBuiltins();
@@ -135,6 +146,9 @@ function createExampleBuiltinsHost(
   return {
     listNodes() {
       return options.graph.listNodes();
+    },
+    listNodeIds() {
+      return options.listNodeIds();
     },
     getNodeSnapshot(nodeId) {
       return options.graph.getNodeSnapshot(nodeId);
@@ -372,8 +386,18 @@ function resolveContextMenuHost(container: HTMLElement): HTMLElement {
 
 function resolveCanvasCreatePosition(context: Pick<
   LeaferContextMenuContext,
-  "worldPoint" | "containerPoint"
+  "pagePoint" | "worldPoint" | "containerPoint"
 >) {
+  if (
+    Number.isFinite(context.pagePoint.x) &&
+    Number.isFinite(context.pagePoint.y)
+  ) {
+    return {
+      x: context.pagePoint.x,
+      y: context.pagePoint.y
+    };
+  }
+
   if (context.worldPoint) {
     return {
       x: context.worldPoint.x,

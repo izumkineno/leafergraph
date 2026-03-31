@@ -11,9 +11,11 @@ export type {
 } from "./context-menu";
 export type {
   LeaferGraphGraphConfig,
+  LeaferGraphGraphHistoryConfig,
   LeaferGraphGraphRuntimeConfig,
   LeaferGraphGraphViewConfig,
   NormalizedLeaferGraphGraphConfig,
+  NormalizedLeaferGraphGraphHistoryConfig,
   NormalizedLeaferGraphGraphRuntimeConfig,
   NormalizedLeaferGraphGraphViewConfig
 } from "./graph";

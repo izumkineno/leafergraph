@@ -42,6 +42,7 @@ import type {
   LeaferGraphInteractionCommitEvent,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
+  LeaferGraphHistoryEvent,
   LeaferGraphInteractionActivityState,
   RuntimeFeedbackEvent,
   LeaferGraphConnectionPortState,
@@ -381,6 +382,13 @@ export class LeaferGraph {
     return this.apiHost.subscribeRuntimeFeedback(listener);
   }
 
+  /** 订阅正式历史事件。 */
+  subscribeHistory(
+    listener: (event: LeaferGraphHistoryEvent) => void
+  ): () => void {
+    return this.apiHost.subscribeHistory(listener);
+  }
+
   /** 订阅交互活跃态变化。 */
   subscribeInteractionActivity(
     listener: (state: LeaferGraphInteractionActivityState) => void
@@ -431,6 +439,7 @@ export class LeaferGraph {
     diff: GraphDocumentDiff,
     nextDocument: GraphDocument
   ): ApplyGraphDocumentDiffResult {
+    const result = this.apiHost.runWithoutHistoryCapture(() => {
     if (
       diff.documentId !== nextDocument.documentId ||
       diff.revision !== nextDocument.revision
@@ -640,6 +649,13 @@ export class LeaferGraph {
       affectedNodeIds: [...affectedNodeIds],
       affectedLinkIds: [...affectedLinkIds]
     };
+    });
+
+    if (result.success && !result.requiresFullReplace) {
+      this.apiHost.notifyHistoryReset("apply-document-diff");
+    }
+
+    return result;
   }
 
   /** 解析某个节点方向和槽位对应的正式端口几何。 */

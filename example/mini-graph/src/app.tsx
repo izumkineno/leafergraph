@@ -23,6 +23,7 @@ interface ActionItem {
   label: string;
   accent: boolean;
   disabled?: boolean;
+  title?: string;
   onClick(): void;
 }
 
@@ -101,6 +102,7 @@ export function App() {
     authoringBundleStatus,
     chainSteps,
     errorMessage,
+    historyState,
     linkPropagationAnimationPreset,
     logs,
     registeredBundleCount,
@@ -122,6 +124,22 @@ export function App() {
       onClick() {
         bundleInputRef.current?.click();
       },
+    },
+    {
+      id: "undo",
+      label: "Undo",
+      accent: false,
+      disabled: status !== "ready" || !historyState.canUndo,
+      title: historyState.nextUndoLabel,
+      onClick: actions.undo,
+    },
+    {
+      id: "redo",
+      label: "Redo",
+      accent: false,
+      disabled: status !== "ready" || !historyState.canRedo,
+      title: historyState.nextRedoLabel,
+      onClick: actions.redo,
     },
     { id: "play", label: "Play", accent: true, onClick: actions.play },
     { id: "stop", label: "Stop", accent: false, onClick: actions.stop },
@@ -179,6 +197,7 @@ export function App() {
                 type="button"
                 class={`toolbar-button ${item.accent ? "toolbar-button--accent" : ""}`}
                 disabled={item.disabled}
+                title={item.title}
                 onClick={item.onClick}
               >
                 {item.label}
@@ -203,6 +222,9 @@ export function App() {
               </span>
               <span class="stage-badge">
                 Bundles {registeredBundleCount}
+              </span>
+              <span class="stage-badge">
+                History {historyState.undoCount}/{historyState.redoCount}
               </span>
               {stageBadges.map((badge) => (
                 <span key={badge.id} class="stage-badge">

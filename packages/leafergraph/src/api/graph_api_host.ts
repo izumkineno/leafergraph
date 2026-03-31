@@ -24,11 +24,24 @@ import type {
 } from "@leafergraph/contracts";
 import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import { projectExternalRuntimeFeedback } from "../graph/graph_runtime_feedback_projection";
+import {
+  createHistoryRecordEvent,
+  createHistoryResetEvent,
+  createLinkCreateHistoryRecord,
+  createLinkReconnectHistoryRecord,
+  createLinkRemoveHistoryRecord,
+  createNodeCreateHistoryRecord,
+  createNodeMoveHistoryRecord,
+  createNodeResizeHistoryRecord,
+  createSnapshotHistoryRecord
+} from "../graph/graph_history";
 import type {
   GraphOperation,
   GraphOperationApplyResult,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionState,
+  LeaferGraphHistoryRecord,
+  LeaferGraphHistoryEvent,
   LeaferGraphInteractionActivityState,
   LeaferGraphInteractionCommitEvent,
   RuntimeAdapter,
@@ -50,6 +63,7 @@ import type {
 } from "@leafergraph/contracts";
 import type { LeaferGraphRenderableNodeState } from "../graph/graph_runtime_types";
 import type { LeaferGraphBootstrapRuntimeLike } from "../graph/graph_bootstrap_host";
+import type { LeaferGraphHistorySource } from "../graph/graph_history";
 import type { LeaferGraphSceneRuntimeHost } from "../graph/graph_scene_runtime_host";
 import type { LeaferGraphInteractionCommitSource } from "../interaction/interaction_commit_source";
 
@@ -85,6 +99,7 @@ export interface LeaferGraphApiRuntime<
     destroy(): void;
   };
   bootstrapRuntime: LeaferGraphBootstrapRuntimeLike;
+  getGraphDocument(): GraphDocument;
   runtimeAdapter: RuntimeAdapter;
   widgetEditingManager: {
     destroy(): void;
@@ -106,6 +121,8 @@ export interface LeaferGraphApiRuntime<
     | "createLink"
     | "removeLink"
   >;
+  historySource: Pick<LeaferGraphHistorySource, "emit" | "subscribe" | "destroy">;
+  destroyHistoryCapture(): void;
   interactionCommitSource: Pick<
     LeaferGraphInteractionCommitSource,
     "subscribe"
@@ -227,6 +244,7 @@ export class LeaferGraphApiHost<
   TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
   TLinkViewState extends LeaferGraphApiLinkViewState = LeaferGraphApiLinkViewState
 > {
+  private historyCaptureSuppressionDepth = 0;
   private readonly options: LeaferGraphApiHostOptions<
     TNodeState,
     TNodeViewState,
@@ -254,9 +272,11 @@ export class LeaferGraphApiHost<
     }
 
     this.options.runtime.runtimeAdapter.destroy?.();
+    this.options.runtime.destroyHistoryCapture();
     this.options.runtime.interactionHost.destroy();
     this.options.runtime.dataFlowAnimationHost.destroy();
     this.options.runtime.widgetEditingManager.destroy();
+    this.options.runtime.historySource.destroy();
     this.options.runtime.app.destroy();
   }
 
@@ -293,6 +313,7 @@ export class LeaferGraphApiHost<
   /** 直接替换当前正式文档。 */
   replaceGraphDocument(document: GraphDocument): void {
     this.options.runtime.bootstrapRuntime.replaceGraphDocument(document);
+    this.notifyHistoryReset("replace-document");
   }
 
   /** 运行时切换主包主题，并局部刷新现有节点壳与 Widget。 */
@@ -362,7 +383,24 @@ export class LeaferGraphApiHost<
 
   /** 设置单个节点的折叠态。 */
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
-    return this.options.runtime.nodeRuntimeHost.setNodeCollapsed(nodeId, collapsed);
+    const beforeDocument = this.captureDocumentBeforeHistory();
+    const changed = this.options.runtime.nodeRuntimeHost.setNodeCollapsed(
+      nodeId,
+      collapsed
+    );
+
+    if (changed && beforeDocument) {
+      this.emitHistoryRecord(
+        createSnapshotHistoryRecord({
+          beforeDocument,
+          afterDocument: this.options.runtime.getGraphDocument(),
+          source: "api",
+          label: collapsed ? "Collapse Node" : "Expand Node"
+        })
+      );
+    }
+
+    return changed;
   }
 
   /** 读取某个节点的正式 resize 约束。 */
@@ -454,6 +492,13 @@ export class LeaferGraphApiHost<
     return this.options.runtime.runtimeAdapter.subscribe(listener);
   }
 
+  /** 订阅正式历史事件。 */
+  subscribeHistory(
+    listener: (event: LeaferGraphHistoryEvent) => void
+  ): () => void {
+    return this.options.runtime.historySource.subscribe(listener);
+  }
+
   /** 订阅交互活跃态变化。 */
   subscribeInteractionActivity(
     listener: (state: LeaferGraphInteractionActivityState) => void
@@ -493,6 +538,26 @@ export class LeaferGraphApiHost<
     return this.options.runtime.interactionCommitSource.subscribe(listener);
   }
 
+  /** 在内部批量操作期间暂时关闭历史捕获。 */
+  runWithoutHistoryCapture<T>(callback: () => T): T {
+    this.historyCaptureSuppressionDepth += 1;
+
+    try {
+      return callback();
+    } finally {
+      this.historyCaptureSuppressionDepth -= 1;
+    }
+  }
+
+  /** 向外发送一次历史重置事件。 */
+  notifyHistoryReset(reason: "replace-document" | "apply-document-diff"): void {
+    if (!this.shouldCaptureHistory()) {
+      return;
+    }
+
+    this.options.runtime.historySource.emit(createHistoryResetEvent(reason));
+  }
+
   /** 根据节点 ID 查询当前图中的所有关联连线。 */
   findLinksByNode(nodeId: string): GraphLink[] {
     return this.options.runtime.sceneRuntime.findLinksByNode(nodeId);
@@ -507,7 +572,139 @@ export class LeaferGraphApiHost<
   applyGraphOperation(
     operation: GraphOperation
   ): GraphOperationApplyResult {
-    return this.options.runtime.sceneRuntime.applyGraphOperation(operation);
+    const beforeDocument = this.captureDocumentBeforeHistory();
+    const beforeNodeSnapshot =
+      operation.type === "node.create"
+        ? undefined
+        : operation.type.startsWith("node.")
+          ? this.options.runtime.nodeRuntimeHost.getNodeSnapshot(
+              "nodeId" in operation ? operation.nodeId : ""
+            )
+          : undefined;
+    const beforeLink =
+      operation.type === "link.remove" || operation.type === "link.reconnect"
+        ? this.options.runtime.sceneRuntime.getLink(operation.linkId)
+        : undefined;
+    const result = this.options.runtime.sceneRuntime.applyGraphOperation(operation);
+
+    if (!result.accepted || !result.changed || !beforeDocument) {
+      return result;
+    }
+
+    switch (operation.type) {
+      case "node.create": {
+        const nodeSnapshot = result.affectedNodeIds[0]
+          ? this.options.runtime.nodeRuntimeHost.getNodeSnapshot(
+              result.affectedNodeIds[0]
+            )
+          : undefined;
+        if (nodeSnapshot) {
+          this.emitHistoryRecord(
+            createNodeCreateHistoryRecord({
+              nodeSnapshot,
+              source: operation.source || "api"
+            })
+          );
+        }
+        break;
+      }
+      case "node.move": {
+        const afterSnapshot = this.options.runtime.nodeRuntimeHost.getNodeSnapshot(
+          operation.nodeId
+        );
+        if (beforeNodeSnapshot && afterSnapshot) {
+          this.emitHistoryRecord(
+            createNodeMoveHistoryRecord({
+              nodeId: operation.nodeId,
+              before: {
+                x: beforeNodeSnapshot.layout.x,
+                y: beforeNodeSnapshot.layout.y
+              },
+              after: {
+                x: afterSnapshot.layout.x,
+                y: afterSnapshot.layout.y
+              },
+              source: operation.source || "api"
+            })
+          );
+        }
+        break;
+      }
+      case "node.resize": {
+        const afterSnapshot = this.options.runtime.nodeRuntimeHost.getNodeSnapshot(
+          operation.nodeId
+        );
+        if (beforeNodeSnapshot && afterSnapshot) {
+          this.emitHistoryRecord(
+            createNodeResizeHistoryRecord({
+              nodeId: operation.nodeId,
+              before: this.resolveNodeSizeForHistory(
+                operation.nodeId,
+                beforeNodeSnapshot
+              ),
+              after: this.resolveNodeSizeForHistory(
+                operation.nodeId,
+                afterSnapshot
+              ),
+              source: operation.source || "api"
+            })
+          );
+        }
+        break;
+      }
+      case "link.create": {
+        const link = result.affectedLinkIds[0]
+          ? this.options.runtime.sceneRuntime.getLink(result.affectedLinkIds[0])
+          : undefined;
+        if (link) {
+          this.emitHistoryRecord(
+            createLinkCreateHistoryRecord({
+              link,
+              source: operation.source || "api"
+            })
+          );
+        }
+        break;
+      }
+      case "link.remove":
+        if (beforeLink) {
+          this.emitHistoryRecord(
+            createLinkRemoveHistoryRecord({
+              link: beforeLink,
+              source: operation.source || "api"
+            })
+          );
+        }
+        break;
+      case "link.reconnect": {
+        const afterLink = this.options.runtime.sceneRuntime.getLink(operation.linkId);
+        if (beforeLink && afterLink) {
+          this.emitHistoryRecord(
+            createLinkReconnectHistoryRecord({
+              linkId: operation.linkId,
+              before: beforeLink,
+              after: afterLink,
+              source: operation.source || "api"
+            })
+          );
+        }
+        break;
+      }
+      case "node.update":
+      case "node.remove":
+      case "document.update":
+        this.emitHistoryRecord(
+          createSnapshotHistoryRecord({
+            beforeDocument,
+            afterDocument: this.options.runtime.getGraphDocument(),
+            source: operation.source || "api",
+            label: resolveSnapshotOperationLabel(operation.type)
+          })
+        );
+        break;
+    }
+
+    return result;
   }
 
   /** 解析某个节点方向和槽位对应的正式端口几何。 */
@@ -574,12 +771,36 @@ export class LeaferGraphApiHost<
 
   /** 创建一个新的节点实例并立即挂到主包场景中。 */
   createNode(input: LeaferGraphCreateNodeInput): TNodeState {
-    return this.options.runtime.sceneRuntime.createNode(input);
+    const node = this.options.runtime.sceneRuntime.createNode(input);
+    const nodeSnapshot = this.options.runtime.nodeRuntimeHost.getNodeSnapshot(node.id);
+    if (nodeSnapshot) {
+      this.emitHistoryRecord(
+        createNodeCreateHistoryRecord({
+          nodeSnapshot,
+          source: "api"
+        })
+      );
+    }
+
+    return node;
   }
 
   /** 删除一个节点，并同步清理它的全部关联连线与视图。 */
   removeNode(nodeId: string): boolean {
-    return this.options.runtime.sceneRuntime.removeNode(nodeId);
+    const beforeDocument = this.captureDocumentBeforeHistory();
+    const changed = this.options.runtime.sceneRuntime.removeNode(nodeId);
+    if (changed && beforeDocument) {
+      this.emitHistoryRecord(
+        createSnapshotHistoryRecord({
+          beforeDocument,
+          afterDocument: this.options.runtime.getGraphDocument(),
+          source: "api",
+          label: "Remove Node"
+        })
+      );
+    }
+
+    return changed;
   }
 
   /** 更新一个既有节点的静态内容与布局。 */
@@ -587,7 +808,20 @@ export class LeaferGraphApiHost<
     nodeId: string,
     input: LeaferGraphUpdateNodeInput
   ): TNodeState | undefined {
-    return this.options.runtime.sceneRuntime.updateNode(nodeId, input);
+    const beforeDocument = this.captureDocumentBeforeHistory();
+    const node = this.options.runtime.sceneRuntime.updateNode(nodeId, input);
+    if (node && beforeDocument) {
+      this.emitHistoryRecord(
+        createSnapshotHistoryRecord({
+          beforeDocument,
+          afterDocument: this.options.runtime.getGraphDocument(),
+          source: "api",
+          label: "Update Node"
+        })
+      );
+    }
+
+    return node;
   }
 
   /** 移动一个节点到新的图坐标。 */
@@ -595,7 +829,26 @@ export class LeaferGraphApiHost<
     nodeId: string,
     position: LeaferGraphMoveNodeInput
   ): TNodeState | undefined {
-    return this.options.runtime.sceneRuntime.moveNode(nodeId, position);
+    const beforeSnapshot = this.captureNodeSnapshotBeforeHistory(nodeId);
+    const node = this.options.runtime.sceneRuntime.moveNode(nodeId, position);
+    if (node && beforeSnapshot) {
+      this.emitHistoryRecord(
+        createNodeMoveHistoryRecord({
+          nodeId,
+          before: {
+            x: beforeSnapshot.layout.x,
+            y: beforeSnapshot.layout.y
+          },
+          after: {
+            x: node.layout.x,
+            y: node.layout.y
+          },
+          source: "api"
+        })
+      );
+    }
+
+    return node;
   }
 
   /** 调整一个节点的显式宽高。 */
@@ -603,25 +856,127 @@ export class LeaferGraphApiHost<
     nodeId: string,
     size: LeaferGraphResizeNodeInput
   ): TNodeState | undefined {
-    return this.options.runtime.sceneRuntime.resizeNode(nodeId, size);
+    const beforeSnapshot = this.captureNodeSnapshotBeforeHistory(nodeId);
+    const node = this.options.runtime.sceneRuntime.resizeNode(nodeId, size);
+    if (node && beforeSnapshot) {
+      const afterSnapshot = this.options.runtime.nodeRuntimeHost.getNodeSnapshot(nodeId);
+      if (afterSnapshot) {
+        this.emitHistoryRecord(
+          createNodeResizeHistoryRecord({
+            nodeId,
+            before: this.resolveNodeSizeForHistory(nodeId, beforeSnapshot),
+            after: this.resolveNodeSizeForHistory(nodeId, afterSnapshot),
+            source: "api"
+          })
+        );
+      }
+    }
+
+    return node;
   }
 
   /** 创建一条正式连线并加入当前图状态。 */
   createLink(input: LeaferGraphCreateLinkInput): GraphLink {
-    return this.options.runtime.sceneRuntime.createLink(input);
+    const link = this.options.runtime.sceneRuntime.createLink(input);
+    this.emitHistoryRecord(
+      createLinkCreateHistoryRecord({
+        link,
+        source: "api"
+      })
+    );
+    return link;
   }
 
   /** 删除一条既有连线。 */
   removeLink(linkId: string): boolean {
-    return this.options.runtime.sceneRuntime.removeLink(linkId);
+    const beforeLink = this.shouldCaptureHistory()
+      ? this.options.runtime.sceneRuntime.getLink(linkId)
+      : undefined;
+    const changed = this.options.runtime.sceneRuntime.removeLink(linkId);
+    if (changed && beforeLink) {
+      this.emitHistoryRecord(
+        createLinkRemoveHistoryRecord({
+          link: beforeLink,
+          source: "api"
+        })
+      );
+    }
+
+    return changed;
   }
 
   /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
   setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
-    this.options.runtime.sceneRuntime.setNodeWidgetValue(
+    const beforeDocument = this.captureDocumentBeforeHistory();
+    const changed = this.options.runtime.sceneRuntime.setNodeWidgetValue(
       nodeId,
       widgetIndex,
       newValue
     );
+    if (changed && beforeDocument) {
+      this.emitHistoryRecord(
+        createSnapshotHistoryRecord({
+          beforeDocument,
+          afterDocument: this.options.runtime.getGraphDocument(),
+          source: "api",
+          label: "Update Widget"
+        })
+      );
+    }
+  }
+
+  private shouldCaptureHistory(): boolean {
+    return this.historyCaptureSuppressionDepth === 0;
+  }
+
+  private captureDocumentBeforeHistory(): GraphDocument | null {
+    if (!this.shouldCaptureHistory()) {
+      return null;
+    }
+
+    return this.options.runtime.getGraphDocument();
+  }
+
+  private captureNodeSnapshotBeforeHistory(
+    nodeId: string
+  ): NodeSerializeResult | undefined {
+    if (!this.shouldCaptureHistory()) {
+      return undefined;
+    }
+
+    return this.options.runtime.nodeRuntimeHost.getNodeSnapshot(nodeId);
+  }
+
+  private resolveNodeSizeForHistory(
+    nodeId: string,
+    snapshot: NodeSerializeResult
+  ): { width: number; height: number } {
+    const constraint =
+      this.options.runtime.nodeRuntimeHost.getNodeResizeConstraint(nodeId);
+
+    return {
+      width: snapshot.layout.width ?? constraint?.defaultWidth ?? 0,
+      height: snapshot.layout.height ?? constraint?.defaultHeight ?? 0
+    };
+  }
+
+  private emitHistoryRecord(record: LeaferGraphHistoryRecord | null): void {
+    if (!record || !this.shouldCaptureHistory()) {
+      return;
+    }
+
+    this.options.runtime.historySource.emit(createHistoryRecordEvent(record));
+  }
+}
+
+function resolveSnapshotOperationLabel(type: "node.update" | "node.remove" | "document.update"): string {
+  switch (type) {
+    case "node.remove":
+      return "Remove Node";
+    case "document.update":
+      return "Update Document";
+    case "node.update":
+    default:
+      return "Update Node";
   }
 }

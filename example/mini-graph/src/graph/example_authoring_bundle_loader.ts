@@ -11,27 +11,14 @@
 import type { NodeModule } from "@leafergraph/node";
 import type { LeaferGraphNodePlugin } from "@leafergraph/contracts";
 import type { LeaferGraph } from "leafergraph";
+import {
+  EXAMPLE_AUTHORING_RUNTIME_DEPENDENCY_SPECIFIERS,
+  loadExampleAuthoringRuntimeDependency,
+  type ExampleAuthoringRuntimeDependencyNamespace as RuntimeDependencyNamespace
+} from "./example_authoring_runtime_dependencies";
 
 const GLOBAL_DEPENDENCY_KEY = "__LEAFERGRAPH_MINI_AUTHORING_BUNDLE_DEPS__";
 const dependencyShimUrlCache = new Map<string, string>();
-
-type RuntimeDependencyNamespace = Record<string, unknown>;
-type RuntimeDependencyLoader = () => Promise<RuntimeDependencyNamespace>;
-
-const RUNTIME_DEPENDENCY_LOADERS: Record<string, RuntimeDependencyLoader> = {
-  "@leafergraph/authoring": async () =>
-    (await import("@leafergraph/authoring")) as RuntimeDependencyNamespace,
-  "@leafergraph/execution": async () =>
-    (await import("@leafergraph/execution")) as RuntimeDependencyNamespace,
-  "@leafergraph/contracts": async () =>
-    (await import("@leafergraph/contracts")) as RuntimeDependencyNamespace,
-  "@leafergraph/node": async () =>
-    (await import("@leafergraph/node")) as RuntimeDependencyNamespace,
-  "leafer-ui": async () =>
-    (await import("leafer-ui")) as RuntimeDependencyNamespace,
-  leafergraph: async () =>
-    (await import("leafergraph")) as RuntimeDependencyNamespace
-};
 
 /** 单个 bundle 成功解析后对外暴露的最小注册结果。 */
 export interface ExampleAuthoringBundleRegistration {
@@ -72,7 +59,7 @@ async function rewriteRuntimeDependencies(
 ): Promise<string> {
   let nextSource = sourceText;
 
-  for (const specifier of Object.keys(RUNTIME_DEPENDENCY_LOADERS)) {
+  for (const specifier of EXAMPLE_AUTHORING_RUNTIME_DEPENDENCY_SPECIFIERS) {
     if (!nextSource.includes(specifier)) {
       continue;
     }
@@ -96,13 +83,8 @@ async function ensureRuntimeDependencyShim(
     return cachedUrl;
   }
 
-  const load = RUNTIME_DEPENDENCY_LOADERS[specifier];
-  if (!load) {
-    throw new Error(`mini-graph 暂不支持依赖 ${specifier}`);
-  }
-
   const registry = getRuntimeDependencyRegistry();
-  registry[specifier] = await load();
+  registry[specifier] = await loadExampleAuthoringRuntimeDependency(specifier);
 
   const exportLines = buildDependencyExportLines(specifier, registry[specifier]);
   const shimUrl = URL.createObjectURL(

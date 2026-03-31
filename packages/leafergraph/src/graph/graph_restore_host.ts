@@ -14,6 +14,8 @@ import {
   type NodeSerializeResult
 } from "@leafergraph/node";
 import { normalizeGraphLinkData } from "./graph_mutation_host";
+import { cloneGraphDocumentRootState } from "./graph_history";
+import type { GraphDocumentRootState } from "./graph_runtime_types";
 
 type LeaferGraphRestorableNodeState = NodeRuntimeState;
 
@@ -33,6 +35,7 @@ interface LeaferGraphRestoreHostOptions<
   TNodeViewState
 > {
   nodeRegistry: NodeRegistry;
+  graphDocument: GraphDocumentRootState;
   graphNodes: Map<string, TNodeState>;
   graphLinks: Map<string, GraphLink>;
   nodeViews: Map<string, TNodeViewState>;
@@ -89,6 +92,10 @@ export class LeaferGraphRestoreHost<
     this.options.resetRuntimeState();
     this.options.resetNodeExecutionStates();
     this.options.resetGraphExecutionState();
+    Object.assign(
+      this.options.graphDocument,
+      cloneGraphDocumentRootState(resolvedDocument)
+    );
     this.options.graphNodes.clear();
     this.options.graphLinks.clear();
     this.options.nodeViews.clear();

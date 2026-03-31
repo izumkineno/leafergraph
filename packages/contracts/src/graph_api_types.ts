@@ -9,6 +9,7 @@
 import type {
   AdapterBinding,
   CapabilityProfile,
+  GraphDocument,
   GraphLink,
   GraphLinkEndpoint,
   NodeFlags,
@@ -402,6 +403,52 @@ export interface GraphOperationApplyResult {
   affectedLinkIds: string[];
   reason?: string;
 }
+
+export type LeaferGraphHistoryRecordKind = "operation" | "snapshot";
+
+export interface LeaferGraphHistoryRecordBase {
+  recordId: string;
+  timestamp: number;
+  source: string;
+  label?: string;
+}
+
+export interface LeaferGraphOperationHistoryRecord
+  extends LeaferGraphHistoryRecordBase {
+  kind: "operation";
+  undoOperations: GraphOperation[];
+  redoOperations: GraphOperation[];
+}
+
+export interface LeaferGraphSnapshotHistoryRecord
+  extends LeaferGraphHistoryRecordBase {
+  kind: "snapshot";
+  beforeDocument: GraphDocument;
+  afterDocument: GraphDocument;
+}
+
+export type LeaferGraphHistoryRecord =
+  | LeaferGraphOperationHistoryRecord
+  | LeaferGraphSnapshotHistoryRecord;
+
+export type LeaferGraphHistoryResetReason =
+  | "replace-document"
+  | "apply-document-diff";
+
+export interface LeaferGraphHistoryRecordEvent {
+  type: "history.record";
+  record: LeaferGraphHistoryRecord;
+}
+
+export interface LeaferGraphHistoryResetEvent {
+  type: "history.reset";
+  timestamp: number;
+  reason: LeaferGraphHistoryResetReason;
+}
+
+export type LeaferGraphHistoryEvent =
+  | LeaferGraphHistoryRecordEvent
+  | LeaferGraphHistoryResetEvent;
 
 export interface LeaferGraphNodeMoveCommitEntry {
   nodeId: string;

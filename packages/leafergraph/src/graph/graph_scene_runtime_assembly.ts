@@ -299,6 +299,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
   });
 
   sceneRuntimeHost = new LeaferGraphSceneRuntimeHost({
+    graphDocument: options.graphState.document,
     graphNodes: options.graphState.nodes,
     nodeViews: options.nodeViews,
     sceneHost,
@@ -414,6 +415,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     NodeViewState<TNodeState>
   >({
     nodeRegistry: options.nodeRegistry,
+    graphDocument: options.graphState.document,
     graphNodes: options.graphState.nodes,
     graphLinks: options.graphState.links,
     nodeViews: options.nodeViews,

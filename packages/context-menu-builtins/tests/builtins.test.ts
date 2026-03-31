@@ -20,25 +20,53 @@ import {
 } from "../src/index";
 
 describe("@leafergraph/context-menu-builtins", () => {
-  it("只会注册显式启用的功能 resolver", () => {
+  it("默认会注册常用 builtins resolver", () => {
     const menu = new FakeMenu();
     const host = createFakeHost();
+    const history = createFakeHistory();
 
     const dispose = registerLeaferGraphContextMenuBuiltins(menu as never, {
       host,
-      features: {
-        canvasControls: true,
-        nodeDelete: true
-      }
+      history
     });
 
     expect(menu.keys()).toEqual([
+      "builtin:canvasUndo:canvas-undo",
+      "builtin:canvasRedo:canvas-redo",
+      "builtin:canvasSelectAll:canvas-select-all",
       "builtin:canvasControls:canvas-controls",
-      "builtin:nodeDelete:node-delete"
+      "builtin:canvasAddNode:canvas-add-node",
+      "builtin:canvasPaste:canvas-paste",
+      "builtin:canvasDeleteSelection:canvas-delete-selection",
+      "builtin:nodeRunFromHere:node-run-from-here",
+      "builtin:nodeCopy:node-copy",
+      "builtin:nodeCut:node-cut",
+      "builtin:nodeDuplicate:node-duplicate",
+      "builtin:nodeDelete:node-delete",
+      "builtin:linkDelete:link-delete"
     ]);
 
     dispose();
     expect(menu.keys()).toEqual([]);
+  });
+
+  it("可以通过显式 false 关闭默认启用的功能", () => {
+    const menu = new FakeMenu();
+    const host = createFakeHost();
+
+    registerLeaferGraphContextMenuBuiltins(menu as never, {
+      host,
+      features: {
+        canvasUndo: false,
+        nodeCopy: false,
+        linkDelete: false
+      }
+    });
+
+    expect(menu.keys()).not.toContain("builtin:canvasUndo:canvas-undo");
+    expect(menu.keys()).not.toContain("builtin:nodeCopy:node-copy");
+    expect(menu.keys()).not.toContain("builtin:linkDelete:link-delete");
+    expect(menu.keys()).toContain("builtin:nodeDelete:node-delete");
   });
 
   it("节点复制后可以在画布粘贴节点和片段内连线", () => {
@@ -47,24 +75,34 @@ describe("@leafergraph/context-menu-builtins", () => {
 
     registerLeaferGraphContextMenuBuiltins(menu as never, {
       host,
-      features: {
-        nodeCopy: true,
-        canvasPaste: true
+      resolveShortcutLabel(actionId) {
+        switch (actionId) {
+          case "graph.copy":
+            return "Ctrl+C";
+          case "graph.paste":
+            return "Ctrl+V";
+          default:
+            return undefined;
+        }
       }
     });
 
     const nodeItems = menu.resolve(createContext("node", "node-1"));
     const copyItem = findActionItem(nodeItems, "builtin-node-copy");
     expect(copyItem?.disabled).toBe(false);
+    expect(copyItem?.shortcut).toBe("Ctrl+C");
     copyItem?.onSelect?.(createContext("node", "node-1"));
 
     const pasteContext = createContext("canvas", undefined, {
-      x: 240,
-      y: 160
+      pagePoint: {
+        x: 240,
+        y: 160
+      }
     });
     const canvasItems = menu.resolve(pasteContext);
     const pasteItem = findActionItem(canvasItems, "builtin-canvas-paste");
     expect(pasteItem?.disabled).toBe(false);
+    expect(pasteItem?.shortcut).toBe("Ctrl+V");
     pasteItem?.onSelect?.(pasteContext);
 
     expect(host.createdNodes).toHaveLength(1);
@@ -106,6 +144,50 @@ describe("@leafergraph/context-menu-builtins", () => {
 
     expect(host.removedNodeGroups).toEqual([["node-1", "node-2"]]);
     expect(host.removedSingleNodeIds).toEqual([]);
+  });
+
+  it("从注册表添加节点会优先使用 pagePoint，避免缩放后的坐标漂移", () => {
+    const menu = new FakeMenu();
+    const host = createFakeHost();
+
+    registerLeaferGraphContextMenuBuiltins(menu as never, {
+      host,
+      features: {
+        canvasAddNode: true
+      }
+    });
+
+    const canvasContext = createContext("canvas", undefined, {
+      pagePoint: {
+        x: 360,
+        y: 220
+      },
+      worldPoint: {
+        x: 520,
+        y: 340
+      }
+    });
+    const canvasItems = menu.resolve(canvasContext);
+    const addNodeItem = canvasItems.find(
+      (item): item is Extract<LeaferContextMenuItem, { kind: "submenu" }> =>
+        "key" in item &&
+        item.key === "builtin-canvas-add-node" &&
+        item.kind === "submenu"
+    );
+    const categoryItem = addNodeItem?.children?.find(
+      (item): item is Extract<LeaferContextMenuItem, { kind: "submenu" }> =>
+        "key" in item && item.kind === "submenu"
+    );
+    const nodeItem = findActionItem(categoryItem?.children ?? [], "builtin-canvas-add-node:system/on-play");
+
+    nodeItem?.onSelect?.(canvasContext);
+
+    expect(host.createdNodes).toHaveLength(1);
+    expect(host.createdNodes[0]).toMatchObject({
+      type: "system/on-play",
+      x: 360,
+      y: 220
+    });
   });
 
   it("缺少 removeNodes 时会回退到逐个 removeNode", () => {
@@ -198,9 +280,15 @@ class FakeMenu {
 function createContext(
   kind: LeaferContextMenuContext["target"]["kind"],
   id?: string,
-  worldPoint?: {
-    x: number;
-    y: number;
+  points?: {
+    pagePoint?: {
+      x: number;
+      y: number;
+    };
+    worldPoint?: {
+      x: number;
+      y: number;
+    };
   }
 ): LeaferContextMenuContext {
   return {
@@ -211,10 +299,10 @@ function createContext(
       id
     },
     triggerReason: "manual",
-    pagePoint: { x: 24, y: 24 },
+    pagePoint: points?.pagePoint ?? { x: 24, y: 24 },
     clientPoint: { x: 24, y: 24 },
     containerPoint: { x: 24, y: 24 },
-    worldPoint
+    worldPoint: points?.worldPoint
   };
 }
 
@@ -341,6 +429,9 @@ function createFakeHost(options?: {
         }
       ];
     },
+    listNodeIds() {
+      return [...snapshots.keys()];
+    },
     getNodeSnapshot(nodeId: string) {
       return snapshots.get(nodeId);
     },
@@ -439,4 +530,39 @@ function createFakeHost(options?: {
   }
 
   return host;
+}
+
+function createFakeHistory(options?: {
+  canUndo?: boolean;
+  canRedo?: boolean;
+}) {
+  const state = {
+    undoCount: 0,
+    redoCount: 0,
+    canUndo: options?.canUndo ?? true,
+    canRedo: options?.canRedo ?? true
+  };
+
+  return {
+    get undoCount() {
+      return state.undoCount;
+    },
+    get redoCount() {
+      return state.redoCount;
+    },
+    undo() {
+      state.undoCount += 1;
+      return state.canUndo;
+    },
+    redo() {
+      state.redoCount += 1;
+      return state.canRedo;
+    },
+    canUndo() {
+      return state.canUndo;
+    },
+    canRedo() {
+      return state.canRedo;
+    }
+  };
 }

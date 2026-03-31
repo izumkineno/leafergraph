@@ -2,10 +2,16 @@ import type { LeaferContextMenu } from "@leafergraph/context-menu";
 import { getSharedLeaferGraphContextMenuClipboardStore } from "./clipboard_store";
 import { canvasAddNodeFeature } from "./features/canvas_add_node_feature";
 import { canvasControlsFeature } from "./features/canvas_controls_feature";
+import { canvasDeleteSelectionFeature } from "./features/canvas_delete_selection_feature";
 import { canvasPasteFeature } from "./features/canvas_paste_feature";
+import { canvasRedoFeature } from "./features/canvas_redo_feature";
+import { canvasSelectAllFeature } from "./features/canvas_select_all_feature";
+import { canvasUndoFeature } from "./features/canvas_undo_feature";
 import { linkDeleteFeature } from "./features/link_delete_feature";
 import { nodeCopyFeature } from "./features/node_copy_feature";
+import { nodeCutFeature } from "./features/node_cut_feature";
 import { nodeDeleteFeature } from "./features/node_delete_feature";
+import { nodeDuplicateFeature } from "./features/node_duplicate_feature";
 import { nodeRunFromHereFeature } from "./features/node_run_from_here_feature";
 import type {
   LeaferGraphContextMenuBuiltinFeatureDefinition,
@@ -14,14 +20,36 @@ import type {
 } from "./types";
 
 const BUILTIN_FEATURE_DEFINITIONS: readonly LeaferGraphContextMenuBuiltinFeatureDefinition[] = [
+  canvasUndoFeature,
+  canvasRedoFeature,
+  canvasSelectAllFeature,
   canvasControlsFeature,
   canvasAddNodeFeature,
   canvasPasteFeature,
+  canvasDeleteSelectionFeature,
   nodeRunFromHereFeature,
   nodeCopyFeature,
+  nodeCutFeature,
+  nodeDuplicateFeature,
   nodeDeleteFeature,
   linkDeleteFeature
 ];
+
+const DEFAULT_ENABLED_FEATURES = new Set<keyof LeaferGraphContextMenuBuiltinFeatureFlags>([
+  "canvasUndo",
+  "canvasRedo",
+  "canvasSelectAll",
+  "canvasControls",
+  "canvasAddNode",
+  "canvasPaste",
+  "canvasDeleteSelection",
+  "nodeRunFromHere",
+  "nodeCopy",
+  "nodeCut",
+  "nodeDuplicate",
+  "nodeDelete",
+  "linkDelete"
+]);
 
 export function registerLeaferGraphContextMenuBuiltins(
   menu: LeaferContextMenu,
@@ -42,7 +70,10 @@ export function registerLeaferGraphContextMenuBuiltins(
         menu,
         host,
         clipboard,
+        history: options.history,
         options,
+        resolveShortcutLabel: (actionId) =>
+          options.resolveShortcutLabel?.(actionId),
         registerResolver: (key, resolver) =>
           menu.registerResolver(`builtin:${definition.id}:${key}`, resolver),
         createNode: (input, context) => host.createNode(input, context),
@@ -90,14 +121,14 @@ export function registerLeaferGraphContextMenuBuiltins(
 }
 
 function isBuiltinFeatureEnabled(
-  features: LeaferGraphContextMenuBuiltinFeatureFlags,
+  features: LeaferGraphContextMenuBuiltinFeatureFlags | undefined,
   key: keyof LeaferGraphContextMenuBuiltinFeatureFlags
 ): boolean {
-  const feature = features[key];
-  if (feature === undefined) {
-    return false;
+  if (features === undefined || features[key] === undefined) {
+    return DEFAULT_ENABLED_FEATURES.has(key);
   }
 
+  const feature = features[key];
   if (typeof feature === "boolean") {
     return feature;
   }

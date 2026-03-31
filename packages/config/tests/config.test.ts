@@ -36,6 +36,10 @@ describe("@leafergraph/config", () => {
         },
         runtime: {
           linkPropagationAnimation: "performance"
+        },
+        history: {
+          maxEntries: 100,
+          resetOnDocumentSync: true
         }
       },
       widget: {
@@ -87,6 +91,10 @@ describe("@leafergraph/config", () => {
         },
         runtime: {
           linkPropagationAnimation: false
+        },
+        history: {
+          maxEntries: 24,
+          resetOnDocumentSync: false
         }
       },
       widget: {
@@ -113,6 +121,8 @@ describe("@leafergraph/config", () => {
     expect(config.graph.fill).toBe("#101828");
     expect(config.graph.view.defaultFitPadding).toBe(96);
     expect(config.graph.runtime.linkPropagationAnimation).toBe(false);
+    expect(config.graph.history.maxEntries).toBe(24);
+    expect(config.graph.history.resetOnDocumentSync).toBe(false);
     expect(config.widget.editing.enabled).toBe(true);
     expect(config.widget.editing.allowOptionsMenu).toBe(false);
     expect(config.widget.editing.useOfficialTextEditor).toBe(true);
@@ -122,6 +132,21 @@ describe("@leafergraph/config", () => {
     expect(config.leafer.viewport.move.scroll).toBe("x");
     expect(config.leafer.view.fitPadding).toBe(96);
     expect(config.leafer.textEditor.useOfficialTextEditor).toBe(true);
+  });
+
+  test("history 默认值应做最小归一化", () => {
+    expect(
+      normalizeLeaferGraphConfig({
+        graph: {
+          history: {
+            maxEntries: -4
+          }
+        }
+      }).graph.history
+    ).toEqual({
+      maxEntries: 0,
+      resetOnDocumentSync: true
+    });
   });
 
   test("默认右键菜单配置应保持既有行为", () => {

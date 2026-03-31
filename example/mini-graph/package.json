@@ -16,7 +16,9 @@
     "@leafergraph/context-menu-builtins": "workspace:*",
     "@leafergraph/execution": "workspace:*",
     "@leafergraph/node": "workspace:*",
+    "@leafergraph/shortcuts": "workspace:*",
     "@leafergraph/theme": "workspace:*",
+    "@leafergraph/undo-redo": "workspace:*",
     "leafer-ui": "^2.0.3",
     "leafergraph": "workspace:*",
     "preact": "^10.29.0"
