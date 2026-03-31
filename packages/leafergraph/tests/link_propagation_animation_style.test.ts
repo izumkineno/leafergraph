@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createDefaultDataFlowAnimationStyleConfig } from "../src/graph/graph_runtime_style";
+import { createDefaultDataFlowAnimationStyleConfig } from "../src/graph/style";
 
 describe("link_propagation_animation_style", () => {
   test("performance 预设应默认开启 pulse 并关闭 travelling 粒子", () => {
