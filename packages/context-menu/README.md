@@ -1,26 +1,37 @@
-# @leafergraph/context-menu
+# `@leafergraph/context-menu`
 
-`@leafergraph/context-menu` 是一个纯 Leafer-first 的右键菜单 runtime 包。
+`@leafergraph/context-menu` 是纯 Leafer-first 的右键菜单 runtime 包。
 
-它的产品定位已经明确收口：
+它负责菜单目标绑定、resolver 链和 DOM overlay；它不再承载 `leafergraph` 专属 builtins，也不依赖主包。
 
-- 唯一正式触发源是 Leafer `pointer.menu`
-- 菜单展示仍然通过内部 DOM overlay 完成
-- 外部只使用单一公开入口，不再拼装 controller、renderer 或 adapter
+## 包定位
 
-## 适用场景
+适合直接依赖它的场景：
 
-- LeaferGraph 节点图右键菜单
-- 需要按 `canvas / node / link / custom` 分类出菜单的 Leafer 应用
-- 需要级联子菜单、checkbox/radio、目标重绑和 hover+click 子菜单交互的场景
+- 需要一个基于 Leafer `pointer.menu` 的右键菜单 runtime
+- 需要按 `canvas / node / link / custom` 分类动态生成菜单
+- 需要子菜单、checkbox、radio、group 等结构化菜单项
 
-它不再面向这些场景：
+不适合直接把它当成：
 
-- 纯 DOM 页面右键菜单
-- 脱离 Leafer 事件系统的独立 Web 菜单框架
-- 通过 `core` / `dom` / `adapters/*` 子路径做自定义拼装
+- 图运行时主包
+- 内建菜单动作包
+- 通用 DOM 菜单框架
 
-## 快速开始
+## 公开入口
+
+根入口当前只保留纯菜单 runtime API：
+
+- `createLeaferContextMenu(...)`
+- `LEAFER_POINTER_MENU_EVENT`
+- `LeaferContextMenu`
+- `LeaferContextMenuItem`
+- `LeaferContextMenuContext`
+- `LeaferContextMenuTarget`
+
+配置真源来自 `@leafergraph/config`，主题 token 来自 `@leafergraph/theme`。
+
+## 最小使用方式
 
 ```ts
 import { createLeaferContextMenu } from "@leafergraph/context-menu";
@@ -56,129 +67,33 @@ const menu = createLeaferContextMenu({
   }
 });
 
-await graph.ready;
-
-menu.bindCanvas(graph.app, {
-  title: "画布"
-});
-
-const nodeView = graph.getNodeView("node-1");
-if (nodeView) {
-  menu.bindNode("node:node-1", nodeView, {
-    id: "node-1",
-    title: "示例节点"
-  });
-}
+menu.bindCanvas(graph.app, { title: "画布" });
 ```
 
-销毁时：
+如果你要直接接节点图常见动作，请额外装：
 
-```ts
-menu.destroy();
+- `@leafergraph/context-menu-builtins`
+
+## 与其它包的边界
+
+| 包 | 关系 |
+| --- | --- |
+| `@leafergraph/context-menu` | 纯菜单 runtime |
+| `@leafergraph/context-menu-builtins` | 节点图内建菜单动作集成层 |
+| `@leafergraph/config` | 菜单行为配置真源 |
+| `@leafergraph/theme` | 菜单视觉 token 真源 |
+
+## 常用命令
+
+在 workspace 根目录执行：
+
+```bash
+bun run build:context-menu
+bun run test:context-menu
 ```
 
-如果节点或连线在 `replaceGraphDocument(...)` 之后被重建，需要重新绑定新的 view 引用。
+## 继续阅读
 
-如果你希望右键菜单跟随宿主视觉主题，推荐同时传：
-
-- `themePreset`
-- `resolveThemeMode()`
-
-菜单会在每次打开时重新解析 `@leafergraph/theme` 中对应 preset + mode 的 token。
-
-如果你希望调整子菜单交互默认值，请通过 `config` 传入：
-
-```ts
-const menu = createLeaferContextMenu({
-  app: graph.app,
-  container,
-  config: {
-    submenu: {
-      triggerMode: "hover",
-      openDelay: 0,
-      closeDelay: 100
-    }
-  }
-});
-```
-
-如果你希望直接拿到 `leafergraph` 节点图内建动作，请额外安装并接入 `@leafergraph/context-menu-builtins`。
-
-## 默认交互语义
-
-- 根菜单默认由 Leafer `pointer.menu` 打开
-- 子菜单默认触发策略是 `hover+click`
-- 粗指针环境会自动把 hover 退化为 click
-- 默认 `config.submenu.openDelay = 0`
-- 默认 `config.submenu.closeDelay = 100`
-- 默认支持：
-  - `action`
-  - `separator`
-  - `group`
-  - `submenu`
-  - `checkbox`
-  - `radio`
-
-## 公开 API
-
-根导出只保留下面这组 Leafer-only API：
-
-- `createLeaferContextMenu(options)`
-- `LEAFER_POINTER_MENU_EVENT`
-- `LeaferContextMenu`
-- `LeaferContextMenuOptions`
-- `LeaferContextMenuContext`
-- `LeaferContextMenuTarget`
-- `LeaferContextMenuBinding`
-- `LeaferContextMenuItem`
-- `LeaferContextMenuActionItem`
-- `LeaferContextMenuSubmenuItem`
-- `LeaferContextMenuCheckboxItem`
-- `LeaferContextMenuRadioItem`
-- `LeaferContextMenuGroupItem`
-- `LeaferContextMenuSeparatorItem`
-- `LeaferPointerMenuEvent`
-
-`createLeaferContextMenu(...)` 返回的句柄固定包含这些方法：
-
-- `bindCanvas(target?, meta?)`
-- `bindNode(key, target, meta?)`
-- `bindLink(key, target, meta?)`
-- `bindTarget(binding)`
-- `unbindTarget(key)`
-- `setResolver(resolver?)`
-- `registerResolver(key, resolver)`
-- `unregisterResolver(key)`
-- `open(context, items?)`
-- `close()`
-- `isOpen()`
-- `destroy()`
-
-## 目标分类与菜单过滤
-
-每次打开菜单时，当前命中目标都会被归一成 `LeaferContextMenuTarget`：
-
-```ts
-interface LeaferContextMenuTarget {
-  kind: "canvas" | "node" | "link" | "custom" | string;
-  id?: string;
-  meta?: Record<string, unknown>;
-  data?: unknown;
-}
-```
-
-菜单项可以直接根据目标分类控制显隐和可用状态：
-
-- `targetKinds`
-- `excludeTargetKinds`
-- `when(context)`
-- `enableWhen(context)`
-
-因此“右键到节点和右键到画布不一样”通常不需要外层硬编码分支，直接交给 resolver 和菜单项过滤即可。
-
-## 与 leafergraph 的关系
-
-- `leafergraph` 主包不再导出旧菜单兼容入口
-- 右键菜单 runtime 请直接使用 `@leafergraph/context-menu`
-- 节点图内建菜单动作请使用 `@leafergraph/context-menu-builtins`
-- `example/mini-graph` 是当前最小的 Leafer 菜单接入示例之一
+- [根 README](../../README.md)
+- [@leafergraph/context-menu-builtins README](../context-menu-builtins/README.md)
+- [mini-graph README](../../example/mini-graph/README.md)

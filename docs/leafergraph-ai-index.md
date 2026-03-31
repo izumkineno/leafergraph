@@ -1,108 +1,105 @@
 # leafergraph AI / 工程导航索引
 
-生成时间: 2026-03-28
+## 文档信息
+
+- 当前状态：现状索引
+- 最近校对：2026-03-31
+- 适用范围：整个 `leafergraph` workspace
+- 互补文档：
+  - 根入口看 [`README.md`](../README.md)
+  - 主包维护看 [`packages/leafergraph/内部架构地图.md`](../packages/leafergraph/内部架构地图.md)
+  - 前瞻提案看 [`架构演进与提案总览.md`](./架构演进与提案总览.md)
 
 ## 1. 索引目标
 
-- 只为当前仓库里仍然存在的目录和文档提供导航入口。
-- 优先回答下面这些问题：
-  - `NodeDefinition`、`NodeModule`、`GraphDocument` 在哪
-  - 类式节点 / Widget 作者层怎么写
-  - 图运行时、交互、刷新链和执行反馈在哪
-  - 模板工程从哪里开始看
-- 历史上已经删除的目录不再作为当前索引入口。
+这份索引只回答“当前仓库里真实存在、仍在维护的入口在哪”。
 
-## 2. 项目类型识别结果
+它适合下面两类场景：
 
-| 识别结果 | 结论 | 依据 |
+- 你在 IDE、脚本或自动化工具里快速定位包、文档和模板
+- 你需要先选阅读顺序，再决定是否深入源码
+
+它不承担：
+
+- 包 README 的使用说明
+- 主包内部装配细节
+- 前瞻性方案讨论
+
+## 2. 当前仓库结构
+
+| 路径 | 定位 | 优先看什么 |
 | --- | --- | --- |
-| 主类型 | `workspace + graph runtime sdk + templates` | 根目录当前保留 `packages/`、`templates/`、`docs/` |
-| 模型层 | `@leafergraph/node` | `packages/node` 提供节点定义、注册表与图文档模型 |
-| 作者层 | `@leafergraph/authoring` | `packages/authoring` 提供类式作者体验与 plugin 组装 |
-| 运行时层 | `leafergraph` | `packages/leafergraph` 提供图宿主、交互、执行与刷新链 |
-| 模板层 | `authoring templates` | `templates/node`、`templates/widget`、`templates/misc` 提供外部接入模板 |
+| `README.md` | workspace 总入口 | 包分层、命令面、阅读导航 |
+| `packages/` | 正式包源码 | 各包 README 与真实导出 |
+| `example/` | 维护中的示例工程 | `mini-graph` 与 `authoring-basic-nodes` |
+| `templates/` | 可复制模板工程 | 节点、Widget、browser bundle 模板 |
+| `docs/` | 专题和维护文档 | 事实型专题、AI 索引、提案总览 |
+| `注意事项.md` | 工程踩坑记录 | 坐标系、交互和文档维护注意点 |
 
-## 3. 仓库全景
+## 3. 包级速览
 
-### 3.1 根目录主要组成
-
-- `packages/`
-  - 正式包源码
-- `templates/`
-  - 可复制出去的模板工程
-- `docs/`
-  - 当前仍维护的设计文档
-
-### 3.2 包级职责
-
-| 包 | 角色 | 负责什么 | 不负责什么 |
-| --- | --- | --- | --- |
-| `@leafergraph/node` | 模型真源 | `NodeDefinition`、`NodeModule`、`NodeRegistry`、`GraphDocument`、序列化模型 | Leafer 宿主、页面壳层 |
-| `@leafergraph/authoring` | 作者层 SDK | 节点类、Widget 类、plugin / module 组装 | 模型真源、图宿主、宿主专属装配协议 |
-| `leafergraph` | 图运行时宿主 | Leafer 场景恢复、节点 / 连线 / Widget 渲染、交互与运行反馈 | 页面壳层、外部宿主协议 |
-
-### 3.3 模板职责
-
-| 路径 | 定位 | 适合查什么 |
+| 包 | 角色 | 适合查什么 |
 | --- | --- | --- |
-| `templates/node/authoring-node-template` | 节点作者模板 | 节点类、模块收口、`node.iife.js` 产物 |
-| `templates/widget/authoring-text-widget-template` | Widget 作者模板 | 展示型 Widget、`widget.iife.js` 产物 |
-| `templates/misc/authoring-browser-plugin-template` | 组合模板 | node / widget / demo 的 browser bundle 组合方式 |
-| `templates/misc/backend-node-package-template` | 后端节点包模板 | 结构化前端 bundle 和后端节点包约定 |
-| `templates/backend/` | 预留分类目录 | 当前没有活动中的模板 README |
+| `@leafergraph/node` | 模型真源 | `NodeDefinition`、`GraphDocument`、`NodeRegistry` |
+| `@leafergraph/theme` | 视觉主题真源 | `themePreset`、`themeMode`、graph/widget/context-menu token |
+| `@leafergraph/config` | 非视觉配置真源 | `graph`、`widget`、`context-menu`、`leafer` 配置 |
+| `@leafergraph/execution` | 执行内核 | 执行上下文、传播语义、状态机、反馈 |
+| `@leafergraph/contracts` | 公共契约层 | 插件协议、图 API 输入输出、Widget 契约、diff/history helper |
+| `@leafergraph/widget-runtime` | Widget runtime 真源 | registry、renderer lifecycle、editing、interaction helper |
+| `@leafergraph/basic-kit` | 默认内容包 | 系统节点、基础 widgets、一键安装 plugin |
+| `leafergraph` | 图运行时主包 | `LeaferGraph`、`createLeaferGraph(...)`、主包 façade |
+| `@leafergraph/context-menu` | 纯菜单 runtime | target 绑定、resolver、DOM overlay |
+| `@leafergraph/context-menu-builtins` | 节点图菜单集成层 | copy/paste/delete/run/undo/redo 等内建动作 |
+| `@leafergraph/shortcuts` | 宿主输入扩展 | 按键注册表、功能注册表、graph 快捷键预设 |
+| `@leafergraph/undo-redo` | 宿主状态扩展 | 历史栈、graph history feed 绑定 |
+| `@leafergraph/authoring` | 作者层 SDK | `BaseNode`、`BaseWidget`、plugin / module 组装 |
 
 ## 4. 推荐阅读顺序
 
+### 想先用起来
+
 1. `README.md`
-2. `packages/node/README.md`
-3. `packages/authoring/README.md`
-4. `packages/leafergraph/README.md`
-5. `packages/leafergraph/使用与扩展指南.md`
-6. `packages/leafergraph/内部架构地图.md`
-7. `templates/README.md`
-8. `docs/节点API方案.md`
-9. `docs/节点插件接入方案.md`
-10. `docs/开发者友好节点作者层与接入包方案.md`
-11. `docs/连线路由.md`
+2. `packages/leafergraph/README.md`
+3. `packages/leafergraph/使用与扩展指南.md`
+4. `example/mini-graph/README.md`
 
-## 5. 关键目录导航
+### 想理解模型和扩展真源
 
-| 路径 | 定位 | 适合查什么 |
-| --- | --- | --- |
-| `README.md` | workspace 总入口 | 当前目录、推荐阅读顺序、常用命令 |
-| `packages/node/src/` | 模型层源码 | 图文档、节点定义、注册表、序列化 |
-| `packages/authoring/src/` | 作者层源码 | 类式节点 / Widget 作者体验、plugin / module 组装 |
-| `packages/leafergraph/src/graph/` | 图运行时 | 图场景、运行时数据与生命周期 |
-| `packages/leafergraph/src/interaction/` | 交互层 | 选择、拖拽、连接、菜单基础设施 |
-| `packages/leafergraph/src/link/` | 连线层 | link 渲染与路由 |
-| `packages/leafergraph/src/node/` | 节点运行时 | 节点实例、布局、宿主逻辑 |
-| `packages/leafergraph/src/widgets/` | Widget 宿主层 | widget 注册、渲染与交互 |
-| `templates/` | 模板入口 | 外部节点 / Widget / browser bundle 模板 |
-| `docs/` | 当前维护文档 | 节点 API、接入边界、作者层方案、连线路由 |
+1. `packages/node/README.md`
+2. `packages/contracts/README.md`
+3. `packages/theme/README.md`
+4. `packages/config/README.md`
+5. `docs/节点API方案.md`
+6. `docs/节点插件接入方案.md`
 
-## 6. 常用命令
+### 想写作者层或复制模板
 
-- `bun install`
-- `bun run build:node`
-- `bun run build:authoring`
-- `bun run build:leafergraph`
+1. `packages/authoring/README.md`
+2. `example/authoring-basic-nodes/README.md`
+3. `templates/README.md`
+4. `docs/架构演进与提案总览.md`
 
-## 7. 查询路由
+### 想维护主包内部
 
-| 如果你要问 | 先看哪里 |
+1. `packages/leafergraph/README.md`
+2. `packages/leafergraph/内部架构地图.md`
+3. `packages/leafergraph/渲染刷新策略.md`
+4. `注意事项.md`
+
+## 5. 查询路由
+
+| 你现在的问题 | 先看哪里 |
 | --- | --- |
-| 节点定义、GraphDocument、NodeRegistry 在哪 | `packages/node/README.md`、`packages/node/src/` |
-| 节点作者层和 Widget 作者层怎么写 | `packages/authoring/README.md`、`packages/authoring/src/` |
-| 浏览器里怎么恢复一张图并运行 | `packages/leafergraph/README.md`、`packages/leafergraph/使用与扩展指南.md` |
-| 图运行时、刷新链、交互宿主在哪 | `packages/leafergraph/内部架构地图.md`、`packages/leafergraph/src/` |
-| 如何复制一个外部模板工程 | `templates/README.md` |
-| 节点 API 边界和节点壳怎么拆 | `docs/节点API方案.md` |
-| 外部节点怎样接进来 | `docs/节点插件接入方案.md` |
-| 作者层长期边界怎么理解 | `docs/开发者友好节点作者层与接入包方案.md` |
-| 连线绘制和路由怎么理解 | `docs/连线路由.md` |
+| `GraphDocument`、`NodeDefinition`、`NodeModule` 在哪 | `packages/node/README.md` |
+| `LeaferGraphOptions`、`RuntimeFeedbackEvent`、Widget 契约在哪 | `packages/contracts/README.md` |
+| 图实例如何创建、恢复、运行 | `packages/leafergraph/README.md` |
+| 主包内部装配链和 facade 边界在哪 | `packages/leafergraph/内部架构地图.md` |
+| 连线路径和动画应该怎么理解 | `docs/连线路由.md`、`packages/leafergraph/渲染刷新策略.md` |
+| 作者层怎么写、模板从哪里开始 | `packages/authoring/README.md`、`templates/README.md` |
+| 菜单、快捷键、历史栈在哪接 | `packages/context-menu/README.md`、`packages/shortcuts/README.md`、`packages/undo-redo/README.md` |
 
-## 8. 使用注意事项
+## 6. 维护约定
 
-- 当前索引只覆盖仓库里真实存在的目录和文档。
-- 已删除目录对应的旧文档已经从导航中移除，避免把历史结构误写成现状。
-- 如果设计文档和源码细节冲突，以当前源码和包 README 为准。
+- 这份索引只保留真实存在的目录、文档和模板。
+- 已删除目录、旧兼容入口、失效模板和历史脚本不再放进当前索引。
+- 如果 README、专题文档和源码细节冲突，以当前源码和包 README 为准。

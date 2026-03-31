@@ -1,69 +1,52 @@
-# leafergraph
+# `leafergraph`
 
 `leafergraph` 是 LeaferGraph workspace 的 runtime-only 主包。
 
-它负责把正式图模型恢复成 Leafer 场景，并提供稳定的实例 façade：
+它负责把正式图模型恢复成 Leafer 场景，并通过 `LeaferGraph` / `createLeaferGraph(...)` 暴露稳定的实例 façade。
 
-- 创建和销毁图实例
-- 恢复 `GraphDocument`
-- 注册节点、模块、Widget 和插件
-- 处理节点拖拽、缩放、连线、选区和视口
-- 执行 `play / step / stop / playFromNode(...)`
-- 订阅宿主级运行反馈、交互提交事件与正式 history feed
+## 包定位
 
-它不再负责：
+适合直接依赖它的场景：
 
-- 聚合 re-export `@leafergraph/node`、`@leafergraph/contracts`、`@leafergraph/theme`、`@leafergraph/config`
-- 提供旧的 diff compatibility 子路径
-- 作为 workspace 的 umbrella convenience package
+- 在浏览器里创建一个节点图实例
+- 从 `GraphDocument` 恢复、更新和运行一张图
+- 注册节点、模块、Widget 或插件
+- 订阅运行反馈、交互提交和 history feed
 
-## 适用场景
+不适合直接把它当成：
 
-适合：
+- 模型真源聚合包
+- 主题、配置或默认内容真源
+- 菜单、快捷键、历史栈或作者层的总入口
 
-- 在浏览器里创建一个节点图画布
-- 从正式 `GraphDocument` 恢复一张图
-- 在运行时注册节点、模块、Widget 或插件
-- 对接外部页面、调试面板或 runtime feedback 消费链
+## 根入口
 
-不适合：
+主包根入口现在只保留 runtime façade：
 
-- 作为图模型真源
-- 承载主题 preset 或 config 默认值
-- 取代菜单、authoring、bundle loader 等外层宿主逻辑
+- `LeaferGraph`
+- `createLeaferGraph(...)`
 
-## 包边界
+静态类型和 helper 的正式导入位置固定为：
 
-| 包 | 真源职责 |
-| --- | --- |
-| `@leafergraph/node` | `GraphDocument`、`GraphLink`、`NodeDefinition`、`NodeModule` |
-| `@leafergraph/contracts` | `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`、Widget 契约、图操作与 diff helper |
-| `@leafergraph/theme` | 主题 mode、preset、graph/widget/context-menu 视觉 token |
-| `@leafergraph/config` | 非视觉配置、默认值 resolver、normalize helper |
-| `@leafergraph/widget-runtime` | Widget registry、renderer lifecycle、editing 与 interaction helper |
-| `@leafergraph/basic-kit` | 基础 widgets、系统节点、默认内容 plugin |
-| `@leafergraph/shortcuts` | 宿主输入扩展层，负责快捷键 runtime 与 graph 预设 |
-| `@leafergraph/undo-redo` | 宿主状态扩展层，负责 undo/redo controller 与 history 回放 |
-| `leafergraph` | 图运行时、Leafer 场景装配、交互基础设施、实例 façade |
-
-一个实用判断是：
-
-- “图长什么样”去 `@leafergraph/node`
-- “图怎么跑、怎么扩、怎么描述公共输入输出”去 `@leafergraph/contracts`
-- “图怎么显示、怎么交互、怎么执行实例方法”用 `leafergraph`
+- `GraphDocument`、`NodeDefinition`、`NodeModule`
+  - `@leafergraph/node`
+- `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`
+  - `@leafergraph/contracts`
+- diff helper
+  - `@leafergraph/contracts/graph-document-diff`
+- `themePreset` / `themeMode`
+  - `@leafergraph/theme`
+- normalize / 默认 config
+  - `@leafergraph/config`
+- Widget runtime helper
+  - `@leafergraph/widget-runtime`
 
 ## 五分钟上手
-
-### 1. 创建图实例
 
 ```ts
 import type { GraphDocument } from "@leafergraph/node";
 import { createLeaferGraph } from "leafergraph";
-
-const container = document.getElementById("app");
-if (!container) {
-  throw new Error("缺少挂载容器 #app");
-}
+import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 
 const documentData: GraphDocument = {
   documentId: "hello-graph",
@@ -74,93 +57,54 @@ const documentData: GraphDocument = {
 };
 
 const graph = createLeaferGraph(container, {
-  document: documentData
+  document: documentData,
+  plugins: [leaferGraphBasicKitPlugin],
+  themePreset: "default",
+  themeMode: "dark"
 });
 
 await graph.ready;
 ```
 
-### 2. 显式安装默认内容包
+实例创建后，最常用的入口是：
 
-```ts
-import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
+- 文档与操作
+  - `replaceGraphDocument(...)`
+  - `applyGraphOperation(...)`
+  - `applyGraphDocumentDiff(...)`
+- 注册与扩展
+  - `registerNode(...)`
+  - `registerWidget(...)`
+  - `installModule(...)`
+  - `use(...)`
+- 运行控制
+  - `play()`
+  - `step()`
+  - `stop()`
+  - `playFromNode(...)`
+- 反馈订阅
+  - `subscribeRuntimeFeedback(...)`
+  - `subscribeInteractionCommit(...)`
+  - `subscribeHistory(...)`
 
-const graph = createLeaferGraph(container, {
-  document: documentData,
-  plugins: [leaferGraphBasicKitPlugin]
-});
-```
+## 与其它包的边界
 
-### 3. 注册一个节点定义
+| 包 | 真源职责 |
+| --- | --- |
+| `@leafergraph/node` | 图模型、节点定义、模块和注册表 |
+| `@leafergraph/contracts` | 公共宿主协议、图 API 输入输出、Widget 契约 |
+| `@leafergraph/theme` | 视觉主题真源 |
+| `@leafergraph/config` | 非视觉配置真源 |
+| `@leafergraph/widget-runtime` | Widget runtime 真源 |
+| `@leafergraph/basic-kit` | 默认内容包 |
+| `@leafergraph/context-menu` | 纯菜单 runtime |
+| `@leafergraph/shortcuts` | 快捷键扩展 |
+| `@leafergraph/undo-redo` | 历史栈扩展 |
 
-```ts
-import type { NodeDefinition } from "@leafergraph/node";
+一个简单判断是：
 
-const helloNode: NodeDefinition = {
-  type: "example/hello",
-  title: "Hello Node",
-  category: "Examples",
-  outputs: [{ name: "Text", type: "string" }]
-};
-
-graph.registerNode(helloNode, { overwrite: true });
-graph.createNode({
-  id: "hello-1",
-  type: "example/hello",
-  x: 120,
-  y: 80
-});
-```
-
-## 真源导入映射
-
-- 图模型
-  - `GraphDocument`、`GraphLink`、`NodeDefinition`、`NodeModule` -> `@leafergraph/node`
-- 公共契约
-  - `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`、`LeaferGraphWidgetEntry` -> `@leafergraph/contracts`
-- 文档 diff
-  - `applyGraphDocumentDiffToDocument(...)`、`createUpdateNodeInputFromNodeSnapshot(...)` -> `@leafergraph/contracts/graph-document-diff`
-- 主题
-  - `LeaferGraphThemeMode`、`LeaferGraphLinkPropagationAnimationPreset`、Widget theme context -> `@leafergraph/theme`
-- 配置
-  - `normalizeLeaferGraphConfig(...)`、`resolveDefaultLeaferGraphConfig(...)` -> `@leafergraph/config`
-- Widget runtime helper
-  - registry、interaction、render helper -> `@leafergraph/widget-runtime`
-- 默认内容
-  - `leaferGraphBasicKitPlugin`、系统节点、基础 widgets -> `@leafergraph/basic-kit`
-
-## 主包对外 API
-
-主包根入口现在只保留 runtime façade：
-
-- `LeaferGraph`
-- `createLeaferGraph(...)`
-
-创建实例后，你会主要使用这些实例方法：
-
-- `replaceGraphDocument(...)`
-- `applyGraphOperation(...)`
-- `applyGraphDocumentDiff(...)`
-- `play / step / stop / playFromNode(...)`
-- `registerNode(...) / registerWidget(...) / installModule(...) / use(...)`
-- `subscribeRuntimeFeedback(...) / subscribeInteractionCommit(...) / subscribeHistory(...)`
-
-如果你要接 undo / redo，这里只提供 `subscribeHistory(...)` 这类可回放历史事件，不会自动安装历史栈。
-显式绑定仍然应交给 `@leafergraph/undo-redo`，而 `graph.history` 配置真源在 `@leafergraph/config`。
-
-如果你要写静态类型，优先从真源包导入，而不是期待主包继续转发。
-
-## 推荐阅读
-
-### 我想直接使用主包
-
-1. 先读这份 README
-2. 再看 [使用与扩展指南](./使用与扩展指南.md)
-
-### 我想看内部装配链
-
-1. [内部架构地图](./内部架构地图.md)
-2. [渲染刷新策略](./渲染刷新策略.md)
+- 需要图实例和场景宿主，用 `leafergraph`
+- 需要真源类型或 helper，不要再从主包绕路导入
 
 ## 常用命令
 
@@ -168,4 +112,12 @@ graph.createNode({
 
 ```bash
 bun run build:leafergraph
+bun run test:leafergraph
 ```
+
+## 继续阅读
+
+- [使用与扩展指南](./使用与扩展指南.md)
+- [内部架构地图](./内部架构地图.md)
+- [渲染刷新策略](./渲染刷新策略.md)
+- [mini-graph 示例](../../example/mini-graph/README.md)

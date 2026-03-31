@@ -1,37 +1,44 @@
 # `@leafergraph/shortcuts`
 
-`@leafergraph/shortcuts` 是 `leafergraph` workspace 里的宿主输入扩展包。
+`@leafergraph/shortcuts` 是 LeaferGraph workspace 的宿主输入扩展包。
 
-它负责这些内容：
+它采用“功能注册表 + 按键注册表”的两层模型，把快捷键 runtime 和 graph 预设从主包里拆出来。它已经进入默认 build/test 聚合，但文档定位仍是“非核心维护包 / 宿主输入扩展层”。
 
-- 快捷键 chord 归一化与匹配
-- 功能注册表与按键注册表
-- `keydown -> guard -> binding -> function` 的最小 controller
-- `leafergraph` 节点图默认快捷键预设与快捷键标签解析
+## 包定位
 
-它不负责这些内容：
+适合直接依赖它的场景：
 
-- `leafergraph` 主包 runtime 核心装配
-- undo / redo 历史栈本体、clipboard store 真源、持久化历史
-- 命令总线或用户级 keymap 持久化
+- 你想把 chord 匹配、功能定义和按键映射分开维护
+- 你想为 `leafergraph` 宿主复用默认 graph 快捷键预设
+- 你想把真实已注册的快捷键标签同步给按钮或右键菜单
 
-这个包已经进入 root 默认 `build` 和 `test:core`，但文档定位仍固定为“非核心维护包 / 宿主输入扩展层”。
+不适合直接把它当成：
 
-## 适用场景
+- undo / redo 历史栈本体
+- clipboard store 真源
+- 命令总线或用户级 keymap 持久化层
 
-- 你想在宿主里注册一组独立快捷键功能
-- 你希望键位和功能分开维护
-- 你正在接入 `leafergraph`，想直接复用默认 graph 快捷键预设
-
-不适合这些场景：
-
-- 你需要完整 undo / redo
-- 你要做多段 chord、录制模式或系统级全局快捷键
-- 你想把快捷键能力重新塞回 `leafergraph` 主包内部
-
-## 快速开始
+## 公开入口
 
 ### 根入口
+
+- `createShortcutFunctionRegistry(...)`
+- `createShortcutKeymapRegistry(...)`
+- `createShortcutController(...)`
+- `normalizeShortcutChord(...)`
+- `matchShortcutEvent(...)`
+- `formatShortcutLabel(...)`
+
+### `./graph`
+
+- `registerLeaferGraphShortcutFunctions(...)`
+- `registerLeaferGraphShortcutKeymap(...)`
+- `bindLeaferGraphShortcuts(...)`
+- `LeaferGraphShortcutHost`
+- `LeaferGraphShortcutHistoryHost`
+- `LeaferGraphShortcutClipboardHost`
+
+## 最小使用方式
 
 ```ts
 import {
@@ -62,120 +69,74 @@ const controller = createShortcutController({
 });
 
 const dispose = controller.bind(document);
+dispose();
 ```
 
-### `./graph`
+如果你在 `leafergraph` 宿主里直接接 graph 预设：
 
 ```ts
 import { bindLeaferGraphShortcuts } from "@leafergraph/shortcuts/graph";
-import { bindLeaferGraphUndoRedo } from "@leafergraph/undo-redo/graph";
-import { createLeaferGraphContextMenuClipboardStore } from "@leafergraph/context-menu-builtins";
-
-const historyBinding = bindLeaferGraphUndoRedo({
-  host: graph,
-  config: {
-    maxEntries: 100
-  }
-});
-const clipboard = createLeaferGraphContextMenuClipboardStore();
 
 const binding = bindLeaferGraphShortcuts({
   target: document,
   scopeElement: graphContainer,
   host: {
-    listNodeIds: () => graphNodeIds,
+    listNodeIds: () => nodeIds,
     listSelectedNodeIds: () => graph.listSelectedNodeIds(),
     setSelectedNodeIds: (nodeIds) => graph.setSelectedNodeIds(nodeIds),
     clearSelectedNodes: () => graph.clearSelectedNodes(),
-    removeNode: (nodeId) => {
-      graph.removeNode(nodeId);
-    },
-    fitView: () => {
-      graph.fitView();
-    },
-    play: () => {
-      graph.play();
-    },
-    step: () => {
-      graph.step();
-    },
-    stop: () => {
-      graph.stop();
-    },
+    removeNode: (nodeId) => graph.removeNode(nodeId),
+    fitView: () => graph.fitView(),
+    play: () => graph.play(),
+    step: () => graph.step(),
+    stop: () => graph.stop(),
     isContextMenuOpen: () => menu.isOpen()
-  },
-  history: {
-    undo: () => historyBinding.controller.undo(),
-    redo: () => historyBinding.controller.redo(),
-    canUndo: () => historyBinding.controller.getState().canUndo,
-    canRedo: () => historyBinding.controller.getState().canRedo
-  },
-  clipboard: {
-    copySelection: () => copySelectionInto(clipboard),
-    cutSelection: () => cutSelectionInto(clipboard),
-    pasteClipboard: () => pasteFromClipboard(clipboard),
-    duplicateSelection: () => duplicateSelection()
   }
 });
-
-binding.destroy();
-historyBinding.destroy();
 ```
-
-## 公开入口
-
-- 根入口
-  - `createShortcutFunctionRegistry(...)`
-  - `createShortcutKeymapRegistry(...)`
-  - `createShortcutController(...)`
-  - `normalizeShortcutChord(...)`
-  - `matchShortcutEvent(...)`
-  - `formatShortcutLabel(...)`
-- `./graph`
-  - `registerLeaferGraphShortcutFunctions(...)`
-  - `registerLeaferGraphShortcutKeymap(...)`
-  - `bindLeaferGraphShortcuts(...)`
-  - `LeaferGraphShortcutFunctionId`
-  - `LeaferGraphShortcutClipboardHost`
-  - `LeaferGraphShortcutHistoryHost`
-  - `LeaferGraphShortcutHost`
 
 ## 默认 graph 绑定
 
-- 编辑组
-  - `Mod+C` -> `graph.copy`
-  - `Mod+X` -> `graph.cut`
-  - `Mod+V` -> `graph.paste`
-  - `Mod+D` -> `graph.duplicate`
-  - `Mod+A` -> `graph.select-all`
-  - `Escape` -> `graph.clear-selection`
-  - `Delete / Backspace` -> `graph.delete-selection`
-- 历史组
-  - `Mod+Z` -> `graph.undo`
-  - macOS: `Mod+Shift+Z` -> `graph.redo`
-  - Windows / Linux: `Mod+Y` -> `graph.redo`
-- 视图与执行
-  - `KeyF` -> `graph.fit-view`
-  - `Mod+Enter` / `Mod+Shift+Enter` / `Mod+Period` 仍然只在显式启用 execution 组后注册
+默认会注册这几类快捷键：
 
-`bindLeaferGraphShortcuts(...)` 返回的 binding 还会暴露 `resolveShortcutLabel(...)` 和 `listShortcutLabels(...)`，适合把真实 keymap 文案同步到右键菜单或按钮提示里。
+- 编辑组
+  - `Mod+C`、`Mod+X`、`Mod+V`、`Mod+D`
+  - `Mod+A`
+  - `Escape`
+  - `Delete / Backspace`
+- 历史组
+  - `Mod+Z`
+  - `Mod+Shift+Z`
+  - `Mod+Y`
+- 视图 / 执行组
+  - `KeyF`
+  - `Mod+Enter`
+  - `Mod+Shift+Enter`
+  - `Mod+Period`
+
+其中执行组和历史 / 剪贴板接线，都仍然是显式启用和显式传入 host 的设计。
 
 ## 与其它包的边界
 
-- `@leafergraph/shortcuts`
-  - 不依赖任何 workspace 包，只提供输入层 runtime 和 graph 预设
-- `leafergraph`
-  - 仍然是图 runtime façade 真源
-- `@leafergraph/context-menu`
-  - 负责菜单 runtime，不负责快捷键
-- `@leafergraph/context-menu-builtins`
-  - 可以消费 `resolveShortcutLabel(...)` 来显示右键菜单快捷键，但不会反向依赖 `shortcuts`
-- 后续 undo/redo 包
-  - 由 `@leafergraph/undo-redo` 承担历史栈与回放；`shortcuts` 只可选消费它暴露的 history host
+| 包 | 关系 |
+| --- | --- |
+| `@leafergraph/shortcuts` | 快捷键 runtime 与 graph 预设 |
+| `@leafergraph/context-menu-builtins` | 可消费快捷键标签，但不会反向依赖这个包 |
+| `@leafergraph/undo-redo` | 历史栈真源；`shortcuts` 只可选消费 history host |
+| `leafergraph` | 图运行时 façade；`shortcuts` 通过结构兼容对接它 |
 
 ## 常用命令
+
+在 workspace 根目录执行：
 
 ```bash
 bun run build:shortcuts
 bun run test:shortcuts
 ```
+
+## 继续阅读
+
+- [根 README](../../README.md)
+- [@leafergraph/undo-redo README](../undo-redo/README.md)
+- [@leafergraph/context-menu-builtins README](../context-menu-builtins/README.md)
+- [mini-graph README](../../example/mini-graph/README.md)

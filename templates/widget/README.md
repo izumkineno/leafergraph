@@ -1,31 +1,36 @@
 # Widget Templates
 
-这个目录用于放“纯 Widget 作者模型”的模板与说明。
+这个目录只放“纯 Widget 作者模板”。
 
-## 当前边界
+它们的共同特点是：
 
-- 当前默认入口是 `authoring-text-widget-template`。
-- Widget 模板的 `developer/` 会按 `shared / widgets / plugin` 分文件。
-- 如果只是改包名、Widget 类型或 bundle 信息，优先改 `src/developer/shared.ts`。
-- 如果是改 Widget 渲染逻辑，优先改 `src/developer/widgets/*.ts`。
-- 这里不放同时承担 node/demo 的组合模板。
+- 作者代码集中在 `src/developer/`
+- 重点演示 `BaseWidget` 和正式 `LeaferGraphWidgetEntry` 的写法
+- 能导出 ESM 包，也能构建 `widget.iife.js`
 
 ## 当前模板
 
-- [`authoring-text-widget-template`](./authoring-text-widget-template/README.md)
+- [authoring-text-widget-template](./authoring-text-widget-template/README.md)
   - 纯展示型 Widget 模板
-  - 内置 `TextReadoutWidget`
-  - 适合 `Watch`、`Readout`、`Status Display`
-  - 浏览器发布物是 `dist/browser/widget.iife.js`
+  - 自带 `TextReadoutWidget`
+  - 适合做 `Watch`、`Readout`、`Status Display` 一类控件
 
-## 应放什么
+## 适用边界
 
-- 单 Widget renderer 模板
-- Widget 元数据与交互约定说明
-- Widget 与节点属性镜像写回的作者指南
+适合放在这里的模板：
 
-## 不应放什么
+- 只交付 Widget entry 和 plugin
+- 不需要同时打包 node / demo bundle
+- 主要演示渲染、编辑或展示型 Widget 作者代码
 
-- authority 后端模板
-- 同时承载 node/demo/widget 的混合型浏览器插件模板
-- 后端驱动节点包模板
+不适合放在这里的模板：
+
+- 组合式 browser bundle 模板
+- 只关注节点逻辑的模板
+- authority、宿主壳层或后端模板
+
+## 推荐阅读顺序
+
+1. [authoring-text-widget-template README](./authoring-text-widget-template/README.md)
+2. [@leafergraph/authoring README](../../packages/authoring/README.md)
+3. [@leafergraph/widget-runtime README](../../packages/widget-runtime/README.md)

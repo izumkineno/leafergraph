@@ -1,49 +1,38 @@
 # LeaferGraph Workspace
 
-`leafergraph` 当前是一个 Leafer-first workspace，正式内容已经按“模型、执行、主题、配置、公共契约、Widget runtime、默认内容包、作者层、交互扩展、宿主输入扩展与运行时宿主”拆成多个独立包。
+`leafergraph` 当前是一个 Leafer-first 的多包 workspace。
 
-历史上围绕若干已删目录的设计稿已经不再是当前仓库入口，本文只保留和现状一致的导航。
+这份根 README 只做三件事：
 
-## 当前目录
+- 告诉你现在仓库里有哪些正式包、示例、模板和维护文档
+- 说明这些包之间的职责边界和依赖方向
+- 帮你快速判断“我现在应该先看哪个包 / 哪份文档”
 
-- `packages/node`
-  - 节点定义、`NodeModule`、`NodeRegistry`、`GraphDocument` 等图模型真源
-- `packages/theme`
-  - 主题 preset 注册表与 graph/widget/context-menu 视觉主题真源
-- `packages/config`
-  - 非视觉配置真源、默认值解析与 Leafer 配置桥接，不依赖其它 workspace 包
-- `packages/execution`
-  - 纯执行内核，负责执行链、传播、图级运行状态机和执行反馈
-- `packages/contracts`
-  - workspace 公共契约真源，负责插件、宿主、Widget、Graph API 输入输出、交互提交与 diff 等共享协议，不承载 `LeaferGraph` 运行时实现
-- `packages/widget-runtime`
-  - Widget registry、生命周期、编辑、交互与缺失态 renderer 等 runtime 基础设施
-- `packages/basic-kit`
-  - 默认内容包，负责基础 widgets、系统节点与一键安装 plugin
-- `packages/authoring`
-  - 面向节点 / Widget 作者的 authoring SDK，服务 bundle、注册与开发者接入
-- `packages/leafergraph`
-  - Leafer-first 图运行时主包，负责场景装配、交互基础设施、视口和宿主 facade，不再聚合 re-export 其它真源包
-- `packages/context-menu`
-  - Leafer-first 右键菜单 runtime 包，负责 DOM 菜单运行时
-- `packages/context-menu-builtins`
-  - `leafergraph` 节点图右键菜单 builtins 集成层，负责复制、粘贴、删除、运行等内建动作
-- `packages/shortcuts`
-  - 宿主输入扩展包，负责快捷键 runtime 与默认 graph 快捷键预设；当前按“非核心维护包 / 宿主输入扩展层”管理
-- `packages/undo-redo`
-  - 宿主状态扩展包，负责 undo/redo controller、graph 历史绑定与历史栈回放；当前也按“非核心维护包 / 宿主状态扩展层”管理
-- `example/`
-  - 当前仍在维护的示例工程，主要包括 `mini-graph` 与 `authoring-basic-nodes`
-- `templates/`
-  - 可复制出去的模板工程与模板分类入口
-- `docs/`
-  - 当前仍在维护的设计文档
+如果你只想开始用，优先看各包 README。  
+如果你在维护主包内部装配链，再继续看 `packages/leafergraph` 里的深层文档。  
+如果你在整理未来演进路线，再看 `docs/架构演进与提案总览.md`。
 
-## 包依赖关系
+## 项目分层
 
-以下关系按当前各包 `package.json` 整理，只列 workspace 内部依赖；`leafer-ui` 和 Leafer 官方插件依赖不在这里展开。
+当前 workspace 可以按六层理解：
 
-可以先看这张总览图：
+| 层级 | 包 | 作用 |
+| --- | --- | --- |
+| 基础真源 | `@leafergraph/node`、`@leafergraph/theme`、`@leafergraph/config` | 定义模型、视觉主题和非视觉配置真源 |
+| 执行与公共协议 | `@leafergraph/execution`、`@leafergraph/contracts` | 定义执行链、共享宿主类型、图 API 输入输出和 diff helper |
+| 运行时支撑 | `@leafergraph/widget-runtime` | 提供 Widget registry、renderer lifecycle、editing 和 interaction helper |
+| 内容与宿主 | `@leafergraph/basic-kit`、`leafergraph` | 提供默认内容包和 Leafer 图运行时主包 |
+| 菜单与宿主扩展 | `@leafergraph/context-menu`、`@leafergraph/context-menu-builtins`、`@leafergraph/shortcuts`、`@leafergraph/undo-redo` | 提供右键菜单、菜单 builtins、快捷键和历史栈扩展 |
+| 作者层与消费样例 | `@leafergraph/authoring`、`example/`、`templates/` | 提供作者层 SDK、示例工程和可复制模板 |
+
+额外记住两个固定约束：
+
+- `leafergraph` 已经收口成 runtime-only 主包，不再聚合 re-export 其它真源包。
+- `@leafergraph/shortcuts`、`@leafergraph/undo-redo` 已进入默认 build/test 聚合，但文档定位仍然是“非核心维护包 / 宿主扩展层”。
+
+## 包关系
+
+下面这张图只画 workspace 内部 `dependencies` 方向，不展开 `leafer-ui` 和 Leafer 官方插件依赖：
 
 ```mermaid
 flowchart LR
@@ -53,29 +42,28 @@ flowchart LR
         configPkg["@leafergraph/config"]
     end
 
-    subgraph runtime["执行与运行时支撑"]
-        execPkg["@leafergraph/execution"]
+    subgraph protocol["执行与公共协议"]
+        executionPkg["@leafergraph/execution"]
         contractsPkg["@leafergraph/contracts"]
         widgetRuntimePkg["@leafergraph/widget-runtime"]
     end
 
-    subgraph host["宿主与内容层"]
-        leafergraphPkg["leafergraph"]
+    subgraph host["内容与宿主"]
         basicKitPkg["@leafergraph/basic-kit"]
         contextMenuPkg["@leafergraph/context-menu"]
         contextMenuBuiltinsPkg["@leafergraph/context-menu-builtins"]
-        authoringPkg["@leafergraph/authoring"]
+        leafergraphPkg["leafergraph"]
     end
 
-    subgraph extensions["输入扩展与非核心维护"]
+    subgraph extensions["宿主扩展"]
         shortcutsPkg["@leafergraph/shortcuts"]
         undoRedoPkg["@leafergraph/undo-redo"]
     end
 
-    execPkg --> nodePkg
+    executionPkg --> nodePkg
 
     contractsPkg --> configPkg
-    contractsPkg --> execPkg
+    contractsPkg --> executionPkg
     contractsPkg --> nodePkg
     contractsPkg --> themePkg
 
@@ -84,15 +72,8 @@ flowchart LR
     widgetRuntimePkg --> nodePkg
     widgetRuntimePkg --> themePkg
 
-    leafergraphPkg --> configPkg
-    leafergraphPkg --> contractsPkg
-    leafergraphPkg --> execPkg
-    leafergraphPkg --> nodePkg
-    leafergraphPkg --> themePkg
-    leafergraphPkg --> widgetRuntimePkg
-
     basicKitPkg --> contractsPkg
-    basicKitPkg --> execPkg
+    basicKitPkg --> executionPkg
     basicKitPkg --> nodePkg
     basicKitPkg --> themePkg
     basicKitPkg --> widgetRuntimePkg
@@ -104,117 +85,128 @@ flowchart LR
     contextMenuBuiltinsPkg --> contractsPkg
     contextMenuBuiltinsPkg --> nodePkg
 
+    leafergraphPkg --> configPkg
+    leafergraphPkg --> contractsPkg
+    leafergraphPkg --> executionPkg
+    leafergraphPkg --> nodePkg
+    leafergraphPkg --> themePkg
+    leafergraphPkg --> widgetRuntimePkg
+
     undoRedoPkg --> configPkg
     undoRedoPkg --> contractsPkg
     undoRedoPkg --> nodePkg
-
-    authoringPkg -.-> contractsPkg
-    authoringPkg -.-> execPkg
-    authoringPkg -.-> nodePkg
-    authoringPkg -.-> themePkg
-    authoringPkg -.-> leafergraphPkg
 ```
 
-说明：
+补充说明：
 
-- 实线表示 `dependencies`
-- 虚线表示 `peerDependencies`
+- `@leafergraph/authoring` 当前通过 `peerDependencies` 对齐 `@leafergraph/contracts`、`@leafergraph/execution`、`@leafergraph/node`、`@leafergraph/theme` 和 `leafergraph`。
+- `@leafergraph/shortcuts` 当前无 workspace 内部依赖，通过结构兼容方式对接 `leafergraph`、右键菜单和历史栈。
+- `@leafergraph/config` 只依赖外部 `leafer-ui`，不依赖任何其它 `@leafergraph/*` workspace 包。
 
-可以先按分层理解：
+## 我现在该先看哪里
 
-- 基础真源：`@leafergraph/node`、`@leafergraph/theme`
-- 配置层：`@leafergraph/config`
-- 执行与契约层：`@leafergraph/execution`、`@leafergraph/contracts`
-- 运行时支撑层：`@leafergraph/widget-runtime`
-- 内容与宿主层：`@leafergraph/basic-kit`、`leafergraph`、`@leafergraph/context-menu`
-- 菜单集成层：`@leafergraph/context-menu-builtins`
-- 输入扩展与非核心维护层：`@leafergraph/shortcuts`
-- 宿主状态扩展与非核心维护层：`@leafergraph/undo-redo`
-- 作者层：`@leafergraph/authoring`
+### 我想直接跑一个图
 
-其中 `@leafergraph/contracts` 可以直接理解成“跨包公共协议层”：
+1. [leafergraph README](./packages/leafergraph/README.md)
+2. [使用与扩展指南](./packages/leafergraph/使用与扩展指南.md)
+3. [mini-graph README](./example/mini-graph/README.md)
 
-- 它位于模型、主题、配置和执行内核之上
-- 它位于 `leafergraph` 主包、`authoring`、`widget-runtime` 等具体宿主实现之下
-- 它的职责是统一这些包共享的公共输入输出和宿主协议，避免每个包各自定义一套接口
+### 我想理解节点模型、文档和插件入口
 
-逐包依赖如下：
+1. [@leafergraph/node README](./packages/node/README.md)
+2. [@leafergraph/contracts README](./packages/contracts/README.md)
+3. [节点 API 与节点壳专题](./docs/节点API方案.md)
+4. [外部节点包接入专题](./docs/节点插件接入方案.md)
 
-- `@leafergraph/node`
-  - 无 workspace 内部依赖
-- `@leafergraph/execution`
-  - `@leafergraph/node`
-- `@leafergraph/theme`
-  - 无 workspace 内部依赖
-- `@leafergraph/config`
-  - 无 workspace 内部依赖
-- `@leafergraph/contracts`
-  - `@leafergraph/config`
-  - `@leafergraph/execution`
-  - `@leafergraph/node`
-  - `@leafergraph/theme`
-- `@leafergraph/widget-runtime`
-  - `@leafergraph/config`
-  - `@leafergraph/contracts`
-  - `@leafergraph/node`
-  - `@leafergraph/theme`
-- `leafergraph`
-  - `@leafergraph/config`
-  - `@leafergraph/contracts`
-  - `@leafergraph/execution`
-  - `@leafergraph/node`
-  - `@leafergraph/theme`
-  - `@leafergraph/widget-runtime`
-- `@leafergraph/basic-kit`
-  - `@leafergraph/contracts`
-  - `@leafergraph/execution`
-  - `@leafergraph/node`
-  - `@leafergraph/theme`
-  - `@leafergraph/widget-runtime`
-- `@leafergraph/context-menu`
-  - `@leafergraph/config`
-  - `@leafergraph/theme`
-- `@leafergraph/context-menu-builtins`
-  - `@leafergraph/context-menu`
-  - `@leafergraph/contracts`
-  - `@leafergraph/node`
-- `@leafergraph/shortcuts`
-  - 无 workspace 内部依赖
-- `@leafergraph/undo-redo`
-  - `@leafergraph/config`
-  - `@leafergraph/contracts`
-  - `@leafergraph/node`
-- `@leafergraph/authoring`
-  - 当前不通过 `dependencies` 直接绑定 workspace 包
-  - 通过 `peerDependencies` 对齐 `@leafergraph/contracts`、`@leafergraph/execution`、`@leafergraph/node`、`@leafergraph/theme` 和 `leafergraph`
+### 我想写节点类、Widget 类或对外模板
 
-如果你想从底层往上理解当前仓库，建议先按 `node -> theme -> config -> execution -> contracts -> widget-runtime -> leafergraph -> context-menu -> context-menu-builtins -> shortcuts -> undo-redo -> basic-kit / authoring` 这条链阅读。
+1. [@leafergraph/authoring README](./packages/authoring/README.md)
+2. [authoring-basic-nodes README](./example/authoring-basic-nodes/README.md)
+3. [Templates 总览](./templates/README.md)
+4. [架构演进与提案总览](./docs/架构演进与提案总览.md)
 
-## 推荐阅读顺序
+### 我想接主题、配置、菜单、快捷键或历史栈
 
-1. [`packages/node/README.md`](./packages/node/README.md)
-2. [`packages/theme/README.md`](./packages/theme/README.md)
-3. [`packages/config/README.md`](./packages/config/README.md)
-4. [`packages/execution/README.md`](./packages/execution/README.md)
-5. [`packages/contracts/README.md`](./packages/contracts/README.md)
-6. [`packages/widget-runtime/README.md`](./packages/widget-runtime/README.md)
-7. [`packages/leafergraph/README.md`](./packages/leafergraph/README.md)
-8. [`packages/basic-kit/README.md`](./packages/basic-kit/README.md)
-9. [`packages/context-menu/README.md`](./packages/context-menu/README.md)
-10. [`packages/context-menu-builtins/README.md`](./packages/context-menu-builtins/README.md)
-11. [`packages/shortcuts/README.md`](./packages/shortcuts/README.md)
-12. [`packages/undo-redo/README.md`](./packages/undo-redo/README.md)
-13. [`packages/authoring/README.md`](./packages/authoring/README.md)
-14. [`packages/leafergraph/使用与扩展指南.md`](./packages/leafergraph/使用与扩展指南.md)
-15. [`packages/leafergraph/内部架构地图.md`](./packages/leafergraph/内部架构地图.md)
-16. [`templates/README.md`](./templates/README.md)
+1. [@leafergraph/theme README](./packages/theme/README.md)
+2. [@leafergraph/config README](./packages/config/README.md)
+3. [@leafergraph/context-menu README](./packages/context-menu/README.md)
+4. [@leafergraph/context-menu-builtins README](./packages/context-menu-builtins/README.md)
+5. [@leafergraph/shortcuts README](./packages/shortcuts/README.md)
+6. [@leafergraph/undo-redo README](./packages/undo-redo/README.md)
 
-如果你更关心当前仍在维护的设计文档，优先看：
+### 我在维护主包内部装配链
 
-- [`docs/节点API方案.md`](./docs/节点API方案.md)
-- [`docs/节点插件接入方案.md`](./docs/节点插件接入方案.md)
-- [`docs/开发者友好节点作者层与接入包方案.md`](./docs/开发者友好节点作者层与接入包方案.md)
-- [`docs/连线路由.md`](./docs/连线路由.md)
+1. [leafergraph README](./packages/leafergraph/README.md)
+2. [内部架构地图](./packages/leafergraph/内部架构地图.md)
+3. [渲染刷新策略](./packages/leafergraph/渲染刷新策略.md)
+4. [注意事项](./注意事项.md)
+
+## 包入口导航
+
+| 路径 | 什么时候看 | 你会在这里找到什么 |
+| --- | --- | --- |
+| [`packages/node`](./packages/node/README.md) | 需要模型真源时 | `NodeDefinition`、`NodeModule`、`GraphDocument`、`NodeRegistry` |
+| [`packages/theme`](./packages/theme/README.md) | 需要视觉主题时 | `themePreset`、`themeMode`、graph/widget/context-menu token |
+| [`packages/config`](./packages/config/README.md) | 需要行为配置时 | `graph`、`widget`、`context-menu`、`leafer` 配置和 normalize helper |
+| [`packages/execution`](./packages/execution/README.md) | 需要执行内核时 | 执行上下文、传播语义、图级状态机和本地反馈适配器 |
+| [`packages/contracts`](./packages/contracts/README.md) | 需要跨包共享协议时 | 插件协议、图 API 输入输出、Widget 契约、history/diff helper |
+| [`packages/widget-runtime`](./packages/widget-runtime/README.md) | 需要 Widget runtime 真源时 | registry、renderer lifecycle、editing、interaction helper |
+| [`packages/basic-kit`](./packages/basic-kit/README.md) | 需要默认内容时 | 基础 widgets、系统节点和一键安装 plugin |
+| [`packages/leafergraph`](./packages/leafergraph/README.md) | 需要图运行时主包时 | `LeaferGraph`、`createLeaferGraph(...)` 和 runtime façade |
+| [`packages/context-menu`](./packages/context-menu/README.md) | 需要纯 Leafer 菜单 runtime 时 | DOM 菜单 overlay、target 绑定、resolver 链 |
+| [`packages/context-menu-builtins`](./packages/context-menu-builtins/README.md) | 需要节点图内建菜单动作时 | 复制、粘贴、删除、运行、历史和快捷键文案接线 |
+| [`packages/shortcuts`](./packages/shortcuts/README.md) | 需要宿主快捷键时 | 功能注册表、按键注册表、graph 快捷键预设 |
+| [`packages/undo-redo`](./packages/undo-redo/README.md) | 需要历史栈时 | undo/redo controller、graph history 绑定 |
+| [`packages/authoring`](./packages/authoring/README.md) | 需要作者层 SDK 时 | `BaseNode`、`BaseWidget`、plugin / module 组装 |
+
+## 深层文档
+
+### 当前事实型专题
+
+- [节点 API 与节点壳设计](./docs/节点API方案.md)
+- [外部节点包接入方案](./docs/节点插件接入方案.md)
+- [连线路径实现说明](./docs/连线路由.md)
+- [AI / 工程导航索引](./docs/leafergraph-ai-index.md)
+
+### 主包维护文档
+
+- [使用与扩展指南](./packages/leafergraph/使用与扩展指南.md)
+- [内部架构地图](./packages/leafergraph/内部架构地图.md)
+- [渲染刷新策略](./packages/leafergraph/渲染刷新策略.md)
+
+### 前瞻性提案
+
+- [架构演进与提案总览](./docs/架构演进与提案总览.md)
+
+这里的分工固定为：
+
+- README
+  - 优先服务使用者，讲“什么时候依赖它、怎么接入、和谁配合”
+- 深层维护文档
+  - 优先服务维护者，讲“内部怎么装配、刷新链怎么走、边界怎么划”
+- 提案总览
+  - 只收口尚未完全定型或仍在演进中的规划，不和当前事实型专题混写
+
+## 示例与模板
+
+### 示例
+
+- [mini-graph](./example/mini-graph/README.md)
+  - 当前最完整的公开 API 集成示例
+  - 同时覆盖 `basic-kit`、菜单、shortcuts、undo-redo、bundle loader 和运行时动画
+- [authoring-basic-nodes](./example/authoring-basic-nodes/README.md)
+  - 纯作者层示例包
+  - 适合看 `@leafergraph/authoring` 产物如何收口成 plugin / module
+
+### 模板
+
+| 模板 | 用途 | 产物形态 |
+| --- | --- | --- |
+| [`templates/node/authoring-node-template`](./templates/node/authoring-node-template/README.md) | 纯节点作者模板 | `module`、`plugin`、`dist/browser/node.iife.js` |
+| [`templates/widget/authoring-text-widget-template`](./templates/widget/authoring-text-widget-template/README.md) | 纯 Widget 作者模板 | `widget entry`、`plugin`、`dist/browser/widget.iife.js` |
+| [`templates/misc/authoring-browser-plugin-template`](./templates/misc/authoring-browser-plugin-template/README.md) | node / widget / demo 组合模板 | `dist/browser/widget.iife.js`、`node.iife.js`、`demo.iife.js` |
+
+当前 `templates/` 下没有活动中的 backend 模板，这份根 README 也不再保留旧 backend 模板链接。
 
 ## 常用命令
 
@@ -223,6 +215,15 @@ flowchart LR
 ```bash
 bun install
 bun run check:boundaries
+bun run build
+bun run test:core
+bun run test:smoke
+bun run test
+```
+
+也可以按包或样例拆开执行：
+
+```bash
 bun run build:node
 bun run build:execution
 bun run build:theme
@@ -231,50 +232,29 @@ bun run build:contracts
 bun run build:widget-runtime
 bun run build:basic-kit
 bun run build:authoring
-bun run build:leafergraph
 bun run build:context-menu
 bun run build:context-menu-builtins
 bun run build:shortcuts
 bun run build:undo-redo
-bun run test:undo-redo
-bun run test:core
-bun run test:smoke
-bun run test
+bun run build:leafergraph
+bun run build:minimal-graph
+bun run build:authoring-basic-nodes
 ```
 
 命令约定：
 
-- `build:*`
-  - 只覆盖正式包，以及当前仍在维护的 example 构建入口
+- `build`
+  - 只构建正式包，不自动构建 examples/templates
 - `test:core`
-  - 运行正式包测试；当前已覆盖 `node`、`execution`、`theme`、`contracts`、`widget-runtime`、`basic-kit`、`authoring`、`context-menu`、`context-menu-builtins`、`shortcuts`、`undo-redo` 和 `leafergraph`
+  - 运行正式包测试
 - `test:smoke`
-  - 运行 `example/` 与活动模板的 `check/build` 级 smoke，不启动 dev server，也不替代 UI 行为测试
+  - 运行 example/template 的 `check/build` 级 smoke
 - `test`
   - 先跑边界检查，再跑正式包测试和 smoke
 
-当前文档不再把 `editor`、`sync`、`openrpc`、旧 Python authority/backend 相关脚本写成推荐入口，因为这些入口已经不对应当前 workspace 结构。
+## 文档维护约定
 
-## 测试分层
-
-- 正式包测试
-  - 锁定模型、执行、契约、runtime 支撑与集成包的单元/集成行为
-- example/template smoke
-  - 锁定真源导入、bundle 出口和 workspace 构建链不漂移
-
-如果你在排查“某个 API 行为为什么坏了”，优先跑正式包测试。  
-如果你在排查“迁移后 example 或模板为什么又构建坏了”，优先跑 smoke。
-
-## 模板入口
-
-当前可直接阅读的模板说明有：
-
-- [`templates/node/authoring-node-template/README.md`](./templates/node/authoring-node-template/README.md)
-- [`templates/widget/authoring-text-widget-template/README.md`](./templates/widget/authoring-text-widget-template/README.md)
-- [`templates/misc/authoring-browser-plugin-template/README.md`](./templates/misc/authoring-browser-plugin-template/README.md)
-- [`templates/misc/backend-node-package-template/README.md`](./templates/misc/backend-node-package-template/README.md)
-
-补充说明：
-
-- `templates/backend/` 当前保留目录结构，但没有活动中的模板 README。
-- 已删除目录对应的旧文档已经从当前入口移除，避免再把历史结构误写成现状。
+- 根 README 只保留现状入口，不再为已删除目录或历史兼容结构保留导航。
+- 包 README 只讲该包自己的使用入口、职责边界和真实导出。
+- `docs/` 下的事实型专题以当前源码和包 README 为准；如果二者冲突，优先相信当前源码。
+- `注意事项.md` 用于维护跨任务复用的踩坑记录，不写成方案草案。

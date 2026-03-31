@@ -1,33 +1,49 @@
-# @leafergraph/authoring-basic-nodes
+# `@leafergraph/authoring-basic-nodes`
 
-`@leafergraph/authoring-basic-nodes` is a pure authoring library package.
+`authoring-basic-nodes` 是一个纯作者层示例包。
 
-It exposes the `basic/*` and `events/*` authoring nodes, the shared status
-widget, and the assembled LeaferGraph plugin/module entrypoints. This package
-does not ship a browser demo app, presets, or sample registry helpers.
+它不提供页面 demo，也不提供额外宿主壳层；它的作用是演示怎样把一组作者层节点和 Widget 收口成可以直接分发的 `module` / `plugin`。
 
-## Exports
+## 适用场景
 
-- default export: `authoringBasicNodesPlugin`
-- named exports:
+适合：
+
+- 想看 `@leafergraph/authoring` 的真实落地样子
+- 想参考一个纯 ESM 作者层包怎么组织导出
+- 想知道如何把状态读数 Widget 跟节点一起分发
+
+不适合：
+
+- 想直接看浏览器页面交互
+- 想看菜单、shortcuts、history 或 bundle loader
+
+## 对外导出
+
+- 默认导出
+  - `authoringBasicNodesPlugin`
+- 具名导出
   - `authoringBasicNodesPlugin`
   - `authoringBasicNodesModule`
   - `authoringBasicNodeClasses`
   - `AUTHORING_BASIC_NODE_TYPES`
   - `StatusReadoutWidget`
 
-## Plugin Usage
+## 最小使用方式
+
+### 作为 plugin
 
 ```ts
 import { createLeaferGraph } from "leafergraph";
 import authoringBasicNodesPlugin from "@leafergraph/authoring-basic-nodes";
 
-const graph = createLeaferGraph(container);
+const graph = createLeaferGraph(container, {
+  plugins: [authoringBasicNodesPlugin]
+});
+
 await graph.ready;
-await graph.use(authoringBasicNodesPlugin);
 ```
 
-## Module Usage
+### 作为 module
 
 ```ts
 import { createLeaferGraph } from "leafergraph";
@@ -38,14 +54,34 @@ await graph.ready;
 graph.installModule(authoringBasicNodesModule);
 ```
 
-## Build
+## 依赖边界
+
+这个示例包当前依赖这些真源：
+
+- `@leafergraph/authoring`
+- `@leafergraph/execution`
+- `@leafergraph/node`
+- `leafergraph`
+
+它不自动提供：
+
+- `system/on-play`
+- `system/timer`
+- 基础 widgets
+
+如果宿主还需要这些默认内容，请额外安装 `@leafergraph/basic-kit`。
+
+## 构建与检查
+
+在 workspace 根目录执行：
 
 ```bash
-bun run build
+bun run check:authoring-basic-nodes
+bun run build:authoring-basic-nodes
 ```
 
-This build only emits ESM library output into `dist/`.
+## 继续阅读
 
-If your host also needs the default `system/on-play` / `system/timer` nodes or
-the basic widget set, install `@leafergraph/basic-kit` separately. This package
-only provides the authoring nodes and widget entries it defines itself.
+- [根 README](../../README.md)
+- [@leafergraph/authoring README](../../packages/authoring/README.md)
+- [Templates 总览](../../templates/README.md)

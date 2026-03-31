@@ -2,51 +2,43 @@
 
 `@leafergraph/undo-redo` 是 LeaferGraph workspace 的宿主状态扩展包。
 
-它负责这些内容：
+它负责 undo / redo controller、历史栈裁剪和 graph history feed 绑定；它不会自动塞进 `createLeaferGraph(...)`，也不承担快捷键 runtime。
 
-- undo / redo controller
-- 历史栈裁剪、redo 失效和状态订阅
-- `leafergraph` history feed 到可回放 entry 的 graph 绑定 helper
+## 包定位
 
-它不负责这些内容：
+适合直接依赖它的场景：
 
-- 主包 runtime 核心装配
-- 跨会话持久化
-- authority 合并或远端历史同步
-- 快捷键 runtime 本体
+- 你已经有 `LeaferGraph` 实例，想显式启用历史栈
+- 你想通过 `graph.history` 控制最大历史条数和文档同步重置策略
+- 你想把按钮、菜单或快捷键统一接到同一个 controller
 
-这个包和 `@leafergraph/shortcuts` 一样，按“非核心维护包 / 宿主状态扩展层”管理，但已经进入 root 默认 `build` 和 `test:core` 聚合。
+不适合直接把它当成：
 
-## 适用场景
+- 图运行时主包
+- 持久化历史系统
+- authority 合并层
 
-- 你已经有 `LeaferGraph` 实例，想显式启用 undo / redo
-- 你希望通过 `graph.history` 控制最大历史条数和文档同步重置策略
-- 你想把按钮、菜单或快捷键接到统一的历史 controller
+## 公开入口
 
-不适合这些场景：
+### 根入口
 
-- 你需要完整的跨会话历史持久化
-- 你想把 undo / redo 自动塞回 `createLeaferGraph(...)`
-- 你要把快捷键和历史栈合成一个包
+- `createUndoRedoController(...)`
+- `UndoRedoEntry`
+- `UndoRedoController`
+- `UndoRedoControllerOptions`
+- `UndoRedoControllerState`
 
-## 快速开始
+### `./graph`
+
+- `bindLeaferGraphUndoRedo(...)`
+- `LeaferGraphUndoRedoHost`
+- `BindLeaferGraphUndoRedoOptions`
+- `BoundLeaferGraphUndoRedo`
+
+## 最小使用方式
 
 ```ts
-import { createLeaferGraph } from "leafergraph";
 import { bindLeaferGraphUndoRedo } from "@leafergraph/undo-redo/graph";
-
-const graph = createLeaferGraph(container, {
-  config: {
-    graph: {
-      history: {
-        maxEntries: 100,
-        resetOnDocumentSync: true
-      }
-    }
-  }
-});
-
-await graph.ready;
 
 const history = bindLeaferGraphUndoRedo({
   host: graph,
@@ -67,32 +59,30 @@ unsubscribe();
 history.destroy();
 ```
 
-## 公开入口
-
-- 根入口
-  - `createUndoRedoController(...)`
-  - `UndoRedoEntry`
-  - `UndoRedoController`
-  - `UndoRedoControllerOptions`
-  - `UndoRedoControllerState`
-- `./graph`
-  - `bindLeaferGraphUndoRedo(...)`
-  - `LeaferGraphUndoRedoHost`
-  - `BindLeaferGraphUndoRedoOptions`
-  - `BoundLeaferGraphUndoRedo`
+这里的 `config` 真源来自 `@leafergraph/config` 的 `graph.history`；  
+写了配置并不会自动启用历史栈，仍然需要显式绑定这个包。
 
 ## 与其它包的边界
 
-- `@leafergraph/config`
-  - `graph.history` 是历史配置真源
-- `leafergraph`
-  - 只负责发出 `subscribeHistory(...)` history feed，不自动创建 controller
-- `@leafergraph/shortcuts`
-  - 可以可选消费 history host，但不反向依赖 `@leafergraph/undo-redo`
+| 包 | 关系 |
+| --- | --- |
+| `@leafergraph/config` | `graph.history` 配置真源 |
+| `leafergraph` | 只负责发出 `subscribeHistory(...)` history feed |
+| `@leafergraph/shortcuts` | 可选消费 history host，但不反向依赖 `undo-redo` |
+| `@leafergraph/context-menu-builtins` | 可选消费 history host，但不承接历史栈本体 |
 
 ## 常用命令
+
+在 workspace 根目录执行：
 
 ```bash
 bun run build:undo-redo
 bun run test:undo-redo
 ```
+
+## 继续阅读
+
+- [根 README](../../README.md)
+- [@leafergraph/config README](../config/README.md)
+- [@leafergraph/shortcuts README](../shortcuts/README.md)
+- [mini-graph README](../../example/mini-graph/README.md)

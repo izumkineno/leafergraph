@@ -1,83 +1,75 @@
 # Authoring Browser Plugin Template
 
-这是一份完整的 authoring-first `TypeScript` 模板工程。
+这是一份完整的 authoring-first 组合模板。
 
-它面向“开发者真正要交付一个可加载 bundle”的场景：开发者平时主要维护 `src/developer/` 里的类型化文件，而 `src/presets/` 和 `src/browser/` 只负责消费这些信息，最终再构建成给支持 browser bundle 的宿主或外部应用加载的 `dist/browser/*.iife.js`。
+它面向“我要同时交付节点、Widget 和 demo bundle”的场景，适合拿来做最小可分发的 browser plugin 样例。
 
-## 这份模板提供什么
+## 适用场景
 
-- 一个自定义文字展示 Widget `TextReadoutWidget`
-- 一个计算节点 `SumNode`
-- 一个流程节点 `PulseCounterNode`
-- 一个观察节点 `WatchNode`
-- 最小 demo 文档 `authoringBrowserTemplateDemoDocument`
-- 最终 browser 产物：
-  - `dist/browser/widget.iife.js`
-  - `dist/browser/node.iife.js`
-  - `dist/browser/demo.iife.js`
+适合：
 
-其中最重要的演示链路是：
+- 同时交付 node / widget / demo 三段链路
+- 既要保留 ESM 包，又要保留 browser bundle 入口
+- 需要最小的 demo 文档来验证 bundle 安装结果
 
-```text
-system/on-play -> PulseCounterNode -> WatchNode
-```
+不适合：
 
-`WatchNode` 不再只改标题或 `status`，而是把最新输入值同步到节点内部的自定义文字 Widget。
+- 只想交付单个节点包
+- 只想交付单个 Widget 包
+- 需要 editor 壳层、authority 或复杂页面工作台
 
-## 目录结构
+## 模板里有什么
+
+- `TextReadoutWidget`
+- `SumNode`
+- `PulseCounterNode`
+- `WatchNode`
+- `authoringBrowserTemplateModule`
+- `authoringBrowserTemplatePlugin`
+- `authoringBrowserTemplateDemoDocument`
+- `dist/browser/widget.iife.js`
+- `dist/browser/node.iife.js`
+- `dist/browser/demo.iife.js`
+
+## 真源依赖
+
+这份模板默认建立在这些真源包之上：
+
+- `@leafergraph/authoring`
+- `@leafergraph/contracts`
+- `@leafergraph/node`
+
+如果你直接在宿主里跑它的 demo，通常还会额外用到：
+
+- `leafergraph`
+- `@leafergraph/basic-kit`
+
+## 目录速览
 
 ```text
 templates/misc/authoring-browser-plugin-template/
-  package.json
-  tsconfig.json
-  tsconfig.build.json
-  vite.config.ts
-  vite.browser.config.ts
-  scripts/
-    prepare_dist.mjs
   src/
-    index.ts
     developer/
-      index.ts
-      shared.ts
+      nodes/
+      widgets/
       module.ts
       preset.ts
-      nodes/
-        sum_node.ts
-        pulse_counter_node.ts
-        watch_node.ts
-      widgets/
-        text_readout_widget.ts
     presets/
-      demo_document.ts
     browser/
-      register_bundle.ts
-      widget_bundle.ts
-      node_bundle.ts
-      demo_bundle.ts
 ```
 
-## 开发者改哪里
-
-常见修改入口：
+最常改的地方：
 
 - `src/developer/shared.ts`
-  - 包名、版本、scope、类型常量、bundle 展示名
-- `src/developer/widgets/text_readout_widget.ts`
-  - 文字 Widget 渲染逻辑
+  - 包名、scope、类型常量、bundle 展示名
 - `src/developer/nodes/*.ts`
-  - `SumNode`、`PulseCounterNode`、`WatchNode`
+  - 节点逻辑
+- `src/developer/widgets/*.ts`
+  - Widget 逻辑
 - `src/developer/preset.ts`
-  - demo 预设里的节点、连线和默认文案
+  - demo 文档与默认链路
 - `src/developer/module.ts`
-  - `module`、`plugin` 与节点/Widget 收口方式
-
-而这两个目录默认尽量不改：
-
-- `src/presets/`
-  - 只负责把开发者入口提供的数据装配成正式 `GraphDocument`
-- `src/browser/`
-  - 只负责向 bundle bridge 注册 `widget/node/demo`
+  - plugin / module 收口方式
 
 ## 开发流程
 
@@ -89,30 +81,19 @@ bun run check
 bun run build
 ```
 
-流程固定是：
+构建完成后，你会同时得到：
 
-1. 在 `src/developer/widgets/*.ts` 和 `src/developer/nodes/*.ts` 里写 `BaseWidget` / `BaseNode`
-2. 先通过 `check` 和 ESM 构建验证源码
-3. 最后构建 `widget.iife.js`、`node.iife.js`、`demo.iife.js`
+- `dist/browser/widget.iife.js`
+- `dist/browser/node.iife.js`
+- `dist/browser/demo.iife.js`
 
-## 对外导出
+## 宿主接入
 
-- `TextReadoutWidget`
-- `textReadoutWidgetEntry`
-- `SumNode`
-- `PulseCounterNode`
-- `WatchNode`
-- `authoringBrowserTemplateModule`
-- `authoringBrowserTemplateWidgetPlugin`
-- `authoringBrowserTemplateNodePlugin`
-- `authoringBrowserTemplatePlugin`
-- `authoringBrowserTemplateDemoDocument`
-
-## ESM 宿主接入
+### ESM 宿主
 
 ```ts
-import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import { createLeaferGraph } from "leafergraph";
+import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import authoringBrowserTemplatePlugin, {
   authoringBrowserTemplateDemoDocument
 } from "@template/authoring-browser-plugin-template";
@@ -125,28 +106,15 @@ const graph = createLeaferGraph(container, {
 await graph.ready;
 ```
 
-这里额外安装 `@leafergraph/basic-kit`，是因为模板 demo 文档里包含 `system/on-play`。
+### browser bundle 宿主
 
-## browser bundle 加载顺序
-
-如果你想直接在支持这些 bundle 的宿主里联调，推荐顺序是：
+推荐加载顺序：
 
 1. `dist/browser/widget.iife.js`
 2. `dist/browser/node.iife.js`
 3. `dist/browser/demo.iife.js`
 
-这样 `WatchNode` 依赖的 `TextReadoutWidget` 会先完成注册，再恢复引用它的节点和 demo 文档。
-
-## 边界说明
-
-- 模板源码优先，`iife.js` 只是最终发布物
-- browser bundle 继续沿用现有 script-bundle 握手
-- 宿主适配 authoring 产物，不是 authoring 反向兼容宿主
-- 预设层与开发者层已分离；需要改 demo 内容时，优先先改 `src/developer/preset.ts`
-- 这里不兼容 litegraph.js 旧节点实现，只借用 `watch` 和最小流程链的开发者心智
-- 这里就是当前更推荐的 authoring 浏览器模板入口
-
-## 进一步阅读
+## 继续阅读
 
 - [Templates 总览](../../README.md)
 - [@leafergraph/authoring README](../../../packages/authoring/README.md)

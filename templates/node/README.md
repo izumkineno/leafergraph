@@ -1,31 +1,36 @@
 # Node Templates
 
-这个目录用于放“纯节点作者模型”的模板与说明。
+这个目录只放“纯节点作者模板”。
 
-## 当前边界
+它们的共同特点是：
 
-- 当前默认入口是 `authoring-node-template`。
-- 节点模板的 `developer/` 会按 `shared / nodes / module` 分文件。
-- 如果只是改包名、命名空间或 bundle 信息，优先改 `src/developer/shared.ts`。
-- 如果是改节点逻辑，优先改 `src/developer/nodes/*.ts`。
-- 这里不放需要同时维护 node/widget/demo 三段链路的组合模板。
+- 作者代码集中在 `src/developer/`
+- 以 `@leafergraph/authoring` 和 `@leafergraph/node` 为核心真源
+- 既能导出 ESM 包，也能构建 `node.iife.js`
 
 ## 当前模板
 
-- [`authoring-node-template`](./authoring-node-template/README.md)
+- [authoring-node-template](./authoring-node-template/README.md)
   - 纯节点作者模板
-  - 内置 `BasicSumNode` 和 `WatchNode`
-  - `WatchNode` 自带只读文字 Widget 示例
-  - 浏览器发布物是 `dist/browser/node.iife.js`
+  - 自带 `BasicSumNode` 和 `WatchNode`
+  - 适合从“单个节点包”开始扩成自己的 node module
 
-## 应放什么
+## 适用边界
 
-- 单节点 artifact 模板
-- 节点定义作者指南
-- 节点 demo 与执行器如何协作的说明
+适合放在这里的模板：
 
-## 不应放什么
+- 只交付节点定义、模块和 plugin
+- 不需要额外交付 Widget bundle 或 demo bundle
+- 主要演示节点作者层和 `node.iife.js` 产物
 
-- authority 后端模板
-- 混合型浏览器插件模板
-- 同时包含前后端整包运行时的 misc 模板
+不适合放在这里的模板：
+
+- 同时交付 node / widget / demo 的组合模板
+- 主要关注 Widget 渲染层的模板
+- 宿主壳层或 authority 相关模板
+
+## 推荐阅读顺序
+
+1. [authoring-node-template README](./authoring-node-template/README.md)
+2. [@leafergraph/authoring README](../../packages/authoring/README.md)
+3. [外部节点包接入方案](../../docs/节点插件接入方案.md)

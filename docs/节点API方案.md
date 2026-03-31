@@ -3,8 +3,12 @@
 ## 文档信息
 
 - 当前状态：现状优先，保留设计约束
-- 最近校对：2026-03-23
+- 最近校对：2026-03-31
 - 适用范围：`packages/node`、`packages/leafergraph` 的节点模型与节点壳
+- 互补文档：
+  - 包入口看 [`../packages/node/README.md`](../packages/node/README.md)
+  - 宿主用法看 [`../packages/leafergraph/README.md`](../packages/leafergraph/README.md)
+  - 前瞻演进看 [`架构演进与提案总览.md`](./架构演进与提案总览.md)
 
 ## 1. 当前 API 结论
 

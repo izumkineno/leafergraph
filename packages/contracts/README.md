@@ -1,37 +1,54 @@
-# @leafergraph/contracts
+# `@leafergraph/contracts`
 
-`@leafergraph/contracts` 是 LeaferGraph workspace 的公共契约真源。
+`@leafergraph/contracts` 是 LeaferGraph workspace 的公共契约层。
 
-它负责这些“会被多个包共享、但不该绑定某个宿主实现”的内容：
+它把多个包共享、但又不应该绑定某个具体宿主实现的类型集中到一起，例如插件协议、图 API 输入输出、Widget 契约、运行反馈和文档 diff helper。
 
-- 图运行时公开 options、插件协议和宿主上下文
-- 图操作、交互提交、运行反馈等公共输入输出类型
-- Widget 条目、renderer、lifecycle、editing context 等共享契约
-- 图文档 diff 的纯数据类型与 helper
+## 包定位
 
-它不负责：
+适合直接依赖它的场景：
 
-- `LeaferGraph` 运行时类和场景装配
-- 节点壳、连线、画布交互和视图刷新
-- 默认内容包、主题 preset 或 config 默认值真源
+- 声明 `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`
+- 消费图操作输入输出和交互提交事件
+- 写共享 Widget 契约类型
+- 在实例外处理文档 diff
 
-## 适用场景
+不适合直接把它当成：
 
-适合：
+- 图实例主包
+- 模型真源
+- 主题或配置默认值真源
 
-- 给 `leafergraph`、`@leafergraph/widget-runtime`、`@leafergraph/authoring` 提供统一共享类型
-- 在宿主外部声明 `LeaferGraphOptions`、`RuntimeFeedbackEvent`、`GraphOperation`
-- 在 session / sync / authority 链里消费 `graph-document-diff` helper
-
-不适合：
-
-- 直接创建图实例
-- 承载 Leafer scene 运行时逻辑
-- 作为主题或配置默认值入口
-
-## 快速开始
+## 公开入口
 
 ### 根入口
+
+根入口主要负责三类共享协议：
+
+- 插件与宿主协议
+  - `LeaferGraphNodePlugin`
+  - `LeaferGraphOptions`
+  - `LeaferGraphWidgetEntry`
+- 图 API 输入输出
+  - `LeaferGraphCreateNodeInput`
+  - `LeaferGraphCreateLinkInput`
+  - `GraphOperation`
+  - `GraphOperationApplyResult`
+- 运行与交互反馈
+  - `RuntimeFeedbackEvent`
+  - `LeaferGraphInteractionCommitEvent`
+  - `LeaferGraphHistoryEvent`
+
+### `./graph-document-diff`
+
+这个子路径只放纯数据 diff 类型与 helper：
+
+- `GraphDocumentDiff`
+- `applyGraphDocumentDiffToDocument(...)`
+- `createCreateNodeInputFromNodeSnapshot(...)`
+- `createUpdateNodeInputFromNodeSnapshot(...)`
+
+## 最小使用方式
 
 ```ts
 import type {
@@ -39,31 +56,36 @@ import type {
   LeaferGraphOptions,
   RuntimeFeedbackEvent
 } from "@leafergraph/contracts";
-```
-
-### 文档 diff 子路径
-
-```ts
 import {
   applyGraphDocumentDiffToDocument,
-  createUpdateNodeInputFromNodeSnapshot
+  type GraphDocumentDiff
 } from "@leafergraph/contracts/graph-document-diff";
+
+const options: LeaferGraphOptions = {
+  themeMode: "dark"
+};
+
+function handleRuntimeFeedback(event: RuntimeFeedbackEvent) {
+  console.log(event.type);
+}
+
+function projectDiff(diff: GraphDocumentDiff, documentData: unknown) {
+  return applyGraphDocumentDiffToDocument(documentData as never, diff);
+}
 ```
 
-## 公开入口
+## 与其它包的边界
 
-- `@leafergraph/contracts`
-  - 插件协议、图 API 输入输出、运行反馈、Widget 契约
-- `@leafergraph/contracts/graph-document-diff`
-  - 纯文档 diff 类型与 helper
+| 包 | 关系 |
+| --- | --- |
+| `@leafergraph/node` | 模型真源，`contracts` 在其之上定义共享协议 |
+| `@leafergraph/execution` | 执行真源，`contracts` 在其之上整理宿主共享类型 |
+| `@leafergraph/config` | 配置真源，`contracts` 只在共享协议里转出相关类型，不接管真源所有权 |
+| `@leafergraph/theme` | 视觉主题真源 |
+| `leafergraph` | 图运行时主包，消费这些契约实现具体宿主 |
 
-## 包边界
-
-- 节点、文档、模块和注册表真源在 `@leafergraph/node`
-- 视觉主题真源在 `@leafergraph/theme`
-- 非视觉配置真源在 `@leafergraph/config`
-- Widget runtime 行为真源在 `@leafergraph/widget-runtime`
-- `leafergraph` 只消费这些契约来暴露运行时 façade，不再聚合 re-export 它们
+如果你已经知道自己只需要模型、配置或主题本身，仍然优先去对应真源包。  
+`@leafergraph/contracts` 的职责是“跨包共享协议”，不是把所有真源重新聚合一遍。
 
 ## 常用命令
 
@@ -73,3 +95,10 @@ import {
 bun run build:contracts
 bun run test:contracts
 ```
+
+## 继续阅读
+
+- [根 README](../../README.md)
+- [@leafergraph/node README](../node/README.md)
+- [@leafergraph/execution README](../execution/README.md)
+- [leafergraph README](../leafergraph/README.md)
