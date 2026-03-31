@@ -33,7 +33,14 @@ export class SelectFieldController extends BasicWidgetController<
   NodeOptionWidgetOptions,
   SelectFieldState
 > {
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): SelectFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const view = new WidgetFieldView(context, {
@@ -52,6 +59,7 @@ export class SelectFieldController extends BasicWidgetController<
       fill: "transparent",
       hittable: false
     });
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     group.add(caret);
     const focusKey = this.resolveFocusKey(context);
 
@@ -107,6 +115,14 @@ export class SelectFieldController extends BasicWidgetController<
     return state;
   }
 
+  /**
+   * 处理键值`Down`。
+   *
+   * @param state - 当前状态。
+   * @param context - 当前上下文。
+   * @param event - 当前事件对象。
+   * @returns 对应的判断结果。
+   */
   private handleKeyDown(
     state: SelectFieldState,
     context: LeaferGraphWidgetRendererContext,
@@ -134,6 +150,14 @@ export class SelectFieldController extends BasicWidgetController<
     return this.isReservedWidgetKey(event);
   }
 
+  /**
+   * 打开菜单。
+   *
+   * @param state - 当前状态。
+   * @param context - 当前上下文。
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private openMenu(
     state: SelectFieldState,
     context: LeaferGraphWidgetRendererContext,

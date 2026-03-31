@@ -44,12 +44,21 @@ interface RadioFieldState extends BasicWidgetLifecycleState {
   focusKey: string;
 }
 
-/** radio renderer。 */
+/**
+ *  radio renderer。
+ */
 export class RadioFieldController extends BasicWidgetController<
   NodeOptionWidgetOptions,
   RadioFieldState
 > {
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): RadioFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const theme = this.resolveTheme(context);
@@ -73,6 +82,7 @@ export class RadioFieldController extends BasicWidgetController<
       cursor: disabled ? "default" : "pointer",
       theme
     });
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const focusRing = createWidgetFocusRing(ui, {
       x: -1.5,
       y: WIDGET_FIELD_Y - 1.5,
@@ -137,11 +147,20 @@ export class RadioFieldController extends BasicWidgetController<
     return state;
   }
 
+  /**
+   * 创建选项项目视图。
+   *
+   * @param context - 当前上下文。
+   * @param item - 项目。
+   * @param index - `index`。
+   * @returns 创建后的结果对象。
+   */
   private createChoiceItemView(
     context: LeaferGraphWidgetRendererContext,
     item: NodeWidgetOptionItem,
     index: number
   ): ChoiceItemView {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const { ui, group, bounds } = context;
     const y =
       WIDGET_FIELD_Y +
@@ -164,6 +183,7 @@ export class RadioFieldController extends BasicWidgetController<
       cornerRadius: 999,
       strokeWidth: 1.2
     });
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     const indicatorDot = createWidgetSurface(ui, {
       x: 23,
       y: y + 11,
@@ -199,6 +219,14 @@ export class RadioFieldController extends BasicWidgetController<
     };
   }
 
+  /**
+   * 处理单选项键值`Down`。
+   *
+   * @param state - 当前状态。
+   * @param context - 当前上下文。
+   * @param event - 当前事件对象。
+   * @returns 对应的判断结果。
+   */
   private handleRadioKeyDown(
     state: RadioFieldState,
     context: LeaferGraphWidgetRendererContext,
@@ -231,6 +259,14 @@ export class RadioFieldController extends BasicWidgetController<
     return this.isReservedWidgetKey(event);
   }
 
+  /**
+   * 同步选项项目。
+   *
+   * @param context - 当前上下文。
+   * @param state - 当前状态。
+   * @param value - 当前值。
+   * @returns 无返回值。
+   */
   private syncChoiceItems(
     context: LeaferGraphWidgetRendererContext,
     state: RadioFieldState,

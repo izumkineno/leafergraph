@@ -13,6 +13,13 @@ type GenericContext = DevNodeContext<
   Record<string, unknown>
 >;
 
+/**
+ * 转换为显示文本。
+ *
+ * @param value - 当前值。
+ * @param maxLength - `maxLength` 参数。
+ * @returns 处理后的结果。
+ */
 export function toDisplayText(value: unknown, maxLength = 120): string {
   if (value === undefined) {
     return "undefined";
@@ -50,6 +57,12 @@ export function toDisplayText(value: unknown, maxLength = 120): string {
   }
 }
 
+/**
+ * 克隆`Structured` 值。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 export function cloneStructuredValue<T>(value: T): T {
   if (typeof structuredClone === "function") {
     try {
@@ -70,6 +83,14 @@ export function cloneStructuredValue<T>(value: T): T {
   }
 }
 
+/**
+ * 读取Widget 字符串。
+ *
+ * @param ctx - `ctx`。
+ * @param name - `name`。
+ * @param fallback - 回退。
+ * @returns 处理后的结果。
+ */
 export function readWidgetString(
   ctx: GenericContext,
   name: string,
@@ -84,6 +105,14 @@ export function readWidgetString(
   return typeof propValue === "string" ? propValue : fallback;
 }
 
+/**
+ * 读取Widget `Number`。
+ *
+ * @param ctx - `ctx`。
+ * @param name - `name`。
+ * @param fallback - 回退。
+ * @returns 处理后的结果。
+ */
 export function readWidgetNumber(
   ctx: GenericContext,
   name: string,
@@ -96,6 +125,14 @@ export function readWidgetNumber(
   return Number.isFinite(numericValue) ? numericValue : fallback;
 }
 
+/**
+ * 读取Widget `Boolean`。
+ *
+ * @param ctx - `ctx`。
+ * @param name - `name`。
+ * @param fallback - 回退。
+ * @returns 对应的判断结果。
+ */
 export function readWidgetBoolean(
   ctx: GenericContext,
   name: string,
@@ -112,6 +149,14 @@ export function readWidgetBoolean(
   return fallback;
 }
 
+/**
+ * 处理 `syncWidgetAndProp` 相关逻辑。
+ *
+ * @param ctx - `ctx`。
+ * @param name - `name`。
+ * @param value - 当前值。
+ * @returns 无返回值。
+ */
 export function syncWidgetAndProp(
   ctx: GenericContext,
   name: string,
@@ -125,6 +170,13 @@ export function syncWidgetAndProp(
   }
 }
 
+/**
+ * 更新状态。
+ *
+ * @param ctx - `ctx`。
+ * @param value - 当前值。
+ * @returns 无返回值。
+ */
 export function updateStatus(
   ctx: GenericContext,
   value: unknown
@@ -145,6 +197,13 @@ export function updateStatus(
   }
 }
 
+/**
+ * 处理 `parseJsonValue` 相关逻辑。
+ *
+ * @param text - 文本。
+ * @param fallback - 回退。
+ * @returns 处理后的结果。
+ */
 export function parseJsonValue<T>(
   text: string,
   fallback: T
@@ -174,18 +233,37 @@ export function parseJsonValue<T>(
   }
 }
 
+/**
+ * 获取动作选项。
+ *
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 export function getActionOptions(
   options: Record<string, unknown> | undefined
 ): LeaferGraphActionExecutionOptions | undefined {
   return options as LeaferGraphActionExecutionOptions | undefined;
 }
 
+/**
+ * 获取`Triggered` 输入槽位。
+ *
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 export function getTriggeredInputSlot(
   options: Record<string, unknown> | undefined
 ): number | undefined {
   return getActionOptions(options)?.propagation?.targetSlot;
 }
 
+/**
+ * 获取执行上下文。
+ *
+ * @param ctx - `ctx`。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 export function getExecutionContext(
   ctx: GenericContext,
   options?: Record<string, unknown>
@@ -193,6 +271,12 @@ export function getExecutionContext(
   return ctx.execution ?? getActionOptions(options)?.executionContext;
 }
 
+/**
+ * 获取定时器运行时载荷。
+ *
+ * @param execution - 执行。
+ * @returns 处理后的结果。
+ */
 export function getTimerRuntimePayload(
   execution: LeaferGraphExecutionContext | undefined
 ): LeaferGraphTimerRuntimePayload | undefined {
@@ -204,6 +288,14 @@ export function getTimerRuntimePayload(
   return payload as LeaferGraphTimerRuntimePayload;
 }
 
+/**
+ * 判断是否为定时器`Tick` 执行。
+ *
+ * @param execution - 执行。
+ * @param nodeId - 目标节点 ID。
+ * @param timerId - 当前定时器 ID。
+ * @returns 对应的判断结果。
+ */
 export function isTimerTickExecution(
   execution: LeaferGraphExecutionContext | undefined,
   nodeId: string,
@@ -221,12 +313,24 @@ export function isTimerTickExecution(
   return true;
 }
 
+/**
+ * 获取定时器`Tick` ID。
+ *
+ * @param execution - 执行。
+ * @returns 处理后的结果。
+ */
 export function getTimerTickId(
   execution: LeaferGraphExecutionContext | undefined
 ): string | undefined {
   return getTimerRuntimePayload(execution)?.timerTickTimerId;
 }
 
+/**
+ * 判断是否为图执行。
+ *
+ * @param execution - 执行。
+ * @returns 对应的判断结果。
+ */
 export function isGraphExecution(
   execution: LeaferGraphExecutionContext | undefined
 ): execution is LeaferGraphExecutionContext & {

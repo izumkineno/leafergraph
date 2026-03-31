@@ -262,6 +262,9 @@ export interface LeaferContextMenu {
   destroy(): void;
 }
 
+/**
+ * 封装 LeaferContextMenuImpl 的相关行为。
+ */
 class LeaferContextMenuImpl implements LeaferContextMenu {
   private readonly app: App;
   private readonly adapter: InternalLeaferContextMenuAdapter;
@@ -269,13 +272,20 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
   private baseResolver?: LeaferContextMenuResolver;
   private readonly registeredResolvers = new Map<string, LeaferContextMenuResolver>();
 
+  /**
+   * 初始化 LeaferContextMenuImpl 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferContextMenuOptions) {
+    // 先整理当前阶段需要的输入、状态与依赖。
     this.app = options.app;
     const resolvedConfig = normalizeLeaferContextMenuConfig(options.config);
     const host =
       options.host ??
       options.container.ownerDocument.body ??
       options.container;
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     this.baseResolver = options.resolveItems;
     this.adapter = createLeaferContextMenuAdapter({
       app: options.app,
@@ -317,6 +327,13 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     });
   }
 
+  /**
+   * 绑定画布。
+   *
+   * @param target - 当前目标对象。
+   * @param meta - `meta`。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindCanvas(
     target: LeaferBindingTargetLike = this.app as unknown as LeaferBindingTargetLike,
     meta?: Record<string, unknown>
@@ -328,6 +345,14 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     return this;
   }
 
+  /**
+   * 绑定节点。
+   *
+   * @param key - 键值。
+   * @param target - 当前目标对象。
+   * @param meta - `meta`。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindNode(
     key: string,
     target: LeaferBindingTargetLike,
@@ -341,6 +366,14 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     return this;
   }
 
+  /**
+   * 绑定连线。
+   *
+   * @param key - 键值。
+   * @param target - 当前目标对象。
+   * @param meta - `meta`。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindLink(
     key: string,
     target: LeaferBindingTargetLike,
@@ -354,22 +387,47 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     return this;
   }
 
+  /**
+   * 绑定目标。
+   *
+   * @param binding - 绑定。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindTarget(binding: LeaferContextMenuBinding): this {
     this.adapter.bindTarget(toInternalBinding(binding));
     return this;
   }
 
+  /**
+   * 处理 `unbindTarget` 相关逻辑。
+   *
+   * @param key - 键值。
+   * @returns 处理后的结果。
+   */
   unbindTarget(key: string): this {
     this.adapter.unbindTarget(key);
     return this;
   }
 
+  /**
+   * 设置解析器。
+   *
+   * @param resolver - 解析器。
+   * @returns 设置解析器的结果。
+   */
   setResolver(resolver?: LeaferContextMenuResolver): this {
     this.baseResolver = resolver;
     this.refreshControllerResolver();
     return this;
   }
 
+  /**
+   * 注册解析器。
+   *
+   * @param key - 键值。
+   * @param resolver - 解析器。
+   * @returns 用于撤销当前注册的清理函数。
+   */
   registerResolver(
     key: string,
     resolver: LeaferContextMenuResolver
@@ -388,12 +446,25 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     };
   }
 
+  /**
+   * 取消注册解析器。
+   *
+   * @param key - 键值。
+   * @returns 取消注册解析器的结果。
+   */
   unregisterResolver(key: string): this {
     this.registeredResolvers.delete(normalizeResolverKey(key));
     this.refreshControllerResolver();
     return this;
   }
 
+  /**
+   * 处理 `open` 相关逻辑。
+   *
+   * @param context - 当前上下文。
+   * @param items - 项目。
+   * @returns 无返回值。
+   */
   open(
     context: LeaferContextMenuContext,
     items?: LeaferContextMenuItem[]
@@ -404,20 +475,40 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     );
   }
 
+  /**
+   * 处理 `close` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   close(): void {
     this.controller.close();
   }
 
+  /**
+   * 判断是否为打开。
+   *
+   * @returns 对应的判断结果。
+   */
   isOpen(): boolean {
     return this.controller.getState().open;
   }
 
+  /**
+   * 处理 `destroy` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     this.adapter.destroy();
     this.controller.destroy();
   }
 
-  /** 把基础 resolver 和全部注册 resolver 合并成当前正式菜单结果。 */
+  /**
+   *  把基础 resolver 和全部注册 resolver 合并成当前正式菜单结果。
+   *
+   * @param context - 当前上下文。
+   * @returns 处理后的结果。
+   */
   private resolveAllItems(
     context: LeaferContextMenuContext
   ): InternalContextMenuItem[] {
@@ -438,7 +529,11 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
     return resolvedItems.map((item) => toInternalItem(item));
   }
 
-  /** 每次 resolver 变更后都统一刷新控制器入口，避免外层自己关心合并逻辑。 */
+  /**
+   *  每次 resolver 变更后都统一刷新控制器入口，避免外层自己关心合并逻辑。
+   *
+   * @returns 无返回值。
+   */
   private refreshControllerResolver(): void {
     this.controller.setResolver((context) =>
       this.resolveAllItems(toPublicContext(context))
@@ -446,12 +541,24 @@ class LeaferContextMenuImpl implements LeaferContextMenu {
   }
 }
 
+/**
+ * 创建`Leafer` 上下文菜单。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createLeaferContextMenu(
   options: LeaferContextMenuOptions
 ): LeaferContextMenu {
   return new LeaferContextMenuImpl(options);
 }
 
+/**
+ * 规范化解析器键值。
+ *
+ * @param key - 键值。
+ * @returns 处理后的结果。
+ */
 function normalizeResolverKey(key: string): string {
   const normalizedKey = key.trim();
   if (!normalizedKey) {
@@ -461,6 +568,12 @@ function normalizeResolverKey(key: string): string {
   return normalizedKey;
 }
 
+/**
+ * 转换为`Internal` 绑定。
+ *
+ * @param binding - 绑定。
+ * @returns 处理后的结果。
+ */
 function toInternalBinding(
   binding: LeaferContextMenuBinding
 ): InternalLeaferContextMenuBinding {
@@ -481,6 +594,12 @@ function toInternalBinding(
   };
 }
 
+/**
+ * 转换为公开上下文。
+ *
+ * @param context - 当前上下文。
+ * @returns 处理后的结果。
+ */
 function toPublicContext(
   context: InternalContextMenuContext
 ): LeaferContextMenuContext {
@@ -507,6 +626,12 @@ function toPublicContext(
   };
 }
 
+/**
+ * 转换为公开目标。
+ *
+ * @param target - 当前目标对象。
+ * @returns 处理后的结果。
+ */
 function toPublicTarget(
   target: InternalContextMenuTarget
 ): LeaferContextMenuTarget {
@@ -518,6 +643,12 @@ function toPublicTarget(
   };
 }
 
+/**
+ * 转换为`Internal` 上下文。
+ *
+ * @param context - 当前上下文。
+ * @returns 处理后的结果。
+ */
 function toInternalContext(
   context: LeaferContextMenuContext
 ): InternalContextMenuContext {
@@ -549,6 +680,12 @@ function toInternalContext(
   };
 }
 
+/**
+ * 转换为`Internal` 项目。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalItem(
   item: LeaferContextMenuItem
 ): InternalContextMenuItem {
@@ -568,6 +705,12 @@ function toInternalItem(
   }
 }
 
+/**
+ * 转换为`Internal` 动作项目。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalActionItem(
   item: LeaferContextMenuActionItem
 ): InternalContextMenuActionItem {
@@ -580,6 +723,12 @@ function toInternalActionItem(
   };
 }
 
+/**
+ * 转换为`Internal` 分隔符项目。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalSeparatorItem(
   item: LeaferContextMenuSeparatorItem
 ): InternalContextMenuSeparatorItem {
@@ -591,6 +740,12 @@ function toInternalSeparatorItem(
   };
 }
 
+/**
+ * 转换为`Internal` 分组项目。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalGroupItem(
   item: LeaferContextMenuGroupItem
 ): InternalContextMenuGroupItem {
@@ -601,6 +756,12 @@ function toInternalGroupItem(
   };
 }
 
+/**
+ * 转换为`Internal` 子菜单项目。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalSubmenuItem(
   item: LeaferContextMenuSubmenuItem
 ): InternalContextMenuSubmenuItem {
@@ -620,6 +781,12 @@ function toInternalSubmenuItem(
   };
 }
 
+/**
+ * 转换为`Internal` 复选框项目。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalCheckboxItem(
   item: LeaferContextMenuCheckboxItem
 ): InternalContextMenuCheckboxItem {
@@ -635,6 +802,12 @@ function toInternalCheckboxItem(
   };
 }
 
+/**
+ * 转换为`Internal` 单选项项目。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalRadioItem(
   item: LeaferContextMenuRadioItem
 ): InternalContextMenuRadioItem {
@@ -652,6 +825,12 @@ function toInternalRadioItem(
   };
 }
 
+/**
+ * 处理 `toInternalItemBase` 相关逻辑。
+ *
+ * @param item - 项目。
+ * @returns 处理后的结果。
+ */
 function toInternalItemBase(item: LeaferContextMenuItemBase) {
   const when = item.when;
   const enableWhen = item.enableWhen;

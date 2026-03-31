@@ -19,7 +19,11 @@ import {
   resolveDefaultLeaferContextMenuConfig
 } from "./context-menu";
 
-/** 返回一份完整的默认主包配置。 */
+/**
+ *  返回一份完整的默认主包配置。
+ *
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultLeaferGraphConfig(): NormalizedLeaferGraphConfig {
   const graph = resolveDefaultLeaferGraphGraphConfig();
   const widget = resolveDefaultLeaferGraphWidgetConfig();
@@ -42,10 +46,16 @@ export function resolveDefaultLeaferGraphConfig(): NormalizedLeaferGraphConfig {
   };
 }
 
-/** 把调用方传入的主包配置补齐为稳定可消费结构。 */
+/**
+ *  把调用方传入的主包配置补齐为稳定可消费结构。
+ *
+ * @param config - 当前配置。
+ * @returns 处理后的结果。
+ */
 export function normalizeLeaferGraphConfig(
   config?: LeaferGraphConfig
 ): NormalizedLeaferGraphConfig {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const defaultGraph = resolveDefaultLeaferGraphGraphConfig();
   const defaultWidget = resolveDefaultLeaferGraphWidgetConfig();
 
@@ -58,6 +68,7 @@ export function normalizeLeaferGraphConfig(
     config?.leafer?.textEditor?.useOfficialTextEditor ??
     defaultWidget.editing.useOfficialTextEditor;
 
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   const graph = normalizeLeaferGraphGraphConfig(config?.graph);
   const widget = normalizeLeaferGraphWidgetConfig(config?.widget, {
     defaultUseOfficialTextEditor: useOfficialTextEditor

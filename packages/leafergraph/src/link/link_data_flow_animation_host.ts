@@ -97,6 +97,11 @@ export class LeaferGraphLinkDataFlowAnimationHost<
 
   private frameId: number | null = null;
 
+  /**
+   * 初始化 LeaferGraphLinkDataFlowAnimationHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphLinkDataFlowAnimationHostOptions<TNodeState>
   ) {
@@ -119,13 +124,21 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.attachReducedMotionListener();
   }
 
-  /** 在外部清空连线层后，把动画 overlay 稳定补回去。 */
+  /**
+   *  在外部清空连线层后，把动画 overlay 稳定补回去。
+   *
+   * @returns 无返回值。
+   */
   restoreLayer(): void {
     this.overlayGroup.remove();
     this.options.linkLayer.add(this.overlayGroup);
   }
 
-  /** 清空当前全部活动动画，并停止 RAF 驱动。 */
+  /**
+   *  清空当前全部活动动画，并停止 RAF 驱动。
+   *
+   * @returns 无返回值。
+   */
   clear(): void {
     const hadEffects =
       this.activePulses.length > 0 || this.activeParticles.length > 0;
@@ -140,7 +153,11 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     }
   }
 
-  /** 销毁宿主并清理订阅、动画状态与 overlay 图元。 */
+  /**
+   *  销毁宿主并清理订阅、动画状态与 overlay 图元。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     this.disposeLinkPropagationSubscription();
     this.detachReducedMotionListener();
@@ -148,7 +165,12 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.overlayGroup.remove();
   }
 
-  /** 命中一条真实传播事件后，按预设触发对应视觉反馈。 */
+  /**
+   *  命中一条真实传播事件后，按预设触发对应视觉反馈。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private handleLinkPropagation(event: LeaferGraphLinkPropagationEvent): void {
     const style = this.getStyle();
     if (
@@ -181,7 +203,12 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.options.renderFrame();
   }
 
-  /** 触发整条连线 pulse，高频场景下默认复用同一条 link 的现有 pulse。 */
+  /**
+   *  触发整条连线 pulse，高频场景下默认复用同一条 link 的现有 pulse。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private triggerPulse(event: LeaferGraphLinkPropagationEvent): void {
     const style = this.getStyle();
     if (style.maxPulses <= 0) {
@@ -214,7 +241,12 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.updatePulse(pulse, this.now());
   }
 
-  /** 触发 travelling comet。 */
+  /**
+   *  触发 travelling comet。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private triggerParticle(event: LeaferGraphLinkPropagationEvent): void {
     const style = this.getStyle();
     if (style.maxParticles <= 0) {
@@ -238,10 +270,16 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.updateParticle(particle, this.now());
   }
 
-  /** 创建单条连线 pulse。 */
+  /**
+   *  创建单条连线 pulse。
+   *
+   * @param event - 当前事件对象。
+   * @returns 创建后的结果对象。
+   */
   private createPulse(
     event: LeaferGraphLinkPropagationEvent
   ): LeaferGraphActiveDataFlowPulse | null {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const resolvedLink = this.resolveAnimatedLink(event.linkId, event.sourceSlot);
     if (!resolvedLink) {
       return null;
@@ -256,6 +294,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       defaultNodeWidth: this.options.defaultNodeWidth,
       portSize: this.options.portSize
     });
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     const style = this.getStyle();
     const view = new Arrow({
       name: `graph-link-data-flow-pulse-${dataFlowPulseSeed}`,
@@ -283,16 +322,23 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     };
   }
 
-  /** 创建 travelling comet。 */
+  /**
+   *  创建 travelling comet。
+   *
+   * @param event - 当前事件对象。
+   * @returns 创建后的结果对象。
+   */
   private createParticle(
     event: LeaferGraphLinkPropagationEvent
   ): LeaferGraphActiveDataFlowParticle | null {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const resolvedLink = this.resolveAnimatedLink(event.linkId, event.sourceSlot);
     if (!resolvedLink) {
       return null;
     }
     const style = this.getStyle();
 
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     const glow = new Rect({
       name: `graph-link-data-flow-glow-${dataFlowParticleSeed}`,
       x: 0,
@@ -381,7 +427,13 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     }
   };
 
-  /** 更新单条连线 pulse 的路径、透明度和描边宽度。 */
+  /**
+   *  更新单条连线 pulse 的路径、透明度和描边宽度。
+   *
+   * @param pulse - `pulse`。
+   * @param timestamp - `timestamp`。
+   * @returns 对应的判断结果。
+   */
   private updatePulse(
     pulse: LeaferGraphActiveDataFlowPulse,
     timestamp: number
@@ -418,11 +470,18 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     return true;
   }
 
-  /** 更新 travelling comet 的当前位置和透明度。 */
+  /**
+   *  更新 travelling comet 的当前位置和透明度。
+   *
+   * @param particle - `particle`。
+   * @param timestamp - `timestamp`。
+   * @returns 对应的判断结果。
+   */
   private updateParticle(
     particle: LeaferGraphActiveDataFlowParticle,
     timestamp: number
   ): boolean {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     const resolvedLink = this.resolveAnimatedLink(particle.linkId);
     if (!resolvedLink) {
       return false;
@@ -452,6 +511,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
       style.fadeOutRatio
     );
 
+    // 再执行核心更新步骤，并同步派生副作用与收尾状态。
     particle.glow.fill = resolvedLink.color;
     particle.glow.x = point[0] - style.glowSize / 2;
     particle.glow.y = point[1] - style.glowSize / 2;
@@ -465,7 +525,13 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     return true;
   }
 
-  /** 根据当前图状态解析一条可动画化的连线。 */
+  /**
+   *  根据当前图状态解析一条可动画化的连线。
+   *
+   * @param linkId - 目标连线 ID。
+   * @param sourceSlotOverride - 来源槽位`Override`。
+   * @returns 处理后的结果。
+   */
   private resolveAnimatedLink(
     linkId: string,
     sourceSlotOverride?: number
@@ -499,23 +565,41 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     };
   }
 
-  /** 删除单条 pulse 图元。 */
+  /**
+   *  删除单条 pulse 图元。
+   *
+   * @param pulse - `pulse`。
+   * @returns 无返回值。
+   */
   private removePulse(pulse: LeaferGraphActiveDataFlowPulse): void {
     pulse.view.remove();
   }
 
-  /** 删除单个粒子图元。 */
+  /**
+   *  删除单个粒子图元。
+   *
+   * @param particle - `particle`。
+   * @returns 无返回值。
+   */
   private removeParticle(particle: LeaferGraphActiveDataFlowParticle): void {
     particle.glow.remove();
     particle.core.remove();
   }
 
-  /** 当前是否还有活动动画。 */
+  /**
+   *  当前是否还有活动动画。
+   *
+   * @returns 对应的判断结果。
+   */
   private hasActiveEffects(): boolean {
     return this.activePulses.length > 0 || this.activeParticles.length > 0;
   }
 
-  /** 若当前没有活动 RAF，则启动统一动画循环。 */
+  /**
+   *  若当前没有活动 RAF，则启动统一动画循环。
+   *
+   * @returns 无返回值。
+   */
   private ensureLoop(): void {
     if (this.frameId !== null || !this.ownerWindow) {
       return;
@@ -524,7 +608,11 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.frameId = this.ownerWindow.requestAnimationFrame(this.updateFrame);
   }
 
-  /** 停止当前 RAF 循环。 */
+  /**
+   *  停止当前 RAF 循环。
+   *
+   * @returns 无返回值。
+   */
   private stopLoop(): void {
     if (this.frameId === null || !this.ownerWindow) {
       return;
@@ -534,7 +622,12 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     this.frameId = null;
   }
 
-  /** 解析当前主题模式下 pulse 的基础透明度。 */
+  /**
+   *  解析当前主题模式下 pulse 的基础透明度。
+   *
+   * @param progress - `progress`。
+   * @returns 处理后的结果。
+   */
   private resolvePulseOpacity(progress: number): number {
     const style = this.getStyle();
     const baseOpacity =
@@ -544,7 +637,11 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     return baseOpacity * (1 - clamp01(progress));
   }
 
-  /** 解析当前主题模式下 glow 透明度。 */
+  /**
+   *  解析当前主题模式下 glow 透明度。
+   *
+   * @returns 处理后的结果。
+   */
   private resolveGlowOpacity(): number {
     const style = this.getStyle();
     return this.options.getThemeMode() === "dark"
@@ -556,6 +653,9 @@ export class LeaferGraphLinkDataFlowAnimationHost<
    * pulse 不能继续和底线使用完全同色。
    * 同色叠加在已经不透明的底线上时，中间大部分像素几乎不会变化，
    * 默认 performance 预设肉眼就只剩两侧一点宽度差，看起来像没有动画。
+   *
+   * @param baseColor - `baseColor` 参数。
+   * @returns 处理后的结果。
    */
   private resolvePulseStrokeColor(baseColor: string): string {
     const mixedColor = mixColorToward(
@@ -567,22 +667,38 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     return mixedColor ?? baseColor;
   }
 
-  /** 每次按当前主题模式读取动画样式，避免继续使用初始化快照。 */
+  /**
+   *  每次按当前主题模式读取动画样式，避免继续使用初始化快照。
+   *
+   * @returns 处理后的结果。
+   */
   private getStyle(): LeaferGraphDataFlowAnimationStyleConfig {
     return this.options.resolveStyle();
   }
 
-  /** 当前环境是否要求减少动态效果。 */
+  /**
+   *  当前环境是否要求减少动态效果。
+   *
+   * @returns 对应的判断结果。
+   */
   private shouldReduceMotion(): boolean {
     return Boolean(this.reducedMotionMediaQuery?.matches);
   }
 
-  /** 读取统一时钟。 */
+  /**
+   *  读取统一时钟。
+   *
+   * @returns 处理后的结果。
+   */
   private now(): number {
     return this.ownerWindow?.performance?.now?.() ?? Date.now();
   }
 
-  /** 在支持时监听 `prefers-reduced-motion` 变化。 */
+  /**
+   *  在支持时监听 `prefers-reduced-motion` 变化。
+   *
+   * @returns 无返回值。
+   */
   private attachReducedMotionListener(): void {
     if (!this.reducedMotionMediaQuery) {
       return;
@@ -601,7 +717,11 @@ export class LeaferGraphLinkDataFlowAnimationHost<
     legacyMediaQuery.addListener?.(listener);
   }
 
-  /** 清理 `prefers-reduced-motion` 监听。 */
+  /**
+   *  清理 `prefers-reduced-motion` 监听。
+   *
+   * @returns 无返回值。
+   */
   private detachReducedMotionListener(): void {
     if (!this.reducedMotionMediaQuery) {
       return;
@@ -630,6 +750,12 @@ export class LeaferGraphLinkDataFlowAnimationHost<
   };
 }
 
+/**
+ * 解析所属对象窗口。
+ *
+ * @param container - `container`。
+ * @returns 处理后的结果。
+ */
 function resolveOwnerWindow(container: HTMLElement): Window | null {
   return (
     container.ownerDocument.defaultView ??
@@ -637,6 +763,12 @@ function resolveOwnerWindow(container: HTMLElement): Window | null {
   );
 }
 
+/**
+ * 规范化安全槽位。
+ *
+ * @param slot - 槽位。
+ * @returns 处理后的结果。
+ */
 function normalizeSafeSlot(slot: number | undefined): number {
   if (typeof slot !== "number" || !Number.isFinite(slot)) {
     return 0;
@@ -645,6 +777,15 @@ function normalizeSafeSlot(slot: number | undefined): number {
   return Math.max(0, Math.floor(slot));
 }
 
+/**
+ * 解析槽位`Color`。
+ *
+ * @param node - 节点。
+ * @param outputSlot - 输出参数。
+ * @param slotTypeFillMap - `slotTypeFillMap` 参数。
+ * @param fallback - 回退。
+ * @returns 处理后的结果。
+ */
 function resolveSlotColor<TNodeState extends LeaferGraphLinkNodeState>(
   node: TNodeState,
   outputSlot: number,
@@ -669,15 +810,35 @@ function resolveSlotColor<TNodeState extends LeaferGraphLinkNodeState>(
   return fallback;
 }
 
+/**
+ * 处理 `clamp01` 相关逻辑。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function clamp01(value: number): number {
   return Math.min(Math.max(value, 0), 1);
 }
 
+/**
+ * 处理 `easeOutCubic` 相关逻辑。
+ *
+ * @param progress - `progress`。
+ * @returns 处理后的结果。
+ */
 function easeOutCubic(progress: number): number {
   const safeProgress = clamp01(progress);
   return 1 - Math.pow(1 - safeProgress, 3);
 }
 
+/**
+ * 处理 `mixColorToward` 相关逻辑。
+ *
+ * @param baseColor - `baseColor` 参数。
+ * @param targetColor - 目标`Color`。
+ * @param ratio - `ratio`。
+ * @returns 处理后的结果。
+ */
 function mixColorToward(
   baseColor: string,
   targetColor: string,
@@ -700,10 +861,24 @@ function mixColorToward(
   });
 }
 
+/**
+ * 处理 `mixChannel` 相关逻辑。
+ *
+ * @param base - `base`。
+ * @param target - 当前目标对象。
+ * @param ratio - `ratio`。
+ * @returns 处理后的结果。
+ */
 function mixChannel(base: number, target: number, ratio: number): number {
   return Math.round(base + (target - base) * clamp01(ratio));
 }
 
+/**
+ * 处理 `parseCssColor` 相关逻辑。
+ *
+ * @param color - `color`。
+ * @returns 处理后的结果。
+ */
 function parseCssColor(
   color: string
 ): { r: number; g: number; b: number; a: number } | null {
@@ -731,6 +906,12 @@ function parseCssColor(
   };
 }
 
+/**
+ * 处理 `parseHexColor` 相关逻辑。
+ *
+ * @param color - `color`。
+ * @returns 处理后的结果。
+ */
 function parseHexColor(
   color: string
 ): { r: number; g: number; b: number; a: number } | null {
@@ -759,6 +940,12 @@ function parseHexColor(
   return null;
 }
 
+/**
+ * 处理 `formatCssColor` 相关逻辑。
+ *
+ * @param color - `color`。
+ * @returns 处理后的结果。
+ */
 function formatCssColor(color: {
   r: number;
   g: number;
@@ -769,6 +956,12 @@ function formatCssColor(color: {
   return `rgba(${clampColorChannel(color.r)}, ${clampColorChannel(color.g)}, ${clampColorChannel(color.b)}, ${alpha})`;
 }
 
+/**
+ * 处理 `clampColorChannel` 相关逻辑。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function clampColorChannel(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -777,6 +970,12 @@ function clampColorChannel(value: number): number {
   return Math.min(255, Math.max(0, Math.round(value)));
 }
 
+/**
+ * 限制`Alpha`。
+ *
+ * @param value - 当前值。
+ * @returns 限制`Alpha`的结果。
+ */
 function clampAlpha(value: number): number {
   if (!Number.isFinite(value)) {
     return 1;
@@ -785,6 +984,14 @@ function clampAlpha(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+/**
+ * 处理 `resolveParticleOpacity` 相关逻辑。
+ *
+ * @param progress - `progress`。
+ * @param fadeInRatio - `fadeInRatio` 参数。
+ * @param fadeOutRatio - `fadeOutRatio` 参数。
+ * @returns 处理后的结果。
+ */
 function resolveParticleOpacity(
   progress: number,
   fadeInRatio: number,

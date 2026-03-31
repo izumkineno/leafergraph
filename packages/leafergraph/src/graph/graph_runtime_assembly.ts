@@ -85,12 +85,16 @@ export interface LeaferGraphRuntimeAssemblyResult<
 /**
  * LeaferGraph 运行时装配器。
  * 这层专门负责把各宿主按固定顺序接起来，避免入口文件继续堆长构造函数。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
  */
 export function createLeaferGraphRuntimeAssembly<
   TNodeState extends LeaferGraphRenderableNodeState
 >( 
   options: LeaferGraphRuntimeAssemblyOptions<TNodeState>
 ): LeaferGraphRuntimeAssemblyResult<TNodeState> {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const canvasHost = new LeaferGraphCanvasHost({
     container: options.container,
     fill: options.config.graph.fill,
@@ -112,9 +116,19 @@ export function createLeaferGraphRuntimeAssembly<
     resolveWidgetTheme: options.resolveWidgetTheme
   });
   const nodeRegistry = new NodeRegistry(widgetEnvironment.widgetRegistry);
+  /**
+   * 处理 `requestRender` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   const requestRender = (): void => {
     canvasState.app.forceRender();
   };
+  /**
+   * 处理 `renderFrame` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   const renderFrame = (): void => {
     canvasState.app.forceUpdate();
     canvasState.app.forceRender(undefined, true);
@@ -150,6 +164,7 @@ export function createLeaferGraphRuntimeAssembly<
     replaceGraphDocument: (document) =>
       sceneRuntime.restoreHost.replaceGraphDocument(document)
   });
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   const executionAdapter = new LeaferGraphLocalExecutionFeedbackAdapter({
     subscribeNodeExecution: (listener) =>
       sceneRuntime.nodeRuntimeHost.subscribeNodeExecution(listener),
@@ -164,6 +179,11 @@ export function createLeaferGraphRuntimeAssembly<
       sceneRuntime.nodeRuntimeHost.subscribeNodeState(listener)
   });
   const historySource = createLeaferGraphHistorySource();
+  /**
+   * 获取图文档。
+   *
+   * @returns 处理后的结果。
+   */
   const getGraphDocument = () =>
     serializeRuntimeGraphDocument(nodeRegistry, options.graphState);
   const disposeHistoryCapture = sceneRuntime.interactionCommitSource.subscribe(

@@ -34,7 +34,12 @@ const LOG_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   second: "2-digit",
 });
 
-/** 把内部状态枚举映射成页面要显示的短标签。 */
+/**
+ *  把内部状态枚举映射成页面要显示的短标签。
+ *
+ * @param status - 状态。
+ * @returns 处理后的结果。
+ */
 function resolveStatusLabel(status: ExampleGraphStatus): string {
   switch (status) {
     case "ready":
@@ -46,7 +51,13 @@ function resolveStatusLabel(status: ExampleGraphStatus): string {
   }
 }
 
-/** 根据当前状态输出一条更可读的中文说明。 */
+/**
+ *  根据当前状态输出一条更可读的中文说明。
+ *
+ * @param status - 状态。
+ * @param errorMessage - 错误消息。
+ * @returns 处理后的结果。
+ */
 function resolveStatusCopy(
   status: ExampleGraphStatus,
   errorMessage: string,
@@ -61,12 +72,23 @@ function resolveStatusCopy(
   }
 }
 
-/** 格式化单条日志显示时间。 */
+/**
+ *  格式化单条日志显示时间。
+ *
+ * @param timestamp - `timestamp`。
+ * @returns 处理后的结果。
+ */
 function formatLogTime(timestamp: number): string {
   return LOG_TIME_FORMATTER.format(timestamp);
 }
 
-/** 根据 authoring 注册状态返回按钮文案。 */
+/**
+ *  根据 authoring 注册状态返回按钮文案。
+ *
+ * @param status - 状态。
+ * @param registeredCount - `registeredCount` 参数。
+ * @returns 处理后的结果。
+ */
 function resolveRegisterButtonLabel(
   status: ExampleAuthoringBundleStatus,
   registeredCount: number,
@@ -85,12 +107,23 @@ function resolveRegisterButtonLabel(
   }
 }
 
+/**
+ * 解析动画预设`Select` 值。
+ *
+ * @param preset - 预设。
+ * @returns 处理后的结果。
+ */
 function resolveAnimationPresetSelectValue(
   preset: ExampleLinkPropagationAnimationOption,
 ): "off" | "performance" | "balanced" | "expressive" {
   return preset === false ? "off" : preset;
 }
 
+/**
+ * 渲染当前示例应用。
+ *
+ * @returns 处理后的结果。
+ */
 export function App() {
   const bundleInputRef = useRef<HTMLInputElement | null>(null);
   const [isChainCollapsed, setIsChainCollapsed] = useState(false);

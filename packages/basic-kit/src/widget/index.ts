@@ -42,6 +42,11 @@ export class BasicWidgetLibrary {
   private readonly buttonController = new ButtonFieldController();
   private readonly radioController = new RadioFieldController();
 
+  /**
+   * 创建`Entries`。
+   *
+   * @returns 创建后的结果对象。
+   */
   createEntries(): BasicWidgetEntry[] {
     return [
       this.createEntry("number", this.readonlyController.createLifecycle()),
@@ -58,6 +63,13 @@ export class BasicWidgetLibrary {
     ];
   }
 
+  /**
+   * 创建条目。
+   *
+   * @param type - 类型。
+   * @param lifecycle - `lifecycle`。
+   * @returns 创建后的结果对象。
+   */
   private createEntry(type: string, lifecycle: Parameters<typeof createWidgetLifecycleRenderer>[0]): BasicWidgetEntry {
     return {
       type,

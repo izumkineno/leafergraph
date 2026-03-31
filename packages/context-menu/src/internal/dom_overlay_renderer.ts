@@ -220,6 +220,9 @@ type FocusableContextMenuItem = Exclude<
   { kind: "separator" } | { kind: "group" }
 >;
 
+/**
+ * 封装 DomContextMenuRendererImpl 的渲染逻辑。
+ */
 class DomContextMenuRendererImpl implements DomContextMenuRenderer {
   private readonly host?: HTMLElement;
   private readonly className?: string;
@@ -241,12 +244,23 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
   private typeaheadBuffer = "";
   private lastTypeaheadTimestamp = 0;
 
+  /**
+   * 初始化 DomContextMenuRendererImpl 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: CreateDomContextMenuRendererOptions) {
     this.host = options.host;
     this.className = options.className;
     this.resolveThemeTokens = options.resolveThemeTokens;
   }
 
+  /**
+   * 处理 `connect` 相关逻辑。
+   *
+   * @param controller - 控制器。
+   * @returns 用于收尾当前绑定的清理函数。
+   */
   connect(controller: ContextMenuController): () => void {
     this.controller = controller;
     this.unsubscribe = controller.subscribe((nextState) => {
@@ -262,6 +276,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     };
   }
 
+  /**
+   * 处理 `destroy` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     this.clearAllTimers();
     this.detachGlobals?.();
@@ -276,6 +295,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.lastTypeaheadTimestamp = 0;
   }
 
+  /**
+   * 处理状态`Change`。
+   *
+   * @param previousState - 当前状态。
+   * @param nextState - 当前状态。
+   * @returns 无返回值。
+   */
   private handleStateChange(
     previousState: ContextMenuOpenState,
     nextState: ContextMenuOpenState
@@ -297,6 +323,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.syncFocusedState();
   }
 
+  /**
+   * 处理 `render` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   private render(): void {
     if (!this.controller) {
       return;
@@ -330,6 +361,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.syncFocusedState();
   }
 
+  /**
+   * 处理 `hide` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   private hide(): void {
     this.clearAllTimers();
     this.typeaheadBuffer = "";
@@ -345,6 +381,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.detachGlobals = undefined;
   }
 
+  /**
+   * 解析所属对象文档。
+   *
+   * @returns 处理后的结果。
+   */
   private resolveOwnerDocument(): Document | null {
     if (this.ownerDocument) {
       return this.ownerDocument;
@@ -359,6 +400,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return this.ownerDocument;
   }
 
+  /**
+   * 确保根节点`Element`。
+   *
+   * @param ownerDocument - 所属对象文档。
+   * @returns 确保根节点`Element`的结果。
+   */
   private ensureRootElement(ownerDocument: Document): HTMLDivElement {
     if (this.rootElement) {
       if (!this.rootElement.parentNode) {
@@ -380,10 +427,22 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return rootElement;
   }
 
+  /**
+   * 解析宿主。
+   *
+   * @param ownerDocument - 所属对象文档。
+   * @returns 处理后的结果。
+   */
   private resolveHost(ownerDocument: Document): HTMLElement {
     return this.host ?? this.state.context?.host ?? ownerDocument.body ?? this.state.context?.container ?? ownerDocument.documentElement;
   }
 
+  /**
+   * 应用主题令牌。
+   *
+   * @param rootElement - 根节点`Element`。
+   * @returns 无返回值。
+   */
   private applyThemeTokens(rootElement: HTMLDivElement): void {
     const themeTokens = this.resolveThemeTokens?.();
     if (!themeTokens) {
@@ -424,6 +483,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     }
   }
 
+  /**
+   * 创建面板。
+   *
+   * @param level - 层级。
+   * @returns 创建后的结果对象。
+   */
   private createPanel(level: number): HTMLDivElement {
     const ownerDocument = this.ownerDocument;
     if (!ownerDocument) {
@@ -461,6 +526,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return panel;
   }
 
+  /**
+   * 创建层级项目。
+   *
+   * @param item - 项目。
+   * @param level - 层级。
+   * @returns 创建后的结果对象。
+   */
   private createLevelItem(item: ContextMenuItem, level: number): Node {
     if (item.kind === "separator") {
       return this.createSeparatorElement(item.key);
@@ -473,6 +545,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return this.createInteractiveItemElement(item, level);
   }
 
+  /**
+   * 创建分隔符`Element`。
+   *
+   * @param key - 键值。
+   * @returns 创建后的结果对象。
+   */
   private createSeparatorElement(key?: string): HTMLDivElement {
     const ownerDocument = this.ownerDocument;
     if (!ownerDocument) {
@@ -488,6 +566,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return separator;
   }
 
+  /**
+   * 创建分组`Element`。
+   *
+   * @param item - 项目。
+   * @param level - 层级。
+   * @returns 创建后的结果对象。
+   */
   private createGroupElement(
     item: Extract<ContextMenuItem, { kind: "group" }>,
     level: number
@@ -514,10 +599,18 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return group;
   }
 
+  /**
+   * 处理 `createInteractiveItemElement` 相关逻辑。
+   *
+   * @param item - 项目。
+   * @param level - 层级。
+   * @returns 创建后的结果对象。
+   */
   private createInteractiveItemElement(
     item: Exclude<ContextMenuItem, { kind: "separator" } | { kind: "group" }>,
     level: number
   ): HTMLButtonElement {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const ownerDocument = this.ownerDocument;
     if (!ownerDocument) {
       throw new Error("缺少右键菜单文档上下文");
@@ -548,6 +641,7 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
 
     if (item.kind === "submenu") {
       button.setAttribute("aria-haspopup", "menu");
+      // 再按当前规则组合结果，并把派生数据一并收口到输出里。
       button.setAttribute(
         "aria-expanded",
         String(this.state.openPath[level] === item.key)
@@ -617,6 +711,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return button;
   }
 
+  /**
+   * 处理 `createLeadingElement` 相关逻辑。
+   *
+   * @param item - 项目。
+   * @returns 创建后的结果对象。
+   */
   private createLeadingElement(
     item: Exclude<ContextMenuItem, { kind: "separator" } | { kind: "group" }>
   ): HTMLSpanElement | null {
@@ -656,6 +756,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return leading;
   }
 
+  /**
+   * 创建图标`Element`。
+   *
+   * @param icon - 图标。
+   * @returns 创建后的结果对象。
+   */
   private createIconElement(icon: ContextMenuRenderableIcon | undefined): HTMLSpanElement {
     const ownerDocument = this.ownerDocument;
     if (!ownerDocument) {
@@ -684,6 +790,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return iconElement;
   }
 
+  /**
+   * 处理 `createTrailingElement` 相关逻辑。
+   *
+   * @param item - 项目。
+   * @returns 创建后的结果对象。
+   */
   private createTrailingElement(
     item: Exclude<ContextMenuItem, { kind: "separator" } | { kind: "group" }>
   ): HTMLSpanElement | null {
@@ -719,7 +831,15 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return trailing;
   }
 
+  /**
+   * 处理面板键值`Down`。
+   *
+   * @param level - 层级。
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private handlePanelKeyDown(level: number, event: KeyboardEvent): void {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     if (!this.controller) {
       return;
     }
@@ -749,6 +869,7 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
 
         const levelItems = this.resolveFocusableLevelItems(level);
         const item = levelItems.find((currentItem) => currentItem.key === selection.key);
+        // 再执行核心更新步骤，并同步派生副作用与收尾状态。
         if (item?.kind === "submenu") {
           event.preventDefault();
           this.openSubmenu(level, item);
@@ -790,6 +911,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     }
   }
 
+  /**
+   * 解析`Keyboard` 选区。
+   *
+   * @param level - 层级。
+   * @returns 处理后的结果。
+   */
   private resolveKeyboardSelection(level: number): ContextMenuKeyboardSelection | null {
     const key = this.state.focusedKeys[level];
     if (!key) {
@@ -799,6 +926,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return { key, level };
   }
 
+  /**
+   * 处理 `resolveTypeaheadMatch` 相关逻辑。
+   *
+   * @param level - 层级。
+   * @param input - 输入参数。
+   * @returns 处理后的结果。
+   */
   private resolveTypeaheadMatch(
     level: number,
     input: string
@@ -834,6 +968,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     );
   }
 
+  /**
+   * 解析可聚焦层级项目。
+   *
+   * @param level - 层级。
+   * @returns 处理后的结果。
+   */
   private resolveFocusableLevelItems(level: number): Array<
     FocusableContextMenuItem
   > {
@@ -845,6 +985,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return flattenContextMenuLevelItems(levelItems).filter(isFocusableContextMenuItem);
   }
 
+  /**
+   * 打开子菜单。
+   *
+   * @param level - 层级。
+   * @param item - 项目。
+   * @returns 无返回值。
+   */
   private openSubmenu(level: number, item: ContextMenuSubmenuItem): void {
     if (!this.controller) {
       return;
@@ -857,6 +1004,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     });
   }
 
+  /**
+   * 调度打开。
+   *
+   * @param level - 层级。
+   * @param item - 项目。
+   * @returns 无返回值。
+   */
   private scheduleOpen(level: number, item: ContextMenuSubmenuItem): void {
     this.clearOpenTimer(level);
     this.clearCloseTimer(level);
@@ -874,6 +1028,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.openTimers.set(level, timerId);
   }
 
+  /**
+   * 调度关闭。
+   *
+   * @param level - 层级。
+   * @param item - 项目。
+   * @returns 无返回值。
+   */
   private scheduleClose(level: number, item?: ContextMenuSubmenuItem): void {
     if (!this.controller || level < 0) {
       return;
@@ -894,6 +1055,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.closeTimers.set(level, timerId);
   }
 
+  /**
+   * 清理打开定时器。
+   *
+   * @param level - 层级。
+   * @returns 无返回值。
+   */
   private clearOpenTimer(level: number): void {
     const timerId = this.openTimers.get(level);
     if (timerId === undefined || !this.ownerDocument?.defaultView) {
@@ -904,6 +1071,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.openTimers.delete(level);
   }
 
+  /**
+   * 清理关闭定时器。
+   *
+   * @param level - 层级。
+   * @returns 无返回值。
+   */
   private clearCloseTimer(level: number): void {
     const timerId = this.closeTimers.get(level);
     if (timerId === undefined || !this.ownerDocument?.defaultView) {
@@ -923,6 +1096,9 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
    *
    * 如果这里只清理最里层那一个，祖先层的延迟关闭仍会生效，表现出来就是
    * “三级及以上 submenu 一 hover 就自己收回去”。
+   *
+   * @param maxLevel - `max` 层级。
+   * @returns 无返回值。
    */
   private clearCloseTimersThrough(maxLevel: number): void {
     for (let level = 0; level <= maxLevel; level += 1) {
@@ -930,6 +1106,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     }
   }
 
+  /**
+   * 清理全部定时器。
+   *
+   * @returns 无返回值。
+   */
   private clearAllTimers(): void {
     const ownerWindow = this.ownerDocument?.defaultView;
     if (ownerWindow) {
@@ -945,6 +1126,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     this.closeTimers.clear();
   }
 
+  /**
+   * 获取`Parent` 子菜单。
+   *
+   * @param level - 层级。
+   * @returns 处理后的结果。
+   */
   private getParentSubmenu(level: number): ContextMenuSubmenuItem | undefined {
     const item = findContextMenuItemByPath(
       this.state.items,
@@ -954,6 +1141,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return item?.kind === "submenu" ? item : undefined;
   }
 
+  /**
+   * 解析子菜单触发模式。
+   *
+   * @param item - 项目。
+   * @returns 处理后的结果。
+   */
   private resolveSubmenuTriggerMode(item: ContextMenuSubmenuItem): "hover" | "click" | "hover+click" {
     if (this.isCoarsePointer()) {
       return "click";
@@ -962,6 +1155,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return this.controller?.getSubmenuTriggerMode(item) ?? "hover+click";
   }
 
+  /**
+   * 判断是否为粗粒度指针。
+   *
+   * @returns 对应的判断结果。
+   */
   private isCoarsePointer(): boolean {
     const ownerWindow = this.ownerDocument?.defaultView;
     if (!ownerWindow) {
@@ -984,11 +1182,24 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     );
   }
 
+  /**
+   * 处理 `attachGlobalListeners` 相关逻辑。
+   *
+   * @param ownerDocument - 所属对象文档。
+   * @returns 无返回值。
+   */
   private attachGlobalListeners(ownerDocument: Document): void {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     if (this.detachGlobals) {
       return;
     }
 
+    /**
+     * 处理指针`Down`。
+     *
+     * @param event - 当前事件对象。
+     * @returns 无返回值。
+     */
     const handlePointerDown = (event: PointerEvent): void => {
       if (!this.state.open) {
         return;
@@ -1001,6 +1212,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
       this.controller?.close();
     };
 
+    /**
+     * 处理上下文菜单。
+     *
+     * @param event - 当前事件对象。
+     * @returns 无返回值。
+     */
     const handleContextMenu = (event: MouseEvent): void => {
       if (!this.state.open) {
         return;
@@ -1014,6 +1231,12 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
       this.controller?.close();
     };
 
+    /**
+     * 处理键值`Down`。
+     *
+     * @param event - 当前事件对象。
+     * @returns 无返回值。
+     */
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (!this.state.open || event.key !== "Escape") {
         return;
@@ -1023,6 +1246,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
       this.controller?.close();
     };
 
+    /**
+     * 处理关闭。
+     *
+     * @returns 无返回值。
+     */
     const handleDismiss = (): void => {
       if (this.state.open) {
         this.controller?.close();
@@ -1030,6 +1258,7 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     };
 
     ownerDocument.addEventListener("pointerdown", handlePointerDown, true);
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     ownerDocument.addEventListener("contextmenu", handleContextMenu, true);
     ownerDocument.addEventListener("keydown", handleKeyDown, true);
 
@@ -1048,6 +1277,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     };
   }
 
+  /**
+   * 处理 `positionPanels` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   private positionPanels(): void {
     const ownerDocument = this.ownerDocument;
     const rootElement = this.rootElement;
@@ -1084,6 +1318,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     }
   }
 
+  /**
+   * 处理 `positionRootPanel` 相关逻辑。
+   *
+   * @param panel - 面板。
+   * @param ownerWindow - 所属对象窗口。
+   * @returns 无返回值。
+   */
   private positionRootPanel(panel: HTMLDivElement, ownerWindow: Window): void {
     const bounds = panel.getBoundingClientRect();
     const maxX = Math.max(
@@ -1109,6 +1350,14 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     applyPanelPosition(panel, nextX, nextY);
   }
 
+  /**
+   * 处理 `positionSubmenuPanel` 相关逻辑。
+   *
+   * @param panel - 面板。
+   * @param trigger - 触发。
+   * @param ownerWindow - 所属对象窗口。
+   * @returns 无返回值。
+   */
   private positionSubmenuPanel(
     panel: HTMLDivElement,
     trigger: HTMLElement,
@@ -1146,6 +1395,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     );
   }
 
+  /**
+   * 处理 `syncFocusedElement` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   private syncFocusedElement(): void {
     const rootElement = this.rootElement;
     const ownerDocument = this.ownerDocument;
@@ -1174,6 +1428,13 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     targetElement.focus({ preventScroll: true });
   }
 
+  /**
+   * 判断是否需要重建面板。
+   *
+   * @param previousState - 当前状态。
+   * @param nextState - 当前状态。
+   * @returns 对应的判断结果。
+   */
   private shouldRebuildPanels(
     previousState: ContextMenuOpenState,
     nextState: ContextMenuOpenState
@@ -1193,6 +1454,11 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
     return !isSameStringArray(previousState.openPath, nextState.openPath);
   }
 
+  /**
+   * 同步`Focused` 状态。
+   *
+   * @returns 无返回值。
+   */
   private syncFocusedState(): void {
     const rootElement = this.rootElement;
     if (!rootElement) {
@@ -1217,12 +1483,24 @@ class DomContextMenuRendererImpl implements DomContextMenuRenderer {
   }
 }
 
+/**
+ * 创建DOM 上下文菜单渲染器。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createDomContextMenuRenderer(
   options: CreateDomContextMenuRendererOptions = {}
 ): DomContextMenuRenderer {
   return new DomContextMenuRendererImpl(options);
 }
 
+/**
+ * 处理 `injectContextMenuStyle` 相关逻辑。
+ *
+ * @param ownerDocument - 所属对象文档。
+ * @returns 无返回值。
+ */
 function injectContextMenuStyle(ownerDocument: Document): void {
   if (ownerDocument.getElementById(CONTEXT_MENU_STYLE_ID)) {
     return;
@@ -1234,10 +1512,25 @@ function injectContextMenuStyle(ownerDocument: Document): void {
   ownerDocument.head?.appendChild(style);
 }
 
+/**
+ * 处理 `clamp` 相关逻辑。
+ *
+ * @param value - 当前值。
+ * @param min - `min`。
+ * @param max - `max`。
+ * @returns 处理后的结果。
+ */
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * 处理 `isSameStringArray` 相关逻辑。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 对应的判断结果。
+ */
 function isSameStringArray(
   left: readonly string[],
   right: readonly string[]
@@ -1255,6 +1548,14 @@ function isSameStringArray(
   return true;
 }
 
+/**
+ * 应用面板位置。
+ *
+ * @param panel - 面板。
+ * @param x - `x`。
+ * @param y - `y`。
+ * @returns 无返回值。
+ */
 function applyPanelPosition(
   panel: HTMLDivElement,
   x: number,

@@ -24,6 +24,11 @@ export interface LeaferGraphHistorySource {
   destroy(): void;
 }
 
+/**
+ * 创建LeaferGraph 历史来源。
+ *
+ * @returns 创建后的结果对象。
+ */
 export function createLeaferGraphHistorySource(): LeaferGraphHistorySource {
   const listeners = new Set<(event: LeaferGraphHistoryEvent) => void>();
 
@@ -51,6 +56,13 @@ export function createLeaferGraphHistorySource(): LeaferGraphHistorySource {
   };
 }
 
+/**
+ * 处理 `serializeRuntimeGraphDocument` 相关逻辑。
+ *
+ * @param nodeRegistry - 节点注册表。
+ * @param graphState - 当前状态。
+ * @returns 处理后的结果。
+ */
 export function serializeRuntimeGraphDocument<
   TNodeState extends LeaferGraphRenderableNodeState
 >(
@@ -66,6 +78,12 @@ export function serializeRuntimeGraphDocument<
   };
 }
 
+/**
+ * 克隆图文档根节点状态。
+ *
+ * @param document - 文档。
+ * @returns 处理后的结果。
+ */
 export function cloneGraphDocumentRootState(
   document: GraphDocumentRootState
 ): GraphDocumentRootState {
@@ -83,6 +101,12 @@ export function cloneGraphDocumentRootState(
   };
 }
 
+/**
+ * 创建历史`Reset` 事件。
+ *
+ * @param reason - `reason`。
+ * @returns 创建后的结果对象。
+ */
 export function createHistoryResetEvent(
   reason: LeaferGraphHistoryResetReason
 ): LeaferGraphHistoryResetEvent {
@@ -93,6 +117,12 @@ export function createHistoryResetEvent(
   };
 }
 
+/**
+ * 创建快照历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createSnapshotHistoryRecord(options: {
   beforeDocument: GraphDocument;
   afterDocument: GraphDocument;
@@ -114,6 +144,12 @@ export function createSnapshotHistoryRecord(options: {
   };
 }
 
+/**
+ * 创建节点创建历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createNodeCreateHistoryRecord(options: {
   nodeSnapshot: NodeSerializeResult;
   source: string;
@@ -137,6 +173,12 @@ export function createNodeCreateHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建节点`Move` 历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createNodeMoveHistoryRecord(options: {
   nodeId: string;
   before: { x: number; y: number };
@@ -168,6 +210,12 @@ export function createNodeMoveHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建节点`Resize` 历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createNodeResizeHistoryRecord(options: {
   nodeId: string;
   before: { width: number; height: number };
@@ -199,6 +247,12 @@ export function createNodeResizeHistoryRecord(options: {
   });
 }
 
+/**
+ * 处理 `createNodeMoveCommitHistoryRecord` 相关逻辑。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createNodeMoveCommitHistoryRecord(options: {
   entries: readonly LeaferGraphNodeMoveCommitEntry[];
   source: string;
@@ -232,6 +286,12 @@ export function createNodeMoveCommitHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建连线创建历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createLinkCreateHistoryRecord(options: {
   link: GraphLink;
   source: string;
@@ -255,6 +315,12 @@ export function createLinkCreateHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建连线`Remove` 历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createLinkRemoveHistoryRecord(options: {
   link: GraphLink;
   source: string;
@@ -278,6 +344,12 @@ export function createLinkRemoveHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建连线`Reconnect` 历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createLinkReconnectHistoryRecord(options: {
   linkId: string;
   before: Pick<GraphLink, "source" | "target">;
@@ -312,6 +384,12 @@ export function createLinkReconnectHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建节点`Collapse` 历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createNodeCollapseHistoryRecord(options: {
   afterDocument: GraphDocument;
   nodeId: string;
@@ -349,6 +427,12 @@ export function createNodeCollapseHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建节点 Widget 历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createNodeWidgetHistoryRecord(options: {
   afterDocument: GraphDocument;
   nodeId: string;
@@ -379,6 +463,12 @@ export function createNodeWidgetHistoryRecord(options: {
   });
 }
 
+/**
+ * 创建历史记录事件。
+ *
+ * @param record - 记录。
+ * @returns 创建后的结果对象。
+ */
 export function createHistoryRecordEvent(record: LeaferGraphHistoryRecord): LeaferGraphHistoryEvent {
   return {
     type: "history.record",
@@ -386,6 +476,12 @@ export function createHistoryRecordEvent(record: LeaferGraphHistoryRecord): Leaf
   };
 }
 
+/**
+ * 创建`Operation` 历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 function createOperationHistoryRecord(options: {
   source: string;
   undoOperations: GraphOperation[];
@@ -403,12 +499,25 @@ function createOperationHistoryRecord(options: {
   };
 }
 
+/**
+ * 创建历史记录 ID。
+ *
+ * @param kind - `kind`。
+ * @returns 创建后的结果对象。
+ */
 function createHistoryRecordId(kind: LeaferGraphHistoryRecord["kind"]): string {
   const recordId = `history:${kind}:${Date.now()}:${historyRecordSeed}`;
   historyRecordSeed += 1;
   return recordId;
 }
 
+/**
+ * 创建图`Operation`。
+ *
+ * @param source - 当前来源对象。
+ * @param input - 输入参数。
+ * @returns 创建后的结果对象。
+ */
 function createGraphOperation(
   source: string,
   input: GraphOperationInput
@@ -428,6 +537,13 @@ type GraphOperationInput = {
   >;
 }[GraphOperation["type"]];
 
+/**
+ * 判断是否为`Same` 坐标。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 对应的判断结果。
+ */
 function isSamePoint(
   left: { x: number; y: number },
   right: { x: number; y: number }
@@ -435,6 +551,13 @@ function isSamePoint(
   return left.x === right.x && left.y === right.y;
 }
 
+/**
+ * 处理 `isSameSize` 相关逻辑。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 对应的判断结果。
+ */
 function isSameSize(
   left: { width: number; height: number },
   right: { width: number; height: number }
@@ -442,6 +565,13 @@ function isSameSize(
   return left.width === right.width && left.height === right.height;
 }
 
+/**
+ * 处理 `isSameLinkEndpoint` 相关逻辑。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 对应的判断结果。
+ */
 function isSameLinkEndpoint(
   left: Pick<GraphLink["source"], "nodeId" | "slot">,
   right: Pick<GraphLink["source"], "nodeId" | "slot">
@@ -449,6 +579,13 @@ function isSameLinkEndpoint(
   return left.nodeId === right.nodeId && (left.slot ?? 0) === (right.slot ?? 0);
 }
 
+/**
+ * 处理 `isStructurallyEqual` 相关逻辑。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 对应的判断结果。
+ */
 function isStructurallyEqual(left: unknown, right: unknown): boolean {
   try {
     return JSON.stringify(left) === JSON.stringify(right);

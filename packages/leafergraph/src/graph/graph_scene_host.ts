@@ -97,6 +97,11 @@ export class LeaferGraphSceneHost<
     TLinkViewState
   >;
 
+  /**
+   * 初始化 LeaferGraphSceneHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphSceneHostOptions<TNodeState, TNodeViewState, TLinkViewState>
   ) {
@@ -127,6 +132,8 @@ export class LeaferGraphSceneHost<
    * 在同一个根 Group 内重建节点壳内容。
    *
    * @param state - 待刷新的节点视图状态。
+   *
+   * @returns 无返回值。
    */
   refreshNodeView(state: TNodeViewState): void {
     this.options.nodeHost.refreshNodeView(state);
@@ -156,6 +163,8 @@ export class LeaferGraphSceneHost<
    * 只更新与某个节点相连的连线，避免全量重算。
    *
    * @param nodeId - 连线刷新要围绕的节点 ID。
+   *
+   * @returns 无返回值。
    */
   updateConnectedLinks(nodeId: string): void {
     this.options.linkHost.updateConnectedLinks(nodeId);
@@ -165,6 +174,8 @@ export class LeaferGraphSceneHost<
    * 批量刷新与一组节点相关的连线。
    *
    * @param nodeIds - 参与刷新的一组节点 ID。
+   *
+   * @returns 无返回值。
    */
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void {
     this.options.linkHost.updateConnectedLinksForNodes(nodeIds);
@@ -180,6 +191,8 @@ export class LeaferGraphSceneHost<
    * @param nodeId - 目标节点 ID。
    * @param widgetIndex - 节点内部 Widget 索引。
    * @param newValue - 待写回的新值。
+   *
+   * @returns 对应的判断结果。
    */
   setNodeWidgetValue(
     nodeId: string,

@@ -28,6 +28,10 @@ export interface LeaferGraphExternalRuntimeFeedbackProjectionHost {
  * @remarks
  * 这层只负责做事件分发，不直接承载具体的节点壳刷新或动画逻辑；
  * 真正的视觉更新仍由各自的 runtime host 负责。
+ *
+ * @param host - 当前宿主实现。
+ * @param feedback - 反馈。
+ * @returns 无返回值。
  */
 export function projectExternalRuntimeFeedback(
   host: LeaferGraphExternalRuntimeFeedbackProjectionHost,

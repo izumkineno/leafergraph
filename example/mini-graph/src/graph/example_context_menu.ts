@@ -86,10 +86,14 @@ export interface ExampleContextMenuHandle {
  * @remarks
  * - 通用功能全部来自 builtins
  * - demo 自己只额外注册 Reset / Clear Log / 信息记录等补丁动作
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
  */
 export function createExampleContextMenu(
   options: CreateExampleContextMenuOptions
 ): ExampleContextMenuHandle {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const builtinsHost = createExampleBuiltinsHost(options);
   const menu = createLeaferContextMenu({
     app: options.graph.app,
@@ -104,6 +108,7 @@ export function createExampleContextMenu(
     }
   });
 
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   const disposeBuiltins = registerLeaferGraphContextMenuBuiltins(menu, {
     host: builtinsHost,
     clipboard: options.clipboard,
@@ -140,10 +145,17 @@ export function createExampleContextMenu(
   };
 }
 
+/**
+ * 处理 `createExampleBuiltinsHost` 相关逻辑。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 function createExampleBuiltinsHost(
   options: CreateExampleContextMenuOptions
 ): LeaferGraphContextMenuBuiltinsHost {
-  return {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
+  const host: LeaferGraphContextMenuBuiltinsHost = {
     listNodes() {
       return options.graph.listNodes();
     },
@@ -183,6 +195,7 @@ function createExampleBuiltinsHost(
     fitView(_context) {
       options.fit();
     },
+    // 再把 demo 自己的运行、日志和删除接线桥接到 builtins 宿主接口上。
     playFromNode(nodeId, _context) {
       const changed = options.graph.playFromNode(nodeId, {
         source: "context-menu"
@@ -204,9 +217,18 @@ function createExampleBuiltinsHost(
       options.removeLink(linkId);
     }
   };
+
+  // 再把组装好的宿主适配对象交给 builtins 注册链使用。
+  return host;
 }
 
-/** demo 额外菜单项只保留说明型动作，不再重复实现通用内建动作。 */
+/**
+ *  demo 额外菜单项只保留说明型动作，不再重复实现通用内建动作。
+ *
+ * @param options - 可选配置项。
+ * @param context - 当前上下文。
+ * @returns 创建后的结果对象。
+ */
 function createExampleMenuItems(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
@@ -222,7 +244,13 @@ function createExampleMenuItems(
   return createCanvasMenuItems(options, context);
 }
 
-/** 画布菜单只保留 demo 专属动作，其余运行与建点能力全部走 builtins。 */
+/**
+ *  画布菜单只保留 demo 专属动作，其余运行与建点能力全部走 builtins。
+ *
+ * @param options - 可选配置项。
+ * @param context - 当前上下文。
+ * @returns 创建后的结果对象。
+ */
 function createCanvasMenuItems(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
@@ -258,10 +286,18 @@ function createCanvasMenuItems(
   ];
 }
 
+/**
+ * 插入动画`Demo` 链路。
+ *
+ * @param options - 可选配置项。
+ * @param context - 当前上下文。
+ * @returns 无返回值。
+ */
 function insertAnimationDemoChain(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
 ): void {
+  // 先整理当前阶段需要的输入、状态与依赖。
   const origin = resolveCanvasCreatePosition(context);
 
   try {
@@ -286,6 +322,7 @@ function insertAnimationDemoChain(
       y: origin.y
     });
 
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     options.createLink({
       source: { nodeId: startNode.id, slot: 0 },
       target: { nodeId: timerNode.id, slot: 0 }
@@ -312,7 +349,13 @@ function insertAnimationDemoChain(
   }
 }
 
-/** 节点菜单只追加说明型动作，删除与运行动作交给 builtins。 */
+/**
+ *  节点菜单只追加说明型动作，删除与运行动作交给 builtins。
+ *
+ * @param options - 可选配置项。
+ * @param context - 当前上下文。
+ * @returns 创建后的结果对象。
+ */
 function createNodeMenuItems(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
@@ -342,7 +385,13 @@ function createNodeMenuItems(
   ];
 }
 
-/** 连线菜单只追加说明型动作，删除动作交给 builtins。 */
+/**
+ *  连线菜单只追加说明型动作，删除动作交给 builtins。
+ *
+ * @param options - 可选配置项。
+ * @param context - 当前上下文。
+ * @returns 创建后的结果对象。
+ */
 function createLinkMenuItems(
   options: CreateExampleContextMenuOptions,
   context: LeaferContextMenuContext
@@ -379,11 +428,22 @@ function createLinkMenuItems(
   ];
 }
 
-/** 菜单浮层统一挂到文档 body，避免被 demo 画布容器裁剪。 */
+/**
+ *  菜单浮层统一挂到文档 body，避免被 demo 画布容器裁剪。
+ *
+ * @param container - `container`。
+ * @returns 处理后的结果。
+ */
 function resolveContextMenuHost(container: HTMLElement): HTMLElement {
   return container.ownerDocument.body ?? container;
 }
 
+/**
+ * 解析画布创建位置。
+ *
+ * @param context - 当前上下文。
+ * @returns 处理后的结果。
+ */
 function resolveCanvasCreatePosition(context: Pick<
   LeaferContextMenuContext,
   "pagePoint" | "worldPoint" | "containerPoint"
@@ -411,12 +471,22 @@ function resolveCanvasCreatePosition(context: Pick<
   };
 }
 
-/** 节点 target 统一使用稳定 binding key，方便重绑和清理。 */
+/**
+ *  节点 target 统一使用稳定 binding key，方便重绑和清理。
+ *
+ * @param nodeId - 目标节点 ID。
+ * @returns 创建后的结果对象。
+ */
 function createNodeMenuBindingKey(nodeId: string): string {
   return `node:${nodeId}`;
 }
 
-/** 连线 target 也使用稳定 binding key，确保删除或 reset 时能精确解绑。 */
+/**
+ *  连线 target 也使用稳定 binding key，确保删除或 reset 时能精确解绑。
+ *
+ * @param linkId - 目标连线 ID。
+ * @returns 创建后的结果对象。
+ */
 function createLinkMenuBindingKey(linkId: string): string {
   return `link:${linkId}`;
 }
@@ -426,6 +496,11 @@ function createLinkMenuBindingKey(linkId: string): string {
  *
  * `graph.getNodeView(...)` 返回的是当前可监听的 Leafer 宿主；
  * 这里顺手把节点标题和类型一起放进 meta，避免菜单 resolver 再反查 graph。
+ *
+ * @param menu - 菜单。
+ * @param options - 可选配置项。
+ * @param nodeId - 目标节点 ID。
+ * @returns 无返回值。
  */
 function bindNodeContextMenuTarget(
   menu: LeaferContextMenu,
@@ -450,6 +525,11 @@ function bindNodeContextMenuTarget(
  *
  * 连线当前没有公开的 snapshot 读取接口，
  * 因此 demo 直接使用 hook 维护的最小连线元信息作为菜单 meta。
+ *
+ * @param menu - 菜单。
+ * @param options - 可选配置项。
+ * @param link - 连线。
+ * @returns 无返回值。
  */
 function bindLinkContextMenuTarget(
   menu: LeaferContextMenu,
@@ -470,7 +550,13 @@ function bindLinkContextMenuTarget(
   });
 }
 
-/** 从 target meta 中安全读取字符串字段，避免菜单层依赖内部宿主结构。 */
+/**
+ *  从 target meta 中安全读取字符串字段，避免菜单层依赖内部宿主结构。
+ *
+ * @param context - 当前上下文。
+ * @param key - 键值。
+ * @returns 处理后的结果。
+ */
 function resolveTargetMetaText(
   context: LeaferContextMenuContext,
   key: "title" | "type" | "sourceNodeId" | "sourceSlot" | "targetNodeId" | "targetSlot"
@@ -479,7 +565,13 @@ function resolveTargetMetaText(
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
-/** 节点菜单只关心标题和类型，因此这里再包一层语义更清楚的 helper。 */
+/**
+ *  节点菜单只关心标题和类型，因此这里再包一层语义更清楚的 helper。
+ *
+ * @param context - 当前上下文。
+ * @param key - 键值。
+ * @returns 处理后的结果。
+ */
 function resolveNodeTargetText(
   context: LeaferContextMenuContext,
   key: "title" | "type"
@@ -487,7 +579,12 @@ function resolveNodeTargetText(
   return resolveTargetMetaText(context, key);
 }
 
-/** 统一格式化连线说明，供菜单里的日志输出和删除反馈复用。 */
+/**
+ *  统一格式化连线说明，供菜单里的日志输出和删除反馈复用。
+ *
+ * @param input - 输入参数。
+ * @returns 处理后的结果。
+ */
 function resolveLinkSummary(input: {
   linkId?: string;
   sourceNodeId?: string;

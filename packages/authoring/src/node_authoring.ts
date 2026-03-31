@@ -127,43 +127,113 @@ export abstract class BaseNode<
   /** 节点静态元信息。 */
   static meta: DevNodeMeta;
 
-  /** 创建作者层私有状态。 */
+  /**
+   *  创建作者层私有状态。
+   *
+   * @returns 无返回值。
+   */
   createState?(): S;
 
-  /** 节点实例初次创建完成后触发。 */
+  /**
+   *  节点实例初次创建完成后触发。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onCreate?(ctx: DevNodeContext<P, I, O, S>): void;
-  /** 节点实例被配置或反序列化时触发。 */
+  /**
+   *  节点实例被配置或反序列化时触发。
+   *
+   * @param data - 当前数据。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onConfigure?(data: NodeSerializeResult, ctx: DevNodeContext<P, I, O, S>): void;
-  /** 节点序列化前触发，可覆写最终输出内容。 */
+  /**
+   *  节点序列化前触发，可覆写最终输出内容。
+   *
+   * @param data - 当前数据。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onSerialize?(data: NodeSerializeResult, ctx: DevNodeContext<P, I, O, S>): void;
-  /** 节点执行阶段触发。 */
+  /**
+   *  节点执行阶段触发。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute?(ctx: DevNodeContext<P, I, O, S>): void;
-  /** 节点属性变化后触发。 */
+  /**
+   *  节点属性变化后触发。
+   *
+   * @param name - `name`。
+   * @param value - 当前值。
+   * @param prevValue - 当前值。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onPropertyChanged?(
     name: keyof P & string,
     value: unknown,
     prevValue: unknown,
     ctx: DevNodeContext<P, I, O, S>
   ): boolean | void;
-  /** 新增输入槽位后触发。 */
+  /**
+   *  新增输入槽位后触发。
+   *
+   * @param input - 输入参数。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onInputAdded?(input: NodeSlotSpec, ctx: DevNodeContext<P, I, O, S>): void;
-  /** 新增输出槽位后触发。 */
+  /**
+   *  新增输出槽位后触发。
+   *
+   * @param output - 输出参数。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onOutputAdded?(output: NodeSlotSpec, ctx: DevNodeContext<P, I, O, S>): void;
-  /** 连线状态变化后触发。 */
+  /**
+   *  连线状态变化后触发。
+   *
+   * @param type - 类型。
+   * @param slot - 槽位。
+   * @param connected - `connected`。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onConnectionsChange?(
     type: SlotDirection,
     slot: number,
     connected: boolean,
     ctx: DevNodeContext<P, I, O, S>
   ): void;
-  /** 宿主发送动作消息时触发。 */
+  /**
+   *  宿主发送动作消息时触发。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction?(
     action: string,
     param: unknown,
     options: Record<string, unknown> | undefined,
     ctx: DevNodeContext<P, I, O, S>
   ): void;
-  /** 宿主发送触发型消息时触发。 */
+  /**
+   *  宿主发送触发型消息时触发。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onTrigger?(
     action: string,
     param: unknown,
@@ -225,6 +295,9 @@ interface AuthoringNodeRuntime<
 /**
  * 把节点作者类转换成正式 `NodeDefinition`。
  * 转换结果不再暴露作者类本身，而是标准模型层定义与生命周期桥接。
+ *
+ * @param NodeCtor - 节点`Ctor`。
+ * @returns 定义`Authoring` 节点的结果。
  */
 export function defineAuthoringNode<
   P extends NodeProps = NodeProps,
@@ -232,6 +305,7 @@ export function defineAuthoringNode<
   O extends NodeOutputs = NodeOutputs,
   S extends NodeState = NodeState
 >(NodeCtor: DevNodeClass<P, I, O, S>): NodeDefinition {
+  // 先整理当前阶段需要的输入、状态与依赖。
   const meta = normalizeNodeMeta(NodeCtor.meta);
   validateNodeMeta(meta);
   const runtimeByNode = new WeakMap<
@@ -242,7 +316,11 @@ export function defineAuthoringNode<
   /**
    * 读取或懒创建某个节点实例对应的作者层运行时。
    * 这样可以把作者类实例与节点实例一一对应起来。
+   *
+   * @param node - 节点。
+   * @returns 处理后的结果。
    */
+  // 再执行核心逻辑，并把结果或副作用统一收口。
   const getRuntime = (node: NodeRuntimeState): AuthoringNodeRuntime<P, I, O, S> => {
     const existing = runtimeByNode.get(node);
     if (existing) {
@@ -261,13 +339,20 @@ export function defineAuthoringNode<
   /**
    * 为作者类组装统一上下文。
    * 它负责把模型层 `NodeApi`、节点实例和作者层私有状态收敛成一个稳定接口。
+   *
+   * @param node - 节点。
+   * @param api - API。
+   * @param execution - 执行。
+   * @returns 创建后的结果对象。
    */
   const createContext = (
     node: NodeRuntimeState,
     api: NodeApi,
     execution?: LeaferGraphExecutionContext
   ): DevNodeContext<P, I, O, S> => {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const runtime = getRuntime(node);
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     const data = ensureNodeData(node);
 
     return {
@@ -325,6 +410,10 @@ export function defineAuthoringNode<
   /**
    * 在宿主未显式传入 `NodeApi` 时兜底创建一份。
    * 这样动作消息与触发消息等路径也能拿到完整 API。
+   *
+   * @param node - 节点。
+   * @param api - API。
+   * @returns 确保API的结果。
    */
   const ensureApi = (node: NodeRuntimeState, api?: NodeApi): NodeApi =>
     api ?? createNodeApi(node);
@@ -407,6 +496,9 @@ export function defineAuthoringNode<
 /**
  * 把一组节点作者类组装成正式 `NodeModule`。
  * 这里不处理 Widget，只处理节点定义和可选作用域。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
  */
 export function createAuthoringModule(options: CreateAuthoringModuleOptions): NodeModule {
   return {
@@ -418,6 +510,9 @@ export function createAuthoringModule(options: CreateAuthoringModuleOptions): No
 /**
  * 把节点作者类与 Widget 作者类组装成主包可安装的插件。
  * 宿主只需安装插件，不需要自行理解作者类桥接细节。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
  */
 export function createAuthoringPlugin(
   options: CreateAuthoringPluginOptions
@@ -450,6 +545,9 @@ export function createAuthoringPlugin(
 /**
  * 规范化节点元信息。
  * 这里会裁剪文本字段，并深拷贝数组 / 对象字段，避免宿主持有外部可变引用。
+ *
+ * @param meta - `meta`。
+ * @returns 处理后的结果。
  */
 function normalizeNodeMeta(meta: DevNodeMeta): DevNodeMeta {
   const type = assertNonEmptyText(meta.type, "节点类型");
@@ -470,7 +568,12 @@ function normalizeNodeMeta(meta: DevNodeMeta): DevNodeMeta {
   };
 }
 
-/** 校验节点元信息里按名称索引的声明项是否唯一。 */
+/**
+ *  校验节点元信息里按名称索引的声明项是否唯一。
+ *
+ * @param meta - `meta`。
+ * @returns 无返回值。
+ */
 function validateNodeMeta(meta: DevNodeMeta): void {
   assertUniqueNames(meta.inputs ?? [], "输入槽位");
   assertUniqueNames(meta.outputs ?? [], "输出槽位");
@@ -480,6 +583,9 @@ function validateNodeMeta(meta: DevNodeMeta): void {
 /**
  * 确保节点拥有作者层可写的 `data` 容器。
  * 这个容器只保存作者层附加数据，不改变正式结构字段。
+ *
+ * @param node - 节点。
+ * @returns 确保节点数据的结果。
  */
 function ensureNodeData(node: NodeRuntimeState): Record<string, unknown> {
   if (!node.data) {
@@ -489,6 +595,12 @@ function ensureNodeData(node: NodeRuntimeState): Record<string, unknown> {
   return node.data;
 }
 
+/**
+ * 从动作选项解析执行上下文。
+ *
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 function resolveExecutionContextFromActionOptions(
   options: Record<string, unknown> | undefined
 ): LeaferGraphExecutionContext | undefined {

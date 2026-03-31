@@ -75,6 +75,11 @@ export class LeaferGraphWidgetHost {
     }
   >();
 
+  /**
+   * 初始化 LeaferGraphWidgetHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphWidgetHostOptions) {
     this.options = options;
   }
@@ -214,6 +219,8 @@ export class LeaferGraphWidgetHost {
    *
    * @param widgetInstances - 当前节点的 Widget renderer 实例。
    * @param widgetLayer - 当前节点的 Widget 图层。
+   *
+   * @returns 无返回值。
    */
   destroyNodeWidgets(
     widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>,
@@ -227,7 +234,13 @@ export class LeaferGraphWidgetHost {
     widgetLayer.removeAll();
   }
 
-  /** 为节点 Widget 生成稳定提交键。 */
+  /**
+   *  为节点 Widget 生成稳定提交键。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - Widget `Index`。
+   * @returns 创建后的结果对象。
+   */
   private createWidgetCommitKey(nodeId: string, widgetIndex: number): string {
     return `${nodeId}:${widgetIndex}`;
   }
@@ -236,6 +249,8 @@ export class LeaferGraphWidgetHost {
 /**
  * 缺失 Widget 类型时的统一占位渲染。
  * 当前直接使用红色块级提示，避免未知类型静默消失导致用户误判数据已丢失。
+ *
+ * @returns 创建后的结果对象。
  */
 export function createMissingWidgetRenderer(): LeaferGraphWidgetRenderer {
   return (context) => {

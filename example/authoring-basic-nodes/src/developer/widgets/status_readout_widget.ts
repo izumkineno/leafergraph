@@ -55,6 +55,12 @@ interface StatusReadoutGeometry {
   detailLineHeight: number;
 }
 
+/**
+ * 规范化状态值。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function normalizeStatusValue(value: unknown): string {
   if (value === undefined || value === null) {
     return "";
@@ -72,6 +78,12 @@ function normalizeStatusValue(value: unknown): string {
   return String(value);
 }
 
+/**
+ * 解析选项。
+ *
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 function resolveOptions(options: unknown): StatusReadoutOptions {
   const source =
     options && typeof options === "object"
@@ -94,6 +106,12 @@ function resolveOptions(options: unknown): StatusReadoutOptions {
   };
 }
 
+/**
+ * 解析主题。
+ *
+ * @param ctx - `ctx`。
+ * @returns 处理后的结果。
+ */
 function resolveTheme(ctx: DevWidgetContext<string>): StatusTheme {
   const { tokens } = ctx.theme;
 
@@ -115,6 +133,9 @@ function resolveTheme(ctx: DevWidgetContext<string>): StatusTheme {
  * @remarks
  * Watch 节点等展示型控件会随着节点拉高获得更多可用高度，
  * 这里让 readout 面板真正吃到这部分空间，而不是维持固定 66px。
+ *
+ * @param bounds - `bounds`。
+ * @returns 处理后的结果。
  */
 function resolveGeometry(
   bounds: DevWidgetContext<string>["bounds"]
@@ -149,6 +170,9 @@ function resolveGeometry(
  * - 一行大约能容纳多少字符
  * - 当前区域最多能显示多少行
  * 超出后只在最后一行补一个省略号。
+ *
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
  */
 function clampTextToBounds(options: {
   text: string;
@@ -157,6 +181,7 @@ function clampTextToBounds(options: {
   textStyle: TextMeasureStyle;
   maxLines?: number;
 }): string {
+  // 先整理当前阶段需要的输入、状态与依赖。
   const normalizedText = options.text.replace(/\r\n/g, "\n");
   const lineHeight = Math.max(
     options.textStyle.fontSize * 1.45,
@@ -191,6 +216,7 @@ function clampTextToBounds(options: {
       continue;
     }
 
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     const characterWidth = measureTextWidth(character, options.textStyle);
     if (
       currentLine &&
@@ -233,7 +259,14 @@ function clampTextToBounds(options: {
   return visibleLines.join("\n");
 }
 
-/** 为最后一行补省略号，同时保证补完后仍不超出当前宽度。 */
+/**
+ *  为最后一行补省略号，同时保证补完后仍不超出当前宽度。
+ *
+ * @param line - `line`。
+ * @param width - `width`。
+ * @param textStyle - 文本样式。
+ * @returns 处理后的结果。
+ */
 function appendEllipsisWithinWidth(
   line: string,
   width: number,
@@ -261,7 +294,13 @@ function appendEllipsisWithinWidth(
   return `${nextLine}${ellipsis}`;
 }
 
-/** 优先使用真实字体测量宽度，失败时再回退到轻量估算。 */
+/**
+ *  优先使用真实字体测量宽度，失败时再回退到轻量估算。
+ *
+ * @param text - 文本。
+ * @param textStyle - 文本样式。
+ * @returns 处理后的结果。
+ */
 function measureTextWidth(text: string, textStyle: TextMeasureStyle): number {
   const context = getTextMeasureContext();
   if (context) {
@@ -276,7 +315,13 @@ function measureTextWidth(text: string, textStyle: TextMeasureStyle): number {
   return width;
 }
 
-/** 粗略区分 CJK / ASCII / 空白字符宽度，用于动态折叠估算。 */
+/**
+ *  粗略区分 CJK / ASCII / 空白字符宽度，用于动态折叠估算。
+ *
+ * @param character - `character`。
+ * @param fontSize - `fontSize` 参数。
+ * @returns 处理后的结果。
+ */
 function estimateCharacterWidth(character: string, fontSize: number): number {
   if (character === " ") {
     return fontSize * 0.35;
@@ -293,6 +338,11 @@ function estimateCharacterWidth(character: string, fontSize: number): number {
   return fontSize;
 }
 
+/**
+ * 获取文本`Measure` 上下文。
+ *
+ * @returns 处理后的结果。
+ */
 function getTextMeasureContext():
   | CanvasRenderingContext2D
   | OffscreenCanvasRenderingContext2D
@@ -316,12 +366,28 @@ function getTextMeasureContext():
   return cachedTextMeasureContext;
 }
 
+/**
+ * 构建画布`Font`。
+ *
+ * @param textStyle - 文本样式。
+ * @returns 处理后的结果。
+ */
 function buildCanvasFont(textStyle: TextMeasureStyle): string {
   const fontWeight = textStyle.fontWeight ?? "400";
   const fontFamily = textStyle.fontFamily?.trim() || "sans-serif";
   return `${fontWeight} ${textStyle.fontSize}px ${fontFamily}`;
 }
 
+/**
+ * 同步状态`Readout`。
+ *
+ * @param state - 当前状态。
+ * @param value - 当前值。
+ * @param options - 可选配置项。
+ * @param theme - 主题。
+ * @param bounds - `bounds`。
+ * @returns 无返回值。
+ */
 function syncStatusReadout(
   state: StatusReadoutState,
   value: unknown,
@@ -329,6 +395,7 @@ function syncStatusReadout(
   theme: StatusTheme,
   bounds: DevWidgetContext<string>["bounds"]
 ): void {
+  // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
   const geometry = resolveGeometry(bounds);
   const textValue = normalizeStatusValue(value);
   const [headline, ...rest] = (textValue || options.emptyText).split("\n");
@@ -346,6 +413,7 @@ function syncStatusReadout(
   state.surface.fill = theme.fieldFill;
   state.surface.stroke = theme.fieldStroke;
 
+  // 再执行核心更新步骤，并同步派生副作用与收尾状态。
   state.chip.fill = theme.accentFill;
   state.chip.stroke = theme.accentStroke;
   state.chip.y = geometry.chipY;
@@ -381,6 +449,9 @@ function syncStatusReadout(
   state.detailLine.fontFamily = theme.fontFamily;
 }
 
+/**
+ * 封装 StatusReadoutWidget 的 Widget 行为。
+ */
 export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> {
   static meta = {
     type: AUTHORING_BASIC_STATUS_WIDGET_TYPE,
@@ -390,7 +461,14 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
     serialize: normalizeStatusValue
   };
 
+  /**
+   * 处理 `mount` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 处理后的结果。
+   */
   mount(ctx: DevWidgetContext<string>) {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = resolveOptions(ctx.widget.options);
     const theme = resolveTheme(ctx);
     const geometry = resolveGeometry(ctx.bounds);
@@ -431,6 +509,7 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
       hittable: false
     });
 
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const statusLine = new ctx.ui.Text({
       x: 28,
       y: geometry.statusLineY,
@@ -472,6 +551,14 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
     return state;
   }
 
+  /**
+   * 处理 `update` 相关逻辑。
+   *
+   * @param state - 当前状态。
+   * @param ctx - `ctx`。
+   * @param nextValue - 当前值。
+   * @returns 无返回值。
+   */
   update(
     state: StatusReadoutState | void,
     ctx: DevWidgetContext<string>,
@@ -490,6 +577,12 @@ export class StatusReadoutWidget extends BaseWidget<string, StatusReadoutState> 
     );
   }
 
+  /**
+   * 处理 `destroy` 相关逻辑。
+   *
+   * @param state - 当前状态。
+   * @returns 无返回值。
+   */
   destroy(state: StatusReadoutState | void) {
     if (!state) {
       return;

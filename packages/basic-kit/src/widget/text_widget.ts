@@ -44,12 +44,24 @@ export class TextFieldController extends BasicWidgetController<
 > {
   private readonly multiline: boolean;
 
+  /**
+   * 初始化 TextFieldController 实例。
+   *
+   * @param multiline - `multiline`。
+   */
   constructor(multiline: boolean) {
     super();
     this.multiline = multiline;
   }
 
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): TextFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const fieldHeight = Math.max(
@@ -64,6 +76,7 @@ export class TextFieldController extends BasicWidgetController<
       multiline: this.multiline,
       valueHeight: Math.max(fieldHeight - 14, WIDGET_FIELD_FONT_SIZE + 8)
     });
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const focusKey = this.resolveFocusKey(context);
 
     const state: TextFieldState = {
@@ -112,6 +125,14 @@ export class TextFieldController extends BasicWidgetController<
     return state;
   }
 
+  /**
+   * 处理键值`Down`。
+   *
+   * @param state - 当前状态。
+   * @param context - 当前上下文。
+   * @param event - 当前事件对象。
+   * @returns 对应的判断结果。
+   */
   private handleKeyDown(
     state: TextFieldState,
     context: LeaferGraphWidgetRendererContext,
@@ -134,6 +155,13 @@ export class TextFieldController extends BasicWidgetController<
     return this.isReservedWidgetKey(event);
   }
 
+  /**
+   * 开始`Edit`。
+   *
+   * @param state - 当前状态。
+   * @param context - 当前上下文。
+   * @returns 无返回值。
+   */
   private beginEdit(
     state: TextFieldState,
     context: LeaferGraphWidgetRendererContext
@@ -174,6 +202,9 @@ export class TextFieldController extends BasicWidgetController<
    * 真实编辑层需要覆盖整块输入框，而不是只覆盖文本图元本身。
    * 这里把字段外框和文本实际内边距一起传给编辑宿主，
    * 让 DOM editor 能和 Leafer 中的输入框位置精确重合。
+   *
+   * @param view - 视图。
+   * @returns 处理后的结果。
    */
   private resolveTextEditFrame(
     view: WidgetFieldView

@@ -1,5 +1,11 @@
 export type LeaferGraphShortcutPlatform = "mac" | "windows" | "linux";
 
+/**
+ * 解析快捷键`Platform`。
+ *
+ * @param platform - `platform`。
+ * @returns 处理后的结果。
+ */
 export function resolveShortcutPlatform(
   platform?: LeaferGraphShortcutPlatform
 ): LeaferGraphShortcutPlatform {

@@ -184,7 +184,12 @@ export interface UseExampleGraphResult {
 
 export type ExampleHistoryState = UndoRedoControllerState;
 
-/** 把统一运行反馈事件压缩成一行简洁中文日志。 */
+/**
+ *  把统一运行反馈事件压缩成一行简洁中文日志。
+ *
+ * @param event - 当前事件对象。
+ * @returns 处理后的结果。
+ */
 function formatRuntimeFeedback(event: RuntimeFeedbackEvent): string {
   switch (event.type) {
     case "graph.execution":
@@ -200,11 +205,22 @@ function formatRuntimeFeedback(event: RuntimeFeedbackEvent): string {
   }
 }
 
-/** 用文件名、大小和修改时间生成一个稳定的 bundle 指纹。 */
+/**
+ *  用文件名、大小和修改时间生成一个稳定的 bundle 指纹。
+ *
+ * @param file - 文件。
+ * @returns 创建后的结果对象。
+ */
 function createBundleFingerprint(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
+/**
+ * 解析动画预设标签。
+ *
+ * @param preset - 预设。
+ * @returns 处理后的结果。
+ */
 function resolveAnimationPresetLabel(
   preset: ExampleLinkPropagationAnimationOption
 ): string {
@@ -223,7 +239,12 @@ function resolveAnimationPresetLabel(
   }
 }
 
-/** 把运行时 `GraphLink` 压缩成 demo 自己维护的最小连线元信息。 */
+/**
+ *  把运行时 `GraphLink` 压缩成 demo 自己维护的最小连线元信息。
+ *
+ * @param link - 连线。
+ * @returns 处理后的结果。
+ */
 function projectTrackedLink(
   link: Pick<ReturnType<LeaferGraph["createLink"]>, "id" | "source" | "target">
 ): ExampleTrackedLinkEntry {
@@ -236,6 +257,12 @@ function projectTrackedLink(
   };
 }
 
+/**
+ * 从创建输入映射`Tracked` 连线。
+ *
+ * @param input - 输入参数。
+ * @returns 处理后的结果。
+ */
 function projectTrackedLinkFromCreateInput(
   input: LeaferGraphCreateLinkInput
 ): ExampleTrackedLinkEntry | null {
@@ -252,6 +279,13 @@ function projectTrackedLinkFromCreateInput(
   };
 }
 
+/**
+ * 根据节点 ID 列表创建剪贴板片段。
+ *
+ * @param graph - 当前图实例。
+ * @param nodeIds - 节点 ID 列表。
+ * @returns 创建后的结果对象。
+ */
 function createClipboardFragmentFromNodeIds(
   graph: LeaferGraph,
   nodeIds: readonly string[]
@@ -283,6 +317,12 @@ function createClipboardFragmentFromNodeIds(
   };
 }
 
+/**
+ * 粘贴剪贴板片段到图。
+ *
+ * @param input - 输入参数。
+ * @returns 处理后的结果。
+ */
 function pasteClipboardFragmentToGraph(input: {
   graph: LeaferGraph;
   fragment: LeaferGraphContextMenuClipboardFragment;
@@ -291,6 +331,7 @@ function pasteClipboardFragmentToGraph(input: {
     y: number;
   };
 }): string[] {
+  // 先整理当前阶段需要的输入、状态与依赖。
   const offset = input.offset ?? DEFAULT_CLIPBOARD_PASTE_OFFSET;
   const delta = {
     x: offset.x,
@@ -308,6 +349,7 @@ function pasteClipboardFragmentToGraph(input: {
       y: snapshot.layout.y + delta.y
     });
     nodeIdMap.set(snapshot.id, createdNode.id);
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     createdNodeIds.push(createdNode.id);
   }
 
@@ -334,6 +376,11 @@ function pasteClipboardFragmentToGraph(input: {
   return createdNodeIds;
 }
 
+/**
+ * 创建`Empty` 历史状态。
+ *
+ * @returns 创建后的结果对象。
+ */
 function createEmptyHistoryState(): ExampleHistoryState {
   return {
     canUndo: false,
@@ -350,6 +397,8 @@ function createEmptyHistoryState(): ExampleHistoryState {
  *
  * demo 既要让 CSS 跟随系统主题，也要让图运行时主题同步切换，
  * 所以这里单独抽成一个 helper 供初始化和监听回调复用。
+ *
+ * @returns 处理后的结果。
  */
 function resolvePreferredThemeMode(): LeaferGraphThemeMode {
   if (
@@ -362,7 +411,11 @@ function resolvePreferredThemeMode(): LeaferGraphThemeMode {
   return "dark";
 }
 
-/** 对页面层暴露最小图生命周期与控制能力。 */
+/**
+ *  对页面层暴露最小图生命周期与控制能力。
+ *
+ * @returns 处理后的结果。
+ */
 export function useExampleGraph(): UseExampleGraphResult {
   // `stageRef` 是图实例真正挂载到 DOM 的位置。
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -393,7 +446,12 @@ export function useExampleGraph(): UseExampleGraphResult {
     useState<ExampleLinkPropagationAnimationOption>("expressive");
   const [errorMessage, setErrorMessage] = useState("");
 
-  /** 追加一条日志，并把总量限制在可控范围内。 */
+  /**
+   *  追加一条日志，并把总量限制在可控范围内。
+   *
+   * @param message - 消息。
+   * @returns 无返回值。
+   */
   const appendLog = (message: string): void => {
     const logEntryId = logEntrySeedRef.current;
     logEntrySeedRef.current += 1;
@@ -415,6 +473,8 @@ export function useExampleGraph(): UseExampleGraphResult {
    *
    * 当前 demo 虽然默认是空画布，但初始化和 reset 后仍会触发场景刷新，
    * 下一帧再适配视图会更稳定。
+   *
+   * @returns 无返回值。
    */
   const scheduleFitView = (): void => {
     requestAnimationFrame(() => {
@@ -422,13 +482,23 @@ export function useExampleGraph(): UseExampleGraphResult {
     });
   };
 
-  /** 记录一条正式连线，并立刻把它挂到右键菜单系统里。 */
+  /**
+   *  记录一条正式连线，并立刻把它挂到右键菜单系统里。
+   *
+   * @param link - 连线。
+   * @returns 无返回值。
+   */
   const rememberTrackedLink = (link: ExampleTrackedLinkEntry): void => {
     trackedLinksRef.current.set(link.id, link);
     contextMenuRef.current?.bindLinkTarget(link);
   };
 
-  /** 移除一条已跟踪连线，并同步清理对应的右键菜单 target。 */
+  /**
+   *  移除一条已跟踪连线，并同步清理对应的右键菜单 target。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 移除`Tracked` 连线的结果。
+   */
   const forgetTrackedLink = (
     linkId: string
   ): ExampleTrackedLinkEntry | undefined => {
@@ -438,7 +508,12 @@ export function useExampleGraph(): UseExampleGraphResult {
     return trackedLink;
   };
 
-  /** 删除节点前后都需要用到“这个节点关联了哪些已跟踪连线”。 */
+  /**
+   *  删除节点前后都需要用到“这个节点关联了哪些已跟踪连线”。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 收集到的结果列表。
+   */
   const listTrackedLinksByNodeId = (
     nodeId: string
   ): ExampleTrackedLinkEntry[] => {
@@ -455,7 +530,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     return trackedLinks;
   };
 
-  /** reset / 销毁时统一清理所有连线挂载，避免残留失效 binding。 */
+  /**
+   *  reset / 销毁时统一清理所有连线挂载，避免残留失效 binding。
+   *
+   * @returns 无返回值。
+   */
   const clearTrackedLinks = (): void => {
     for (const linkId of trackedLinksRef.current.keys()) {
       contextMenuRef.current?.unbindLinkTarget(linkId);
@@ -464,7 +543,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     trackedLinksRef.current.clear();
   };
 
-  /** 根据当前节点集重建 demo 的连线 target 缓存，供 undo/redo 和 document restore 后复用。 */
+  /**
+   *  根据当前节点集重建 demo 的连线 target 缓存，供 undo/redo 和 document restore 后复用。
+   *
+   * @returns 无返回值。
+   */
   const syncTrackedLinksFromGraph = (): void => {
     const graph = graphRef.current;
     if (!graph) {
@@ -491,8 +574,14 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
   };
 
-  /** 批量删除节点，并把关联连线清理与日志语义统一收口。 */
+  /**
+   *  批量删除节点，并把关联连线清理与日志语义统一收口。
+   *
+   * @param nodeIds - 节点 ID 列表。
+   * @returns 无返回值。
+   */
   const removeNodesWithLogging = (nodeIds: readonly string[]): void => {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     const graph = graphRef.current;
     if (!graph) {
       appendLog("图实例尚未就绪，暂时无法删除节点");
@@ -513,6 +602,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       const snapshot = graph.getNodeSnapshot(nodeId);
       const removed = graph.removeNode(nodeId);
       if (!removed) {
+        // 再执行核心更新步骤，并同步派生副作用与收尾状态。
         continue;
       }
 
@@ -552,7 +642,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     );
   };
 
-  /** 键盘复制只操作当前选区，并复用和右键菜单一致的 clipboard store。 */
+  /**
+   *  键盘复制只操作当前选区，并复用和右键菜单一致的 clipboard store。
+   *
+   * @returns 对应的判断结果。
+   */
   const copySelectedNodesToClipboard = (): boolean => {
     const graph = graphRef.current;
     if (!graph) {
@@ -579,7 +673,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     return true;
   };
 
-  /** 剪切沿用复制语义写入 clipboard，再复用现有删除路径统一日志和连线清理。 */
+  /**
+   *  剪切沿用复制语义写入 clipboard，再复用现有删除路径统一日志和连线清理。
+   *
+   * @returns 对应的判断结果。
+   */
   const cutSelectedNodesToClipboard = (): boolean => {
     const graph = graphRef.current;
     if (!graph) {
@@ -603,7 +701,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     return true;
   };
 
-  /** 粘贴使用裸 graph API，避免快捷键一次性粘贴时产生逐节点日志噪声。 */
+  /**
+   *  粘贴使用裸 graph API，避免快捷键一次性粘贴时产生逐节点日志噪声。
+   *
+   * @returns 对应的判断结果。
+   */
   const pasteNodesFromClipboard = (): boolean => {
     const graph = graphRef.current;
     if (!graph) {
@@ -629,7 +731,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     return Boolean(createdNodeIds.length);
   };
 
-  /** duplicate 直接基于当前选区创建临时 fragment，不覆盖已有 clipboard。 */
+  /**
+   *  duplicate 直接基于当前选区创建临时 fragment，不覆盖已有 clipboard。
+   *
+   * @returns 对应的判断结果。
+   */
   const duplicateSelectedNodes = (): boolean => {
     const graph = graphRef.current;
     if (!graph) {
@@ -660,7 +766,12 @@ export function useExampleGraph(): UseExampleGraphResult {
     return Boolean(createdNodeIds.length);
   };
 
-  /** graph 重建后重放已成功注册过的 bundle，保持 demo 可继续使用这些节点。 */
+  /**
+   *  graph 重建后重放已成功注册过的 bundle，保持 demo 可继续使用这些节点。
+   *
+   * @param graph - 当前图实例。
+   * @returns 重放`Registered` Bundle的结果。
+   */
   const replayRegisteredBundles = async (
     graph: LeaferGraph
   ): Promise<boolean> => {
@@ -687,7 +798,12 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
   };
 
-  /** 统一创建节点，并把日志语义收口到 hook 内部。 */
+  /**
+   *  统一创建节点，并把日志语义收口到 hook 内部。
+   *
+   * @param input - 输入参数。
+   * @returns 创建后的结果对象。
+   */
   const createNodeWithLogging = (
     input: LeaferGraphCreateNodeInput
   ): NodeRuntimeState => {
@@ -718,7 +834,12 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
   };
 
-  /** 统一创建正式连线，并同步接入 demo 自己的连线跟踪与日志。 */
+  /**
+   *  统一创建正式连线，并同步接入 demo 自己的连线跟踪与日志。
+   *
+   * @param input - 输入参数。
+   * @returns 创建后的结果对象。
+   */
   const createLinkWithLogging = (
     input: LeaferGraphCreateLinkInput
   ): GraphLink => {
@@ -749,6 +870,8 @@ export function useExampleGraph(): UseExampleGraphResult {
    * 1. 停掉当前运行
    * 2. 替换为空文档
    * 3. 适配到当前视口
+   *
+   * @returns 无返回值。
    */
   const resetExampleGraph = (): void => {
     const graph = graphRef.current;
@@ -765,7 +888,13 @@ export function useExampleGraph(): UseExampleGraphResult {
     appendLog("已恢复默认空画布");
   };
 
-  /** 统一执行撤回/重做，并在成功后同步 demo 自己维护的节点图元缓存。 */
+  /**
+   *  统一执行撤回/重做，并在成功后同步 demo 自己维护的节点图元缓存。
+   *
+   * @param direction - `direction`。
+   * @param options - 可选配置项。
+   * @returns 对应的判断结果。
+   */
   const runHistoryAction = (
     direction: "undo" | "redo",
     options?: {
@@ -975,13 +1104,42 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     let disposed = false;
+    /**
+     * 处理 `cleanupRuntimeFeedback` 相关逻辑。
+     *
+     * @returns 无返回值。
+     */
     let cleanupRuntimeFeedback = (): void => {};
+    /**
+     * 处理 `cleanupHistory` 相关逻辑。
+     *
+     * @returns 无返回值。
+     */
     let cleanupHistory = (): void => {};
+    /**
+     * 处理 `cleanupNodeState` 相关逻辑。
+     *
+     * @returns 无返回值。
+     */
     let cleanupNodeState = (): void => {};
+    /**
+     * 处理 `cleanupUndoRedo` 相关逻辑。
+     *
+     * @returns 无返回值。
+     */
     let cleanupUndoRedo = (): void => {};
+    /**
+     * 处理 `cleanupThemeListener` 相关逻辑。
+     *
+     * @returns 无返回值。
+     */
     let cleanupThemeListener = (): void => {};
 
-    /** 浏览器窗口尺寸变化后，重新让图内容适配视图。 */
+    /**
+     *  浏览器窗口尺寸变化后，重新让图内容适配视图。
+     *
+     * @returns 无返回值。
+     */
     const handleWindowResize = (): void => {
       scheduleFitView();
     };
@@ -994,6 +1152,8 @@ export function useExampleGraph(): UseExampleGraphResult {
      * - 系统主题监听
      * - window resize 监听
      * - 图实例本身
+     *
+     * @returns 无返回值。
      */
     const cleanup = (): void => {
       if (disposed) {
@@ -1027,6 +1187,8 @@ export function useExampleGraph(): UseExampleGraphResult {
      * 2. 等待 `graph.ready`
      * 3. 建立运行反馈与主题、窗口监听
      * 4. 进入默认空画布
+     *
+     * @returns 无返回值。
      */
     const bootstrap = async (): Promise<void> => {
       try {
@@ -1050,6 +1212,11 @@ export function useExampleGraph(): UseExampleGraphResult {
         graphRef.current = graph;
 
         const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
+        /**
+         * 处理主题`Change`。
+         *
+         * @returns 无返回值。
+         */
         const handleThemeChange = (): void => {
           const nextThemeMode = resolvePreferredThemeMode();
           themeModeRef.current = nextThemeMode;
@@ -1349,6 +1516,12 @@ export function useExampleGraph(): UseExampleGraphResult {
     });
     shortcutsBindingRef.current = shortcutsBinding;
 
+    /**
+     * 处理 `shortcutLabel` 相关逻辑。
+     *
+     * @param functionId - 功能 ID。
+     * @returns 处理后的结果。
+     */
     const shortcutLabel = (functionId: Parameters<
       typeof shortcutsBinding.resolveShortcutLabel
     >[0]): string =>

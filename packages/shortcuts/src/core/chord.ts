@@ -65,6 +65,12 @@ const CODE_LABELS = new Map<string, string>([
   ["PageDown", "Page Down"]
 ]);
 
+/**
+ * 规范化快捷键`Chord`。
+ *
+ * @param chord - `chord`。
+ * @returns 处理后的结果。
+ */
 export function normalizeShortcutChord(chord: string): string {
   const normalizedInput = chord.trim();
   if (!normalizedInput) {
@@ -102,6 +108,14 @@ export function normalizeShortcutChord(chord: string): string {
   );
 }
 
+/**
+ * 匹配快捷键事件。
+ *
+ * @param event - 当前事件对象。
+ * @param chord - `chord`。
+ * @param options - 可选配置项。
+ * @returns 对应的判断结果。
+ */
 export function matchShortcutEvent(
   event: KeyboardEvent,
   chord: string,
@@ -132,6 +146,13 @@ export function matchShortcutEvent(
   );
 }
 
+/**
+ * 格式化快捷键标签。
+ *
+ * @param chord - `chord`。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 export function formatShortcutLabel(
   chord: string,
   options?: {
@@ -160,6 +181,12 @@ export function formatShortcutLabel(
   return [...modifierLabels, codeLabel].join("+");
 }
 
+/**
+ * 规范化`Code` 令牌。
+ *
+ * @param token - 令牌。
+ * @returns 处理后的结果。
+ */
 function normalizeCodeToken(token: string): string {
   const normalizedToken = token.trim();
   if (!normalizedToken) {
@@ -185,6 +212,13 @@ function normalizeCodeToken(token: string): string {
   return normalizedToken;
 }
 
+/**
+ * 格式化`Modifier` 标签。
+ *
+ * @param modifier - `modifier`。
+ * @param platform - `platform`。
+ * @returns 处理后的结果。
+ */
 function formatModifierLabel(
   modifier: string,
   platform: "mac" | "windows" | "linux"
@@ -215,6 +249,12 @@ function formatModifierLabel(
   }
 }
 
+/**
+ * 格式化`Code` 标签。
+ *
+ * @param code - `code`。
+ * @returns 处理后的结果。
+ */
 function formatCodeLabel(code: string): string {
   if (CODE_LABELS.has(code)) {
     return CODE_LABELS.get(code)!;
@@ -233,6 +273,11 @@ function formatCodeLabel(code: string): string {
   return code;
 }
 
+/**
+ * 处理 `detectShortcutPlatform` 相关逻辑。
+ *
+ * @returns 处理后的结果。
+ */
 function detectShortcutPlatform(): "mac" | "windows" | "linux" {
   if (typeof navigator === "undefined") {
     return "windows";

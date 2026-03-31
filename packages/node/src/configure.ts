@@ -31,6 +31,11 @@ export type NodeConfigureInput = Partial<NodeSerializeResult> &
 /**
  * 按节点定义和覆写数据重新配置一个既有节点实例。
  * 该函数会同步刷新属性、槽位、Widget 和运行时缓存，并触发 `onConfigure`。
+ *
+ * @param registry - 注册表。
+ * @param node - 节点。
+ * @param data - 当前数据。
+ * @returns 处理后的结果。
  */
 export function configureNode(
   registry: NodeRegistry,

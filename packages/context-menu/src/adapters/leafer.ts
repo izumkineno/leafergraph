@@ -105,6 +105,9 @@ interface LeaferContextMenuBindingRecord {
   listenerId: LeaferContextMenuListenerId | null;
 }
 
+/**
+ * 封装 LeaferContextMenuAdapterImpl 的适配逻辑。
+ */
 class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
   private readonly app: App;
   private readonly container: HTMLElement;
@@ -116,6 +119,11 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
   private lastHandledMenuEvent: LeaferPointerMenuEvent | null = null;
   private lastHandledMenuOrigin: LeaferMenuOriginEvent | null = null;
 
+  /**
+   * 初始化 LeaferContextMenuAdapterImpl 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: CreateLeaferContextMenuAdapterOptions) {
     this.app = options.app;
     this.container = options.container;
@@ -138,6 +146,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     }
   }
 
+  /**
+   * 处理 `connect` 相关逻辑。
+   *
+   * @param controller - 控制器。
+   * @returns 用于收尾当前绑定的清理函数。
+   */
   connect(controller: ContextMenuController): () => void {
     this.controller = controller;
     for (const record of this.bindingRecords.values()) {
@@ -151,11 +165,23 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     };
   }
 
+  /**
+   * 处理 `destroy` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     this.disconnect();
     this.bindingRecords.clear();
   }
 
+  /**
+   * 绑定画布。
+   *
+   * @param target - 当前目标对象。
+   * @param meta - `meta`。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindCanvas(
     target: LeaferContextMenuBindingTarget = this.app as unknown as LeaferContextMenuBindingTarget,
     meta?: Record<string, unknown>
@@ -168,6 +194,14 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     });
   }
 
+  /**
+   * 绑定节点。
+   *
+   * @param key - 键值。
+   * @param target - 当前目标对象。
+   * @param meta - `meta`。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindNode(
     key: string,
     target: LeaferContextMenuBindingTarget,
@@ -181,6 +215,14 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     });
   }
 
+  /**
+   * 绑定连线。
+   *
+   * @param key - 键值。
+   * @param target - 当前目标对象。
+   * @param meta - `meta`。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindLink(
     key: string,
     target: LeaferContextMenuBindingTarget,
@@ -194,6 +236,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     });
   }
 
+  /**
+   * 绑定目标。
+   *
+   * @param binding - 绑定。
+   * @returns 用于解除当前绑定的清理函数。
+   */
   bindTarget(binding: LeaferContextMenuBinding): this {
     const record = this.setBindingRecord(binding);
     if (this.controller) {
@@ -203,6 +251,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     return this;
   }
 
+  /**
+   * 处理 `unbindTarget` 相关逻辑。
+   *
+   * @param key - 键值。
+   * @returns 处理后的结果。
+   */
   unbindTarget(key: string): this {
     const record = this.bindingRecords.get(key);
     if (!record) {
@@ -214,6 +268,11 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     return this;
   }
 
+  /**
+   * 处理 `disconnect` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   private disconnect(): void {
     for (const record of this.bindingRecords.values()) {
       this.detachBindingRecord(record);
@@ -222,6 +281,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     this.controller = null;
   }
 
+  /**
+   * 设置绑定记录。
+   *
+   * @param binding - 绑定。
+   * @returns 设置绑定记录的结果。
+   */
   private setBindingRecord(
     binding: LeaferContextMenuBinding
   ): LeaferContextMenuBindingRecord {
@@ -240,6 +305,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     return record;
   }
 
+  /**
+   * 处理 `attachBindingRecord` 相关逻辑。
+   *
+   * @param record - 记录。
+   * @returns 无返回值。
+   */
   private attachBindingRecord(record: LeaferContextMenuBindingRecord): void {
     if (!this.controller || record.listenerId || !record.binding.target.on_) {
       return;
@@ -252,6 +323,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
       ) ?? null;
   }
 
+  /**
+   * 处理 `detachBindingRecord` 相关逻辑。
+   *
+   * @param record - 记录。
+   * @returns 无返回值。
+   */
   private detachBindingRecord(record: LeaferContextMenuBindingRecord): void {
     if (!record.listenerId) {
       return;
@@ -261,6 +338,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     record.listenerId = null;
   }
 
+  /**
+   * 创建绑定菜单处理器。
+   *
+   * @param binding - 绑定。
+   * @returns 用于收尾当前绑定的清理函数。
+   */
   private createBindingMenuHandler(
     binding: LeaferContextMenuBinding
   ): (event: LeaferPointerMenuEvent) => void {
@@ -284,6 +367,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     };
   }
 
+  /**
+   * 查找`Closest` 绑定记录。
+   *
+   * @param target - 当前目标对象。
+   * @returns 处理后的结果。
+   */
   private findClosestBindingRecord(
     target: unknown
   ): LeaferContextMenuBindingRecord | undefined {
@@ -301,6 +390,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     return undefined;
   }
 
+  /**
+   * 按目标查找绑定记录。
+   *
+   * @param target - 当前目标对象。
+   * @returns 处理后的结果。
+   */
   private findBindingRecordByTarget(
     target: LeaferContextMenuBindingTarget
   ): LeaferContextMenuBindingRecord | undefined {
@@ -313,6 +408,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     return undefined;
   }
 
+  /**
+   * 判断是否为`Handled` 菜单事件。
+   *
+   * @param event - 当前事件对象。
+   * @returns 对应的判断结果。
+   */
   private isHandledMenuEvent(event: LeaferPointerMenuEvent): boolean {
     return (
       this.lastHandledMenuEvent === event ||
@@ -320,6 +421,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     );
   }
 
+  /**
+   * 处理 `markHandledMenuEvent` 相关逻辑。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private markHandledMenuEvent(event: LeaferPointerMenuEvent): void {
     this.lastHandledMenuEvent = event;
     this.lastHandledMenuOrigin = event.origin ?? null;
@@ -336,6 +443,13 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     });
   }
 
+  /**
+   * 创建上下文。
+   *
+   * @param event - 当前事件对象。
+   * @param binding - 绑定。
+   * @returns 创建后的结果对象。
+   */
   private createContext(
     event: LeaferPointerMenuEvent,
     binding: LeaferContextMenuBinding
@@ -377,6 +491,13 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     } as ContextMenuContext;
   }
 
+  /**
+   * 解析目标。
+   *
+   * @param binding - 绑定。
+   * @param event - 当前事件对象。
+   * @returns 处理后的结果。
+   */
   private resolveTarget(
     binding: LeaferContextMenuBinding,
     event: LeaferPointerMenuEvent
@@ -401,6 +522,12 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     };
   }
 
+  /**
+   * 解析`Container` 坐标。
+   *
+   * @param clientPoint - 客户端坐标。
+   * @returns 处理后的结果。
+   */
   private resolveContainerPoint(clientPoint: ContextMenuPoint): ContextMenuPoint {
     const rect = this.container.getBoundingClientRect();
 
@@ -410,18 +537,36 @@ class LeaferContextMenuAdapterImpl implements LeaferContextMenuAdapter {
     };
   }
 
+  /**
+   * 处理 `preventNativeMenu` 相关逻辑。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private preventNativeMenu(event: LeaferPointerMenuEvent): void {
     event.stopDefault?.();
     event.origin?.preventDefault?.();
   }
 }
 
+/**
+ * 创建`Leafer` 上下文菜单适配器。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createLeaferContextMenuAdapter(
   options: CreateLeaferContextMenuAdapterOptions
 ): LeaferContextMenuAdapter {
   return new LeaferContextMenuAdapterImpl(options);
 }
 
+/**
+ * 规范化绑定。
+ *
+ * @param binding - 绑定。
+ * @returns 处理后的结果。
+ */
 function normalizeBinding(
   binding: LeaferContextMenuBinding
 ): LeaferContextMenuBinding {
@@ -441,6 +586,13 @@ function normalizeBinding(
   };
 }
 
+/**
+ * 从原点解析页面坐标。
+ *
+ * @param origin - 原点。
+ * @param ownerDocument - 所属对象文档。
+ * @returns 处理后的结果。
+ */
 function resolvePagePointFromOrigin(
   origin: LeaferMenuOriginEvent | undefined,
   ownerDocument: Document
@@ -460,6 +612,14 @@ function resolvePagePointFromOrigin(
   };
 }
 
+/**
+ * 解析客户端坐标。
+ *
+ * @param origin - 原点。
+ * @param pagePoint - 页面坐标。
+ * @param ownerDocument - 所属对象文档。
+ * @returns 处理后的结果。
+ */
 function resolveClientPoint(
   origin: LeaferMenuOriginEvent | undefined,
   pagePoint: ContextMenuPoint,
@@ -483,6 +643,12 @@ function resolveClientPoint(
   };
 }
 
+/**
+ * 转换为安全坐标。
+ *
+ * @param point - 坐标。
+ * @returns 处理后的结果。
+ */
 function toSafePoint(
   point: Partial<ContextMenuPoint> | undefined
 ): ContextMenuPoint {
@@ -492,10 +658,22 @@ function toSafePoint(
   };
 }
 
+/**
+ * 判断是否为有限`Number`。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+/**
+ * 判断是否为绑定目标`Like`。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function isBindingTargetLike(
   value: unknown
 ): value is LeaferContextMenuBindingTarget {

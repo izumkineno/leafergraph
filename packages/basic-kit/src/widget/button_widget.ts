@@ -21,12 +21,21 @@ interface ButtonFieldState extends BasicWidgetLifecycleState {
   pressed: boolean;
 }
 
-/** button renderer。 */
+/**
+ *  button renderer。
+ */
 export class ButtonFieldController extends BasicWidgetController<
   NodeButtonWidgetOptions,
   ButtonFieldState
 > {
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): ButtonFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const view = new WidgetFieldView(context, {
@@ -37,6 +46,7 @@ export class ButtonFieldController extends BasicWidgetController<
     });
     const focusKey = this.resolveFocusKey(context);
 
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const state: ButtonFieldState = {
       view,
       disabled,
@@ -129,6 +139,14 @@ export class ButtonFieldController extends BasicWidgetController<
     return state;
   }
 
+  /**
+   * 解析按钮文本。
+   *
+   * @param widget - Widget。
+   * @param options - 可选配置项。
+   * @param value - 当前值。
+   * @returns 处理后的结果。
+   */
   private resolveButtonText(
     widget: NodeWidgetSpec,
     options: NodeButtonWidgetOptions,
@@ -146,6 +164,13 @@ export class ButtonFieldController extends BasicWidgetController<
     return this.resolveLabel(widget, options);
   }
 
+  /**
+   * 派发按钮动作。
+   *
+   * @param context - 当前上下文。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   private emitButtonAction(
     context: LeaferGraphWidgetRendererContext,
     options: NodeButtonWidgetOptions
@@ -155,6 +180,17 @@ export class ButtonFieldController extends BasicWidgetController<
     });
   }
 
+  /**
+   * 应用按钮主题。
+   *
+   * @param context - 当前上下文。
+   * @param view - 视图。
+   * @param options - 可选配置项。
+   * @param disabled - `disabled`。
+   * @param hovered - `hovered`。
+   * @param pressed - `pressed`。
+   * @returns 无返回值。
+   */
   private applyButtonTheme(
     context: LeaferGraphWidgetRendererContext,
     view: WidgetFieldView,
@@ -163,6 +199,7 @@ export class ButtonFieldController extends BasicWidgetController<
     hovered: boolean,
     pressed: boolean
   ): void {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     const theme = this.resolveTheme(context);
     const variant = options.variant ?? "secondary";
     const darkMode = context.theme.mode === "dark";
@@ -209,6 +246,7 @@ export class ButtonFieldController extends BasicWidgetController<
         : hovered
           ? theme.buttonPrimaryHoverFill
           : theme.buttonPrimaryFill;
+      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
       view.field.fill = fill;
       view.field.stroke = stroke;
       view.field.hoverStyle = {

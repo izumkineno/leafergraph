@@ -1,11 +1,18 @@
 import type { LeaferGraphThemeMode } from "../types";
 import type { LeaferGraphContextMenuThemeTokens } from "./types";
 
-/** 根据主题模式解析默认右键菜单主题。 */
+/**
+ *  根据主题模式解析默认右键菜单主题。
+ *
+ * @param mode - 模式。
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultContextMenuTheme(
   mode: LeaferGraphThemeMode
 ): LeaferGraphContextMenuThemeTokens {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   if (mode === "dark") {
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     return {
       fontFamily: '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
       background: "rgba(15, 23, 42, 0.95)",

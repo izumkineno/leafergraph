@@ -83,11 +83,22 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
   private readonly options: LeaferGraphBootstrapHostOptions;
   private readonly installedPlugins = new Map<string, InstalledPluginRecord>();
 
+  /**
+   * 初始化 LeaferGraphBootstrapHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphBootstrapHostOptions) {
     this.options = options;
   }
 
-  /** 安装一个静态节点模块。 */
+  /**
+   *  安装一个静态节点模块。
+   *
+   * @param module - 模块。
+   * @param options - 可选配置项。
+   * @returns 安装模块的结果。
+   */
   installModule(
     module: NodeModule,
     options?: InstallNodeModuleOptions
@@ -103,6 +114,8 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
    * 宿主会同时记录它实际注册了哪些类型，方便调试和后续观测。
    *
    * @param plugin - 待安装的插件对象。
+   *
+   * @returns 无返回值。
    */
   async use(plugin: LeaferGraphNodePlugin): Promise<void> {
     if (this.installedPlugins.has(plugin.name)) {
@@ -111,6 +124,13 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
 
     const nodeTypes: string[] = [];
     const widgetTypes: string[] = [];
+    /**
+     * 处理 `recordType` 相关逻辑。
+     *
+     * @param list - `list`。
+     * @param type - 类型。
+     * @returns 无返回值。
+     */
     const recordType = (list: string[], type: string): void => {
       const safeType = type.trim();
       if (safeType && !list.includes(safeType)) {
@@ -160,6 +180,8 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
    * 顺序保持为：模块 -> 插件 -> 文档恢复。
    *
    * @param options - 主包初始化配置。
+   *
+   * @returns 无返回值。
    */
   async initialize(options: LeaferGraphOptions): Promise<void> {
     // 模块优先进入注册表，后续插件才能安全查询并复用这些节点定义。
@@ -176,12 +198,23 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
     this.options.replaceGraphDocument(options.document);
   }
 
-  /** 直接替换当前正式文档。 */
+  /**
+   *  直接替换当前正式文档。
+   *
+   * @param document - 文档。
+   * @returns 无返回值。
+   */
   replaceGraphDocument(document?: LeaferGraphOptions["document"]): void {
     this.options.replaceGraphDocument(document);
   }
 
-  /** 注册单个节点定义。 */
+  /**
+   *  注册单个节点定义。
+   *
+   * @param definition - 定义。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   registerNode(
     definition: NodeDefinition,
     options?: RegisterNodeOptions
@@ -189,12 +222,22 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
     this.options.nodeRegistry.registerNode(definition, options);
   }
 
-  /** 列出当前已注册节点。 */
+  /**
+   *  列出当前已注册节点。
+   *
+   * @returns 收集到的结果列表。
+   */
   listNodes(): NodeDefinition[] {
     return this.options.nodeRegistry.listNodes();
   }
 
-  /** 注册单个完整 Widget 条目。 */
+  /**
+   *  注册单个完整 Widget 条目。
+   *
+   * @param entry - 条目。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   registerWidget(
     entry: LeaferGraphWidgetEntry,
     options?: RegisterWidgetOptions
@@ -202,12 +245,21 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
     this.options.widgetRegistry.registerWidget(entry, options);
   }
 
-  /** 读取单个 Widget 条目。 */
+  /**
+   *  读取单个 Widget 条目。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   getWidget(type: string): LeaferGraphWidgetEntry | undefined {
     return this.options.widgetRegistry.getWidget(type);
   }
 
-  /** 列出当前已注册 Widget。 */
+  /**
+   *  列出当前已注册 Widget。
+   *
+   * @returns 收集到的结果列表。
+   */
   listWidgets(): LeaferGraphWidgetEntry[] {
     return this.options.widgetRegistry.listWidgets();
   }

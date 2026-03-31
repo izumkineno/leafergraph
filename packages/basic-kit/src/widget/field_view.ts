@@ -45,6 +45,12 @@ export class WidgetFieldView {
   readonly valueText: Text;
   readonly hitArea: Rect;
 
+  /**
+   * 初始化 WidgetFieldView 实例。
+   *
+   * @param context - 当前上下文。
+   * @param options - 可选配置项。
+   */
   constructor(
     context: LeaferGraphWidgetRendererContext,
     options: {
@@ -60,6 +66,7 @@ export class WidgetFieldView {
       valueHeight?: number;
     }
   ) {
+    // 先整理当前阶段需要的输入、状态与依赖。
     const { ui, group, bounds } = context;
     const fieldHeight = Math.max(
       options.fieldHeight ?? bounds.height - WIDGET_FIELD_Y,
@@ -83,6 +90,7 @@ export class WidgetFieldView {
       fontSize: WIDGET_LABEL_FONT_SIZE,
       fontWeight: "600"
     });
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     this.field = createWidgetFieldSurface(ui, {
       x: 0,
       y: WIDGET_FIELD_Y,
@@ -131,7 +139,15 @@ export class WidgetFieldView {
     ]);
   }
 
+  /**
+   * 设置主题。
+   *
+   * @param theme - 主题。
+   * @param disabled - `disabled`。
+   * @returns 无返回值。
+   */
   setTheme(theme: BasicWidgetTheme, disabled: boolean): void {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     this.label.fill = disabled ? theme.disabledFill : theme.labelFill;
     this.valueText.fill = disabled ? theme.disabledFill : theme.valueFill;
     this.valueText.fontFamily = theme.fontFamily;
@@ -142,6 +158,7 @@ export class WidgetFieldView {
     if (disabled) {
       this.field.fill = theme.fieldDisabledFill;
       this.field.stroke = theme.fieldDisabledStroke;
+      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
       this.field.hoverStyle = {
         fill: theme.fieldDisabledFill,
         stroke: theme.fieldDisabledStroke
@@ -174,6 +191,14 @@ export class WidgetFieldView {
     };
   }
 
+  /**
+   * 设置显示。
+   *
+   * @param theme - 主题。
+   * @param display - 显示。
+   * @param disabled - `disabled`。
+   * @returns 无返回值。
+   */
   setDisplay(
     theme: BasicWidgetTheme,
     display: ResolvedTextDisplay,
@@ -187,6 +212,12 @@ export class WidgetFieldView {
         : theme.valueFill;
   }
 
+  /**
+   * 设置`Focused`。
+   *
+   * @param focused - `focused`。
+   * @returns 无返回值。
+   */
   setFocused(focused: boolean): void {
     setWidgetFocusState(this.field, this.focusRing, focused);
   }

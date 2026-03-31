@@ -67,17 +67,24 @@ export class LeaferGraphRestoreHost<
     TNodeViewState
   >;
 
+  /**
+   * 初始化 LeaferGraphRestoreHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphRestoreHostOptions<TNodeState, TNodeViewState>
   ) {
     this.options = options;
   }
 
- /**
+  /**
    * 根据正式文档输入重建整个主包场景。
    * 未提供 document 时自动回退到空文档，避免启动期再散落一层空值判断。
    *
    * @param document - 外部传入的正式文档快照；可为空，空时回退为空文档。
+   *
+   * @returns 无返回值。
    */
   replaceGraphDocument(document?: GraphDocument): void {
     const resolvedDocument = this.resolveGraphDocument(document);

@@ -31,6 +31,8 @@ import {
  * 当前固定只包含 basic-kit 默认提供的两个系统节点：
  * - `system/on-play`
  * - `system/timer`
+ *
+ * @returns 创建后的结果对象。
  */
 export function createBasicSystemNodeModule(): NodeModule {
   return {

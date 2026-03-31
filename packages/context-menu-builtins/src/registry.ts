@@ -51,16 +51,25 @@ const DEFAULT_ENABLED_FEATURES = new Set<keyof LeaferGraphContextMenuBuiltinFeat
   "linkDelete"
 ]);
 
+/**
+ * 注册LeaferGraph 上下文菜单`Builtins`。
+ *
+ * @param menu - 菜单。
+ * @param options - 可选配置项。
+ * @returns 用于撤销当前注册的清理函数。
+ */
 export function registerLeaferGraphContextMenuBuiltins(
   menu: LeaferContextMenu,
   options: LeaferGraphContextMenuBuiltinOptions
 ): () => void {
+  // 先准备宿主依赖、初始状态和需要挂载的资源。
   const cleanups: Array<() => void> = [];
   const clipboard =
     options.clipboard ?? getSharedLeaferGraphContextMenuClipboardStore();
   const host = options.host;
 
   for (const definition of BUILTIN_FEATURE_DEFINITIONS) {
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     if (!isBuiltinFeatureEnabled(options.features, definition.id)) {
       continue;
     }
@@ -120,6 +129,13 @@ export function registerLeaferGraphContextMenuBuiltins(
   };
 }
 
+/**
+ * 处理 `isBuiltinFeatureEnabled` 相关逻辑。
+ *
+ * @param features - `features`。
+ * @param key - 键值。
+ * @returns 对应的判断结果。
+ */
 function isBuiltinFeatureEnabled(
   features: LeaferGraphContextMenuBuiltinFeatureFlags | undefined,
   key: keyof LeaferGraphContextMenuBuiltinFeatureFlags

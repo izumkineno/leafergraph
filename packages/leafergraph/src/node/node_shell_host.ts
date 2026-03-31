@@ -59,11 +59,21 @@ export class LeaferGraphNodeShellHost<
 > {
   private readonly options: LeaferGraphNodeShellHostOptions;
 
+  /**
+   * 初始化 LeaferGraphNodeShellHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphNodeShellHostOptions) {
     this.options = options;
   }
 
-  /** 判断节点当前类型是否已经遗失。 */
+  /**
+   *  判断节点当前类型是否已经遗失。
+   *
+   * @param node - 节点。
+   * @returns 对应的判断结果。
+   */
   isMissingNodeType(node: TNodeState): boolean {
     return !this.options.nodeRegistry.hasNode(node.type);
   }
@@ -72,6 +82,10 @@ export class LeaferGraphNodeShellHost<
    * 根据节点当前运行时状态构建节点壳。
    * 这里把“布局求解 + 分类徽标 + 主题色解析”收敛到一处，
    * 便于首次挂载和后续局部刷新共用同一条逻辑。
+   *
+   * @param node - 节点。
+   * @param shellLayout - `shell` 布局。
+   * @returns 处理后的结果。
    */
   buildNodeShell(
     node: TNodeState,
@@ -116,6 +130,9 @@ export class LeaferGraphNodeShellHost<
    * 将运行时 `flags.selected` 同步成节点视觉状态。
    * 当前只恢复外圈选中边框，不恢复卡片本体描边，
    * 这样既能保留选区反馈，也不会让节点内部边框变重。
+   *
+   * @param state - 当前状态。
+   * @returns 无返回值。
    */
   applyNodeSelectionStyles(state: NodeViewState<TNodeState>): void {
     const selected = Boolean(state.state.flags.selected);
@@ -135,6 +152,9 @@ export class LeaferGraphNodeShellHost<
    * 1. 节点支持 resize
    * 2. 节点未折叠
    * 3. 鼠标悬停在节点上，或当前正在拖拽该节点的 resize 句柄
+   *
+   * @param state - 当前状态。
+   * @returns 无返回值。
    */
   syncNodeResizeHandleVisibility(state: NodeViewState<TNodeState>): void {
     const canResize = this.options.canResizeNode(state.state.id);
@@ -152,6 +172,9 @@ export class LeaferGraphNodeShellHost<
    * 1. `NodeDefinition.resize`
    * 2. 兼容字段 `minWidth / minHeight`
    * 3. 主包默认节点尺寸
+   *
+   * @param node - 节点。
+   * @returns 处理后的结果。
    */
   resolveNodeResizeConstraint(
     node: TNodeState
@@ -197,11 +220,16 @@ export class LeaferGraphNodeShellHost<
    * 为遗失节点类型创建红色占位壳。
    * 它只保留拖拽、选中和 resize 所需的最小图元，
    * 避免旧数据因节点包缺失而直接不可见。
+   *
+   * @param node - 节点。
+   * @param shellLayout - `shell` 布局。
+   * @returns 创建后的结果对象。
    */
   private createMissingNodeShell(
     node: TNodeState,
     shellLayout: NodeShellLayout
   ): NodeShellView {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const selectedStroke = this.resolveSelectedNodeStroke();
     const group = new Group({
       x: node.layout.x,
@@ -255,6 +283,7 @@ export class LeaferGraphNodeShellHost<
       fill: "transparent",
       hittable: false
     });
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     const hiddenSignalButton = new Rect({
       width: 0,
       height: 0,
@@ -335,12 +364,21 @@ export class LeaferGraphNodeShellHost<
     };
   }
 
-  /** 节点选中态统一使用固定描边色，保证整张图的焦点反馈一致。 */
+  /**
+   *  节点选中态统一使用固定描边色，保证整张图的焦点反馈一致。
+   *
+   * @returns 处理后的结果。
+   */
   private resolveSelectedNodeStroke(): string {
     return this.options.resolveSelectedStroke(this.options.getThemeMode());
   }
 
-  /** 解析节点分类文本。 */
+  /**
+   *  解析节点分类文本。
+   *
+   * @param node - 节点。
+   * @returns 处理后的结果。
+   */
   private resolveNodeCategory(node: TNodeState): string {
     const category = node.properties.category;
 
@@ -357,6 +395,9 @@ export class LeaferGraphNodeShellHost<
    * 1. 槽位显式自定义色
    * 2. 槽位类型映射色
    * 3. 输入 / 输出默认色
+   *
+   * @param port - `port`。
+   * @returns 处理后的结果。
    */
   private resolveNodePortFill(port: NodeShellPortLayout): string {
     if (typeof port.slotColor === "string" && port.slotColor) {
@@ -376,7 +417,12 @@ export class LeaferGraphNodeShellHost<
       : this.options.style.outputPortFill;
   }
 
-  /** 解析节点状态灯颜色。 */
+  /**
+   *  解析节点状态灯颜色。
+   *
+   * @param node - 节点。
+   * @returns 处理后的结果。
+   */
   private resolveSignalColor(node: TNodeState): string {
     switch (this.options.resolveNodeExecutionState(node.id)?.status) {
       case "running":
@@ -390,7 +436,12 @@ export class LeaferGraphNodeShellHost<
     }
   }
 
-  /** 解析节点当前是否需要在画布里展示错误文案。 */
+  /**
+   *  解析节点当前是否需要在画布里展示错误文案。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   private resolveExecutionErrorMessage(nodeId: string): string | undefined {
     const executionState = this.options.resolveNodeExecutionState(nodeId);
     if (executionState?.status !== "error") {
@@ -400,7 +451,12 @@ export class LeaferGraphNodeShellHost<
     return executionState.lastErrorMessage ?? "节点执行失败，请查看控制台日志";
   }
 
-  /** 把类型名或分类名转换成更友好的首字母大写显示文本。 */
+  /**
+   *  把类型名或分类名转换成更友好的首字母大写显示文本。
+   *
+   * @param value - 当前值。
+   * @returns 处理后的结果。
+   */
   private startCase(value: string): string {
     return value
       .replace(/[-_]/g, " ")

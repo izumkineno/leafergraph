@@ -45,7 +45,13 @@ export interface WidgetDefinitionReader {
   get(type: string): WidgetDefinition | undefined;
 }
 
-/** 获取 Widget 定义；未命中时抛错。 */
+/**
+ *  获取 Widget 定义；未命中时抛错。
+ *
+ * @param definitions - 定义。
+ * @param type - 类型。
+ * @returns 获取Widget 定义的结果。
+ */
 export function requireWidgetDefinition(
   definitions: WidgetDefinitionReader,
   type: string
@@ -59,7 +65,13 @@ export function requireWidgetDefinition(
   return definition;
 }
 
-/** 判断 Widget 类型是否存在。 */
+/**
+ *  判断 Widget 类型是否存在。
+ *
+ * @param definitions - 定义。
+ * @param type - 类型。
+ * @returns 对应的判断结果。
+ */
 export function hasWidgetDefinition(
   definitions: WidgetDefinitionReader,
   type: string
@@ -67,7 +79,13 @@ export function hasWidgetDefinition(
   return Boolean(definitions.get(type));
 }
 
-/** 校验单个 Widget 声明是否合法。 */
+/**
+ *  校验单个 Widget 声明是否合法。
+ *
+ * @param definitions - 定义。
+ * @param spec - `spec`。
+ * @returns 无返回值。
+ */
 export function validateWidgetSpec(
   definitions: WidgetDefinitionReader,
   spec: NodeWidgetSpec
@@ -75,7 +93,13 @@ export function validateWidgetSpec(
   requireWidgetDefinition(definitions, spec.type);
 }
 
-/** 校验属性声明中的内嵌 Widget 是否合法。 */
+/**
+ *  校验属性声明中的内嵌 Widget 是否合法。
+ *
+ * @param definitions - 定义。
+ * @param spec - `spec`。
+ * @returns 无返回值。
+ */
 export function validateWidgetPropertySpec(
   definitions: WidgetDefinitionReader,
   spec: NodePropertySpec
@@ -88,6 +112,10 @@ export function validateWidgetPropertySpec(
 /**
  * 按 Widget 定义执行值归一化。
  * 归一化发生在实例创建、节点配置或运行时新增 Widget 时。
+ *
+ * @param definitions - 定义。
+ * @param spec - `spec`。
+ * @returns 处理后的结果。
  */
 export function normalizeWidgetSpec(
   definitions: WidgetDefinitionReader,
@@ -107,7 +135,13 @@ export function normalizeWidgetSpec(
   return next;
 }
 
-/** 批量归一化 Widget 声明。 */
+/**
+ *  批量归一化 Widget 声明。
+ *
+ * @param definitions - 定义。
+ * @param specs - `specs`。
+ * @returns 处理后的结果。
+ */
 export function normalizeWidgetSpecs(
   definitions: WidgetDefinitionReader,
   specs?: NodeWidgetSpec[]
@@ -118,6 +152,10 @@ export function normalizeWidgetSpecs(
 /**
  * 按 Widget 定义执行序列化转换。
  * 它允许 Widget 在持久化前把运行时值投影成稳定的输出格式。
+ *
+ * @param definitions - 定义。
+ * @param spec - `spec`。
+ * @returns 处理后的结果。
  */
 export function serializeWidgetSpec(
   definitions: WidgetDefinitionReader,
@@ -137,7 +175,13 @@ export function serializeWidgetSpec(
   return next;
 }
 
-/** 批量序列化 Widget 声明。 */
+/**
+ *  批量序列化 Widget 声明。
+ *
+ * @param definitions - 定义。
+ * @param specs - `specs`。
+ * @returns 处理后的结果。
+ */
 export function serializeWidgetSpecs(
   definitions: WidgetDefinitionReader,
   specs?: NodeWidgetSpec[]

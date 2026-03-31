@@ -33,12 +33,21 @@ interface CheckboxFieldState extends BasicWidgetLifecycleState {
   focusKey: string;
 }
 
-/** checkbox renderer。 */
+/**
+ *  checkbox renderer。
+ */
 export class CheckboxFieldController extends BasicWidgetController<
   NodeCheckboxWidgetOptions,
   CheckboxFieldState
 > {
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): CheckboxFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const theme = this.resolveTheme(context);
@@ -66,6 +75,7 @@ export class CheckboxFieldController extends BasicWidgetController<
       visible: false,
       hittable: false
     });
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const stateText = createWidgetValueText(ui, {
       x: WIDGET_FIELD_PADDING_X + 28,
       y: WIDGET_FIELD_Y + 9,
@@ -143,6 +153,12 @@ export class CheckboxFieldController extends BasicWidgetController<
     return state;
   }
 
+  /**
+   * 切换值。
+   *
+   * @param context - 当前上下文。
+   * @returns 无返回值。
+   */
   private toggleValue(context: LeaferGraphWidgetRendererContext): void {
     context.commitValue(!Boolean(context.value));
   }

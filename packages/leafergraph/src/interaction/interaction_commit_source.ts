@@ -22,6 +22,8 @@ export interface LeaferGraphInteractionCommitSource {
  * @remarks
  * 这里刻意不耦合任何场景或 editor 语义，
  * 只负责分发已经归一化完成的提交事件。
+ *
+ * @returns 创建后的结果对象。
  */
 export function createLeaferGraphInteractionCommitSource(): LeaferGraphInteractionCommitSource {
   const listeners = new Set<

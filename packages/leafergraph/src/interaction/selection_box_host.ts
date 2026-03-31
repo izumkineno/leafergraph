@@ -15,6 +15,9 @@ interface LeaferGraphSelectionBoxHostOptions {
   resolveStroke(): string;
 }
 
+/**
+ * 封装 LeaferGraphSelectionBoxHost 的宿主能力。
+ */
 export class LeaferGraphSelectionBoxHost {
   private readonly options: LeaferGraphSelectionBoxHostOptions;
   private readonly group: Group;
@@ -22,7 +25,13 @@ export class LeaferGraphSelectionBoxHost {
   private readonly frameRect: Rect;
   private readonly highlightRect: Rect;
 
+  /**
+   * 初始化 LeaferGraphSelectionBoxHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphSelectionBoxHostOptions) {
+    // 先整理当前阶段需要的输入、状态与依赖。
     this.options = options;
     this.fillRect = new Rect({
       name: "graph-selection-box-fill",
@@ -43,6 +52,7 @@ export class LeaferGraphSelectionBoxHost {
       hitSelf: false,
       hittable: false
     });
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     this.highlightRect = new Rect({
       name: "graph-selection-box-highlight",
       visible: false,
@@ -65,7 +75,12 @@ export class LeaferGraphSelectionBoxHost {
     this.options.selectionLayer.add(this.group);
   }
 
-  /** 按当前主题色刷新并显示框选矩形。 */
+  /**
+   *  按当前主题色刷新并显示框选矩形。
+   *
+   * @param bounds - `bounds`。
+   * @returns 无返回值。
+   */
   show(bounds: { x: number; y: number; width: number; height: number }): void {
     const normalizedBounds = normalizeRectBounds(bounds);
     const visible = normalizedBounds.width > 0 || normalizedBounds.height > 0;
@@ -99,7 +114,11 @@ export class LeaferGraphSelectionBoxHost {
     this.options.requestRender();
   }
 
-  /** 隐藏当前框选矩形。 */
+  /**
+   *  隐藏当前框选矩形。
+   *
+   * @returns 无返回值。
+   */
   hide(): void {
     if (!this.group.visible) {
       return;
@@ -112,12 +131,22 @@ export class LeaferGraphSelectionBoxHost {
     this.options.requestRender();
   }
 
-  /** 销毁 overlay 图元。 */
+  /**
+   *  销毁 overlay 图元。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     this.group.remove();
   }
 }
 
+/**
+ * 处理 `normalizeRectBounds` 相关逻辑。
+ *
+ * @param bounds - `bounds`。
+ * @returns 处理后的结果。
+ */
 function normalizeRectBounds(bounds: {
   x: number;
   y: number;

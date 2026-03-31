@@ -13,6 +13,9 @@ import {
 } from "../shared";
 import { setNodeTitle } from "./shared";
 
+/**
+ * 封装 TimeNode 的节点行为。
+ */
 export class TimeNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.time,
@@ -30,6 +33,12 @@ export class TimeNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const seconds = performance.now() / 1000;
     ctx.setOutput("in ms", seconds * 1000);
@@ -39,6 +48,9 @@ export class TimeNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ConstantNumberNode 的节点行为。
+ */
 export class ConstantNumberNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.constNumber,
@@ -59,6 +71,12 @@ export class ConstantNumberNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const value = readWidgetNumber(ctx, "value", 1);
     ctx.setProp("value", value);
@@ -67,6 +85,9 @@ export class ConstantNumberNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ConstantBooleanNode 的节点行为。
+ */
 export class ConstantBooleanNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.constBoolean,
@@ -89,6 +110,12 @@ export class ConstantBooleanNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const value = readWidgetBoolean(ctx, "value", true);
     ctx.setProp("value", value);
@@ -96,6 +123,15 @@ export class ConstantBooleanNode extends BaseNode {
     setNodeTitle(ctx.node, `Boolean ${value ? "TRUE" : "FALSE"}`);
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, _options, ctx) {
     if (action !== "toggle") {
       return;
@@ -108,6 +144,9 @@ export class ConstantBooleanNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ConstantStringNode 的节点行为。
+ */
 export class ConstantStringNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.constString,
@@ -129,6 +168,12 @@ export class ConstantStringNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const value = readWidgetString(ctx, "value", "");
     ctx.setProp("value", value);
@@ -140,6 +185,9 @@ export class ConstantStringNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ConstantObjectNode 的节点行为。
+ */
 export class ConstantObjectNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.constObject,
@@ -154,12 +202,23 @@ export class ConstantObjectNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       value: {} as Record<string, unknown>
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     ctx.setOutput("obj", ctx.state.value);
     updateStatus(ctx, `OBJECT\n${toDisplayText(ctx.state.value)}`);

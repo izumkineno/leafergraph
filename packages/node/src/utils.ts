@@ -19,6 +19,9 @@ let nodeIdSeed = 1;
 /**
  * 深拷贝任意简单 JSON 风格值。
  * 当前节点 SDK 的大部分结构都通过这套规则保持“输入不可变、内部可变”。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
  */
 export function cloneValue<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -36,19 +39,34 @@ export function cloneValue<T>(value: T): T {
   return value;
 }
 
-/** 深拷贝记录对象。 */
+/**
+ *  深拷贝记录对象。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 export function cloneRecord(
   value?: Record<string, unknown>
 ): Record<string, unknown> | undefined {
   return value ? cloneValue(value) : undefined;
 }
 
-/** 深拷贝节点标志位。 */
+/**
+ *  深拷贝节点标志位。
+ *
+ * @param flags - `flags`。
+ * @returns 处理后的结果。
+ */
 export function cloneFlags(flags?: NodeFlags): NodeFlags {
   return flags ? cloneValue(flags) : {};
 }
 
-/** 将布局输入标准化为完整的 `NodeLayout`。 */
+/**
+ *  将布局输入标准化为完整的 `NodeLayout`。
+ *
+ * @param layout - 布局。
+ * @returns 处理后的结果。
+ */
 export function cloneLayout(layout?: Partial<NodeLayout>): NodeLayout {
   return {
     x: layout?.x ?? 0,
@@ -58,7 +76,12 @@ export function cloneLayout(layout?: Partial<NodeLayout>): NodeLayout {
   };
 }
 
-/** 深拷贝单个槽位声明。 */
+/**
+ *  深拷贝单个槽位声明。
+ *
+ * @param spec - `spec`。
+ * @returns 处理后的结果。
+ */
 export function cloneSlotSpec(spec: NodeSlotSpec): NodeSlotSpec {
   return {
     ...spec,
@@ -66,12 +89,22 @@ export function cloneSlotSpec(spec: NodeSlotSpec): NodeSlotSpec {
   };
 }
 
-/** 深拷贝槽位声明数组。 */
+/**
+ *  深拷贝槽位声明数组。
+ *
+ * @param specs - `specs`。
+ * @returns 处理后的结果。
+ */
 export function cloneSlotSpecs(specs?: NodeSlotSpec[]): NodeSlotSpec[] {
   return specs?.map((spec) => cloneSlotSpec(spec)) ?? [];
 }
 
-/** 深拷贝单个 Widget 声明。 */
+/**
+ *  深拷贝单个 Widget 声明。
+ *
+ * @param spec - `spec`。
+ * @returns 处理后的结果。
+ */
 export function cloneWidgetSpec(spec: NodeWidgetSpec): NodeWidgetSpec {
   return {
     ...spec,
@@ -80,12 +113,22 @@ export function cloneWidgetSpec(spec: NodeWidgetSpec): NodeWidgetSpec {
   };
 }
 
-/** 深拷贝 Widget 声明数组。 */
+/**
+ *  深拷贝 Widget 声明数组。
+ *
+ * @param specs - `specs`。
+ * @returns 处理后的结果。
+ */
 export function cloneWidgetSpecs(specs?: NodeWidgetSpec[]): NodeWidgetSpec[] {
   return specs?.map((spec) => cloneWidgetSpec(spec)) ?? [];
 }
 
-/** 深拷贝单个属性声明。 */
+/**
+ *  深拷贝单个属性声明。
+ *
+ * @param spec - `spec`。
+ * @returns 处理后的结果。
+ */
 export function clonePropertySpec(spec: NodePropertySpec): NodePropertySpec {
   return {
     ...spec,
@@ -95,7 +138,12 @@ export function clonePropertySpec(spec: NodePropertySpec): NodePropertySpec {
   };
 }
 
-/** 深拷贝属性声明数组。 */
+/**
+ *  深拷贝属性声明数组。
+ *
+ * @param specs - `specs`。
+ * @returns 处理后的结果。
+ */
 export function clonePropertySpecs(specs?: NodePropertySpec[]): NodePropertySpec[] {
   return specs?.map((spec) => clonePropertySpec(spec)) ?? [];
 }
@@ -103,6 +151,9 @@ export function clonePropertySpecs(specs?: NodePropertySpec[]): NodePropertySpec
 /**
  * 深拷贝节点定义。
  * 注册表会保存这份副本，以隔离调用方后续对原定义对象的修改。
+ *
+ * @param definition - 定义。
+ * @returns 处理后的结果。
  */
 export function cloneDefinition(definition: NodeDefinition): NodeDefinition {
   return {
@@ -120,6 +171,9 @@ export function cloneDefinition(definition: NodeDefinition): NodeDefinition {
 /**
  * 为未注册的节点类型生成一个最小占位定义。
  * 这让宿主在读取旧图数据或插件缺失时，仍然可以保留原始节点结构并继续渲染占位态。
+ *
+ * @param type - 类型。
+ * @returns 创建后的结果对象。
  */
 export function createMissingNodeDefinition(type: string): NodeDefinition {
   return {
@@ -132,6 +186,9 @@ export function createMissingNodeDefinition(type: string): NodeDefinition {
 /**
  * 由类型名推导默认标题。
  * 例如 `math/add` 会回退成 `Add`。
+ *
+ * @param type - 类型。
+ * @returns 创建后的结果对象。
  */
 export function createDefaultTitle(type: string): string {
   const tail = type.split(/[/:]/).pop() ?? type;
@@ -143,6 +200,9 @@ export function createDefaultTitle(type: string): string {
 /**
  * 生成节点默认实例 ID。
  * 这里使用简单自增种子，足够满足当前内存态 demo 与开发期用途。
+ *
+ * @param type - 类型。
+ * @returns 创建后的结果对象。
  */
 export function createNodeId(type: string): string {
   const safeType = type
@@ -160,6 +220,10 @@ export function createNodeId(type: string): string {
 /**
  * 根据属性声明和覆写值创建实例属性对象。
  * 先铺默认值，再覆盖调用方传入值。
+ *
+ * @param specs - `specs`。
+ * @param overrides - `overrides`。
+ * @returns 创建后的结果对象。
  */
 export function createPropertyValues(
   specs: NodePropertySpec[],
@@ -185,6 +249,11 @@ export function createPropertyValues(
 /**
  * 按节点定义、覆写布局和当前布局合并出最终布局。
  * 当前规则保持简单，优先级为：显式输入 > 当前值 > 定义默认尺寸。
+ *
+ * @param definition - 定义。
+ * @param nextLayout - 下一步布局。
+ * @param currentLayout - `current` 布局。
+ * @returns 处理后的结果。
  */
 export function resolveNodeLayout(
   definition: Pick<NodeDefinition, "size">,
@@ -202,6 +271,10 @@ export function resolveNodeLayout(
 /**
  * 调整运行时输入输出缓存长度。
  * 该函数会保留已有值，并在需要时补齐 `undefined` 占位。
+ *
+ * @param values - 值。
+ * @param size - `size`。
+ * @returns 处理后的结果。
  */
 export function resizeRuntimeValues(values: unknown[], size: number): unknown[] {
   const next = values.slice(0, size);

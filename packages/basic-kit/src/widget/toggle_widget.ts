@@ -35,12 +35,21 @@ interface ToggleFieldState extends BasicWidgetLifecycleState {
   focusKey: string;
 }
 
-/** toggle renderer。 */
+/**
+ *  toggle renderer。
+ */
 export class ToggleFieldController extends BasicWidgetController<
   NodeToggleWidgetOptions,
   ToggleFieldState
 > {
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): ToggleFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const theme = this.resolveTheme(context);
@@ -67,6 +76,7 @@ export class ToggleFieldController extends BasicWidgetController<
       cornerRadius: 999,
       strokeWidth: 1
     });
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const stateText = createWidgetValueText(ui, {
       x: WIDGET_FIELD_PADDING_X,
       y: WIDGET_FIELD_Y + 9,
@@ -138,10 +148,24 @@ export class ToggleFieldController extends BasicWidgetController<
     return state;
   }
 
+  /**
+   * 切换值。
+   *
+   * @param context - 当前上下文。
+   * @returns 无返回值。
+   */
   private toggleValue(context: LeaferGraphWidgetRendererContext): void {
     context.commitValue(!Boolean(context.value));
   }
 
+  /**
+   * 处理 `syncToggleVisual` 相关逻辑。
+   *
+   * @param context - 当前上下文。
+   * @param state - 当前状态。
+   * @param checked - `checked`。
+   * @returns 无返回值。
+   */
   private syncToggleVisual(
     context: LeaferGraphWidgetRendererContext,
     state: ToggleFieldState,

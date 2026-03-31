@@ -33,6 +33,11 @@ export abstract class BasicWidgetController<
   TOptions extends NodeBaseWidgetOptions,
   TState extends BasicWidgetLifecycleState
 > {
+  /**
+   * 创建`Lifecycle`。
+   *
+   * @returns 创建后的结果对象。
+   */
   createLifecycle(): BasicWidgetLifecycle<TState> {
     return {
       mount: (context) => {
@@ -61,20 +66,51 @@ export abstract class BasicWidgetController<
     };
   }
 
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 无返回值。
+   */
   protected abstract mountState(context: LeaferGraphWidgetRendererContext): TState;
 
+  /**
+   * 解析选项。
+   *
+   * @param widget - Widget。
+   * @returns 处理后的结果。
+   */
   protected resolveOptions(widget: NodeWidgetSpec): TOptions {
     return (widget.options ?? {}) as TOptions;
   }
 
+  /**
+   * 解析主题。
+   *
+   * @param context - 当前上下文。
+   * @returns 处理后的结果。
+   */
   protected resolveTheme(context: LeaferGraphWidgetRendererContext): BasicWidgetTheme {
     return context.theme.tokens;
   }
 
+  /**
+   * 解析`Disabled`。
+   *
+   * @param options - 可选配置项。
+   * @returns 对应的判断结果。
+   */
   protected resolveDisabled(options: NodeBaseWidgetOptions | undefined): boolean {
     return Boolean(options?.disabled);
   }
 
+  /**
+   * 添加`Cleanup`。
+   *
+   * @param state - 当前状态。
+   * @param cleanup - `cleanup`。
+   * @returns 无返回值。
+   */
   protected addCleanup(
     state: BasicWidgetLifecycleState,
     cleanup?: LeaferGraphWidgetInteractionBinding | (() => void) | null
@@ -93,6 +129,13 @@ export abstract class BasicWidgetController<
     });
   }
 
+  /**
+   * 解析标签。
+   *
+   * @param widget - Widget。
+   * @param options - 可选配置项。
+   * @returns 处理后的结果。
+   */
   protected resolveLabel(
     widget: NodeWidgetSpec,
     options?: NodeBaseWidgetOptions
@@ -114,6 +157,12 @@ export abstract class BasicWidgetController<
     return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
   }
 
+  /**
+   * 格式化Widget 值。
+   *
+   * @param value - 当前值。
+   * @returns 处理后的结果。
+   */
   protected formatWidgetValue(value: unknown): string {
     if (value === null || value === undefined) {
       return "";
@@ -146,6 +195,13 @@ export abstract class BasicWidgetController<
     return String(value);
   }
 
+  /**
+   * 解析文本显示。
+   *
+   * @param value - 当前值。
+   * @param placeholder - `placeholder`。
+   * @returns 处理后的结果。
+   */
   protected resolveTextDisplay(
     value: unknown,
     placeholder?: string
@@ -164,15 +220,34 @@ export abstract class BasicWidgetController<
     };
   }
 
+  /**
+   * 解析节点`Accent`。
+   *
+   * @param node - 节点。
+   * @param theme - 主题。
+   * @returns 处理后的结果。
+   */
   protected resolveNodeAccent(node: NodeRuntimeState, theme: BasicWidgetTheme): string {
     const accent = node.properties["accent"];
     return typeof accent === "string" && accent.trim() ? accent : theme.accentFallback;
   }
 
+  /**
+   * 解析焦点键值。
+   *
+   * @param context - 当前上下文。
+   * @returns 处理后的结果。
+   */
   protected resolveFocusKey(context: LeaferGraphWidgetRendererContext): string {
     return `${context.node.id}:${context.widgetIndex}`;
   }
 
+  /**
+   * 判断是否为`Reserved` Widget 键值。
+   *
+   * @param event - 当前事件对象。
+   * @returns 对应的判断结果。
+   */
   protected isReservedWidgetKey(event: KeyboardEvent): boolean {
     if (event.ctrlKey || event.metaKey) {
       return true;
@@ -198,6 +273,13 @@ export abstract class BasicWidgetController<
     }
   }
 
+  /**
+   * 解析选项项目。
+   *
+   * @param items - 项目。
+   * @param fallbackValue - 当前值。
+   * @returns 处理后的结果。
+   */
   protected resolveOptionItems(
     items: Array<string | NodeWidgetOptionItem> | undefined,
     fallbackValue?: unknown
@@ -230,6 +312,13 @@ export abstract class BasicWidgetController<
     return [{ label: text, value: text }];
   }
 
+  /**
+   * 解析`Selected` 选项。
+   *
+   * @param value - 当前值。
+   * @param options - 可选配置项。
+   * @returns 处理后的结果。
+   */
   protected resolveSelectedOption(
     value: unknown,
     options: NodeWidgetOptionItem[]
@@ -238,6 +327,13 @@ export abstract class BasicWidgetController<
     return options.find((item) => item.value === text) ?? options[0];
   }
 
+  /**
+   * 处理 `resolveSelectedOptionIndex` 相关逻辑。
+   *
+   * @param value - 当前值。
+   * @param options - 可选配置项。
+   * @returns 处理后的结果。
+   */
   protected resolveSelectedOptionIndex(
     value: unknown,
     options: NodeWidgetOptionItem[]
@@ -247,6 +343,14 @@ export abstract class BasicWidgetController<
     return index >= 0 ? index : 0;
   }
 
+  /**
+   * 处理 `resolveNextEnabledOptionIndex` 相关逻辑。
+   *
+   * @param currentIndex - `currentIndex` 参数。
+   * @param options - 可选配置项。
+   * @param delta - `delta`。
+   * @returns 处理后的结果。
+   */
   protected resolveNextEnabledOptionIndex(
     currentIndex: number,
     options: NodeWidgetOptionItem[],
@@ -267,6 +371,12 @@ export abstract class BasicWidgetController<
     return currentIndex;
   }
 
+  /**
+   * 解析Widget `Anchor` 客户端坐标。
+   *
+   * @param target - 当前目标对象。
+   * @returns 处理后的结果。
+   */
   protected resolveWidgetAnchorClientPoint(target: WidgetAnchorTarget): {
     x: number;
     y: number;
@@ -286,6 +396,12 @@ export abstract class BasicWidgetController<
     };
   }
 
+  /**
+   * 处理 `resolveLinearRange` 相关逻辑。
+   *
+   * @param options - 可选配置项。
+   * @returns 处理后的结果。
+   */
   protected resolveLinearRange(
     options: NodeSliderWidgetOptions | undefined
   ): ResolvedLinearRange {
@@ -307,6 +423,14 @@ export abstract class BasicWidgetController<
     };
   }
 
+  /**
+   * 限制`Number`。
+   *
+   * @param value - 当前值。
+   * @param min - `min`。
+   * @param max - `max`。
+   * @returns 限制`Number`的结果。
+   */
   protected clampNumber(value: number, min: number, max: number): number {
     if (!Number.isFinite(value)) {
       return min;
@@ -315,12 +439,26 @@ export abstract class BasicWidgetController<
     return Math.min(max, Math.max(min, value));
   }
 
+  /**
+   * 处理 `roundToStep` 相关逻辑。
+   *
+   * @param value - 当前值。
+   * @param range - `range`。
+   * @returns 处理后的结果。
+   */
   protected roundToStep(value: number, range: ResolvedLinearRange): number {
     const steps = Math.round((value - range.min) / range.step);
     const next = range.min + steps * range.step;
     return this.clampNumber(next, range.min, range.max);
   }
 
+  /**
+   * 处理 `resolveSliderProgress` 相关逻辑。
+   *
+   * @param value - 当前值。
+   * @param range - `range`。
+   * @returns 处理后的结果。
+   */
   protected resolveSliderProgress(
     value: unknown,
     range: ResolvedLinearRange
@@ -335,6 +473,13 @@ export abstract class BasicWidgetController<
     ) / Math.max(range.max - range.min, 0.00001);
   }
 
+  /**
+   * 解析`Slider` 值。
+   *
+   * @param progress - `progress`。
+   * @param range - `range`。
+   * @returns 处理后的结果。
+   */
   protected resolveSliderValue(
     progress: number,
     range: ResolvedLinearRange
@@ -343,6 +488,15 @@ export abstract class BasicWidgetController<
     return this.roundToStep(numeric, range);
   }
 
+  /**
+   * 解析`Slider` 显示值。
+   *
+   * @param value - 当前值。
+   * @param range - `range`。
+   * @param options - 可选配置项。
+   * @param preferStaticDisplayValue - 当前值。
+   * @returns 处理后的结果。
+   */
   protected resolveSliderDisplayValue(
     value: unknown,
     range: ResolvedLinearRange,
@@ -375,7 +529,12 @@ export abstract class BasicWidgetController<
   }
 }
 
-/** 统一请求宿主刷新当前 Widget 所在画布。 */
+/**
+ *  统一请求宿主刷新当前 Widget 所在画布。
+ *
+ * @param context - 当前上下文。
+ * @returns 无返回值。
+ */
 export function runtimeRequestRender(context: LeaferGraphWidgetRendererContext): void {
   context.requestRender();
 }

@@ -5,7 +5,11 @@
  */
 import type { GraphDocument } from "@leafergraph/node";
 
-/** 创建一份新的空图文档，供初始化与 reset 共用。 */
+/**
+ *  创建一份新的空图文档，供初始化与 reset 共用。
+ *
+ * @returns 创建后的结果对象。
+ */
 export function createEmptyExampleDocument(): GraphDocument {
   return {
     documentId: "mini-graph-demo",

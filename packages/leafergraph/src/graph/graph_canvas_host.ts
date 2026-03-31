@@ -42,12 +42,22 @@ export interface LeaferGraphCanvasState {
 export class LeaferGraphCanvasHost {
   private readonly options: LeaferGraphCanvasHostOptions;
 
+  /**
+   * 初始化 LeaferGraphCanvasHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphCanvasHostOptions) {
     this.options = options;
   }
 
-  /** 创建主包当前所需的最小画布结构，并返回后续宿主要复用的层引用。 */
+  /**
+   *  创建主包当前所需的最小画布结构，并返回后续宿主要复用的层引用。
+   *
+   * @returns 处理后的结果。
+   */
   mount(): LeaferGraphCanvasState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     this.prepareContainer();
 
     const appRaw = this.options.leaferAppConfig.raw ?? {};
@@ -71,6 +81,7 @@ export class LeaferGraphCanvasHost {
       hitSelf: false,
       hitChildren: true
     });
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const nodeLayer = new Group({ name: "nodes" });
     const selectionLayer = new Group({
       name: "selection",
@@ -93,12 +104,21 @@ export class LeaferGraphCanvasHost {
     };
   }
 
-  /** 主题切换时同步刷新画布背景。 */
+  /**
+   *  主题切换时同步刷新画布背景。
+   *
+   * @param mode - 模式。
+   * @returns 无返回值。
+   */
   setThemeMode(mode: LeaferGraphThemeMode): void {
     this.applyContainerBackground(mode);
   }
 
-  /** 规范化容器样式与背景。 */
+  /**
+   *  规范化容器样式与背景。
+   *
+   * @returns 无返回值。
+   */
   private prepareContainer(): void {
     const { container } = this.options;
 
@@ -117,7 +137,12 @@ export class LeaferGraphCanvasHost {
     this.applyContainerBackground(this.options.themeMode ?? "light");
   }
 
-  /** 统一应用画布背景，显式 fill 仍然拥有最高优先级。 */
+  /**
+   *  统一应用画布背景，显式 fill 仍然拥有最高优先级。
+   *
+   * @param mode - 模式。
+   * @returns 无返回值。
+   */
   private applyContainerBackground(mode: LeaferGraphThemeMode): void {
     const { container, fill, resolveBackground } = this.options;
     container.style.background = fill ?? resolveBackground(mode);
@@ -127,6 +152,9 @@ export class LeaferGraphCanvasHost {
    * 接入 `@leafer-in/viewport` 的最小工作区视口能力。
    * 当前阶段只打开最常用的缩放和平移语义，不接管节点拖拽。
    * 这里显式使用自由平移，避免节点靠近边缘时被 viewport 的 limit 阻尼“卡”在画布内。
+   *
+   * @param app - 应用。
+   * @returns 无返回值。
    */
   private setupViewport(app: App): void {
     const viewportRaw = this.options.leaferViewportConfig.raw ?? {};

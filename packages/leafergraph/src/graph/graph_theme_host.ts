@@ -36,6 +36,11 @@ export class LeaferGraphThemeHost {
   private mode: LeaferGraphThemeMode;
   private widgetTheme: LeaferGraphWidgetThemeContext;
 
+  /**
+   * 初始化 LeaferGraphThemeHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphThemeHostOptions) {
     this.options = options;
     this.mode = options.initialMode;
@@ -46,6 +51,8 @@ export class LeaferGraphThemeHost {
    * 挂接运行时依赖，让主题切换可以驱动现有节点和编辑宿主刷新。
    *
    * @param runtime - 主题宿主后续用于刷新场景和同步编辑主题的运行时桥接层。
+   *
+   * @returns 无返回值。
    */
   attachRuntime(runtime: LeaferGraphThemeRuntimeLike): void {
     this.runtime = runtime;
@@ -78,6 +85,8 @@ export class LeaferGraphThemeHost {
    * 然后委托运行时桥接层批量刷新节点壳、连线和编辑浮层。
    *
    * @param mode - 目标主题模式。
+   *
+   * @returns 无返回值。
    */
   setThemeMode(mode: LeaferGraphThemeMode): void {
     if (this.mode === mode) {

@@ -100,6 +100,12 @@ export const AUTHORING_BASIC_EVENT_NODE_TYPES = [
   AUTHORING_BASIC_NODE_TYPES.eventTimer
 ] as const;
 
+/**
+ * 创建状态 Widget `Spec`。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createStatusWidgetSpec(options: {
   label: string;
   description: string;

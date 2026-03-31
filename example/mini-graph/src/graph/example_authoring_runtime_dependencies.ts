@@ -24,6 +24,12 @@ export const EXAMPLE_AUTHORING_RUNTIME_DEPENDENCY_SPECIFIERS = [
   ...Object.keys(STATIC_RUNTIME_DEPENDENCIES)
 ] as const;
 
+/**
+ * 处理 `loadExampleAuthoringRuntimeDependency` 相关逻辑。
+ *
+ * @param specifier - `specifier`。
+ * @returns 处理后的结果。
+ */
 export async function loadExampleAuthoringRuntimeDependency(
   specifier: string
 ): Promise<ExampleAuthoringRuntimeDependencyNamespace> {

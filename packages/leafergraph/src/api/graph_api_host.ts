@@ -251,18 +251,32 @@ export class LeaferGraphApiHost<
     TLinkViewState
   >;
 
+  /**
+   * 初始化 LeaferGraphApiHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphApiHostOptions<TNodeState, TNodeViewState, TLinkViewState>
   ) {
     this.options = options;
   }
 
-  /** 执行启动期安装流程并恢复初始图数据。 */
+  /**
+   *  执行启动期安装流程并恢复初始图数据。
+   *
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   initialize(options: LeaferGraphOptions): Promise<void> {
     return this.options.runtime.bootstrapRuntime.initialize(options);
   }
 
-  /** 销毁宿主实例，并清理全部全局事件与 widget 生命周期。 */
+  /**
+   *  销毁宿主实例，并清理全部全局事件与 widget 生命周期。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     for (const state of this.options.nodeViews.values()) {
       this.options.runtime.widgetHost.destroyNodeWidgets(
@@ -280,95 +294,187 @@ export class LeaferGraphApiHost<
     this.options.runtime.app.destroy();
   }
 
-  /** 安装一个外部节点插件。 */
+  /**
+   *  安装一个外部节点插件。
+   *
+   * @param plugin - 插件。
+   * @returns 无返回值。
+   */
   async use(plugin: LeaferGraphNodePlugin): Promise<void> {
     return this.options.runtime.bootstrapRuntime.use(plugin);
   }
 
-  /** 安装一个静态节点模块。 */
+  /**
+   *  安装一个静态节点模块。
+   *
+   * @param module - 模块。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   installModule(module: NodeModule, options?: InstallNodeModuleOptions): void {
     this.options.runtime.bootstrapRuntime.installModule(module, options);
   }
 
-  /** 注册单个节点定义。 */
+  /**
+   *  注册单个节点定义。
+   *
+   * @param definition - 定义。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void {
     this.options.runtime.bootstrapRuntime.registerNode(definition, options);
   }
 
-  /** 注册单个完整 Widget 条目。 */
+  /**
+   *  注册单个完整 Widget 条目。
+   *
+   * @param entry - 条目。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   registerWidget(entry: LeaferGraphWidgetEntry, options?: RegisterWidgetOptions): void {
     this.options.runtime.bootstrapRuntime.registerWidget(entry, options);
   }
 
-  /** 读取单个 Widget 条目。 */
+  /**
+   *  读取单个 Widget 条目。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   getWidget(type: string): LeaferGraphWidgetEntry | undefined {
     return this.options.runtime.bootstrapRuntime.getWidget(type);
   }
 
-  /** 列出当前已注册 Widget。 */
+  /**
+   *  列出当前已注册 Widget。
+   *
+   * @returns 收集到的结果列表。
+   */
   listWidgets(): LeaferGraphWidgetEntry[] {
     return this.options.runtime.bootstrapRuntime.listWidgets();
   }
 
-  /** 直接替换当前正式文档。 */
+  /**
+   *  直接替换当前正式文档。
+   *
+   * @param document - 文档。
+   * @returns 无返回值。
+   */
   replaceGraphDocument(document: GraphDocument): void {
     this.options.runtime.bootstrapRuntime.replaceGraphDocument(document);
     this.notifyHistoryReset("replace-document");
   }
 
-  /** 运行时切换主包主题，并局部刷新现有节点壳与 Widget。 */
+  /**
+   *  运行时切换主包主题，并局部刷新现有节点壳与 Widget。
+   *
+   * @param mode - 模式。
+   * @returns 无返回值。
+   */
   setThemeMode(mode: LeaferGraphThemeMode): void {
     this.options.runtime.themeHost.setThemeMode(mode);
   }
 
-  /** 列出当前已注册节点。 */
+  /**
+   *  列出当前已注册节点。
+   *
+   * @returns 收集到的结果列表。
+   */
   listNodes(): NodeDefinition[] {
     return this.options.runtime.bootstrapRuntime.listNodes();
   }
 
-  /** 获取某个节点对应的 Leafer 视图宿主，便于挂接节点级交互。 */
+  /**
+   *  获取某个节点对应的 Leafer 视图宿主，便于挂接节点级交互。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeView(nodeId: string): Group | undefined {
     return this.options.nodeViews.get(nodeId)?.view;
   }
 
-  /** 获取某条连线对应的 Leafer 视图宿主，便于 editor 绑定链接菜单与未来的重连交互。 */
+  /**
+   *  获取某条连线对应的 Leafer 视图宿主，便于 editor 绑定链接菜单与未来的重连交互。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 处理后的结果。
+   */
   getLinkView(linkId: string): LeaferGraphInteractionTargetLike | undefined {
     return this.options.linkViews.find((state) => state.linkId === linkId)?.view;
   }
 
-  /** 让当前画布内容适配到可视区域内。 */
+  /**
+   *  让当前画布内容适配到可视区域内。
+   *
+   * @param padding - `padding`。
+   * @returns 对应的判断结果。
+   */
   fitView(padding: number): boolean {
     return this.options.runtime.viewHost.fitView(padding);
   }
 
-  /** 读取一个正式可序列化节点快照。 */
+  /**
+   *  读取一个正式可序列化节点快照。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined {
     return this.options.runtime.nodeRuntimeHost.getNodeSnapshot(nodeId);
   }
 
-  /** 读取一个节点当前的检查快照，供 editor 信息面板直接消费。 */
+  /**
+   *  读取一个节点当前的检查快照，供 editor 信息面板直接消费。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeInspectorState(
     nodeId: string
   ): LeaferGraphNodeInspectorState | undefined {
     return this.options.runtime.nodeRuntimeHost.getNodeInspectorState(nodeId);
   }
 
-  /** 设置单个节点的选中态。 */
+  /**
+   *  设置单个节点的选中态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param selected - `selected`。
+   * @returns 对应的判断结果。
+   */
   setNodeSelected(nodeId: string, selected: boolean): boolean {
     return this.options.runtime.viewHost.setNodeSelected(nodeId, selected);
   }
 
-  /** 列出当前全部已选节点。 */
+  /**
+   *  列出当前全部已选节点。
+   *
+   * @returns 收集到的结果列表。
+   */
   listSelectedNodeIds(): string[] {
     return this.options.runtime.viewHost.listSelectedNodeIds();
   }
 
-  /** 判断单个节点当前是否处于选中态。 */
+  /**
+   *  判断单个节点当前是否处于选中态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 对应的判断结果。
+   */
   isNodeSelected(nodeId: string): boolean {
     return this.options.runtime.viewHost.isNodeSelected(nodeId);
   }
 
-  /** 批量更新当前节点选区。 */
+  /**
+   *  批量更新当前节点选区。
+   *
+   * @param nodeIds - 节点 ID 列表。
+   * @param mode - 模式。
+   * @returns 设置`Selected` 节点 ID 列表的结果。
+   */
   setSelectedNodeIds(
     nodeIds: readonly string[],
     mode?: LeaferGraphSelectionUpdateMode
@@ -376,12 +482,22 @@ export class LeaferGraphApiHost<
     return this.options.runtime.viewHost.setSelectedNodeIds(nodeIds, mode);
   }
 
-  /** 清空全部已选节点。 */
+  /**
+   *  清空全部已选节点。
+   *
+   * @returns 清理`Selected` 节点的结果。
+   */
   clearSelectedNodes(): string[] {
     return this.options.runtime.viewHost.clearSelectedNodes();
   }
 
-  /** 设置单个节点的折叠态。 */
+  /**
+   *  设置单个节点的折叠态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param collapsed - `collapsed`。
+   * @returns 对应的判断结果。
+   */
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
     const beforeDocument = this.captureDocumentBeforeHistory();
     const changed = this.options.runtime.nodeRuntimeHost.setNodeCollapsed(
@@ -403,73 +519,135 @@ export class LeaferGraphApiHost<
     return changed;
   }
 
-  /** 读取某个节点的正式 resize 约束。 */
+  /**
+   *  读取某个节点的正式 resize 约束。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeResizeConstraint(
     nodeId: string
   ): LeaferGraphNodeResizeConstraint | undefined {
     return this.options.runtime.nodeRuntimeHost.getNodeResizeConstraint(nodeId);
   }
 
-  /** 读取某个节点当前的最小执行反馈快照。 */
+  /**
+   *  读取某个节点当前的最小执行反馈快照。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeExecutionState(
     nodeId: string
   ): LeaferGraphNodeExecutionState | undefined {
     return this.options.runtime.nodeRuntimeHost.getNodeExecutionState(nodeId);
   }
 
-  /** 读取当前图级执行状态。 */
+  /**
+   *  读取当前图级执行状态。
+   *
+   * @returns 处理后的结果。
+   */
   getGraphExecutionState(): LeaferGraphGraphExecutionState {
     return this.options.runtime.graphExecutionHost.getGraphExecutionState();
   }
 
-  /** 读取当前最小交互活跃态快照。 */
+  /**
+   *  读取当前最小交互活跃态快照。
+   *
+   * @returns 处理后的结果。
+   */
   getInteractionActivityState(): LeaferGraphInteractionActivityState {
     return this.options.runtime.interactionHost.getInteractionActivityState();
   }
 
-  /** 判断某个节点当前是否允许显示并响应 resize 交互。 */
+  /**
+   *  判断某个节点当前是否允许显示并响应 resize 交互。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 对应的判断结果。
+   */
   canResizeNode(nodeId: string): boolean {
     return this.options.runtime.nodeRuntimeHost.canResizeNode(nodeId);
   }
 
-  /** 把节点尺寸恢复到定义默认值。 */
+  /**
+   *  把节点尺寸恢复到定义默认值。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 重置节点`Size`的结果。
+   */
   resetNodeSize(nodeId: string): TNodeState | undefined {
     return this.options.runtime.nodeRuntimeHost.resetNodeSize(nodeId);
   }
 
-  /** 从指定节点开始运行一条正式执行链。 */
+  /**
+   *  从指定节点开始运行一条正式执行链。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param context - 当前上下文。
+   * @returns 对应的判断结果。
+   */
   playFromNode(nodeId: string, context?: unknown): boolean {
     return this.options.runtime.nodeRuntimeHost.playFromNode(nodeId, context);
   }
 
-  /** 执行单个节点的 `onExecute(...)`，并沿现有正式连线传播输出。 */
+  /**
+   *  执行单个节点的 `onExecute(...)`，并沿现有正式连线传播输出。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param context - 当前上下文。
+   * @returns 对应的判断结果。
+   */
   executeNode(nodeId: string, context?: unknown): boolean {
     return this.options.runtime.nodeRuntimeHost.executeNode(nodeId, context);
   }
 
-  /** 从全部启动事件节点开始图级运行。 */
+  /**
+   *  从全部启动事件节点开始图级运行。
+   *
+   * @returns 对应的判断结果。
+   */
   play(): boolean {
     return this.options.runtime.graphExecutionHost.play();
   }
 
-  /** 单步推进当前图级运行。 */
+  /**
+   *  单步推进当前图级运行。
+   *
+   * @returns 对应的判断结果。
+   */
   step(): boolean {
     return this.options.runtime.graphExecutionHost.step();
   }
 
-  /** 停止当前图级运行。 */
+  /**
+   *  停止当前图级运行。
+   *
+   * @returns 对应的判断结果。
+   */
   stop(): boolean {
     return this.options.runtime.graphExecutionHost.stop();
   }
 
-  /** 订阅节点执行完成事件。 */
+  /**
+   *  订阅节点执行完成事件。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeNodeExecution(
     listener: (event: LeaferGraphNodeExecutionEvent) => void
   ): () => void {
     return this.options.runtime.nodeRuntimeHost.subscribeNodeExecution(listener);
   }
 
-  /** 订阅图级执行事件。 */
+  /**
+   *  订阅图级执行事件。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeGraphExecution(
     listener: (event: LeaferGraphGraphExecutionEvent) => void
   ): () => void {
@@ -478,28 +656,48 @@ export class LeaferGraphApiHost<
     );
   }
 
-  /** 订阅节点状态变化事件，供 editor 检查面板和调试工具复用。 */
+  /**
+   *  订阅节点状态变化事件，供 editor 检查面板和调试工具复用。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeNodeState(
     listener: (event: LeaferGraphNodeStateChangeEvent) => void
   ): () => void {
     return this.options.runtime.nodeRuntimeHost.subscribeNodeState(listener);
   }
 
-  /** 订阅统一运行反馈事件。 */
+  /**
+   *  订阅统一运行反馈事件。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeRuntimeFeedback(
     listener: (event: RuntimeFeedbackEvent) => void
   ): () => void {
     return this.options.runtime.runtimeAdapter.subscribe(listener);
   }
 
-  /** 订阅正式历史事件。 */
+  /**
+   *  订阅正式历史事件。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeHistory(
     listener: (event: LeaferGraphHistoryEvent) => void
   ): () => void {
     return this.options.runtime.historySource.subscribe(listener);
   }
 
-  /** 订阅交互活跃态变化。 */
+  /**
+   *  订阅交互活跃态变化。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeInteractionActivity(
     listener: (state: LeaferGraphInteractionActivityState) => void
   ): () => void {
@@ -508,7 +706,12 @@ export class LeaferGraphApiHost<
     );
   }
 
-  /** 把外部 runtime feedback 投影回当前图运行时。 */
+  /**
+   *  把外部 runtime feedback 投影回当前图运行时。
+   *
+   * @param feedback - 反馈。
+   * @returns 无返回值。
+   */
   projectRuntimeFeedback(feedback: RuntimeFeedbackEvent): void {
     projectExternalRuntimeFeedback(
       {
@@ -531,14 +734,24 @@ export class LeaferGraphApiHost<
     );
   }
 
-  /** 订阅交互结束后的正式提交事件。 */
+  /**
+   *  订阅交互结束后的正式提交事件。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeInteractionCommit(
     listener: (event: LeaferGraphInteractionCommitEvent) => void
   ): () => void {
     return this.options.runtime.interactionCommitSource.subscribe(listener);
   }
 
-  /** 在内部批量操作期间暂时关闭历史捕获。 */
+  /**
+   *  在内部批量操作期间暂时关闭历史捕获。
+   *
+   * @param callback - `callback`。
+   * @returns 处理后的结果。
+   */
   runWithoutHistoryCapture<T>(callback: () => T): T {
     this.historyCaptureSuppressionDepth += 1;
 
@@ -549,7 +762,12 @@ export class LeaferGraphApiHost<
     }
   }
 
-  /** 向外发送一次历史重置事件。 */
+  /**
+   *  向外发送一次历史重置事件。
+   *
+   * @param reason - `reason`。
+   * @returns 无返回值。
+   */
   notifyHistoryReset(reason: "replace-document" | "apply-document-diff"): void {
     if (!this.shouldCaptureHistory()) {
       return;
@@ -558,20 +776,36 @@ export class LeaferGraphApiHost<
     this.options.runtime.historySource.emit(createHistoryResetEvent(reason));
   }
 
-  /** 根据节点 ID 查询当前图中的所有关联连线。 */
+  /**
+   *  根据节点 ID 查询当前图中的所有关联连线。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   findLinksByNode(nodeId: string): GraphLink[] {
     return this.options.runtime.sceneRuntime.findLinksByNode(nodeId);
   }
 
-  /** 根据连线 ID 读取当前图中的正式连线快照。 */
+  /**
+   *  根据连线 ID 读取当前图中的正式连线快照。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 处理后的结果。
+   */
   getLink(linkId: string): GraphLink | undefined {
     return this.options.runtime.sceneRuntime.getLink(linkId);
   }
 
-  /** 应用一条正式图操作。 */
+  /**
+   *  应用一条正式图操作。
+   *
+   * @param operation - `operation`。
+   * @returns 应用图`Operation`的结果。
+   */
   applyGraphOperation(
     operation: GraphOperation
   ): GraphOperationApplyResult {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     const beforeDocument = this.captureDocumentBeforeHistory();
     const beforeNodeSnapshot =
       operation.type === "node.create"
@@ -634,6 +868,7 @@ export class LeaferGraphApiHost<
         const afterSnapshot = this.options.runtime.nodeRuntimeHost.getNodeSnapshot(
           operation.nodeId
         );
+        // 再执行核心更新步骤，并同步派生副作用与收尾状态。
         if (beforeNodeSnapshot && afterSnapshot) {
           this.emitHistoryRecord(
             createNodeResizeHistoryRecord({
@@ -707,7 +942,14 @@ export class LeaferGraphApiHost<
     return result;
   }
 
-  /** 解析某个节点方向和槽位对应的正式端口几何。 */
+  /**
+   *  解析某个节点方向和槽位对应的正式端口几何。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param direction - `direction`。
+   * @param slot - 槽位。
+   * @returns 处理后的结果。
+   */
   resolveConnectionPort(
     nodeId: string,
     direction: LeaferGraphConnectionPortState["direction"],
@@ -720,7 +962,13 @@ export class LeaferGraphApiHost<
     );
   }
 
-  /** 根据 page 坐标命中一个方向匹配的端口。 */
+  /**
+   *  根据 page 坐标命中一个方向匹配的端口。
+   *
+   * @param point - 坐标。
+   * @param direction - `direction`。
+   * @returns 处理后的结果。
+   */
   resolveConnectionPortAtPoint(
     point: { x: number; y: number },
     direction: LeaferGraphConnectionPortState["direction"]
@@ -731,19 +979,36 @@ export class LeaferGraphApiHost<
     );
   }
 
-  /** 设置当前连接预览的起点高亮。 */
+  /**
+   *  设置当前连接预览的起点高亮。
+   *
+   * @param port - `port`。
+   * @returns 无返回值。
+   */
   setConnectionSourcePort(port: LeaferGraphConnectionPortState | null): void {
     this.options.runtime.interactionRuntime.setConnectionSourcePort(port);
   }
 
-  /** 设置当前连接预览的候选终点高亮。 */
+  /**
+   *  设置当前连接预览的候选终点高亮。
+   *
+   * @param port - `port`。
+   * @returns 无返回值。
+   */
   setConnectionCandidatePort(
     port: LeaferGraphConnectionPortState | null
   ): void {
     this.options.runtime.interactionRuntime.setConnectionCandidatePort(port);
   }
 
-  /** 刷新当前连接预览线。 */
+  /**
+   *  刷新当前连接预览线。
+   *
+   * @param source - 当前来源对象。
+   * @param pointer - 指针。
+   * @param target - 当前目标对象。
+   * @returns 无返回值。
+   */
   setConnectionPreview(
     source: LeaferGraphConnectionPortState,
     pointer: { x: number; y: number },
@@ -756,12 +1021,22 @@ export class LeaferGraphApiHost<
     );
   }
 
-  /** 清理当前连接预览和端口高亮。 */
+  /**
+   *  清理当前连接预览和端口高亮。
+   *
+   * @returns 无返回值。
+   */
   clearConnectionPreview(): void {
     this.options.runtime.interactionRuntime.clearConnectionPreview();
   }
 
-  /** 校验两个端口当前是否允许建立正式连线。 */
+  /**
+   *  校验两个端口当前是否允许建立正式连线。
+   *
+   * @param source - 当前来源对象。
+   * @param target - 当前目标对象。
+   * @returns 对应的判断结果。
+   */
   canCreateConnection(
     source: LeaferGraphConnectionPortState,
     target: LeaferGraphConnectionPortState
@@ -769,7 +1044,12 @@ export class LeaferGraphApiHost<
     return this.options.runtime.interactionRuntime.canCreateLink(source, target);
   }
 
-  /** 创建一个新的节点实例并立即挂到主包场景中。 */
+  /**
+   *  创建一个新的节点实例并立即挂到主包场景中。
+   *
+   * @param input - 输入参数。
+   * @returns 创建后的结果对象。
+   */
   createNode(input: LeaferGraphCreateNodeInput): TNodeState {
     const node = this.options.runtime.sceneRuntime.createNode(input);
     const nodeSnapshot = this.options.runtime.nodeRuntimeHost.getNodeSnapshot(node.id);
@@ -785,7 +1065,12 @@ export class LeaferGraphApiHost<
     return node;
   }
 
-  /** 删除一个节点，并同步清理它的全部关联连线与视图。 */
+  /**
+   *  删除一个节点，并同步清理它的全部关联连线与视图。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 对应的判断结果。
+   */
   removeNode(nodeId: string): boolean {
     const beforeDocument = this.captureDocumentBeforeHistory();
     const changed = this.options.runtime.sceneRuntime.removeNode(nodeId);
@@ -803,7 +1088,13 @@ export class LeaferGraphApiHost<
     return changed;
   }
 
-  /** 更新一个既有节点的静态内容与布局。 */
+  /**
+   *  更新一个既有节点的静态内容与布局。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param input - 输入参数。
+   * @returns 更新节点的结果。
+   */
   updateNode(
     nodeId: string,
     input: LeaferGraphUpdateNodeInput
@@ -824,7 +1115,13 @@ export class LeaferGraphApiHost<
     return node;
   }
 
-  /** 移动一个节点到新的图坐标。 */
+  /**
+   *  移动一个节点到新的图坐标。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param position - 位置。
+   * @returns 处理后的结果。
+   */
   moveNode(
     nodeId: string,
     position: LeaferGraphMoveNodeInput
@@ -851,7 +1148,13 @@ export class LeaferGraphApiHost<
     return node;
   }
 
-  /** 调整一个节点的显式宽高。 */
+  /**
+   *  调整一个节点的显式宽高。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param size - `size`。
+   * @returns 处理后的结果。
+   */
   resizeNode(
     nodeId: string,
     size: LeaferGraphResizeNodeInput
@@ -875,7 +1178,12 @@ export class LeaferGraphApiHost<
     return node;
   }
 
-  /** 创建一条正式连线并加入当前图状态。 */
+  /**
+   *  创建一条正式连线并加入当前图状态。
+   *
+   * @param input - 输入参数。
+   * @returns 创建后的结果对象。
+   */
   createLink(input: LeaferGraphCreateLinkInput): GraphLink {
     const link = this.options.runtime.sceneRuntime.createLink(input);
     this.emitHistoryRecord(
@@ -887,7 +1195,12 @@ export class LeaferGraphApiHost<
     return link;
   }
 
-  /** 删除一条既有连线。 */
+  /**
+   *  删除一条既有连线。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 对应的判断结果。
+   */
   removeLink(linkId: string): boolean {
     const beforeLink = this.shouldCaptureHistory()
       ? this.options.runtime.sceneRuntime.getLink(linkId)
@@ -905,7 +1218,14 @@ export class LeaferGraphApiHost<
     return changed;
   }
 
-  /** 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。 */
+  /**
+   *  更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - Widget `Index`。
+   * @param newValue - 当前值。
+   * @returns 无返回值。
+   */
   setNodeWidgetValue(nodeId: string, widgetIndex: number, newValue: unknown): void {
     const beforeDocument = this.captureDocumentBeforeHistory();
     const changed = this.options.runtime.sceneRuntime.setNodeWidgetValue(
@@ -925,10 +1245,20 @@ export class LeaferGraphApiHost<
     }
   }
 
+  /**
+   * 判断是否需要`Capture` 历史。
+   *
+   * @returns 对应的判断结果。
+   */
   private shouldCaptureHistory(): boolean {
     return this.historyCaptureSuppressionDepth === 0;
   }
 
+  /**
+   * 处理 `captureDocumentBeforeHistory` 相关逻辑。
+   *
+   * @returns 处理后的结果。
+   */
   private captureDocumentBeforeHistory(): GraphDocument | null {
     if (!this.shouldCaptureHistory()) {
       return null;
@@ -937,6 +1267,12 @@ export class LeaferGraphApiHost<
     return this.options.runtime.getGraphDocument();
   }
 
+  /**
+   * 处理 `captureNodeSnapshotBeforeHistory` 相关逻辑。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   private captureNodeSnapshotBeforeHistory(
     nodeId: string
   ): NodeSerializeResult | undefined {
@@ -947,6 +1283,13 @@ export class LeaferGraphApiHost<
     return this.options.runtime.nodeRuntimeHost.getNodeSnapshot(nodeId);
   }
 
+  /**
+   * 为历史解析节点`Size`。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param snapshot - 快照。
+   * @returns 处理后的结果。
+   */
   private resolveNodeSizeForHistory(
     nodeId: string,
     snapshot: NodeSerializeResult
@@ -960,6 +1303,12 @@ export class LeaferGraphApiHost<
     };
   }
 
+  /**
+   * 派发历史记录。
+   *
+   * @param record - 记录。
+   * @returns 无返回值。
+   */
   private emitHistoryRecord(record: LeaferGraphHistoryRecord | null): void {
     if (!record || !this.shouldCaptureHistory()) {
       return;
@@ -969,6 +1318,12 @@ export class LeaferGraphApiHost<
   }
 }
 
+/**
+ * 解析快照`Operation` 标签。
+ *
+ * @param type - 类型。
+ * @returns 处理后的结果。
+ */
 function resolveSnapshotOperationLabel(type: "node.update" | "node.remove" | "document.update"): string {
   switch (type) {
     case "node.remove":

@@ -13,6 +13,11 @@ interface AuthoringTextWidgetTemplateBundleBridge {
   registerBundle(manifest: AuthoringTextWidgetTemplateBundleManifest): void;
 }
 
+/**
+ * 获取Bundle 桥接层。
+ *
+ * @returns 获取Bundle 桥接层的结果。
+ */
 function requireBundleBridge(): AuthoringTextWidgetTemplateBundleBridge {
   const bridge = (
     globalThis as typeof globalThis & {
@@ -29,6 +34,12 @@ function requireBundleBridge(): AuthoringTextWidgetTemplateBundleBridge {
   return bridge;
 }
 
+/**
+ * 注册`Authoring` 文本 Widget 模板 Bundle。
+ *
+ * @param manifest - `manifest`。
+ * @returns 无返回值。
+ */
 export function registerAuthoringTextWidgetTemplateBundle(
   manifest: AuthoringTextWidgetTemplateBundleManifest
 ): void {

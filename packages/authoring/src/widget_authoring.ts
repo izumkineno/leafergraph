@@ -84,11 +84,29 @@ export abstract class BaseWidget<
   /** Widget 静态元信息。 */
   static meta: DevWidgetMeta;
 
-  /** 首次挂载时触发，可返回作者层私有状态。 */
+  /**
+   *  首次挂载时触发，可返回作者层私有状态。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   mount?(ctx: DevWidgetContext<TValue>): TState | void;
-  /** 值变化或宿主刷新时触发。 */
+  /**
+   *  值变化或宿主刷新时触发。
+   *
+   * @param state - 当前状态。
+   * @param ctx - `ctx`。
+   * @param nextValue - 当前值。
+   * @returns 无返回值。
+   */
   update?(state: TState | void, ctx: DevWidgetContext<TValue>, nextValue: TValue): void;
-  /** Widget 被卸载前触发。 */
+  /**
+   *  Widget 被卸载前触发。
+   *
+   * @param state - 当前状态。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   destroy?(state: TState | void, ctx: DevWidgetContext<TValue>): void;
 }
 
@@ -119,6 +137,9 @@ interface AuthoringWidgetRuntime<
 /**
  * 把 Widget 作者类转换成正式 `LeaferGraphWidgetEntry`。
  * 转换完成后，宿主只需要按标准 Widget 注册协议消费。
+ *
+ * @param WidgetCtor - Widget `Ctor`。
+ * @returns 定义`Authoring` Widget的结果。
  */
 export function defineAuthoringWidget<
   TValue = unknown,
@@ -162,7 +183,12 @@ export function defineAuthoringWidget<
   };
 }
 
-/** 规范化 Widget 元信息。 */
+/**
+ *  规范化 Widget 元信息。
+ *
+ * @param meta - `meta`。
+ * @returns 处理后的结果。
+ */
 function normalizeWidgetMeta(meta: DevWidgetMeta): DevWidgetMeta {
   return {
     type: assertNonEmptyText(meta.type, "Widget 类型"),
@@ -176,6 +202,10 @@ function normalizeWidgetMeta(meta: DevWidgetMeta): DevWidgetMeta {
 /**
  * 把宿主原始渲染上下文转换成作者层上下文。
  * 它的职责是稳定字段命名，并屏蔽宿主原始接口的细节变化。
+ *
+ * @param raw - `raw`。
+ * @param nextValue - 当前值。
+ * @returns 创建后的结果对象。
  */
 function createWidgetContext<TValue>(
   raw: LeaferGraphWidgetRendererContext,

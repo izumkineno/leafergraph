@@ -23,6 +23,9 @@ interface BasicSumProps {
  *
  * 模板默认把精度钳制在 `0..6`，
  * 这样既能演示属性读取，也能避免示例节点输出过长的小数串。
+ *
+ * @param value - 当前值。
+ * @returns 限制`Precision`的结果。
  */
 function clampPrecision(value: unknown): number {
   const precision = Number(value);
@@ -68,7 +71,12 @@ export class BasicSumNode extends BaseNode<BasicSumProps> {
     ]
   };
 
-  /** 每次执行时同步更新输出、说明文字和最近结果。 */
+  /**
+   *  每次执行时同步更新输出、说明文字和最近结果。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx: DevNodeContext<BasicSumProps>) {
     const a = Number(ctx.getInputAt(0) ?? 0);
     const b = Number(ctx.getInputAt(1) ?? 0);

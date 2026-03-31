@@ -58,6 +58,11 @@ export class LeaferGraphThemeRuntimeHost<
     TNodeViewState
   >;
 
+  /**
+   * 初始化 LeaferGraphThemeRuntimeHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphThemeRuntimeHostOptions<TNodeState, TNodeViewState>
   ) {
@@ -68,12 +73,19 @@ export class LeaferGraphThemeRuntimeHost<
    * 同步 Widget 编辑宿主的主题。
    *
    * @param theme - 新的 Widget 主题上下文。
+   *
+   * @returns 无返回值。
    */
   setWidgetTheme(theme: LeaferGraphWidgetThemeContext): void {
     this.options.widgetEditingManager.setTheme(theme);
   }
 
-  /** 同步画布背景的主题。 */
+  /**
+   *  同步画布背景的主题。
+   *
+   * @param mode - 模式。
+   * @returns 无返回值。
+   */
   setCanvasThemeMode(mode: LeaferGraphThemeMode): void {
     this.options.canvasHost.setThemeMode(mode);
   }
@@ -86,6 +98,8 @@ export class LeaferGraphThemeRuntimeHost<
    * 1. 批量重建节点视图，确保节点壳和 Widget 重新读取主题
    * 2. 批量刷新相关连线，避免与新主题下的节点锚点视觉失配
    * 3. 最后请求一帧统一渲染
+   *
+   * @returns 无返回值。
    */
   refreshThemeScene(): void {
     this.options.sceneRuntime.refreshAllNodeViews();

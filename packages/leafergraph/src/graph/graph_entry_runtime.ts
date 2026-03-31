@@ -60,6 +60,7 @@ export function createLeaferGraphEntryRuntime(
   container: HTMLElement,
   options: LeaferGraphOptions = {}
 ): LeaferGraphEntryRuntime {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const initialThemeMode: LeaferGraphThemeMode = options.themeMode ?? "light";
   const resolvedConfig = normalizeLeaferGraphConfig(options.config);
   const themePreset = resolveThemePreset(options.themePreset);
@@ -74,6 +75,7 @@ export function createLeaferGraphEntryRuntime(
     nodes: new Map(),
     links: new Map()
   };
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   const nodeViews = new Map<string, GraphNodeViewState>();
   const linkViews: GraphLinkViewState[] = [];
   const runtime = createLeaferGraphRuntimeAssembly<GraphNodeState>({
@@ -116,6 +118,13 @@ export function createLeaferGraphEntryRuntime(
   };
 }
 
+/**
+ * 解析`Configured` 数据流动画样式。
+ *
+ * @param graphTheme - 图主题。
+ * @param config - 当前配置。
+ * @returns 处理后的结果。
+ */
 function resolveConfiguredDataFlowAnimationStyle(
   graphTheme: LeaferGraphGraphThemeTokens,
   config: NormalizedLeaferGraphConfig

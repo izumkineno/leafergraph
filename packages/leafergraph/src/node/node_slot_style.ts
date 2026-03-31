@@ -33,6 +33,11 @@ type NodeSlotStateLike = Pick<NodeRuntimeState, "inputs" | "outputs">;
  *
  * @remarks
  * 当前统一在这里做索引归一，避免调用方每次都重复写边界判断。
+ *
+ * @param node - 节点。
+ * @param direction - `direction`。
+ * @param slot - 槽位。
+ * @returns 处理后的结果。
  */
 export function resolveNodeSlotSpec(
   node: NodeSlotStateLike,
@@ -50,6 +55,9 @@ export function resolveNodeSlotSpec(
  *
  * @remarks
  * 优先尊重显式 `shape`，否则再按类型推导默认形状。
+ *
+ * @param slot - 槽位。
+ * @returns 处理后的结果。
  */
 export function resolveNodeSlotShape(
   slot: Pick<NodeSlotSpec, "shape" | "type"> | undefined
@@ -61,7 +69,12 @@ export function resolveNodeSlotShape(
   return isEventSlotType(slot?.type) ? "box" : "circle";
 }
 
-/** 判断当前 slot 类型是否属于事件族。 */
+/**
+ *  判断当前 slot 类型是否属于事件族。
+ *
+ * @param type - 类型。
+ * @returns 对应的判断结果。
+ */
 export function isEventSlotType(type: SlotType | undefined): boolean {
   return normalizeComparableSlotTypes(type).includes("event");
 }
@@ -71,6 +84,10 @@ export function isEventSlotType(type: SlotType | undefined): boolean {
  *
  * @remarks
  * 这里不处理 `slot.color`，显式颜色覆盖由上层自己决定优先级。
+ *
+ * @param type - 类型。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
  */
 export function resolveSlotTypeFill(
   type: SlotType | undefined,
@@ -99,6 +116,12 @@ export function resolveSlotTypeFill(
  *
  * @remarks
  * 当前只负责 slot 本身颜色，不决定正式连线或拖线预览的最终回退色。
+ *
+ * @param node - 节点。
+ * @param direction - `direction`。
+ * @param slot - 槽位。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
  */
 export function resolveNodeSlotFill(
   node: NodeSlotStateLike,
@@ -120,6 +143,9 @@ export function resolveNodeSlotFill(
  * @remarks
  * 这条链路只服务“类型兼容 / 事件族归一”判断，
  * 因此会把 `exec / trigger / flow` 统一成 `event`。
+ *
+ * @param type - 类型。
+ * @returns 处理后的结果。
  */
 export function normalizeComparableSlotTypes(
   type: SlotType | undefined
@@ -139,7 +165,13 @@ export function normalizeComparableSlotTypes(
   return [...comparable];
 }
 
-/** 为节点壳 glyph 和高亮框统一解析角半径。 */
+/**
+ *  为节点壳 glyph 和高亮框统一解析角半径。
+ *
+ * @param shape - `shape`。
+ * @param size - `size`。
+ * @returns 处理后的结果。
+ */
 export function resolveSlotCornerRadius(
   shape: NodeSlotShape,
   size: number
@@ -151,7 +183,12 @@ export function resolveSlotCornerRadius(
   return Math.max(2, Math.round(size * 0.18));
 }
 
-/** 统一归一 slot 索引，避免访问运行时数组时出现负值或浮点索引。 */
+/**
+ *  统一归一 slot 索引，避免访问运行时数组时出现负值或浮点索引。
+ *
+ * @param slot - 槽位。
+ * @returns 处理后的结果。
+ */
 function normalizeSlotIndex(slot: number | undefined): number {
   if (typeof slot !== "number" || !Number.isFinite(slot)) {
     return 0;
@@ -168,6 +205,9 @@ function normalizeSlotIndex(slot: number | undefined): number {
  * - 原始 token
  * - 去掉数组后缀 `[]` 的 token
  * - 常见分隔符拆开的 token
+ *
+ * @param type - 类型。
+ * @returns 创建后的结果对象。
  */
 function createSlotTypeCandidates(type: SlotType): string[] {
   if (type === 0) {

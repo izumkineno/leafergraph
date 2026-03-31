@@ -80,6 +80,9 @@ export const AUTHORING_BROWSER_TEMPLATE_DEMO_DOCUMENT_ID =
  *
  * 节点实现本身只依赖局部类型名，
  * 但 document 恢复与 bundle quick create 需要稳定最终类型。
+ *
+ * @param localType - `local` 类型。
+ * @returns 处理后的结果。
  */
 export function resolveAuthoringBrowserTemplateType(localType: string): string {
   return `${AUTHORING_BROWSER_TEMPLATE_SCOPE.namespace}/${localType}`;

@@ -2,10 +2,18 @@ import type { ShortcutKeymapRegistry } from "../core/types";
 import { resolveShortcutPlatform } from "./platform";
 import type { RegisterLeaferGraphShortcutKeymapOptions } from "./types";
 
+/**
+ * 注册LeaferGraph 快捷键键位映射。
+ *
+ * @param registry - 注册表。
+ * @param options - 可选配置项。
+ * @returns 用于撤销当前注册的清理函数。
+ */
 export function registerLeaferGraphShortcutKeymap(
   registry: ShortcutKeymapRegistry,
   options: RegisterLeaferGraphShortcutKeymapOptions = {}
 ): () => void {
+  // 先准备宿主依赖、初始状态和需要挂载的资源。
   const platform = resolveShortcutPlatform(options.platform);
   const cleanups = [
     registry.register({
@@ -60,6 +68,7 @@ export function registerLeaferGraphShortcutKeymap(
     );
   }
 
+  // 再建立绑定与同步关系，让运行期交互能够稳定生效。
   if (options.enableHistoryBindings) {
     cleanups.push(
       registry.register({

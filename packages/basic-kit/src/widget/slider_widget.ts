@@ -50,12 +50,21 @@ interface SliderFieldState extends BasicWidgetLifecycleState {
   preferStaticDisplayValue: boolean;
 }
 
-/** slider renderer。 */
+/**
+ *  slider renderer。
+ */
 export class SliderFieldController extends BasicWidgetController<
   NodeSliderWidgetOptions,
   SliderFieldState
 > {
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): SliderFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const theme = this.resolveTheme(context);
@@ -105,6 +114,7 @@ export class SliderFieldController extends BasicWidgetController<
       height: WIDGET_SLIDER_TRACK_HEIGHT,
       cornerRadius: 999
     });
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const activeTrack = createWidgetSurface(ui, {
       x: WIDGET_SLIDER_TRACK_INSET,
       y: WIDGET_FIELD_Y + 15,
@@ -235,11 +245,20 @@ export class SliderFieldController extends BasicWidgetController<
     return state;
   }
 
+  /**
+   * 处理 `handleSliderKeyDown` 相关逻辑。
+   *
+   * @param state - 当前状态。
+   * @param context - 当前上下文。
+   * @param event - 当前事件对象。
+   * @returns 对应的判断结果。
+   */
   private handleSliderKeyDown(
     state: SliderFieldState,
     context: LeaferGraphWidgetRendererContext,
     event: KeyboardEvent
   ): boolean {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     if (state.disabled) {
       return this.isReservedWidgetKey(event);
     }
@@ -260,6 +279,7 @@ export class SliderFieldController extends BasicWidgetController<
 
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
       state.preferStaticDisplayValue = false;
+      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
       context.commitValue(
         this.roundToStep(safeValue + state.range.step, state.range)
       );

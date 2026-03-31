@@ -113,7 +113,13 @@ export interface LeaferGraphWidgetSegmentContainerOptions {
   wrap?: boolean;
 }
 
-/** 创建 Widget 标题文本。 */
+/**
+ *  创建 Widget 标题文本。
+ *
+ * @param ui - `ui`。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createWidgetLabel(
   ui: typeof import("leafer-ui"),
   options: LeaferGraphWidgetLabelOptions
@@ -125,7 +131,13 @@ export function createWidgetLabel(
   });
 }
 
-/** 创建 Widget 值文本。 */
+/**
+ *  创建 Widget 值文本。
+ *
+ * @param ui - `ui`。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createWidgetValueText(
   ui: typeof import("leafer-ui"),
   options: LeaferGraphWidgetValueTextOptions
@@ -137,7 +149,13 @@ export function createWidgetValueText(
   });
 }
 
-/** 创建 Widget 输入/按钮等组件的表面矩形。 */
+/**
+ *  创建 Widget 输入/按钮等组件的表面矩形。
+ *
+ * @param ui - `ui`。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createWidgetSurface(
   ui: typeof import("leafer-ui"),
   options: LeaferGraphWidgetSurfaceOptions
@@ -148,7 +166,13 @@ export function createWidgetSurface(
   });
 }
 
-/** 创建带 hover / press / focus 状态的字段表面。 */
+/**
+ *  创建带 hover / press / focus 状态的字段表面。
+ *
+ * @param ui - `ui`。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createWidgetFieldSurface(
   ui: typeof import("leafer-ui"),
   options: LeaferGraphWidgetFieldSurfaceOptions
@@ -181,7 +205,13 @@ export function createWidgetFieldSurface(
   });
 }
 
-/** 创建统一的 Widget 焦点环。 */
+/**
+ *  创建统一的 Widget 焦点环。
+ *
+ * @param ui - `ui`。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createWidgetFocusRing(
   ui: typeof import("leafer-ui"),
   options: LeaferGraphWidgetFocusRingOptions
@@ -203,7 +233,13 @@ export function createWidgetFocusRing(
   });
 }
 
-/** 创建分段 / 候选项组容器。 */
+/**
+ *  创建分段 / 候选项组容器。
+ *
+ * @param ui - `ui`。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createWidgetSegmentContainer(
   ui: typeof import("leafer-ui"),
   options: LeaferGraphWidgetSegmentContainerOptions
@@ -220,7 +256,13 @@ export function createWidgetSegmentContainer(
   });
 }
 
-/** 创建 Widget 统一命中层。 */
+/**
+ *  创建 Widget 统一命中层。
+ *
+ * @param ui - `ui`。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
 export function createWidgetHitArea(
   ui: typeof import("leafer-ui"),
   options: LeaferGraphWidgetHitAreaOptions
@@ -240,6 +282,9 @@ export function createWidgetHitArea(
 /**
  * 把生命周期对象转为宿主可识别的 renderer 形态。
  * 这样内建与外部 Widget 都能走统一的 mount / update / destroy 调度。
+ *
+ * @param lifecycle - `lifecycle`。
+ * @returns 创建后的结果对象。
  */
 export function createWidgetLifecycleRenderer<TState>(
   lifecycle: LeaferGraphWidgetLifecycle<TState>
@@ -264,7 +309,14 @@ export function createWidgetLifecycleRenderer<TState>(
   };
 }
 
-/** 统一切换一个字段图元与焦点环的 focus 状态。 */
+/**
+ *  统一切换一个字段图元与焦点环的 focus 状态。
+ *
+ * @param field - 字段。
+ * @param focusRing - 焦点`Ring`。
+ * @param focused - `focused`。
+ * @returns 无返回值。
+ */
 export function setWidgetFocusState(
   field: Rect | undefined,
   focusRing: Rect | undefined,

@@ -44,6 +44,9 @@ export const AUTHORING_NODE_TEMPLATE_NODE_BUNDLE_NAME =
  *
  * 这样节点实现里只需要关心本地 `localType`，
  * 而 ESM / browser / document 恢复时都能拿到稳定的最终类型。
+ *
+ * @param localType - `local` 类型。
+ * @returns 处理后的结果。
  */
 export function resolveAuthoringNodeTemplateType(localType: string): string {
   return `${AUTHORING_NODE_TEMPLATE_SCOPE.namespace}/${localType}`;

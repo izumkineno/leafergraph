@@ -5,10 +5,18 @@ import type {
   RegisterLeaferGraphShortcutFunctionsOptions
 } from "./types";
 
+/**
+ * 注册LeaferGraph 快捷键功能。
+ *
+ * @param registry - 注册表。
+ * @param options - 可选配置项。
+ * @returns 用于撤销当前注册的清理函数。
+ */
 export function registerLeaferGraphShortcutFunctions(
   registry: ShortcutFunctionRegistry<LeaferGraphShortcutRuntimeData>,
   options: RegisterLeaferGraphShortcutFunctionsOptions
 ): () => void {
+  // 先准备宿主依赖、初始状态和需要挂载的资源。
   const cleanups = [
     registry.register({
       id: "graph.select-all",
@@ -87,6 +95,7 @@ export function registerLeaferGraphShortcutFunctions(
     );
   }
 
+  // 再建立绑定与同步关系，让运行期交互能够稳定生效。
   if (options.history) {
     cleanups.push(
       registry.register({
@@ -136,6 +145,12 @@ export function registerLeaferGraphShortcutFunctions(
   };
 }
 
+/**
+ * 判断是否可以执行选区快捷键。
+ *
+ * @param host - 当前宿主实现。
+ * @returns 对应的判断结果。
+ */
 function canRunSelectionShortcut(host: LeaferGraphShortcutHost): boolean {
   const state = host.getInteractionActivityState?.();
   if (!state) {

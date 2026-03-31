@@ -40,6 +40,13 @@ export const canvasAddNodeFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
   }
 };
 
+/**
+ * 创建分类项目。
+ *
+ * @param definitions - 定义。
+ * @param onSelect - `onSelect` 参数。
+ * @returns 创建后的结果对象。
+ */
 function createCategoryItems(
   definitions: readonly NodeDefinition[],
   onSelect: (type: string) => void
@@ -83,6 +90,12 @@ function createCategoryItems(
   }));
 }
 
+/**
+ * 映射`Registered` 节点。
+ *
+ * @param definition - 定义。
+ * @returns 处理后的结果。
+ */
 function projectRegisteredNode(
   definition: NodeDefinition
 ): RegisteredNodeProjection {
@@ -94,6 +107,13 @@ function projectRegisteredNode(
   };
 }
 
+/**
+ * 比较`Registered` 节点。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 比较`Registered` 节点的结果。
+ */
 function compareRegisteredNodes(
   left: RegisteredNodeProjection,
   right: RegisteredNodeProjection
@@ -111,6 +131,12 @@ function compareRegisteredNodes(
   return left.type.localeCompare(right.type, "zh-CN");
 }
 
+/**
+ * 解析画布创建位置。
+ *
+ * @param context - 当前上下文。
+ * @returns 处理后的结果。
+ */
 function resolveCanvasCreatePosition(context: {
   pagePoint: { x: number; y: number };
   worldPoint?: { x: number; y: number };

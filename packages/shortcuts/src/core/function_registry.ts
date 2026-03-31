@@ -5,6 +5,11 @@ import type {
   ShortcutRegistryRegisterOptions
 } from "./types";
 
+/**
+ * 创建快捷键功能注册表。
+ *
+ * @returns 创建后的结果对象。
+ */
 export function createShortcutFunctionRegistry<TData = void>(): ShortcutFunctionRegistry<TData> {
   const definitions = new Map<ShortcutFunctionId, ShortcutFunctionDefinition<TData>>();
 
@@ -24,6 +29,14 @@ export function createShortcutFunctionRegistry<TData = void>(): ShortcutFunction
   };
 }
 
+/**
+ * 注册功能定义。
+ *
+ * @param definitions - 定义。
+ * @param definition - 定义。
+ * @param options - 可选配置项。
+ * @returns 用于撤销当前注册的清理函数。
+ */
 function registerFunctionDefinition<TData>(
   definitions: Map<ShortcutFunctionId, ShortcutFunctionDefinition<TData>>,
   definition: ShortcutFunctionDefinition<TData>,

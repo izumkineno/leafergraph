@@ -28,11 +28,20 @@ export interface ContextMenuLazyChildrenState {
   error?: unknown;
 }
 
+/**
+ * 规范化上下文菜单项目。
+ *
+ * @param items - 项目。
+ * @param context - 当前上下文。
+ * @param selectionState - 当前状态。
+ * @returns 处理后的结果。
+ */
 export function normalizeContextMenuItems(
   items: readonly ContextMenuItem[],
   context: ContextMenuContext,
   selectionState: ContextMenuSelectionState
 ): ContextMenuItem[] {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const normalized: ContextMenuItem[] = [];
 
   for (const item of sortContextMenuItems(items)) {
@@ -63,6 +72,7 @@ export function normalizeContextMenuItems(
         ? normalizeContextMenuItems(children, context, selectionState)
         : [];
       if (!normalizedChildren.length && !item.lazyChildren) {
+        // 再按当前规则组合结果，并把派生数据一并收口到输出里。
         continue;
       }
 
@@ -106,6 +116,12 @@ export function normalizeContextMenuItems(
   return trimContextMenuSeparators(normalized);
 }
 
+/**
+ * 裁剪上下文菜单分隔符。
+ *
+ * @param items - 项目。
+ * @returns 裁剪上下文菜单分隔符的结果。
+ */
 export function trimContextMenuSeparators(
   items: readonly ContextMenuItem[]
 ): ContextMenuItem[] {
@@ -131,6 +147,12 @@ export function trimContextMenuSeparators(
   return normalized;
 }
 
+/**
+ * 展平上下文菜单层级项目。
+ *
+ * @param items - 项目。
+ * @returns 展平上下文菜单层级项目的结果。
+ */
 export function flattenContextMenuLevelItems(
   items: readonly ContextMenuItem[]
 ): ContextMenuItem[] {
@@ -148,6 +170,12 @@ export function flattenContextMenuLevelItems(
   return flattened;
 }
 
+/**
+ * 判断是否为可聚焦上下文菜单项目。
+ *
+ * @param item - 项目。
+ * @returns 对应的判断结果。
+ */
 export function isFocusableContextMenuItem(
   item: ContextMenuItem
 ): item is Exclude<ContextMenuItem, ContextMenuSeparatorItem | ContextMenuGroupItem> {
@@ -158,6 +186,13 @@ export function isFocusableContextMenuItem(
   return !item.disabled;
 }
 
+/**
+ * 按路径查找上下文菜单项目。
+ *
+ * @param items - 项目。
+ * @param itemPath - 项目路径。
+ * @returns 处理后的结果。
+ */
 export function findContextMenuItemByPath(
   items: readonly ContextMenuItem[],
   itemPath: readonly string[]
@@ -189,6 +224,13 @@ export function findContextMenuItemByPath(
   return currentItem;
 }
 
+/**
+ * 按键值查找上下文菜单项目。
+ *
+ * @param items - 项目。
+ * @param key - 键值。
+ * @returns 处理后的结果。
+ */
 export function findContextMenuItemByKey(
   items: readonly ContextMenuItem[],
   key: string
@@ -216,6 +258,13 @@ export function findContextMenuItemByKey(
   return undefined;
 }
 
+/**
+ * 解析上下文菜单层级项目。
+ *
+ * @param items - 项目。
+ * @param openPath - 打开路径。
+ * @returns 处理后的结果。
+ */
 export function resolveContextMenuLevelItems(
   items: readonly ContextMenuItem[],
   openPath: readonly string[]
@@ -234,6 +283,12 @@ export function resolveContextMenuLevelItems(
   return [...currentItems];
 }
 
+/**
+ * 排序上下文菜单项目。
+ *
+ * @param items - 项目。
+ * @returns 排序上下文菜单项目的结果。
+ */
 function sortContextMenuItems(
   items: readonly ContextMenuItem[]
 ): ContextMenuItem[] {
@@ -251,6 +306,13 @@ function sortContextMenuItems(
     .map(({ item }) => item);
 }
 
+/**
+ * 判断是否为上下文菜单项目可见状态。
+ *
+ * @param item - 项目。
+ * @param context - 当前上下文。
+ * @returns 对应的判断结果。
+ */
 function isContextMenuItemVisible(
   item: Exclude<ContextMenuItem, ContextMenuSeparatorItem>,
   context: ContextMenuContext
@@ -273,6 +335,13 @@ function isContextMenuItemVisible(
   return item.when?.(context) ?? true;
 }
 
+/**
+ * 解析项目`Disabled`。
+ *
+ * @param item - 项目。
+ * @param context - 当前上下文。
+ * @returns 对应的判断结果。
+ */
 function resolveItemDisabled(
   item: Exclude<ContextMenuItem, ContextMenuSeparatorItem>,
   context: ContextMenuContext
@@ -285,6 +354,13 @@ function resolveItemDisabled(
   return enabled === undefined ? false : !enabled;
 }
 
+/**
+ * 解析子菜单子项。
+ *
+ * @param item - 项目。
+ * @param selectionState - 当前状态。
+ * @returns 处理后的结果。
+ */
 function resolveSubmenuChildren(
   item: ContextMenuSubmenuItem,
   selectionState: ContextMenuSelectionState
@@ -296,6 +372,13 @@ function resolveSubmenuChildren(
   return selectionState.lazyChildrenState.get(item.key)?.items;
 }
 
+/**
+ * 解析复选框`Checked`。
+ *
+ * @param item - 项目。
+ * @param selectionState - 当前状态。
+ * @returns 对应的判断结果。
+ */
 function resolveCheckboxChecked(
   item: ContextMenuCheckboxItem,
   selectionState: ContextMenuSelectionState
@@ -311,6 +394,13 @@ function resolveCheckboxChecked(
   return selectionState.checkboxState.get(item.key) ?? false;
 }
 
+/**
+ * 解析单选项`Checked`。
+ *
+ * @param item - 项目。
+ * @param selectionState - 当前状态。
+ * @returns 对应的判断结果。
+ */
 function resolveRadioChecked(
   item: ContextMenuRadioItem,
   selectionState: ContextMenuSelectionState

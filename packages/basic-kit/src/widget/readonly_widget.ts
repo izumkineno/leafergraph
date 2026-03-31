@@ -25,7 +25,14 @@ export class ReadonlyFieldController extends BasicWidgetController<
   NodeBaseWidgetOptions,
   ReadonlyFieldState
 > {
+  /**
+   * 挂载状态。
+   *
+   * @param context - 当前上下文。
+   * @returns 挂载状态的结果。
+   */
   protected mountState(context: LeaferGraphWidgetRendererContext): ReadonlyFieldState {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     const options = this.resolveOptions(context.widget);
     const disabled = this.resolveDisabled(options);
     const view = new WidgetFieldView(context, {
@@ -47,6 +54,7 @@ export class ReadonlyFieldController extends BasicWidgetController<
       }
     };
 
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const focusKey = this.resolveFocusKey(context);
     this.addCleanup(
       state,

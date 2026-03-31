@@ -9,7 +9,11 @@ interface NormalizeWidgetConfigOptions {
   defaultUseOfficialTextEditor?: boolean;
 }
 
-/** 返回一份完整的默认 Widget 编辑配置。 */
+/**
+ *  返回一份完整的默认 Widget 编辑配置。
+ *
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultLeaferGraphWidgetEditingConfig(): NormalizedLeaferGraphWidgetEditingConfig {
   return {
     enabled: false,
@@ -18,14 +22,24 @@ export function resolveDefaultLeaferGraphWidgetEditingConfig(): NormalizedLeafer
   };
 }
 
-/** 返回一份完整的默认 Widget 配置。 */
+/**
+ *  返回一份完整的默认 Widget 配置。
+ *
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultLeaferGraphWidgetConfig(): NormalizedLeaferGraphWidgetConfig {
   return {
     editing: resolveDefaultLeaferGraphWidgetEditingConfig()
   };
 }
 
-/** 把调用方传入的 Widget 配置补齐为稳定可消费结构。 */
+/**
+ *  把调用方传入的 Widget 配置补齐为稳定可消费结构。
+ *
+ * @param config - 当前配置。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 export function normalizeLeaferGraphWidgetConfig(
   config?: LeaferGraphWidgetConfig,
   options: NormalizeWidgetConfigOptions = {}
@@ -51,6 +65,10 @@ export function normalizeLeaferGraphWidgetConfig(
  * @remarks
  * 这个 helper 保留旧的返回结构，方便迁移期沿用已有调用约定；
  * 真正的默认值真源已经迁到 `@leafergraph/config/widget`。
+ *
+ * @param mode - 模式。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
  */
 export function resolveWidgetEditingOptions(
   mode: "light" | "dark",

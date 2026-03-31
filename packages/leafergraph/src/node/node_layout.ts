@@ -71,7 +71,13 @@ type NodeLayoutSource = Pick<
   "layout" | "inputs" | "outputs" | "widgets" | "flags"
 >;
 
-/** 计算槽位区域高度。 */
+/**
+ *  计算槽位区域高度。
+ *
+ * @param slotCount - 槽位`Count`。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
+ */
 export function resolveNodeSlotsHeight(
   slotCount: number,
   metrics: NodeShellLayoutMetrics
@@ -90,7 +96,13 @@ export function resolveNodeSlotsHeight(
   );
 }
 
-/** 计算单个 Widget 的首选高度。 */
+/**
+ *  计算单个 Widget 的首选高度。
+ *
+ * @param widget - Widget。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
+ */
 export function resolveNodeWidgetPreferredHeight(
   widget: NodeLayoutSource["widgets"][number],
   metrics: NodeShellLayoutMetrics
@@ -124,7 +136,13 @@ export function resolveNodeWidgetPreferredHeight(
   }
 }
 
-/** 计算 Widget 区总高度。 */
+/**
+ *  计算 Widget 区总高度。
+ *
+ * @param widgets - Widget。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
+ */
 export function resolveNodeWidgetSectionHeight(
   widgets: NodeLayoutSource["widgets"],
   metrics: NodeShellLayoutMetrics
@@ -143,7 +161,13 @@ export function resolveNodeWidgetSectionHeight(
   );
 }
 
-/** 计算 Widget 区起始 Y。 */
+/**
+ *  计算 Widget 区起始 Y。
+ *
+ * @param slotCount - 槽位`Count`。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
+ */
 export function resolveNodeWidgetTop(
   slotCount: number,
   metrics: NodeShellLayoutMetrics
@@ -159,6 +183,11 @@ export function resolveNodeWidgetTop(
 /**
  * 计算分类徽标布局。
  * 当前仍保留原有“字符宽度近似估算”的轻量方案，避免引入文本测量成本。
+ *
+ * @param category - 分类。
+ * @param width - `width`。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
  */
 export function resolveNodeCategoryBadgeLayout(
   category: string,
@@ -190,6 +219,13 @@ export function resolveNodeCategoryBadgeLayout(
  * 当节点被手动拉高后，Widget 图层的可用高度会变大；
  * 这里会把多出来的空间优先分配给最后一个 Widget，
  * 避免像 Watch 这类展示型面板仍然停留在固定高度，底部留下大块空白。
+ *
+ * @param widgets - Widget。
+ * @param width - `width`。
+ * @param widgetTop - Widget `Top`。
+ * @param totalHeight - `totalHeight` 参数。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
  */
 function resolveNodeWidgetLayouts(
   widgets: NodeLayoutSource["widgets"],
@@ -198,6 +234,7 @@ function resolveNodeWidgetLayouts(
   totalHeight: number,
   metrics: NodeShellLayoutMetrics
 ): ResolvedNodeWidgetLayouts {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const widgetBounds: LeaferGraphWidgetBounds = {
     x: metrics.sectionPaddingX,
     y: widgetTop,
@@ -215,6 +252,7 @@ function resolveNodeWidgetLayouts(
   const preferredHeights = widgets.map((widget) =>
     resolveNodeWidgetPreferredHeight(widget, metrics)
   );
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   const preferredTotalHeight = preferredHeights.reduce(
     (total, height) => total + height,
     0
@@ -252,16 +290,22 @@ function resolveNodeWidgetLayouts(
 /**
  * 统一计算节点壳布局结果。
  * 当前不包含颜色、字体和交互态，只输出纯几何信息。
+ *
+ * @param node - 节点。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
  */
 export function resolveNodeShellLayout(
   node: NodeLayoutSource,
   metrics: NodeShellLayoutMetrics
 ): NodeShellLayout {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const width = node.layout.width ?? metrics.defaultNodeWidth;
   const collapsed = Boolean(node.flags.collapsed);
   const { inputs, outputs, slotCount, slotStartY, ports } =
     resolveNodePortsLayout(node, width, metrics);
   const slotsHeight = collapsed ? 0 : resolveNodeSlotsHeight(slotCount, metrics);
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   const widgetSectionHeight = collapsed
     ? 0
     : resolveNodeWidgetSectionHeight(node.widgets, metrics);

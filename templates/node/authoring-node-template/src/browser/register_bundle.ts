@@ -19,6 +19,11 @@ interface AuthoringNodeTemplateBundleBridge {
   registerBundle(manifest: AuthoringNodeTemplateNodeBundleManifest): void;
 }
 
+/**
+ * 获取Bundle 桥接层。
+ *
+ * @returns 获取Bundle 桥接层的结果。
+ */
 function requireBundleBridge(): AuthoringNodeTemplateBundleBridge {
   const bridge = (
     globalThis as typeof globalThis & {
@@ -35,6 +40,12 @@ function requireBundleBridge(): AuthoringNodeTemplateBundleBridge {
   return bridge;
 }
 
+/**
+ * 注册`Authoring` 节点模板 Bundle。
+ *
+ * @param manifest - `manifest`。
+ * @returns 无返回值。
+ */
 export function registerAuthoringNodeTemplateBundle(
   manifest: AuthoringNodeTemplateNodeBundleManifest
 ): void {

@@ -99,6 +99,12 @@ export const miniGraphExampleDemoPlugin: LeaferGraphNodePlugin = {
   }
 };
 
+/**
+ * 解析下一步运行`Count`。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function resolveNextRunCount(value: unknown): number {
   const currentValue = Number(value);
   if (!Number.isFinite(currentValue) || currentValue < 0) {
@@ -108,6 +114,12 @@ function resolveNextRunCount(value: unknown): number {
   return Math.floor(currentValue) + 1;
 }
 
+/**
+ * 读取事件载荷。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function readEventPayload(value: unknown): ExampleEventPayload | null {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -116,6 +128,12 @@ function readEventPayload(value: unknown): ExampleEventPayload | null {
   return value as ExampleEventPayload;
 }
 
+/**
+ * 创建回退事件载荷。
+ *
+ * @param runCount - 运行`Count`。
+ * @returns 创建后的结果对象。
+ */
 function createFallbackEventPayload(runCount: number): ExampleEventPayload {
   return {
     source: EXAMPLE_EVENT_RELAY_NODE_TYPE,
@@ -124,6 +142,14 @@ function createFallbackEventPayload(runCount: number): ExampleEventPayload {
   };
 }
 
+/**
+ * 解析事件状态。
+ *
+ * @param label - 标签。
+ * @param runCount - 运行`Count`。
+ * @param payload - 当前载荷。
+ * @returns 处理后的结果。
+ */
 function resolveEventStatus(
   label: "RELAY" | "MONITOR",
   runCount: number,
@@ -151,6 +177,12 @@ function resolveEventStatus(
   return parts.join(" · ");
 }
 
+/**
+ * 格式化有限`Number`。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function formatFiniteNumber(value: unknown): string | undefined {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {

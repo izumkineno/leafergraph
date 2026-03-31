@@ -36,11 +36,22 @@ export class LeaferGraphWidgetRegistry implements WidgetDefinitionReader {
   private readonly entries = new Map<string, RegisteredWidgetEntry>();
   private readonly fallbackRenderer: LeaferGraphWidgetRenderer;
 
+  /**
+   * 初始化 LeaferGraphWidgetRegistry 实例。
+   *
+   * @param fallbackRenderer - 回退渲染器。
+   */
   constructor(fallbackRenderer: LeaferGraphWidgetRenderer) {
     this.fallbackRenderer = fallbackRenderer;
   }
 
-  /** 注册一个完整 Widget 条目。 */
+  /**
+   *  注册一个完整 Widget 条目。
+   *
+   * @param entry - 条目。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   register(entry: LeaferGraphWidgetEntry, options: RegisterWidgetOptions = {}): void {
     const type = entry.type.trim();
 
@@ -59,32 +70,63 @@ export class LeaferGraphWidgetRegistry implements WidgetDefinitionReader {
     });
   }
 
-  /** `register` 的语义化别名。 */
+  /**
+   *  `register` 的语义化别名。
+   *
+   * @param entry - 条目。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   registerWidget(entry: LeaferGraphWidgetEntry, options?: RegisterWidgetOptions): void {
     this.register(entry, options);
   }
 
-  /** 从注册表移除一个 Widget。 */
+  /**
+   *  从注册表移除一个 Widget。
+   *
+   * @param type - 类型。
+   * @returns 无返回值。
+   */
   unregister(type: string): void {
     this.entries.delete(type);
   }
 
-  /** `unregister` 的语义化别名。 */
+  /**
+   *  `unregister` 的语义化别名。
+   *
+   * @param type - 类型。
+   * @returns 无返回值。
+   */
   unregisterWidget(type: string): void {
     this.unregister(type);
   }
 
-  /** 获取 Widget 条目；未命中时返回 `undefined`。 */
+  /**
+   *  获取 Widget 条目；未命中时返回 `undefined`。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   get(type: string): WidgetDefinition | undefined {
     return this.entries.get(type);
   }
 
-  /** 获取完整 Widget 条目；未命中时返回 `undefined`。 */
+  /**
+   *  获取完整 Widget 条目；未命中时返回 `undefined`。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   getWidget(type: string): LeaferGraphWidgetEntry | undefined {
     return this.entries.get(type);
   }
 
-  /** 获取 Widget 条目；未命中时抛错。 */
+  /**
+   *  获取 Widget 条目；未命中时抛错。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   require(type: string): LeaferGraphWidgetEntry {
     const entry = this.getWidget(type);
 
@@ -95,32 +137,60 @@ export class LeaferGraphWidgetRegistry implements WidgetDefinitionReader {
     return entry;
   }
 
-  /** `require` 的语义化别名。 */
+  /**
+   *  `require` 的语义化别名。
+   *
+   * @param type - 类型。
+   * @returns 获取Widget的结果。
+   */
   requireWidget(type: string): LeaferGraphWidgetEntry {
     return this.require(type);
   }
 
-  /** 判断 Widget 类型是否存在。 */
+  /**
+   *  判断 Widget 类型是否存在。
+   *
+   * @param type - 类型。
+   * @returns 对应的判断结果。
+   */
   has(type: string): boolean {
     return this.entries.has(type);
   }
 
-  /** `has` 的语义化别名。 */
+  /**
+   *  `has` 的语义化别名。
+   *
+   * @param type - 类型。
+   * @returns 对应的判断结果。
+   */
   hasWidget(type: string): boolean {
     return this.has(type);
   }
 
-  /** 以数组形式返回全部 Widget 条目。 */
+  /**
+   *  以数组形式返回全部 Widget 条目。
+   *
+   * @returns 收集到的结果列表。
+   */
   list(): LeaferGraphWidgetEntry[] {
     return [...this.entries.values()];
   }
 
-  /** `list` 的语义化别名。 */
+  /**
+   *  `list` 的语义化别名。
+   *
+   * @returns 收集到的结果列表。
+   */
   listWidgets(): LeaferGraphWidgetEntry[] {
     return this.list();
   }
 
-  /** 获取某个 Widget 的正式 renderer。 */
+  /**
+   *  获取某个 Widget 的正式 renderer。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   getRenderer(type: string): LeaferGraphWidgetRenderer | undefined {
     return this.entries.get(type)?.renderer;
   }
@@ -128,13 +198,21 @@ export class LeaferGraphWidgetRegistry implements WidgetDefinitionReader {
   /**
    * 获取某个 Widget 的可执行 renderer。
    * 未注册时自动回退到内部缺失态 renderer。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
    */
   resolveRenderer(type: string): LeaferGraphWidgetRenderer {
     return this.getRenderer(type) ?? this.fallbackRenderer;
   }
 }
 
-/** 把生命周期对象或函数式 renderer 统一归一化成正式 renderer。 */
+/**
+ *  把生命周期对象或函数式 renderer 统一归一化成正式 renderer。
+ *
+ * @param renderer - 渲染器。
+ * @returns 处理后的结果。
+ */
 function normalizeWidgetRenderer(
   renderer: LeaferGraphWidgetRendererLike
 ): LeaferGraphWidgetRenderer {

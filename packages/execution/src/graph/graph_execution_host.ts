@@ -49,6 +49,9 @@ interface LeaferGraphGraphExecutionHostOptions<
 
 let graphExecutionRunSeed = 1;
 
+/**
+ * 封装 LeaferGraphGraphExecutionHost 的宿主能力。
+ */
 export class LeaferGraphGraphExecutionHost<
   TNodeState extends NodeRuntimeState = NodeRuntimeState
 > {
@@ -70,14 +73,30 @@ export class LeaferGraphGraphExecutionHost<
     stepCount: 0
   };
 
+  /**
+   * 初始化 LeaferGraphGraphExecutionHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphGraphExecutionHostOptions<TNodeState>) {
     this.options = options;
   }
 
+  /**
+   * 获取图执行状态。
+   *
+   * @returns 处理后的结果。
+   */
   getGraphExecutionState(): LeaferGraphGraphExecutionState {
     return cloneGraphExecutionState(this.state);
   }
 
+  /**
+   * 订阅图执行。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeGraphExecution(
     listener: (event: LeaferGraphGraphExecutionEvent) => void
   ): () => void {
@@ -88,6 +107,12 @@ export class LeaferGraphGraphExecutionHost<
     };
   }
 
+  /**
+   * 映射外部图执行。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   projectExternalGraphExecution(event: LeaferGraphGraphExecutionEvent): void {
     this.clearAllGraphTimers();
     this.activeRun = null;
@@ -107,6 +132,11 @@ export class LeaferGraphGraphExecutionHost<
     }
   }
 
+  /**
+   * 处理 `play` 相关逻辑。
+   *
+   * @returns 对应的判断结果。
+   */
   play(): boolean {
     if (this.state.status === "running") {
       return false;
@@ -131,6 +161,11 @@ export class LeaferGraphGraphExecutionHost<
     return this.startRun("graph-play", "drain");
   }
 
+  /**
+   * 处理 `step` 相关逻辑。
+   *
+   * @returns 对应的判断结果。
+   */
   step(): boolean {
     if (this.state.status === "running") {
       return false;
@@ -143,6 +178,11 @@ export class LeaferGraphGraphExecutionHost<
     return this.startRun("graph-step", "step");
   }
 
+  /**
+   * 处理 `stop` 相关逻辑。
+   *
+   * @returns 对应的判断结果。
+   */
   stop(): boolean {
     if (!this.activeRun) {
       return false;
@@ -168,6 +208,11 @@ export class LeaferGraphGraphExecutionHost<
     return true;
   }
 
+  /**
+   * 重置状态。
+   *
+   * @returns 无返回值。
+   */
   resetState(): void {
     const prevRun = this.activeRun;
     const hadExecution =
@@ -194,6 +239,13 @@ export class LeaferGraphGraphExecutionHost<
     }
   }
 
+  /**
+   * 处理 `startRun` 相关逻辑。
+   *
+   * @param source - 当前来源对象。
+   * @param mode - 模式。
+   * @returns 对应的判断结果。
+   */
   private startRun(
     source: LeaferGraphGraphExecutionSource,
     mode: "drain" | "step"
@@ -237,6 +289,14 @@ export class LeaferGraphGraphExecutionHost<
     return this.advanceActiveRun();
   }
 
+  /**
+   * 收集条目任务。
+   *
+   * @param source - 当前来源对象。
+   * @param runId - 当前运行 ID。
+   * @param startedAt - `startedAt` 参数。
+   * @returns 收集条目任务的结果。
+   */
   private collectEntryTasks(
     source: LeaferGraphGraphExecutionSource,
     runId: string,
@@ -266,7 +326,13 @@ export class LeaferGraphGraphExecutionHost<
     return tasks;
   }
 
+  /**
+   * 推进活动运行。
+   *
+   * @returns 对应的判断结果。
+   */
   private advanceActiveRun(): boolean {
+    // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const activeRun = this.activeRun;
     if (!activeRun) {
       return false;
@@ -284,6 +350,7 @@ export class LeaferGraphGraphExecutionHost<
       activeRun.stepCount
     );
     activeRun.stepCount += 1;
+    // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
     activeRun.queue.push(...result.nextTasks);
 
     if (this.timerActivatedDuringAdvance) {
@@ -325,6 +392,11 @@ export class LeaferGraphGraphExecutionHost<
     return true;
   }
 
+  /**
+   * 处理 `drainActiveRun` 相关逻辑。
+   *
+   * @returns 对应的判断结果。
+   */
   private drainActiveRun(): boolean {
     let advanced = false;
 
@@ -335,7 +407,13 @@ export class LeaferGraphGraphExecutionHost<
     return advanced;
   }
 
+  /**
+   * 处理 `advanceOneNodeWhileRunning` 相关逻辑。
+   *
+   * @returns 对应的判断结果。
+   */
   private advanceOneNodeWhileRunning(): boolean {
+    // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const activeRun = this.activeRun;
     if (!activeRun) {
       return false;
@@ -348,6 +426,7 @@ export class LeaferGraphGraphExecutionHost<
     }
 
     this.timerActivatedDuringAdvance = false;
+    // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
     const result = this.options.nodeExecutionHost.executeExecutionTask(
       task,
       activeRun.stepCount
@@ -379,6 +458,12 @@ export class LeaferGraphGraphExecutionHost<
     return true;
   }
 
+  /**
+   * 处理 `finalizeRunIfCompleted` 相关逻辑。
+   *
+   * @param activeRun - 活动运行。
+   * @returns 无返回值。
+   */
   private finalizeRunIfCompleted(activeRun: LeaferGraphActiveRun): void {
     if (this.activeRun?.runId !== activeRun.runId) {
       return;
@@ -404,6 +489,12 @@ export class LeaferGraphGraphExecutionHost<
     this.finalizeDrainedRun(activeRun);
   }
 
+  /**
+   * 处理 `finalizeDrainedRun` 相关逻辑。
+   *
+   * @param activeRun - 活动运行。
+   * @returns 无返回值。
+   */
   private finalizeDrainedRun(activeRun: LeaferGraphActiveRun): void {
     if (this.activeRun?.runId !== activeRun.runId) {
       return;
@@ -427,6 +518,12 @@ export class LeaferGraphGraphExecutionHost<
     });
   }
 
+  /**
+   * 创建执行载荷。
+   *
+   * @param input - 输入参数。
+   * @returns 创建后的结果对象。
+   */
   private createExecutionPayload(input: {
     source: LeaferGraphGraphExecutionSource;
     runId: string;
@@ -459,6 +556,12 @@ export class LeaferGraphGraphExecutionHost<
     };
   }
 
+  /**
+   * 注册图定时器。
+   *
+   * @param input - 输入参数。
+   * @returns 无返回值。
+   */
   private registerGraphTimer(input: {
     nodeId: string;
     intervalMs: number;
@@ -498,11 +601,20 @@ export class LeaferGraphGraphExecutionHost<
     this.timerActivatedDuringAdvance = true;
   }
 
+  /**
+   * 处理图定时器`Tick`。
+   *
+   * @param runId - 当前运行 ID。
+   * @param nodeId - 目标节点 ID。
+   * @param timerId - 当前定时器 ID。
+   * @returns 无返回值。
+   */
   private handleGraphTimerTick(
     runId: string,
     nodeId: string,
     timerId = DEFAULT_GRAPH_TIMER_ID
   ): void {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     const timerKey = createGraphTimerKey(runId, nodeId, timerId);
     const timer = this.activeTimersByKey.get(timerKey);
     if (!timer) {
@@ -521,6 +633,7 @@ export class LeaferGraphGraphExecutionHost<
       }, timer.intervalMs);
       this.activeTimersByKey.set(timerKey, timer);
     } else {
+      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
       this.activeTimersByKey.delete(timerKey);
     }
 
@@ -561,6 +674,12 @@ export class LeaferGraphGraphExecutionHost<
     }
   }
 
+  /**
+   * 判断运行是否存在活动定时器。
+   *
+   * @param runId - 当前运行 ID。
+   * @returns 对应的判断结果。
+   */
   private hasActiveTimersForRun(runId: string): boolean {
     for (const timer of this.activeTimersByKey.values()) {
       if (timer.runId === runId) {
@@ -571,6 +690,12 @@ export class LeaferGraphGraphExecutionHost<
     return false;
   }
 
+  /**
+   * 为运行清理图定时器。
+   *
+   * @param runId - 当前运行 ID。
+   * @returns 无返回值。
+   */
   private clearGraphTimersForRun(runId: string): void {
     for (const [timerKey, timer] of this.activeTimersByKey.entries()) {
       if (timer.runId !== runId) {
@@ -582,6 +707,11 @@ export class LeaferGraphGraphExecutionHost<
     }
   }
 
+  /**
+   * 清理全部图定时器。
+   *
+   * @returns 无返回值。
+   */
   private clearAllGraphTimers(): void {
     for (const timer of this.activeTimersByKey.values()) {
       clearTimeout(timer.handle);
@@ -589,6 +719,12 @@ export class LeaferGraphGraphExecutionHost<
     this.activeTimersByKey.clear();
   }
 
+  /**
+   * 按键值清理图定时器。
+   *
+   * @param timerKey - 定时器键值。
+   * @returns 无返回值。
+   */
   private clearGraphTimerByKey(timerKey: string): void {
     const timer = this.activeTimersByKey.get(timerKey);
     if (!timer) {
@@ -599,6 +735,13 @@ export class LeaferGraphGraphExecutionHost<
     this.activeTimersByKey.delete(timerKey);
   }
 
+  /**
+   * 派发图执行事件。
+   *
+   * @param type - 类型。
+   * @param input - 输入参数。
+   * @returns 无返回值。
+   */
   private emitGraphExecutionEvent(
     type: LeaferGraphGraphExecutionEvent["type"],
     input: {
@@ -627,12 +770,24 @@ export class LeaferGraphGraphExecutionHost<
   }
 }
 
+/**
+ * 创建图执行运行 ID。
+ *
+ * @param source - 当前来源对象。
+ * @returns 创建后的结果对象。
+ */
 function createGraphExecutionRunId(source: LeaferGraphGraphExecutionSource): string {
   const runId = `graph:${source}:${Date.now()}:${graphExecutionRunSeed}`;
   graphExecutionRunSeed += 1;
   return runId;
 }
 
+/**
+ * 克隆图执行状态。
+ *
+ * @param state - 当前状态。
+ * @returns 处理后的结果。
+ */
 function cloneGraphExecutionState(
   state: LeaferGraphGraphExecutionState
 ): LeaferGraphGraphExecutionState {
@@ -641,6 +796,14 @@ function cloneGraphExecutionState(
 
 const DEFAULT_GRAPH_TIMER_ID = "default";
 
+/**
+ * 创建图定时器键值。
+ *
+ * @param runId - 当前运行 ID。
+ * @param nodeId - 目标节点 ID。
+ * @param timerId - 当前定时器 ID。
+ * @returns 创建后的结果对象。
+ */
 function createGraphTimerKey(
   runId: string,
   nodeId: string,
@@ -649,6 +812,12 @@ function createGraphTimerKey(
   return `${runId}::${nodeId}::${timerId}`;
 }
 
+/**
+ * 规范化图定时器间隔。
+ *
+ * @param intervalMs - 间隔`Ms`。
+ * @returns 处理后的结果。
+ */
 function normalizeGraphTimerInterval(intervalMs: number): number {
   if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
     return 1000;
@@ -657,10 +826,22 @@ function normalizeGraphTimerInterval(intervalMs: number): number {
   return Math.max(1, Math.floor(intervalMs));
 }
 
+/**
+ * 规范化图定时器 ID。
+ *
+ * @param timerId - 当前定时器 ID。
+ * @returns 处理后的结果。
+ */
 function normalizeGraphTimerId(timerId: string | undefined): string {
   return timerId?.trim() || DEFAULT_GRAPH_TIMER_ID;
 }
 
+/**
+ * 规范化图定时器模式。
+ *
+ * @param mode - 模式。
+ * @returns 处理后的结果。
+ */
 function normalizeGraphTimerMode(
   mode: "interval" | "timeout" | undefined
 ): "interval" | "timeout" {

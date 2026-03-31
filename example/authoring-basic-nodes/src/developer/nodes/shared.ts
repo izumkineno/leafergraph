@@ -13,10 +13,23 @@ const SCRIPT_FORBIDDEN_TOKENS = [
   "fetch"
 ] as const;
 
+/**
+ * 设置节点标题。
+ *
+ * @param node - 节点。
+ * @param title - 标题。
+ * @returns 无返回值。
+ */
 export function setNodeTitle(node: { title: string }, title: string): void {
   node.title = title;
 }
 
+/**
+ * 解析文件类型。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 export function resolveFileType(value: string): FileOutputType {
   if (
     value === "text" ||
@@ -30,6 +43,12 @@ export function resolveFileType(value: string): FileOutputType {
   return "text";
 }
 
+/**
+ * 解析变量`Container`。
+ *
+ * @param name - `name`。
+ * @returns 处理后的结果。
+ */
 export function resolveVariableContainer(name: VariableContainerName): {
   label: string;
   read(key: string): unknown;
@@ -71,6 +90,13 @@ export function resolveVariableContainer(name: VariableContainerName): {
   };
 }
 
+/**
+ * 下载`As` 浏览器文件。
+ *
+ * @param filename - `filename`。
+ * @param value - 当前值。
+ * @returns 无返回值。
+ */
 export function downloadAsBrowserFile(filename: string, value: unknown): void {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   const blob = new Blob([text], { type: "application/json" });
@@ -87,6 +113,12 @@ export function downloadAsBrowserFile(filename: string, value: unknown): void {
   }, 1000);
 }
 
+/**
+ * 编译用户`Script`。
+ *
+ * @param code - `code`。
+ * @returns 编译用户`Script`的结果。
+ */
 export function compileUserScript(code: string): {
   fn?: (A: unknown, B: unknown, C: unknown, DATA: Record<string, unknown>, node: unknown) => unknown;
   error?: string;
@@ -130,6 +162,14 @@ export function compileUserScript(code: string): {
   }
 }
 
+/**
+ * 比较值。
+ *
+ * @param a - `a`。
+ * @param b - `b`。
+ * @param operator - `operator`。
+ * @returns 对应的判断结果。
+ */
 export function compareValues(a: unknown, b: unknown, operator: string): boolean {
   if (operator !== "==" && operator !== "!=") {
     return false;

@@ -16,6 +16,9 @@ import {
   setNodeTitle
 } from "./shared";
 
+/**
+ * 封装 DownloadNode 的节点行为。
+ */
 export class DownloadNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.download,
@@ -51,12 +54,23 @@ export class DownloadNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       value: undefined as unknown
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const inputValue = ctx.getInput("data");
     if (inputValue !== undefined) {
@@ -71,6 +85,15 @@ export class DownloadNode extends BaseNode {
     );
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, _options, ctx) {
     if (action !== "download" && action !== "download_now") {
       return;
@@ -88,6 +111,9 @@ export class DownloadNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 WatchNode 的节点行为。
+ */
 export class WatchNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.watch,
@@ -102,12 +128,23 @@ export class WatchNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       value: undefined as unknown
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const inputValue = ctx.getInput("value");
     ctx.state.value = inputValue;
@@ -124,6 +161,9 @@ export class WatchNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 CastNode 的节点行为。
+ */
 export class CastNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.cast,
@@ -133,11 +173,20 @@ export class CastNode extends BaseNode {
     outputs: [{ name: "out", type: 0 as const }]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     ctx.setOutput("out", ctx.getInput("in"));
   }
 }
 
+/**
+ * 封装 ConsoleNode 的节点行为。
+ */
 export class ConsoleNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.console,
@@ -166,6 +215,12 @@ export class ConsoleNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const msgInput = ctx.getInput("msg");
     const nextMessage =
@@ -181,6 +236,15 @@ export class ConsoleNode extends BaseNode {
     updateStatus(ctx, `LOG\n${nextMessage}`);
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     let message =
       (ctx.getInput("msg") ?? readWidgetString(ctx, "msg", "")) || undefined;
@@ -201,6 +265,9 @@ export class ConsoleNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 AlertNode 的节点行为。
+ */
 export class AlertNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.alert,
@@ -221,6 +288,15 @@ export class AlertNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param _action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(_action, _param, _options, ctx) {
     const message = readWidgetString(ctx, "msg", "Hello from Alert");
     ctx.setProp("msg", message);
@@ -230,6 +306,9 @@ export class AlertNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ScriptNode 的节点行为。
+ */
 export class ScriptNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.script,
@@ -259,6 +338,11 @@ export class ScriptNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       compiledCode: "",
@@ -270,6 +354,12 @@ export class ScriptNode extends BaseNode {
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const code = readWidgetString(ctx, "onExecute", "return A;");
     ctx.setProp("onExecute", code);
@@ -303,6 +393,9 @@ export class ScriptNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 CompareValuesNode 的节点行为。
+ */
 export class CompareValuesNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.compare,
@@ -338,6 +431,12 @@ export class CompareValuesNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const operator = readWidgetString(ctx, "OP", "==");
     const valueA = ctx.getInput("A") ?? ctx.props.A;

@@ -53,7 +53,12 @@ export class PulseCounterNode extends BaseNode<PulseCounterProps> {
     ]
   };
 
-  /** 每次执行时把内部计数递增，并输出到下游。 */
+  /**
+   *  每次执行时把内部计数递增，并输出到下游。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx: DevNodeContext<PulseCounterProps>) {
     const previous = Number(ctx.props.runCount ?? 0);
     const nextCount = Number.isFinite(previous) ? previous + 1 : 1;

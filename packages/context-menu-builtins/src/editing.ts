@@ -12,6 +12,13 @@ const DEFAULT_PASTE_OFFSET = {
   y: 24
 } as const;
 
+/**
+ * 解析`Editing` 节点 ID 列表。
+ *
+ * @param host - 当前宿主实现。
+ * @param nodeId - 目标节点 ID。
+ * @returns 处理后的结果。
+ */
 export function resolveEditingNodeIds(
   host: Pick<
     LeaferGraphContextMenuBuiltinsHost,
@@ -27,6 +34,12 @@ export function resolveEditingNodeIds(
   return selectedNodeIds.length ? selectedNodeIds : [nodeId];
 }
 
+/**
+ * 创建剪贴板片段。
+ *
+ * @param input - 输入参数。
+ * @returns 创建后的结果对象。
+ */
 export function createClipboardFragment(input: {
   host: Pick<
     LeaferGraphContextMenuBuiltinsHost,
@@ -61,6 +74,12 @@ export function createClipboardFragment(input: {
   };
 }
 
+/**
+ * 写入剪贴板片段。
+ *
+ * @param input - 输入参数。
+ * @returns 写入剪贴板片段的结果。
+ */
 export function writeClipboardFragment(input: {
   clipboard: LeaferGraphContextMenuClipboardState;
   host: Pick<
@@ -82,6 +101,12 @@ export function writeClipboardFragment(input: {
   return fragment;
 }
 
+/**
+ * 粘贴剪贴板片段。
+ *
+ * @param input - 输入参数。
+ * @returns 粘贴剪贴板片段的结果。
+ */
 export function pasteClipboardFragment(input: {
   fragment: LeaferGraphContextMenuClipboardFragment;
   host: Pick<LeaferGraphContextMenuBuiltinsHost, "setSelectedNodeIds">;
@@ -94,6 +119,7 @@ export function pasteClipboardFragment(input: {
   };
   anchorToContextWorldPoint?: boolean;
 }): string[] {
+  // 先整理当前阶段需要的输入、状态与依赖。
   const offset = input.offset ?? DEFAULT_PASTE_OFFSET;
   const origin = resolveFragmentOrigin(input.fragment);
   const anchorPoint =
@@ -129,6 +155,7 @@ export function pasteClipboardFragment(input: {
       },
       input.context as LeaferContextMenuContext
     );
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     nodeIdMap.set(snapshot.id, createdNode.id);
     createdNodeIds.push(createdNode.id);
   }
@@ -159,6 +186,12 @@ export function pasteClipboardFragment(input: {
   return createdNodeIds;
 }
 
+/**
+ * 解析片段原点。
+ *
+ * @param fragment - 片段。
+ * @returns 处理后的结果。
+ */
 function resolveFragmentOrigin(fragment: LeaferGraphContextMenuClipboardFragment): {
   x: number;
   y: number;

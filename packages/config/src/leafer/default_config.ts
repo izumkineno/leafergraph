@@ -13,7 +13,11 @@ interface NormalizeLeaferConfigOptions {
   defaultUseOfficialTextEditor?: boolean;
 }
 
-/** 返回一份完整的默认 Leafer 配置。 */
+/**
+ *  返回一份完整的默认 Leafer 配置。
+ *
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultLeaferGraphLeaferConfig(): NormalizedLeaferGraphLeaferConfig {
   return {
     app: {
@@ -47,13 +51,21 @@ export function resolveDefaultLeaferGraphLeaferConfig(): NormalizedLeaferGraphLe
   };
 }
 
-/** 把调用方传入的 Leafer 配置补齐为稳定可消费结构。 */
+/**
+ *  把调用方传入的 Leafer 配置补齐为稳定可消费结构。
+ *
+ * @param config - 当前配置。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
+ */
 export function normalizeLeaferGraphLeaferConfig(
   config?: LeaferGraphLeaferConfig,
   options: NormalizeLeaferConfigOptions = {}
 ): NormalizedLeaferGraphLeaferConfig {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const defaults = resolveDefaultLeaferGraphLeaferConfig();
   const fitPadding = options.defaultFitPadding ?? defaults.view.fitPadding;
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   const useOfficialTextEditor =
     options.defaultUseOfficialTextEditor ??
     defaults.textEditor.useOfficialTextEditor;

@@ -21,7 +21,11 @@ export const DEFAULT_HISTORY_MAX_ENTRIES = 100;
 /** 默认在文档同步时清空历史。 */
 export const DEFAULT_HISTORY_RESET_ON_DOCUMENT_SYNC = true;
 
-/** 返回一份完整的默认图级配置。 */
+/**
+ *  返回一份完整的默认图级配置。
+ *
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultLeaferGraphGraphConfig(): NormalizedLeaferGraphGraphConfig {
   return {
     fill: undefined,
@@ -38,7 +42,12 @@ export function resolveDefaultLeaferGraphGraphConfig(): NormalizedLeaferGraphGra
   };
 }
 
-/** 把调用方传入的图级配置补齐为稳定可消费结构。 */
+/**
+ *  把调用方传入的图级配置补齐为稳定可消费结构。
+ *
+ * @param config - 当前配置。
+ * @returns 处理后的结果。
+ */
 export function normalizeLeaferGraphGraphConfig(
   config?: LeaferGraphGraphConfig
 ): NormalizedLeaferGraphGraphConfig {

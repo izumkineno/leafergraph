@@ -38,6 +38,10 @@ export interface CreateNodeApiOptions {
 /**
  * 为节点运行时状态创建一组可操作 API。
  * 这些 API 会被生命周期钩子和宿主逻辑共同复用。
+ *
+ * @param node - 节点。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
  */
 export function createNodeApi(
   node: NodeRuntimeState,
@@ -129,6 +133,11 @@ export function createNodeApi(
 /**
  * 以宿主统一的拷贝规则创建槽位声明。
  * 这样运行时新增的槽位也能与静态定义保持同一份结构语义。
+ *
+ * @param name - `name`。
+ * @param type - 类型。
+ * @param extra - `extra`。
+ * @returns 创建后的结果对象。
  */
 function createSlotSpec(
   name: string,

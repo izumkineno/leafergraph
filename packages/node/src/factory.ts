@@ -25,6 +25,10 @@ import { normalizeWidgetSpecs } from "./widget.js";
 /**
  * 根据注册表中的节点定义创建一个新的节点运行时实例。
  * 这是宿主从静态定义走向真实运行时状态的核心入口。
+ *
+ * @param registry - 注册表。
+ * @param init - `init`。
+ * @returns 创建后的结果对象。
  */
 export function createNodeState(
   registry: NodeRegistry,

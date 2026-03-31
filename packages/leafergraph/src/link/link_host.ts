@@ -54,7 +54,12 @@ export interface ResolveGraphLinkCurveInput<
   portSize: number;
 }
 
-/** 根据节点与槽位解析一条正式连线的共享三次贝塞尔曲线。 */
+/**
+ *  根据节点与槽位解析一条正式连线的共享三次贝塞尔曲线。
+ *
+ * @param input - 输入参数。
+ * @returns 处理后的结果。
+ */
 export function resolveGraphLinkCurve<
   TNodeState extends LeaferGraphLinkNodeState
 >(input: ResolveGraphLinkCurveInput<TNodeState>): LinkBezierCurve {
@@ -108,11 +113,21 @@ interface LeaferGraphLinkHostOptions<TNodeState extends LeaferGraphLinkNodeState
 export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
   private readonly options: LeaferGraphLinkHostOptions<TNodeState>;
 
+  /**
+   * 初始化 LeaferGraphLinkHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphLinkHostOptions<TNodeState>) {
     this.options = options;
   }
 
-  /** 将连线状态和连线视图一起挂入当前图。 */
+  /**
+   *  将连线状态和连线视图一起挂入当前图。
+   *
+   * @param link - 连线。
+   * @returns 挂载连线视图的结果。
+   */
   mountLinkView(link: GraphLink): GraphLinkViewState<TNodeState> | null {
     if (this.options.graphLinks.has(link.id)) {
       console.warn("[leafergraph] 跳过重复连线 ID", link.id);
@@ -130,7 +145,12 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     return state;
   }
 
-  /** 移除一条连线的图状态和视图。 */
+  /**
+   *  移除一条连线的图状态和视图。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 对应的判断结果。
+   */
   removeLink(linkId: string): boolean {
     const linkIndex = this.options.linkViews.findIndex(
       (item) => item.linkId === linkId
@@ -144,7 +164,12 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     return this.options.graphLinks.delete(linkId) || linkIndex >= 0;
   }
 
-  /** 只更新与某个节点相连的连线，避免全量重算。 */
+  /**
+   *  只更新与某个节点相连的连线，避免全量重算。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
   updateConnectedLinks(nodeId: string): void {
     this.updateConnectedLinksForNodes([nodeId]);
   }
@@ -153,6 +178,9 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
    * 批量刷新与一组节点相关的连线。
    * 多选拖拽时如果仍按单节点逐个扫描，会把同一条连线反复重算，
    * 这里统一按节点集合收敛目标范围，减少重复刷新。
+   *
+   * @param nodeIds - 节点 ID 列表。
+   * @returns 无返回值。
    */
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void {
     if (!nodeIds.length) {
@@ -179,6 +207,9 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
   /**
    * 根据正式连线数据创建连线视图。
    * 当端点节点不存在时，当前阶段直接跳过并打印告警，避免半有效数据破坏整体渲染。
+   *
+   * @param link - 连线。
+   * @returns 创建后的结果对象。
    */
   private createLinkView(
     link: GraphLink
@@ -209,7 +240,15 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     };
   }
 
-  /** 创建两个节点之间的连线图元。 */
+  /**
+   *  创建两个节点之间的连线图元。
+   *
+   * @param source - 当前来源对象。
+   * @param target - 当前目标对象。
+   * @param sourceSlot - 来源槽位。
+   * @param targetSlot - 目标槽位。
+   * @returns 创建后的结果对象。
+   */
   private createLinkShape(
     source: TNodeState,
     target: TNodeState,
@@ -241,7 +280,14 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     });
   }
 
-  /** 按当前节点位置重算单条连线路径，供移动和节点更新共用。 */
+  /**
+   *  按当前节点位置重算单条连线路径，供移动和节点更新共用。
+   *
+   * @param link - 连线。
+   * @param source - 当前来源对象。
+   * @param target - 当前目标对象。
+   * @returns 无返回值。
+   */
   private refreshLinkPath(
     link: GraphLinkViewState<TNodeState>,
     source: TNodeState,
@@ -261,7 +307,13 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
     link.view.stroke = this.resolveLinkStroke(source, link.sourceSlot);
   }
 
-  /** 正式连线颜色统一跟随 source output slot 的类型色。 */
+  /**
+   *  正式连线颜色统一跟随 source output slot 的类型色。
+   *
+   * @param source - 当前来源对象。
+   * @param sourceSlot - 来源槽位。
+   * @returns 处理后的结果。
+   */
   private resolveLinkStroke(source: TNodeState, sourceSlot: number): string {
     return (
       resolveNodeSlotFill(source, "output", sourceSlot, {
@@ -277,6 +329,9 @@ export class LeaferGraphLinkHost<TNodeState extends LeaferGraphLinkNodeState> {
    * 当前 Bun 依赖树里同时残留了 Leafer UI 的 2.0.2 / 2.0.3 类型定义，
    * 会让 `Arrow` 与 `Group.add(...)` 在 TypeScript 看来来自两套不同的类型宇宙。
    * 运行时对象本身是兼容的，因此把这次适配集中在这一处，避免把类型断言扩散出去。
+   *
+   * @param view - 视图。
+   * @returns 无返回值。
    */
   private addLinkShapeToLayer(view: Arrow): void {
     this.options.linkLayer.add(view as unknown as Group);

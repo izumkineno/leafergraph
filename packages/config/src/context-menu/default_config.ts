@@ -3,7 +3,11 @@ import type {
   NormalizedLeaferContextMenuConfig
 } from "./types";
 
-/** 返回一份完整的默认右键菜单配置。 */
+/**
+ *  返回一份完整的默认右键菜单配置。
+ *
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultLeaferContextMenuConfig(): NormalizedLeaferContextMenuConfig {
   return {
     submenu: {
@@ -14,7 +18,12 @@ export function resolveDefaultLeaferContextMenuConfig(): NormalizedLeaferContext
   };
 }
 
-/** 把调用方传入的右键菜单配置补齐为稳定可消费结构。 */
+/**
+ *  把调用方传入的右键菜单配置补齐为稳定可消费结构。
+ *
+ * @param config - 当前配置。
+ * @returns 处理后的结果。
+ */
 export function normalizeLeaferContextMenuConfig(
   config?: LeaferContextMenuConfig
 ): NormalizedLeaferContextMenuConfig {

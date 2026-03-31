@@ -125,6 +125,11 @@ export class LeaferGraphSceneRuntimeHost<
     TNodeViewState
   >;
 
+  /**
+   * 初始化 LeaferGraphSceneRuntimeHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphSceneRuntimeHostOptions<TNodeState, TNodeViewState>
   ) {
@@ -135,6 +140,8 @@ export class LeaferGraphSceneRuntimeHost<
    * 刷新单个节点视图。
    *
    * @param state - 待刷新的节点视图状态。
+   *
+   * @returns 无返回值。
    */
   refreshNodeView(state: TNodeViewState): void {
     this.options.sceneHost.refreshNodeView(state);
@@ -145,6 +152,8 @@ export class LeaferGraphSceneRuntimeHost<
    *
    * @remarks
    * 主要给主题切换、全局样式变更等“全量节点壳需要重新生成”的场景使用。
+   *
+   * @returns 无返回值。
    */
   refreshAllNodeViews(): void {
     for (const state of this.options.nodeViews.values()) {
@@ -156,6 +165,8 @@ export class LeaferGraphSceneRuntimeHost<
    * 刷新与单个节点相关的连线。
    *
    * @param nodeId - 目标节点 ID。
+   *
+   * @returns 无返回值。
    */
   updateConnectedLinks(nodeId: string): void {
     this.options.sceneHost.updateConnectedLinks(nodeId);
@@ -165,6 +176,8 @@ export class LeaferGraphSceneRuntimeHost<
    * 批量刷新与一组节点相关的连线。
    *
    * @param nodeIds - 参与刷新的节点 ID 列表。
+   *
+   * @returns 无返回值。
    */
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void {
     this.options.sceneHost.updateConnectedLinksForNodes(nodeIds);
@@ -176,6 +189,8 @@ export class LeaferGraphSceneRuntimeHost<
    * @remarks
    * 当前直接以全部节点 ID 作为输入，让底层连线宿主自行去重和收敛。
    * 这样主题切换和全图恢复后都能复用同一条刷新路径。
+   *
+   * @returns 无返回值。
    */
   refreshAllConnectedLinks(): void {
     this.options.sceneHost.updateConnectedLinksForNodes([
@@ -188,6 +203,8 @@ export class LeaferGraphSceneRuntimeHost<
    *
    * @remarks
    * 这一层只负责把请求转发给画布宿主，不自行决定渲染策略。
+   *
+   * @returns 无返回值。
    */
   requestRender(): void {
     this.options.requestRender();
@@ -199,6 +216,8 @@ export class LeaferGraphSceneRuntimeHost<
    * @param nodeId - 目标节点 ID。
    * @param widgetIndex - Widget 索引。
    * @param newValue - 待写回的新值。
+   *
+   * @returns 对应的判断结果。
    */
   setNodeWidgetValue(
     nodeId: string,
@@ -354,6 +373,8 @@ export class LeaferGraphSceneRuntimeHost<
    *
    * @param input - 连线创建输入。
    * @returns 连线安全副本。
+   *
+   * @param source - 当前来源对象。
    */
   createLink(input: LeaferGraphCreateLinkInput, source = "api"): GraphLink {
     const result = this.applyGraphOperationInternal(
@@ -393,6 +414,8 @@ export class LeaferGraphSceneRuntimeHost<
    * @param positions - 拖拽起点时的节点位置快照。
    * @param deltaX - 当前横向位移。
    * @param deltaY - 当前纵向位移。
+   *
+   * @returns 无返回值。
    */
   moveNodesByDelta(
     positions: readonly GraphDragNodePosition[],
@@ -419,6 +442,7 @@ export class LeaferGraphSceneRuntimeHost<
   private applyGraphOperationInternal(
     operation: GraphOperation
   ): InternalGraphOperationApplyResult<TNodeState> {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     try {
       switch (operation.type) {
         case "document.update": {
@@ -529,6 +553,7 @@ export class LeaferGraphSceneRuntimeHost<
             operation.input
           );
           if (!node) {
+            // 再执行核心更新步骤，并同步派生副作用与收尾状态。
             return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
           }
 
@@ -677,6 +702,13 @@ export class LeaferGraphSceneRuntimeHost<
   }
 }
 
+/**
+ * 创建图`Operation`。
+ *
+ * @param source - 当前来源对象。
+ * @param input - 输入参数。
+ * @returns 创建后的结果对象。
+ */
 function createGraphOperation(
   source: string,
   input: GraphOperationInput
@@ -693,6 +725,13 @@ function createGraphOperation(
   } as GraphOperation;
 }
 
+/**
+ * 处理 `rejectGraphOperation` 相关逻辑。
+ *
+ * @param operation - `operation`。
+ * @param reason - `reason`。
+ * @returns 处理后的结果。
+ */
 function rejectGraphOperation(
   operation: GraphOperation,
   reason: string
@@ -714,6 +753,12 @@ type GraphOperationInput = {
   >;
 }[GraphOperation["type"]];
 
+/**
+ * 创建`Comparable` 节点快照。
+ *
+ * @param node - 节点。
+ * @returns 创建后的结果对象。
+ */
 function createComparableNodeSnapshot<TNodeState extends NodeRuntimeState>(
   node: TNodeState
 ): unknown {
@@ -732,6 +777,13 @@ function createComparableNodeSnapshot<TNodeState extends NodeRuntimeState>(
   });
 }
 
+/**
+ * 处理 `isStructurallyEqual` 相关逻辑。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 对应的判断结果。
+ */
 function isStructurallyEqual(left: unknown, right: unknown): boolean {
   try {
     return JSON.stringify(left) === JSON.stringify(right);
@@ -740,10 +792,22 @@ function isStructurallyEqual(left: unknown, right: unknown): boolean {
   }
 }
 
+/**
+ * 处理 `uniqueNodeIds` 相关逻辑。
+ *
+ * @param nodeIds - 节点 ID 列表。
+ * @returns 处理后的结果。
+ */
 function uniqueNodeIds(nodeIds: readonly string[]): string[] {
   return [...new Set(nodeIds.filter(Boolean))];
 }
 
+/**
+ * 判断是否存在文档根节点`Patch`。
+ *
+ * @param input - 输入参数。
+ * @returns 对应的判断结果。
+ */
 function hasDocumentRootPatch(input: LeaferGraphUpdateDocumentInput): boolean {
   return (
     input.appKind !== undefined ||
@@ -753,6 +817,13 @@ function hasDocumentRootPatch(input: LeaferGraphUpdateDocumentInput): boolean {
   );
 }
 
+/**
+ * 修补图文档根节点。
+ *
+ * @param document - 文档。
+ * @param input - 输入参数。
+ * @returns 无返回值。
+ */
 function patchGraphDocumentRoot(
   document: GraphDocumentRootState,
   input: LeaferGraphUpdateDocumentInput
@@ -778,6 +849,13 @@ function patchGraphDocumentRoot(
   }
 }
 
+/**
+ * 处理 `isSameLinkEndpoint` 相关逻辑。
+ *
+ * @param left - `left`。
+ * @param right - `right`。
+ * @returns 对应的判断结果。
+ */
 function isSameLinkEndpoint(
   left: Pick<GraphLink, "source" | "target">,
   right: Pick<GraphLink, "source" | "target">

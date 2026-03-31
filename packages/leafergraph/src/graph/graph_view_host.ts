@@ -77,6 +77,11 @@ export class LeaferGraphViewHost<
   private readonly options: LeaferGraphViewHostOptions<TNodeState, TNodeViewState>;
   private nodeZIndexSeed = 0;
 
+  /**
+   * 初始化 LeaferGraphViewHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphViewHostOptions<TNodeState, TNodeViewState>) {
     this.options = options;
   }
@@ -84,6 +89,9 @@ export class LeaferGraphViewHost<
   /**
    * 让当前画布内容适配到可视区域内。
    * 优先以节点视图为参考对象，避免把背景或未来的屏幕层 overlay 一起纳入适配范围。
+   *
+   * @param padding - `padding`。
+   * @returns 对应的判断结果。
    */
   fitView(padding: number): boolean {
     const views = [...this.options.nodeViews.values()].map((state) => state.view);
@@ -105,6 +113,10 @@ export class LeaferGraphViewHost<
    * 设置单个节点的选中态。
    * 当前阶段的实现尽量轻量：只更新运行时 flag，并把视觉反馈直接同步到现有图元，
    * 不触发整节点重建，从而避免菜单绑定和拖拽状态被打断。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param selected - `selected`。
+   * @returns 对应的判断结果。
    */
   setNodeSelected(nodeId: string, selected: boolean): boolean {
     const state = this.options.nodeViews.get(nodeId);
@@ -123,7 +135,11 @@ export class LeaferGraphViewHost<
     return true;
   }
 
-  /** 读取当前所有已选节点 ID。 */
+  /**
+   *  读取当前所有已选节点 ID。
+   *
+   * @returns 收集到的结果列表。
+   */
   listSelectedNodeIds(): string[] {
     const selectedNodeIds: string[] = [];
 
@@ -136,16 +152,28 @@ export class LeaferGraphViewHost<
     return selectedNodeIds;
   }
 
-  /** 判断某个节点当前是否处于选中态。 */
+  /**
+   *  判断某个节点当前是否处于选中态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 对应的判断结果。
+   */
   isNodeSelected(nodeId: string): boolean {
     return Boolean(this.options.graphNodes.get(nodeId)?.flags.selected);
   }
 
-  /** 批量更新节点选区。 */
+  /**
+   *  批量更新节点选区。
+   *
+   * @param nodeIds - 节点 ID 列表。
+   * @param mode - 模式。
+   * @returns 设置`Selected` 节点 ID 列表的结果。
+   */
   setSelectedNodeIds(
     nodeIds: readonly string[],
     mode: LeaferGraphSelectionUpdateMode = "replace"
   ): string[] {
+    // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
     const currentSelectedNodeIds = new Set(this.listSelectedNodeIds());
     const nextNodeIds = [...new Set(nodeIds)].filter((nodeId) =>
       this.options.graphNodes.has(nodeId)
@@ -168,6 +196,7 @@ export class LeaferGraphViewHost<
       case "replace":
       default:
         nextSelectedNodeIds = new Set(nextNodeIds);
+        // 再执行核心更新步骤，并同步派生副作用与收尾状态。
         break;
     }
 
@@ -190,7 +219,11 @@ export class LeaferGraphViewHost<
     return [...nextSelectedNodeIds];
   }
 
-  /** 清空当前全部节点选区。 */
+  /**
+   *  清空当前全部节点选区。
+   *
+   * @returns 清理`Selected` 节点的结果。
+   */
   clearSelectedNodes(): string[] {
     return this.setSelectedNodeIds([], "replace");
   }
@@ -199,6 +232,9 @@ export class LeaferGraphViewHost<
    * 解析一次拖拽应当带上的节点集合。
    * 当前保持与常见节点编辑器一致：
    * 点击已选中的多选节点时，整体拖拽当前选区；否则只拖当前节点。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
    */
   resolveDraggedNodeIds(nodeId: string): string[] {
     const selectedNodeIds = this.listSelectedNodeIds();
@@ -213,13 +249,21 @@ export class LeaferGraphViewHost<
   /**
    * 将节点图元提升到当前节点层的最前面。
    * 通过递增 zIndex 来稳定排序，避免反复移除/插入子节点带来的抖动。
+   *
+   * @param state - 当前状态。
+   * @returns 无返回值。
    */
   bringNodeViewToFront(state: TNodeViewState): void {
     this.nodeZIndexSeed += 1;
     state.view.zIndex = this.nodeZIndexSeed;
   }
 
-  /** 把浏览器 client 坐标换成 Leafer page 坐标。 */
+  /**
+   *  把浏览器 client 坐标换成 Leafer page 坐标。
+   *
+   * @param event - 当前事件对象。
+   * @returns 处理后的结果。
+   */
   getPagePointByClient(event: Pick<PointerEvent, "clientX" | "clientY">): {
     x: number;
     y: number;
@@ -237,6 +281,9 @@ export class LeaferGraphViewHost<
    * 把 Leafer 指针事件统一转换成 page 坐标。
    * 节点布局、拖拽和 resize 都挂在 `app.tree / zoomLayer` 下，
    * 因此这类“写回节点位置”的交互必须以 page 坐标为准。
+   *
+   * @param event - 当前事件对象。
+   * @returns 处理后的结果。
    */
   getPagePointFromGraphEvent(
     event: LeaferGraphWidgetPointerEvent
@@ -257,7 +304,11 @@ export class LeaferGraphViewHost<
       : { x: event.x, y: event.y };
   }
 
-  /** 整图重建前重置纯视图级运行时状态。 */
+  /**
+   *  整图重建前重置纯视图级运行时状态。
+   *
+   * @returns 无返回值。
+   */
   resetViewState(): void {
     this.nodeZIndexSeed = 0;
   }

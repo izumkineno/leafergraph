@@ -5,6 +5,11 @@ import type {
   ShortcutRegistryRegisterOptions
 } from "./types";
 
+/**
+ * 创建快捷键键位映射注册表。
+ *
+ * @returns 创建后的结果对象。
+ */
 export function createShortcutKeymapRegistry(): ShortcutKeymapRegistry {
   const bindings = new Map<string, ShortcutBindingDefinition>();
 
@@ -27,6 +32,14 @@ export function createShortcutKeymapRegistry(): ShortcutKeymapRegistry {
   };
 }
 
+/**
+ * 注册快捷键绑定。
+ *
+ * @param bindings - 绑定。
+ * @param binding - 绑定。
+ * @param options - 可选配置项。
+ * @returns 用于撤销当前注册的清理函数。
+ */
 function registerShortcutBinding(
   bindings: Map<string, ShortcutBindingDefinition>,
   binding: ShortcutBindingDefinition,

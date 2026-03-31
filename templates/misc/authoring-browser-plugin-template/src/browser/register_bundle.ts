@@ -32,6 +32,11 @@ interface AuthoringBrowserTemplateBundleBridge {
   registerBundle(manifest: AuthoringBrowserTemplateBundleManifest): void;
 }
 
+/**
+ * 获取Bundle 桥接层。
+ *
+ * @returns 获取Bundle 桥接层的结果。
+ */
 function requireBundleBridge(): AuthoringBrowserTemplateBundleBridge {
   const bridge = (
     globalThis as typeof globalThis & {
@@ -48,6 +53,12 @@ function requireBundleBridge(): AuthoringBrowserTemplateBundleBridge {
   return bridge;
 }
 
+/**
+ * 注册`Authoring` 浏览器模板 Bundle。
+ *
+ * @param manifest - `manifest`。
+ * @returns 无返回值。
+ */
 export function registerAuthoringBrowserTemplateBundle(
   manifest: AuthoringBrowserTemplateBundleManifest
 ): void {

@@ -107,6 +107,12 @@ export interface ApplyGraphDocumentDiffResult {
   reason?: string;
 }
 
+/**
+ * 根据节点快照创建更新节点输入。
+ *
+ * @param node - 节点。
+ * @returns 创建后的结果对象。
+ */
 export function createUpdateNodeInputFromNodeSnapshot(
   node: NodeSerializeResult
 ): LeaferGraphUpdateNodeInput {
@@ -138,6 +144,9 @@ export function createUpdateNodeInputFromNodeSnapshot(
  * @remarks
  * 这条 helper 专门服务复制 / 粘贴、模板恢复和未来 editor 的局部反序列化。
  * 默认会保留原始 `id`，调用方如果希望粘贴成新节点，应在外层显式移除或覆写。
+ *
+ * @param node - 节点。
+ * @returns 创建后的结果对象。
  */
 export function createCreateNodeInputFromNodeSnapshot(
   node: NodeSerializeResult
@@ -166,10 +175,18 @@ export function createCreateNodeInputFromNodeSnapshot(
   };
 }
 
+/**
+ * 应用图文档差异到文档。
+ *
+ * @param currentDocument - `current` 文档。
+ * @param diff - 差异。
+ * @returns 处理后的结果。
+ */
 export function applyGraphDocumentDiffToDocument(
   currentDocument: GraphDocument,
   diff: GraphDocumentDiff
 ): ApplyGraphDocumentDiffResult {
+  // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
   if (currentDocument.documentId !== diff.documentId) {
     return createFailedDiffResult(
       currentDocument,
@@ -195,6 +212,7 @@ export function applyGraphDocumentDiffToDocument(
     }
 
     nextDocument = operationResult.document;
+    // 再执行核心更新步骤，并同步派生副作用与收尾状态。
     for (const nodeId of operationResult.affectedNodeIds) {
       affectedNodeIds.add(nodeId);
     }
@@ -237,6 +255,13 @@ interface DocumentApplyStepResult {
   reason?: string;
 }
 
+/**
+ * 创建`Failed` 差异结果。
+ *
+ * @param currentDocument - `current` 文档。
+ * @param reason - `reason`。
+ * @returns 创建后的结果对象。
+ */
 function createFailedDiffResult(
   currentDocument: GraphDocument,
   reason: string | undefined
@@ -251,10 +276,18 @@ function createFailedDiffResult(
   };
 }
 
+/**
+ * 应用`Operation`到文档。
+ *
+ * @param document - 文档。
+ * @param operation - `operation`。
+ * @returns 处理后的结果。
+ */
 function applyOperationToDocument(
   document: GraphDocument,
   operation: GraphOperation
 ): DocumentApplyStepResult {
+  // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
   switch (operation.type) {
     case "document.update":
       return createApplyStepResult(
@@ -316,6 +349,7 @@ function applyOperationToDocument(
       );
     }
     case "node.resize": {
+      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
       const node = findNodeSnapshot(document, operation.nodeId);
       if (!node) {
         return createRejectedApplyStep(
@@ -406,10 +440,18 @@ function applyOperationToDocument(
   }
 }
 
+/**
+ * 应用字段`Change`到文档。
+ *
+ * @param document - 文档。
+ * @param fieldChange - 字段`Change`。
+ * @returns 处理后的结果。
+ */
 function applyFieldChangeToDocument(
   document: GraphDocument,
   fieldChange: GraphDocumentFieldChange
 ): DocumentApplyStepResult {
+  // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
   const node = findNodeSnapshot(document, fieldChange.nodeId);
   if (!node) {
     return createRejectedApplyStep(
@@ -457,6 +499,7 @@ function applyFieldChangeToDocument(
       }
       break;
     case "node.flag.set":
+      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
       nextNode.flags = {
         ...(nextNode.flags ?? {}),
         [fieldChange.key]: fieldChange.value
@@ -526,6 +569,14 @@ function applyFieldChangeToDocument(
   );
 }
 
+/**
+ * 创建`Apply` 步骤结果。
+ *
+ * @param document - 文档。
+ * @param affectedNodeIds - `affected` 节点 ID 列表。
+ * @param affectedLinkIds - `affected` 连线 ID 列表。
+ * @returns 创建后的结果对象。
+ */
 function createApplyStepResult(
   document: GraphDocument,
   affectedNodeIds: string[],
@@ -539,6 +590,13 @@ function createApplyStepResult(
   };
 }
 
+/**
+ * 处理 `createRejectedApplyStep` 相关逻辑。
+ *
+ * @param document - 文档。
+ * @param reason - `reason`。
+ * @returns 创建后的结果对象。
+ */
 function createRejectedApplyStep(
   document: GraphDocument,
   reason: string
@@ -552,6 +610,12 @@ function createRejectedApplyStep(
   };
 }
 
+/**
+ * 根据创建输入创建节点快照。
+ *
+ * @param input - 输入参数。
+ * @returns 创建后的结果对象。
+ */
 function createNodeSnapshotFromCreateInput(
   input: LeaferGraphCreateNodeInput
 ): NodeSerializeResult {
@@ -583,6 +647,12 @@ function createNodeSnapshotFromCreateInput(
   };
 }
 
+/**
+ * 根据创建输入创建连线快照。
+ *
+ * @param input - 输入参数。
+ * @returns 创建后的结果对象。
+ */
 function createLinkSnapshotFromCreateInput(
   input: LeaferGraphCreateLinkInput
 ): GraphLink {
@@ -595,6 +665,13 @@ function createLinkSnapshotFromCreateInput(
   };
 }
 
+/**
+ * 修补节点快照。
+ *
+ * @param node - 节点。
+ * @param input - 输入参数。
+ * @returns 修补节点快照的结果。
+ */
 function patchNodeSnapshot(
   node: NodeSerializeResult,
   input: LeaferGraphUpdateNodeInput
@@ -636,6 +713,13 @@ function patchNodeSnapshot(
   return nextNode;
 }
 
+/**
+ * 修补图文档根节点。
+ *
+ * @param document - 文档。
+ * @param input - 输入参数。
+ * @returns 修补图文档根节点的结果。
+ */
 function patchGraphDocumentRoot(
   document: GraphDocument,
   input: LeaferGraphUpdateDocumentInput
@@ -663,10 +747,23 @@ function patchGraphDocumentRoot(
   };
 }
 
+/**
+ * 克隆图文档。
+ *
+ * @param document - 文档。
+ * @returns 处理后的结果。
+ */
 function cloneGraphDocument(document: GraphDocument): GraphDocument {
   return structuredClone(document);
 }
 
+/**
+ * 查找节点快照。
+ *
+ * @param document - 文档。
+ * @param nodeId - 目标节点 ID。
+ * @returns 处理后的结果。
+ */
 function findNodeSnapshot(
   document: GraphDocument,
   nodeId: string
@@ -674,6 +771,13 @@ function findNodeSnapshot(
   return document.nodes.find((node) => node.id === nodeId);
 }
 
+/**
+ * 查找连线快照。
+ *
+ * @param document - 文档。
+ * @param linkId - 目标连线 ID。
+ * @returns 处理后的结果。
+ */
 function findLinkSnapshot(
   document: GraphDocument,
   linkId: string
@@ -681,6 +785,13 @@ function findLinkSnapshot(
   return document.links.find((link) => link.id === linkId);
 }
 
+/**
+ * 处理 `upsertNodeSnapshot` 相关逻辑。
+ *
+ * @param document - 文档。
+ * @param snapshot - 快照。
+ * @returns 处理后的结果。
+ */
 function upsertNodeSnapshot(
   document: GraphDocument,
   snapshot: NodeSerializeResult
@@ -693,6 +804,13 @@ function upsertNodeSnapshot(
   };
 }
 
+/**
+ * 处理 `upsertLinkSnapshot` 相关逻辑。
+ *
+ * @param document - 文档。
+ * @param snapshot - 快照。
+ * @returns 处理后的结果。
+ */
 function upsertLinkSnapshot(
   document: GraphDocument,
   snapshot: GraphLink
@@ -705,6 +823,13 @@ function upsertLinkSnapshot(
   };
 }
 
+/**
+ * 移除节点快照。
+ *
+ * @param document - 文档。
+ * @param nodeId - 目标节点 ID。
+ * @returns 移除节点快照的结果。
+ */
 function removeNodeSnapshot(
   document: GraphDocument,
   nodeId: string
@@ -718,6 +843,13 @@ function removeNodeSnapshot(
   };
 }
 
+/**
+ * 移除连线快照。
+ *
+ * @param document - 文档。
+ * @param linkId - 目标连线 ID。
+ * @returns 移除连线快照的结果。
+ */
 function removeLinkSnapshot(
   document: GraphDocument,
   linkId: string
@@ -728,10 +860,22 @@ function removeLinkSnapshot(
   };
 }
 
+/**
+ * 处理 `uniqueNodeIds` 相关逻辑。
+ *
+ * @param nodeIds - 节点 ID 列表。
+ * @returns 处理后的结果。
+ */
 function uniqueNodeIds(nodeIds: readonly string[]): string[] {
   return [...new Set(nodeIds.filter(Boolean))];
 }
 
+/**
+ * 规范化槽位`Specs`。
+ *
+ * @param inputs - 输入参数。
+ * @returns 处理后的结果。
+ */
 function normalizeSlotSpecs(
   inputs: readonly LeaferGraphNodeSlotInput[]
 ): NodeSlotSpec[] {

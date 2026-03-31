@@ -28,11 +28,23 @@ interface DelayTicket {
   runId?: string;
 }
 
+/**
+ * 创建延迟票据 ID。
+ *
+ * @param nodeId - 目标节点 ID。
+ * @returns 创建后的结果对象。
+ */
 function createDelayTicketId(nodeId: string): string {
   delayTicketSequence += 1;
   return `${nodeId}:delay:${delayTicketSequence}`;
 }
 
+/**
+ * 解析延迟`Ms`。
+ *
+ * @param ctx - `ctx`。
+ * @returns 处理后的结果。
+ */
 function resolveDelayMs(
   ctx: Parameters<DelayEventNode["onExecute"]>[0]
 ): number {
@@ -48,6 +60,12 @@ function resolveDelayMs(
   return widgetValue;
 }
 
+/**
+ * 解析定时器间隔`Ms`。
+ *
+ * @param ctx - `ctx`。
+ * @returns 处理后的结果。
+ */
 function resolveTimerIntervalMs(
   ctx: Parameters<TimerEventNode["onExecute"]>[0]
 ): number {
@@ -63,6 +81,12 @@ function resolveTimerIntervalMs(
   return widgetValue;
 }
 
+/**
+ * 解析定时器事件`Name`。
+ *
+ * @param ctx - `ctx`。
+ * @returns 处理后的结果。
+ */
 function resolveTimerEventName(
   ctx: Parameters<TimerEventNode["onExecute"]>[0]
 ): string {
@@ -71,6 +95,13 @@ function resolveTimerEventName(
   return eventName;
 }
 
+/**
+ * 格式化延迟状态。
+ *
+ * @param pending - `pending`。
+ * @param delayMs - 延迟`Ms`。
+ * @returns 处理后的结果。
+ */
 function formatDelayStatus(pending: readonly DelayTicket[], delayMs: number): string {
   if (!pending.length) {
     return `READY\n${delayMs} ms\nQueue empty`;
@@ -79,6 +110,9 @@ function formatDelayStatus(pending: readonly DelayTicket[], delayMs: number): st
   return `QUEUED\n${delayMs} ms\n${pending.length} waiting`;
 }
 
+/**
+ * 封装 DelayEventNode 的节点行为。
+ */
 export class DelayEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventDelay,
@@ -107,6 +141,11 @@ export class DelayEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       deliveredCount: 0,
@@ -114,6 +153,12 @@ export class DelayEventNode extends BaseNode {
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const delayMs = resolveDelayMs(ctx);
     const execution = getExecutionContext(ctx);
@@ -139,7 +184,17 @@ export class DelayEventNode extends BaseNode {
     updateStatus(ctx, formatDelayStatus(ctx.state.pending, delayMs));
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, options, ctx) {
+    // 先整理当前阶段需要的输入、状态与依赖。
     if (action !== "event") {
       return;
     }
@@ -153,6 +208,7 @@ export class DelayEventNode extends BaseNode {
     }
 
     const execution = getExecutionContext(ctx, options);
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     const runtimePayload = getTimerRuntimePayload(execution);
     if (
       !isGraphExecution(execution) ||
@@ -187,6 +243,9 @@ export class DelayEventNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 TimerEventNode 的节点行为。
+ */
 export class TimerEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventTimer,
@@ -249,6 +308,11 @@ export class TimerEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       activeRunId: "",
@@ -257,7 +321,14 @@ export class TimerEventNode extends BaseNode {
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
+    // 先整理当前阶段需要的输入、状态与依赖。
     const intervalMs = resolveTimerIntervalMs(ctx);
     const eventName = resolveTimerEventName(ctx);
     const immediate = readWidgetBoolean(ctx, "immediate", true);
@@ -276,6 +347,7 @@ export class TimerEventNode extends BaseNode {
         execution.runId &&
         runtimePayload?.registerGraphTimer
       ) {
+        // 再执行核心逻辑，并把结果或副作用统一收口。
         runtimePayload.registerGraphTimer({
           nodeId: ctx.node.id,
           runId: execution.runId,
@@ -311,7 +383,17 @@ export class TimerEventNode extends BaseNode {
     );
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, options, ctx) {
+    // 先整理当前阶段需要的输入、状态与依赖。
     const intervalMs = resolveTimerIntervalMs(ctx);
     const eventName = resolveTimerEventName(ctx);
     const immediate = readWidgetBoolean(ctx, "immediate", true);
@@ -332,6 +414,7 @@ export class TimerEventNode extends BaseNode {
 
     const execution = getExecutionContext(ctx, options);
     const runtimePayload = getTimerRuntimePayload(execution);
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     if (
       isGraphExecution(execution) &&
       execution.runId &&

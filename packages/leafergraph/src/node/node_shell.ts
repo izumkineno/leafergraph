@@ -64,8 +64,12 @@ export interface NodeShellView {
 /**
  * 创建一个完整但不含 Widget 内容的节点壳。
  * 这一步只负责基础壳体、标题、分类、端口和 Widget 容器层。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
  */
 export function createNodeShell(options: CreateNodeShellOptions): NodeShellView {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const {
     nodeId,
     x,
@@ -235,6 +239,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
 
   for (const port of shellLayout.ports) {
     const portHitAreaBounds = resolveNodePortHitAreaBounds(port);
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     const highlightCornerRadius = resolveSlotFrameCornerRadius(
       port.slotShape,
       Math.max(port.portWidth + 8, port.portHeight + 8)
@@ -402,7 +407,12 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   };
 }
 
-/** 归一化节点级错误文案，避免把空白或多行文本直接塞进画布标签。 */
+/**
+ *  归一化节点级错误文案，避免把空白或多行文本直接塞进画布标签。
+ *
+ * @param errorMessage - 错误消息。
+ * @returns 处理后的结果。
+ */
 function normalizeNodeErrorMessage(errorMessage: string | undefined): string | null {
   if (typeof errorMessage !== "string") {
     return null;
@@ -412,11 +422,18 @@ function normalizeNodeErrorMessage(errorMessage: string | undefined): string | n
   return normalized || null;
 }
 
-/** 根据 slot 形状创建真正显示在节点壳上的 port glyph。 */
+/**
+ *  根据 slot 形状创建真正显示在节点壳上的 port glyph。
+ *
+ * @param port - `port`。
+ * @param theme - 主题。
+ * @returns 创建后的结果对象。
+ */
 function createNodeShellPortGlyph(
   port: NodeShellPortLayout,
   theme: NodeShellRenderTheme
 ): Group | Path | Rect {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const fill =
     port.slotColor ??
     (port.direction === "input" ? theme.inputPortFill : theme.outputPortFill);
@@ -438,6 +455,7 @@ function createNodeShellPortGlyph(
         hittable: false
       });
     case "arrow":
+      // 再按当前规则组合结果，并把派生数据一并收口到输出里。
       return new Path({
         path: buildArrowPortPath(port),
         fill,
@@ -465,7 +483,14 @@ function createNodeShellPortGlyph(
   }
 }
 
-/** `grid` 形状用 2x2 小格子表达，避免和普通方形端口混淆。 */
+/**
+ *  `grid` 形状用 2x2 小格子表达，避免和普通方形端口混淆。
+ *
+ * @param port - `port`。
+ * @param fill - `fill`。
+ * @param theme - 主题。
+ * @returns 创建后的结果对象。
+ */
 function createGridPortGlyph(
   port: NodeShellPortLayout,
   fill: string,
@@ -509,7 +534,12 @@ function createGridPortGlyph(
   return group;
 }
 
-/** `arrow` 形状用朝向相关的小三角表达输入/输出方向。 */
+/**
+ *  `arrow` 形状用朝向相关的小三角表达输入/输出方向。
+ *
+ * @param port - `port`。
+ * @returns 处理后的结果。
+ */
 function buildArrowPortPath(port: NodeShellPortLayout): string {
   const x = port.portX;
   const y = port.portY;
@@ -524,7 +554,13 @@ function buildArrowPortPath(port: NodeShellPortLayout): string {
   return `M ${x + width} ${centerY} L ${x} ${y} L ${x} ${y + height} Z`;
 }
 
-/** 非圆形端口统一使用较小圆角，事件方形和显式方形都走这条规则。 */
+/**
+ *  非圆形端口统一使用较小圆角，事件方形和显式方形都走这条规则。
+ *
+ * @param shape - `shape`。
+ * @param size - `size`。
+ * @returns 处理后的结果。
+ */
 function resolveSlotFrameCornerRadius(
   shape: NodeShellPortLayout["slotShape"],
   size: number

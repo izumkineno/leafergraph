@@ -28,7 +28,12 @@ export interface ExampleAuthoringBundleRegistration {
   apply(graph: LeaferGraph): Promise<void> | void;
 }
 
-/** 读取一个编译后 JS bundle，并解析出可注册的入口。 */
+/**
+ *  读取一个编译后 JS bundle，并解析出可注册的入口。
+ *
+ * @param file - 文件。
+ * @returns 处理后的结果。
+ */
 export async function loadAuthoringBundleRegistration(
   file: File
 ): Promise<ExampleAuthoringBundleRegistration> {
@@ -50,10 +55,22 @@ export async function loadAuthoringBundleRegistration(
   }
 }
 
+/**
+ * 处理 `stripSourceMapComment` 相关逻辑。
+ *
+ * @param sourceText - 来源文本。
+ * @returns 处理后的结果。
+ */
 function stripSourceMapComment(sourceText: string): string {
   return sourceText.replace(/^\/\/# sourceMappingURL=.*$/gm, "");
 }
 
+/**
+ * 重写运行时依赖。
+ *
+ * @param sourceText - 来源文本。
+ * @returns 重写运行时依赖的结果。
+ */
 async function rewriteRuntimeDependencies(
   sourceText: string
 ): Promise<string> {
@@ -75,6 +92,12 @@ async function rewriteRuntimeDependencies(
   return nextSource;
 }
 
+/**
+ * 确保运行时依赖垫片。
+ *
+ * @param specifier - `specifier`。
+ * @returns 确保运行时依赖垫片的结果。
+ */
 async function ensureRuntimeDependencyShim(
   specifier: string
 ): Promise<string> {
@@ -96,6 +119,13 @@ async function ensureRuntimeDependencyShim(
   return shimUrl;
 }
 
+/**
+ * 处理 `buildDependencyExportLines` 相关逻辑。
+ *
+ * @param specifier - `specifier`。
+ * @param moduleNamespace - 模块`Namespace`。
+ * @returns 处理后的结果。
+ */
 function buildDependencyExportLines(
   specifier: string,
   moduleNamespace: RuntimeDependencyNamespace
@@ -126,6 +156,11 @@ function buildDependencyExportLines(
   return lines.join("\n");
 }
 
+/**
+ * 获取运行时依赖注册表。
+ *
+ * @returns 处理后的结果。
+ */
 function getRuntimeDependencyRegistry(): Record<
   string,
   RuntimeDependencyNamespace
@@ -143,6 +178,13 @@ function getRuntimeDependencyRegistry(): Record<
   return nextRegistry;
 }
 
+/**
+ * 解析Bundle `Registration`。
+ *
+ * @param file - 文件。
+ * @param moduleNamespace - 模块`Namespace`。
+ * @returns 处理后的结果。
+ */
 function resolveBundleRegistration(
   file: File,
   moduleNamespace: RuntimeDependencyNamespace
@@ -176,6 +218,12 @@ function resolveBundleRegistration(
   );
 }
 
+/**
+ * 解析插件候选项。
+ *
+ * @param moduleNamespace - 模块`Namespace`。
+ * @returns 处理后的结果。
+ */
 function resolvePluginCandidate(
   moduleNamespace: RuntimeDependencyNamespace
 ): { exportName: string; value: LeaferGraphNodePlugin } | null {
@@ -208,6 +256,12 @@ function resolvePluginCandidate(
   return null;
 }
 
+/**
+ * 解析模块候选项。
+ *
+ * @param moduleNamespace - 模块`Namespace`。
+ * @returns 处理后的结果。
+ */
 function resolveModuleCandidate(
   moduleNamespace: RuntimeDependencyNamespace
 ): { exportName: string; value: NodeModule } | null {
@@ -240,6 +294,12 @@ function resolveModuleCandidate(
   return null;
 }
 
+/**
+ * 判断是否为插件`Like`。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function isPluginLike(value: unknown): value is LeaferGraphNodePlugin {
   return (
     typeof value === "object" &&
@@ -248,6 +308,12 @@ function isPluginLike(value: unknown): value is LeaferGraphNodePlugin {
   );
 }
 
+/**
+ * 判断是否为节点模块`Like`。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function isNodeModuleLike(value: unknown): value is NodeModule {
   return (
     typeof value === "object" &&
@@ -256,6 +322,13 @@ function isNodeModuleLike(value: unknown): value is NodeModule {
   );
 }
 
+/**
+ * 解析包`Name`。
+ *
+ * @param value - 当前值。
+ * @param file - 文件。
+ * @returns 处理后的结果。
+ */
 function resolvePackageName(value: unknown, file: File): string {
   const packageName =
     typeof (value as { name?: unknown })?.name === "string"
@@ -266,14 +339,32 @@ function resolvePackageName(value: unknown, file: File): string {
     : removeFileExtension(file.name);
 }
 
+/**
+ * 移除文件`Extension`。
+ *
+ * @param fileName - 文件`Name`。
+ * @returns 移除文件`Extension`的结果。
+ */
 function removeFileExtension(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, "");
 }
 
+/**
+ * 处理 `isValidJavaScriptIdentifier` 相关逻辑。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function isValidJavaScriptIdentifier(value: string): boolean {
   return /^[$A-Z_a-z][$\w]*$/u.test(value);
 }
 
+/**
+ * 处理 `escapeRegExp` 相关逻辑。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

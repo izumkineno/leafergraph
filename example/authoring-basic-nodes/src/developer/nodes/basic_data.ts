@@ -28,6 +28,13 @@ interface FileNodeState {
   loading: boolean;
 }
 
+/**
+ * 读取`Response` 载荷。
+ *
+ * @param response - `response`。
+ * @param type - 类型。
+ * @returns 处理后的结果。
+ */
 function readResponsePayload(
   response: Response,
   type: FileOutputType
@@ -45,6 +52,13 @@ function readResponsePayload(
   return response.text();
 }
 
+/**
+ * 格式化文件状态。
+ *
+ * @param state - 当前状态。
+ * @param url - `url`。
+ * @returns 处理后的结果。
+ */
 function formatFileStatus(state: FileNodeState, url: string): string {
   if (!url) {
     return "WAITING\nProvide a URL";
@@ -62,6 +76,9 @@ function formatFileStatus(state: FileNodeState, url: string): string {
   return `READY\n${url}\n${toDisplayText(state.data)}`;
 }
 
+/**
+ * 封装 FileNode 的节点行为。
+ */
 export class FileNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.file,
@@ -108,6 +125,11 @@ export class FileNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       lastKey: "",
@@ -118,6 +140,12 @@ export class FileNode extends BaseNode {
     } satisfies FileNodeState;
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const inputUrl = ctx.getInput("url");
     const nextKey =
@@ -142,6 +170,15 @@ export class FileNode extends BaseNode {
     setNodeTitle(ctx.node, nextKey ? `Const File ${nextType}` : "Const File");
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, _options, ctx) {
     if (action !== "reload") {
       return;
@@ -154,6 +191,14 @@ export class FileNode extends BaseNode {
     );
   }
 
+  /**
+   * 处理 `fetchFile` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @param url - `url`。
+   * @param type - 类型。
+   * @returns 无返回值。
+   */
   private fetchFile(
     ctx: Parameters<FileNode["onExecute"]>[0],
     url: string,
@@ -198,6 +243,9 @@ export class FileNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 JsonParseNode 的节点行为。
+ */
 export class JsonParseNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.jsonparse,
@@ -228,6 +276,11 @@ export class JsonParseNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       parsed: undefined as unknown,
@@ -235,6 +288,12 @@ export class JsonParseNode extends BaseNode {
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     ctx.setOutput("object", ctx.state.parsed);
     updateStatus(
@@ -245,6 +304,15 @@ export class JsonParseNode extends BaseNode {
     );
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, _options, ctx) {
     if (action !== "parse") {
       return;
@@ -267,6 +335,9 @@ export class JsonParseNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ConstantDataNode 的节点行为。
+ */
 export class ConstantDataNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.data,
@@ -291,6 +362,11 @@ export class ConstantDataNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       data: {} as Record<string, unknown>,
@@ -298,6 +374,12 @@ export class ConstantDataNode extends BaseNode {
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const jsonText = readWidgetString(ctx, "value", "{\n  \n}");
     ctx.setProp("value", jsonText);
@@ -314,6 +396,9 @@ export class ConstantDataNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ConstantArrayNode 的节点行为。
+ */
 export class ConstantArrayNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.array,
@@ -342,6 +427,11 @@ export class ConstantArrayNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       value: [1, 2, 3] as unknown[],
@@ -349,6 +439,12 @@ export class ConstantArrayNode extends BaseNode {
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const inputValue = ctx.getInput("json");
     if (Array.isArray(inputValue)) {
@@ -380,6 +476,9 @@ export class ConstantArrayNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 SetArrayNode 的节点行为。
+ */
 export class SetArrayNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.setArray,
@@ -404,6 +503,12 @@ export class SetArrayNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const arrayValue = ctx.getInput("arr");
     const nextValue = ctx.getInput("value");
@@ -420,6 +525,9 @@ export class SetArrayNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ArrayElementNode 的节点行为。
+ */
 export class ArrayElementNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.arrayElement,
@@ -443,6 +551,12 @@ export class ArrayElementNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const arrayValue = ctx.getInput("array");
     const inputIndex = ctx.getInput("index");
@@ -459,6 +573,9 @@ export class ArrayElementNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 TableElementNode 的节点行为。
+ */
 export class TableElementNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.tableElement,
@@ -494,6 +611,12 @@ export class TableElementNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const table = ctx.getInput("table");
     const rowInput = ctx.getInput("row");
@@ -517,6 +640,9 @@ export class TableElementNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ObjectPropertyNode 的节点行为。
+ */
 export class ObjectPropertyNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.objectProperty,
@@ -537,6 +663,12 @@ export class ObjectPropertyNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const property = readWidgetString(ctx, "value", "name");
     const objectValue = ctx.getInput("in");
@@ -550,6 +682,9 @@ export class ObjectPropertyNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 ObjectKeysNode 的节点行为。
+ */
 export class ObjectKeysNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.objectKeys,
@@ -559,6 +694,12 @@ export class ObjectKeysNode extends BaseNode {
     outputs: [{ name: "keys", type: "array" }]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const objectValue = ctx.getInput("obj");
     if (!objectValue || typeof objectValue !== "object") {
@@ -569,6 +710,9 @@ export class ObjectKeysNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 SetObjectNode 的节点行为。
+ */
 export class SetObjectNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.setObject,
@@ -592,6 +736,12 @@ export class SetObjectNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const objectValue = ctx.getInput("obj");
     const nextValue = ctx.getInput("value");
@@ -606,6 +756,9 @@ export class SetObjectNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 MergeObjectsNode 的节点行为。
+ */
 export class MergeObjectsNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.mergeObjects,
@@ -633,12 +786,23 @@ export class MergeObjectsNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       result: {} as Record<string, unknown>
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const objectA = ctx.getInput("A");
     const objectB = ctx.getInput("B");
@@ -653,6 +817,15 @@ export class MergeObjectsNode extends BaseNode {
     updateStatus(ctx, `READY\n${Object.keys(ctx.state.result).length} keys`);
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, _options, ctx) {
     if (action !== "clear") {
       return;
@@ -663,6 +836,9 @@ export class MergeObjectsNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 VariableNode 的节点行为。
+ */
 export class VariableNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.variable,
@@ -699,6 +875,12 @@ export class VariableNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const variableName = readWidgetString(ctx, "varname", "myname");
     const containerName = readWidgetString(
@@ -732,6 +914,9 @@ export class VariableNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 DataStoreNode 的节点行为。
+ */
 export class DataStoreNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.dataStore,
@@ -773,12 +958,23 @@ export class DataStoreNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       lastValue: null as unknown
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     ctx.state.lastValue = ctx.getInput("data");
     ctx.setProp("serialize", readWidgetBoolean(ctx, "serialize", true));
@@ -786,6 +982,15 @@ export class DataStoreNode extends BaseNode {
     updateStatus(ctx, `STORED\n${toDisplayText(ctx.props.data)}`);
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, _options, ctx) {
     if (action !== "assign" && action !== "store") {
       return;

@@ -127,6 +127,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
 >(
   options: LeaferGraphSceneRuntimeAssemblyOptions<TNodeState>
 ): LeaferGraphSceneRuntimeAssemblyResult<TNodeState> {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   let interactionHost!: LeaferGraphInteractionHost<
     TNodeState,
     NodeViewState<TNodeState>
@@ -264,6 +265,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
       options.resolveGraphTheme(options.themeHost.getMode()).nodeShellStyle.genericPortFill
   });
 
+  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
   sceneHost = new LeaferGraphSceneHost({
     nodeViews: options.nodeViews,
     nodeHost,

@@ -128,7 +128,11 @@ export const NODE_SHELL_LAYOUT_METRICS: NodeShellLayoutMetrics = {
   slotTextWidth: SLOT_TEXT_WIDTH
 };
 
-/** 创建默认节点壳样式配置。 */
+/**
+ *  创建默认节点壳样式配置。
+ *
+ * @returns 创建后的结果对象。
+ */
 export function createDefaultNodeShellStyleConfig(): LeaferGraphNodeShellStyleConfig {
   return {
     defaultNodeWidth: DEFAULT_NODE_WIDTH,
@@ -151,7 +155,11 @@ export function createDefaultNodeShellStyleConfig(): LeaferGraphNodeShellStyleCo
   };
 }
 
-/** 关闭连线传播动画时使用的样式。 */
+/**
+ *  关闭连线传播动画时使用的样式。
+ *
+ * @returns 创建后的结果对象。
+ */
 export function createDisabledDataFlowAnimationStyleConfig(): LeaferGraphDataFlowAnimationStyleConfig {
   return {
     enabled: false,
@@ -174,16 +182,23 @@ export function createDisabledDataFlowAnimationStyleConfig(): LeaferGraphDataFlo
   };
 }
 
-/** 创建默认的数据流传输动画样式配置。 */
+/**
+ *  创建默认的数据流传输动画样式配置。
+ *
+ * @param preset - 预设。
+ * @returns 创建后的结果对象。
+ */
 export function createDefaultDataFlowAnimationStyleConfig(
   preset: LeaferGraphLinkPropagationAnimationPreset | false = "performance"
 ): LeaferGraphDataFlowAnimationStyleConfig {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   if (preset === false) {
     return createDisabledDataFlowAnimationStyleConfig();
   }
 
   switch (preset) {
     case "balanced":
+      // 再按当前规则组合结果，并把派生数据一并收口到输出里。
       return {
         enabled: true,
         preset,
@@ -247,28 +262,49 @@ export function createDefaultDataFlowAnimationStyleConfig(
   }
 }
 
-/** 默认连线描边色。 */
+/**
+ *  默认连线描边色。
+ *
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultLinkStroke(): string {
   return LINK_STROKE;
 }
 
-/** 默认选中描边色。 */
+/**
+ *  默认选中描边色。
+ *
+ * @param _mode - 模式。
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultSelectedStroke(_mode: LeaferGraphThemeMode): string {
   return NODE_SELECTED_STROKE;
 }
 
-/** 根据主题模式解析默认画布背景。 */
+/**
+ *  根据主题模式解析默认画布背景。
+ *
+ * @param mode - 模式。
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultCanvasBackground(
   mode: LeaferGraphThemeMode
 ): string {
   return mode === "dark" ? CANVAS_BACKGROUND_DARK : CANVAS_BACKGROUND_LIGHT;
 }
 
-/** 根据主题模式解析默认节点壳渲染主题。 */
+/**
+ *  根据主题模式解析默认节点壳渲染主题。
+ *
+ * @param mode - 模式。
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultNodeShellRenderTheme(
   mode: LeaferGraphThemeMode
 ): NodeShellRenderTheme {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   if (mode === "dark") {
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     return {
       nodeRadius: NODE_RADIUS,
       headerHeight: HEADER_HEIGHT,
@@ -365,7 +401,12 @@ export function resolveDefaultNodeShellRenderTheme(
   };
 }
 
-/** 根据主题模式解析默认 graph 主题 bundle。 */
+/**
+ *  根据主题模式解析默认 graph 主题 bundle。
+ *
+ * @param mode - 模式。
+ * @returns 处理后的结果。
+ */
 export function resolveDefaultGraphTheme(
   mode: LeaferGraphThemeMode
 ): LeaferGraphGraphThemeTokens {

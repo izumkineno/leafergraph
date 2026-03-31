@@ -32,6 +32,11 @@ export interface ResolvedNodeModule {
 /**
  * 将一个模块安装到节点注册表中。
  * 安装前会先解析并标准化模块作用域，再批量注册节点定义。
+ *
+ * @param registry - 注册表。
+ * @param module - 模块。
+ * @param options - 可选配置项。
+ * @returns 安装节点模块的结果。
  */
 export function installNodeModule(
   registry: NodeRegistry,
@@ -50,6 +55,10 @@ export function installNodeModule(
 /**
  * 解析模块，得到最终可安装结构，但不直接写入注册表。
  * 这个函数适合宿主在真正安装前先做日志、校验或调试展示。
+ *
+ * @param module - 模块。
+ * @param options - 可选配置项。
+ * @returns 处理后的结果。
  */
 export function resolveNodeModule(
   module: NodeModule,
@@ -66,6 +75,10 @@ export function resolveNodeModule(
 /**
  * 合并模块自身作用域与安装时覆写作用域。
  * 安装参数优先级高于模块内默认值。
+ *
+ * @param baseScope - `base` 作用域。
+ * @param overrideScope - `override` 作用域。
+ * @returns 处理后的结果。
  */
 export function resolveNodeModuleScope(
   baseScope?: NodeModuleScope,
@@ -83,6 +96,10 @@ export function resolveNodeModuleScope(
 /**
  * 将模块作用域应用到单个节点定义上。
  * 它会补全最终 `type`，并在缺少 `category` 时继承模块默认分组。
+ *
+ * @param definition - 定义。
+ * @param scope - 作用域。
+ * @returns 应用节点模块作用域的结果。
  */
 export function applyNodeModuleScope(
   definition: NodeDefinition,
@@ -103,6 +120,10 @@ export function applyNodeModuleScope(
 /**
  * 计算节点最终类型。
  * 如果节点本身已经显式带命名空间，则不会重复拼接模块前缀。
+ *
+ * @param type - 类型。
+ * @param namespace - `namespace`。
+ * @returns 处理后的结果。
  */
 export function resolveScopedNodeType(type: string, namespace?: string): string {
   const safeType = type.trim();
@@ -118,6 +139,9 @@ export function resolveScopedNodeType(type: string, namespace?: string): string 
 /**
  * 判断节点类型是否已经带作用域前缀。
  * 当前把 `/` 和 `:` 都视为已作用域化的分隔符。
+ *
+ * @param type - 类型。
+ * @returns 对应的判断结果。
  */
 export function isScopedNodeType(type: string): boolean {
   return /[/:]/.test(type);
@@ -126,6 +150,9 @@ export function isScopedNodeType(type: string): boolean {
 /**
  * 标准化命名空间文本。
  * 它会统一路径分隔符，并裁掉首尾多余斜杠。
+ *
+ * @param namespace - `namespace`。
+ * @returns 处理后的结果。
  */
 function normalizeNamespace(namespace?: string): string | undefined {
   const value = namespace?.trim().replace(/[/\\]+/g, "/").replace(/^\/+|\/+$/g, "");
@@ -134,6 +161,9 @@ function normalizeNamespace(namespace?: string): string | undefined {
 
 /**
  * 标准化模块默认分组名称。
+ *
+ * @param group - 分组。
+ * @returns 处理后的结果。
  */
 function normalizeGroup(group?: string): string | undefined {
   const value = group?.trim();

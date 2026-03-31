@@ -65,17 +65,33 @@ export interface NodePortsLayoutResult {
  */
 type NodePortSource = Pick<NodeRuntimeState, "layout" | "inputs" | "outputs" | "flags">;
 
-/** 提取输入槽位展示文案。没有真实输入槽位时，不额外制造展示型假端口。 */
+/**
+ *  提取输入槽位展示文案。没有真实输入槽位时，不额外制造展示型假端口。
+ *
+ * @param node - 节点。
+ * @returns 处理后的结果。
+ */
 export function resolveNodeInputLabels(node: Pick<NodeRuntimeState, "inputs">): string[] {
   return node.inputs.map((input) => input.label ?? input.name);
 }
 
-/** 提取输出槽位展示文案。没有真实输出槽位时，不额外制造展示型假端口。 */
+/**
+ *  提取输出槽位展示文案。没有真实输出槽位时，不额外制造展示型假端口。
+ *
+ * @param node - 节点。
+ * @returns 处理后的结果。
+ */
 export function resolveNodeOutputLabels(node: Pick<NodeRuntimeState, "outputs">): string[] {
   return node.outputs.map((output) => output.label ?? output.name);
 }
 
-/** 计算端口布局所需的统一槽位数。 */
+/**
+ *  计算端口布局所需的统一槽位数。
+ *
+ * @param inputs - 输入参数。
+ * @param outputs - 输出参数。
+ * @returns 处理后的结果。
+ */
 export function resolveNodePortSlotCount(
   inputs: string[],
   outputs: string[]
@@ -86,6 +102,11 @@ export function resolveNodePortSlotCount(
 /**
  * 计算某个槽位的纵向锚点。
  * 即使节点没有显式槽位，也会稳定回退到第一行默认位置。
+ *
+ * @param slotCount - 槽位`Count`。
+ * @param slotIndex - 槽位`Index`。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
  */
 export function resolveNodePortAnchorY(
   slotCount: number,
@@ -103,7 +124,12 @@ export function resolveNodePortAnchorY(
   );
 }
 
-/** 折叠节点时，端口统一吸附到头部中线，形成更紧凑的视觉表达。 */
+/**
+ *  折叠节点时，端口统一吸附到头部中线，形成更紧凑的视觉表达。
+ *
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
+ */
 export function resolveCollapsedNodePortAnchorY(
   metrics: NodeShellLayoutMetrics
 ): number {
@@ -113,12 +139,18 @@ export function resolveCollapsedNodePortAnchorY(
 /**
  * 根据节点输入输出，生成完整的端口与标签布局。
  * 节点壳与连线锚点应共享这份计算结果。
+ *
+ * @param node - 节点。
+ * @param width - `width`。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
  */
 export function resolveNodePortsLayout(
   node: NodePortSource,
   width: number,
   metrics: NodeShellLayoutMetrics
 ): NodePortsLayoutResult {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const inputs = resolveNodeInputLabels(node);
   const outputs = resolveNodeOutputLabels(node);
   const collapsed = Boolean(node.flags.collapsed);
@@ -154,6 +186,7 @@ export function resolveNodePortsLayout(
     }
 
     if (outputs.length) {
+      // 再按当前规则组合结果，并把派生数据一并收口到输出里。
       ports.push({
         direction: "output",
         index: 0,
@@ -241,7 +274,14 @@ export function resolveNodePortsLayout(
   };
 }
 
-/** 在端口布局结果中查找某个方向某个索引的端口。 */
+/**
+ *  在端口布局结果中查找某个方向某个索引的端口。
+ *
+ * @param ports - `ports`。
+ * @param direction - `direction`。
+ * @param slotIndex - 槽位`Index`。
+ * @returns 处理后的结果。
+ */
 export function findNodePortLayout(
   ports: NodeShellPortLayout[],
   direction: SlotDirection,
@@ -253,7 +293,12 @@ export function findNodePortLayout(
   );
 }
 
-/** 端口命中框固定围绕 slot 本体展开，避免吞掉整行或干扰头部按钮。 */
+/**
+ *  端口命中框固定围绕 slot 本体展开，避免吞掉整行或干扰头部按钮。
+ *
+ * @param port - `port`。
+ * @returns 处理后的结果。
+ */
 export function resolveNodePortHitAreaBounds(
   port: Pick<NodeShellPortLayout, "portX" | "portY" | "portWidth" | "portHeight">
 ): NodeShellPortHitAreaBounds {
@@ -268,6 +313,12 @@ export function resolveNodePortHitAreaBounds(
 /**
  * 直接从节点结构解析某个端口锚点。
  * 这是给连线路由使用的快捷入口，内部仍然复用端口布局计算。
+ *
+ * @param node - 节点。
+ * @param direction - `direction`。
+ * @param slotIndex - 槽位`Index`。
+ * @param metrics - `metrics`。
+ * @returns 处理后的结果。
  */
 export function resolveNodePortAnchorYForNode(
   node: NodePortSource,

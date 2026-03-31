@@ -79,6 +79,9 @@ interface LeaferGraphMutationHostOptions<
 /**
  * 归一化连线槽位序号。
  * 当前阶段未提供或非法时统一回退到第一个槽位。
+ *
+ * @param slot - 槽位。
+ * @returns 处理后的结果。
  */
 export function normalizeGraphLinkSlotIndex(slot: number | undefined): number {
   if (typeof slot !== "number" || !Number.isFinite(slot)) {
@@ -88,7 +91,12 @@ export function normalizeGraphLinkSlotIndex(slot: number | undefined): number {
   return Math.max(DEFAULT_GRAPH_LINK_SLOT, Math.floor(slot));
 }
 
-/** 归一化并拷贝连线数据，避免外部对象后续修改直接污染运行时状态。 */
+/**
+ *  归一化并拷贝连线数据，避免外部对象后续修改直接污染运行时状态。
+ *
+ * @param link - 连线。
+ * @returns 处理后的结果。
+ */
 export function normalizeGraphLinkData(
   link: LeaferGraphCreateLinkInput
 ): GraphLink {
@@ -130,6 +138,11 @@ export class LeaferGraphMutationHost<
     TNodeViewState
   >;
 
+  /**
+   * 初始化 LeaferGraphMutationHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphMutationHostOptions<TNodeState, TNodeViewState>
   ) {
@@ -367,6 +380,7 @@ export class LeaferGraphMutationHost<
    * @returns 对外暴露的连线安全副本。
    */
   createLink(input: LeaferGraphCreateLinkInput): GraphLink {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const link = normalizeGraphLinkData(input);
     const sourceNode = this.options.graphNodes.get(link.source.nodeId);
     const targetNode = this.options.graphNodes.get(link.target.nodeId);
@@ -439,6 +453,8 @@ export class LeaferGraphMutationHost<
    * @param positions - 拖拽开始时记录的节点起始位置。
    * @param deltaX - 当前拖拽相对起点的横向位移。
    * @param deltaY - 当前拖拽相对起点的纵向位移。
+   *
+   * @returns 处理后的结果。
    */
   moveNodesByDelta(
     positions: readonly GraphDragNodePosition[],
@@ -508,6 +524,10 @@ export class LeaferGraphMutationHost<
    * @remarks
    * 主包 API 继续保留扁平的 `x / y / width / height` 写法，
    * 这里负责把它们收敛回正式节点布局结构。
+   *
+   * @param node - 节点。
+   * @param input - 输入参数。
+   * @returns 处理后的结果。
    */
   private resolvePatchedNodeLayout(
     node: TNodeState,
@@ -532,6 +552,10 @@ export class LeaferGraphMutationHost<
 
   /**
    * 把节点 flags 补丁整理成 `configureNode()` 可消费的正式结构。
+   *
+   * @param node - 节点。
+   * @param input - 输入参数。
+   * @returns 处理后的结果。
    */
   private resolvePatchedNodeFlags(
     node: TNodeState,
@@ -553,6 +577,10 @@ export class LeaferGraphMutationHost<
    * @remarks
    * `subtitle / accent / category / status` 这类展示字段虽然历史上经常在顶层透传，
    * 但当前已经统一收进 `properties`，这里负责兼容主包便捷输入并写回正式结构。
+   *
+   * @param node - 节点。
+   * @param input - 输入参数。
+   * @returns 处理后的结果。
    */
   private resolvePatchedNodeProperties(
     node: TNodeState,
@@ -585,6 +613,10 @@ export class LeaferGraphMutationHost<
    * @remarks
    * 当前阶段 Widget 更新采取“整组替换”策略，不在图变更宿主里做细粒度 diff，
    * 让 Widget 生命周期和节点配置职责保持分离。
+   *
+   * @param node - 节点。
+   * @param input - 输入参数。
+   * @returns 处理后的结果。
    */
   private resolvePatchedNodeWidgets(
     node: TNodeState,
@@ -600,8 +632,12 @@ export class LeaferGraphMutationHost<
    * @remarks
    * 这条路径专门服务主包对外暴露的 `createNode(...)` 便捷 API，
    * 它会把扁平输入整理成正式节点结构，然后交给 `createNodeState(...)` 统一归一化。
+   *
+   * @param node - 节点。
+   * @returns 创建后的结果对象。
    */
   private createGraphNodeState(node: LeaferGraphCreateNodeInput): TNodeState {
+    // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const type = node.type?.trim();
     if (!type) {
       throw new Error("节点 type 不能为空");
@@ -614,6 +650,7 @@ export class LeaferGraphMutationHost<
     if (node.subtitle !== undefined) {
       properties.subtitle = node.subtitle;
     }
+    // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     if (node.accent !== undefined) {
       properties.accent = node.accent;
     }
@@ -646,7 +683,12 @@ export class LeaferGraphMutationHost<
     }) as TNodeState;
   }
 
-  /** 判断当前图中是否已经存在同一组端点的正式连线。 */
+  /**
+   *  判断当前图中是否已经存在同一组端点的正式连线。
+   *
+   * @param link - 连线。
+   * @returns 对应的判断结果。
+   */
   private hasSameLink(link: GraphLink): boolean {
     for (const current of this.options.graphLinks.values()) {
       if (
@@ -666,6 +708,9 @@ export class LeaferGraphMutationHost<
 /**
  * 将旧字符串数组或正式槽位声明统一转换成槽位输入。
  * 这样图变更宿主本身就能同时兼容页面层数据和正式节点复制、导入路径。
+ *
+ * @param slots - 槽位。
+ * @returns 处理后的结果。
  */
 function toSlotSpecs(slots: LeaferGraphNodeSlotInput[]): NodeSlotSpec[] {
   return slots.map((slot) =>
@@ -678,7 +723,12 @@ function toSlotSpecs(slots: LeaferGraphNodeSlotInput[]): NodeSlotSpec[] {
   );
 }
 
-/** 为对外查询返回一份安全副本，避免外部绕过正式 API 直接改内部状态。 */
+/**
+ *  为对外查询返回一份安全副本，避免外部绕过正式 API 直接改内部状态。
+ *
+ * @param link - 连线。
+ * @returns 处理后的结果。
+ */
 function cloneGraphLinkData(link: GraphLink): GraphLink {
   return {
     id: link.id,
@@ -689,7 +739,12 @@ function cloneGraphLinkData(link: GraphLink): GraphLink {
   };
 }
 
-/** 生成默认连线 ID，保证在未显式指定时也能稳定进入图状态。 */
+/**
+ *  生成默认连线 ID，保证在未显式指定时也能稳定进入图状态。
+ *
+ * @param link - 连线。
+ * @returns 创建后的结果对象。
+ */
 function createGraphLinkId(link: LeaferGraphCreateLinkInput): string {
   const sourceSlot = normalizeGraphLinkSlotIndex(link.source.slot);
   const targetSlot = normalizeGraphLinkSlotIndex(link.target.slot);
@@ -698,12 +753,25 @@ function createGraphLinkId(link: LeaferGraphCreateLinkInput): string {
   return id;
 }
 
-/** 把任意输入约束成有限数字；非法时回退到给定值。 */
+/**
+ *  把任意输入约束成有限数字；非法时回退到给定值。
+ *
+ * @param value - 当前值。
+ * @param fallback - 回退。
+ * @returns 处理后的结果。
+ */
 function coerceFiniteNumber(value: number | undefined, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-/** 将值限制在给定区间内；未提供最大值时只做下界限制。 */
+/**
+ *  将值限制在给定区间内；未提供最大值时只做下界限制。
+ *
+ * @param value - 当前值。
+ * @param min - `min`。
+ * @param max - `max`。
+ * @returns 处理后的结果。
+ */
 function clampToRange(value: number, min: number, max?: number): number {
   if (typeof max === "number" && Number.isFinite(max)) {
     return Math.min(Math.max(value, min), max);
@@ -712,7 +780,13 @@ function clampToRange(value: number, min: number, max?: number): number {
   return Math.max(value, min);
 }
 
-/** 按给定步长做吸附；非法或非正数步长会直接返回原值。 */
+/**
+ *  按给定步长做吸附；非法或非正数步长会直接返回原值。
+ *
+ * @param value - 当前值。
+ * @param step - 步骤。
+ * @returns 处理后的结果。
+ */
 function snapToStep(value: number, step?: number): number {
   if (typeof step !== "number" || !Number.isFinite(step) || step <= 0) {
     return value;

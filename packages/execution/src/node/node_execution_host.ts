@@ -67,6 +67,9 @@ interface LeaferGraphNodeExecutionHostOptions<
 
 let executionChainSeed = 1;
 
+/**
+ * 封装 LeaferGraphNodeExecutionHost 的宿主能力。
+ */
 export class LeaferGraphNodeExecutionHost<
   TNodeState extends NodeRuntimeState = NodeRuntimeState
 > {
@@ -85,10 +88,21 @@ export class LeaferGraphNodeExecutionHost<
 
   private readonly options: LeaferGraphNodeExecutionHostOptions<TNodeState>;
 
+  /**
+   * 初始化 LeaferGraphNodeExecutionHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphNodeExecutionHostOptions<TNodeState>) {
     this.options = options;
   }
 
+  /**
+   * 获取节点执行状态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeExecutionState(
     nodeId: string
   ): LeaferGraphNodeExecutionState | undefined {
@@ -99,6 +113,12 @@ export class LeaferGraphNodeExecutionHost<
     return cloneExecutionState(this.executionStateByNodeId.get(nodeId));
   }
 
+  /**
+   * 按类型列出节点 ID 列表。
+   *
+   * @param type - 类型。
+   * @returns 收集到的结果列表。
+   */
   listNodeIdsByType(type: string): string[] {
     const nodeIds: string[] = [];
 
@@ -111,6 +131,13 @@ export class LeaferGraphNodeExecutionHost<
     return nodeIds;
   }
 
+  /**
+   * 创建条目执行任务。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param options - 可选配置项。
+   * @returns 创建后的结果对象。
+   */
   createEntryExecutionTask(
     nodeId: string,
     options: LeaferGraphCreateEntryExecutionTaskOptions
@@ -137,10 +164,18 @@ export class LeaferGraphNodeExecutionHost<
     };
   }
 
+  /**
+   * 执行执行任务。
+   *
+   * @param task - 任务。
+   * @param stepIndex - 步骤`Index`。
+   * @returns 执行执行任务的结果。
+   */
   executeExecutionTask(
     task: LeaferGraphNodeExecutionTask,
     stepIndex: number
   ): LeaferGraphNodeExecutionTaskResult {
+    // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const node = this.options.graphNodes.get(task.nodeId);
     if (!node || task.activeNodeIds.has(task.nodeId)) {
       return {
@@ -169,6 +204,7 @@ export class LeaferGraphNodeExecutionHost<
     let handled = false;
     const startedAt = Date.now();
 
+    // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
     this.updateExecutionState(task.nodeId, {
       status: "running",
       lastExecutedAt: startedAt
@@ -243,12 +279,22 @@ export class LeaferGraphNodeExecutionHost<
     };
   }
 
+  /**
+   * 分发节点动作。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param options - 可选配置项。
+   * @returns 分发节点动作的结果。
+   */
   dispatchNodeAction(
     nodeId: string,
     action: string,
     param?: unknown,
     options?: Record<string, unknown>
   ): LeaferGraphDispatchNodeActionResult {
+    // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const safeAction = action.trim();
     if (!safeAction) {
       return {
@@ -266,6 +312,7 @@ export class LeaferGraphNodeExecutionHost<
     }
 
     const definition = this.options.nodeRegistry.getNode(node.type);
+    // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
     if (!definition?.onAction) {
       return {
         handled: false,
@@ -318,6 +365,12 @@ export class LeaferGraphNodeExecutionHost<
     };
   }
 
+  /**
+   * 订阅节点执行。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeNodeExecution(
     listener: (event: LeaferGraphNodeExecutionEvent) => void
   ): () => void {
@@ -328,6 +381,12 @@ export class LeaferGraphNodeExecutionHost<
     };
   }
 
+  /**
+   * 映射外部节点执行。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   projectExternalNodeExecution(event: LeaferGraphNodeExecutionEvent): void {
     const node = this.options.graphNodes.get(event.nodeId);
     if (node) {
@@ -354,6 +413,12 @@ export class LeaferGraphNodeExecutionHost<
     }
   }
 
+  /**
+   * 订阅连线传播。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeLinkPropagation(
     listener: (event: LeaferGraphLinkPropagationEvent) => void
   ): () => void {
@@ -364,6 +429,12 @@ export class LeaferGraphNodeExecutionHost<
     };
   }
 
+  /**
+   * 映射外部连线传播。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   projectExternalLinkPropagation(event: LeaferGraphLinkPropagationEvent): void {
     const safeSourceSlot = normalizeConnectionSlot(event.sourceSlot);
     const safeTargetSlot = normalizeConnectionSlot(event.targetSlot);
@@ -396,14 +467,32 @@ export class LeaferGraphNodeExecutionHost<
     }
   }
 
+  /**
+   * 清理节点执行状态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
   clearNodeExecutionState(nodeId: string): void {
     this.executionStateByNodeId.delete(nodeId);
   }
 
+  /**
+   * 清理全部执行状态。
+   *
+   * @returns 无返回值。
+   */
   clearAllExecutionStates(): void {
     this.executionStateByNodeId.clear();
   }
 
+  /**
+   * 更新执行状态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param input - 输入参数。
+   * @returns 无返回值。
+   */
   private updateExecutionState(
     nodeId: string,
     input: {
@@ -430,6 +519,15 @@ export class LeaferGraphNodeExecutionHost<
     });
   }
 
+  /**
+   * 派发节点执行事件。
+   *
+   * @param task - 任务。
+   * @param sequence - `sequence`。
+   * @param executionContext - 当前上下文。
+   * @param state - 当前状态。
+   * @returns 无返回值。
+   */
   private emitNodeExecutionEvent(
     task: LeaferGraphNodeExecutionTask,
     sequence: number,
@@ -472,6 +570,12 @@ export class LeaferGraphNodeExecutionHost<
     }
   }
 
+  /**
+   * 派发连线传播事件。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private emitLinkPropagationEvent(
     event: LeaferGraphLinkPropagationEvent
   ): void {
@@ -484,12 +588,22 @@ export class LeaferGraphNodeExecutionHost<
     }
   }
 
+  /**
+   * 收集`Propagated` 任务。
+   *
+   * @param task - 任务。
+   * @param activeNodeIds - 活动节点 ID 列表。
+   * @param sourceSlot - 来源槽位。
+   * @param data - 当前数据。
+   * @returns 收集`Propagated` 任务的结果。
+   */
   private collectPropagatedTasks(
     task: LeaferGraphNodeExecutionTask,
     activeNodeIds: ReadonlySet<string>,
     sourceSlot: number,
     data: unknown
   ): LeaferGraphNodeExecutionTask[] {
+    // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const safeSourceSlot = normalizeConnectionSlot(sourceSlot);
     const nextTasks: LeaferGraphNodeExecutionTask[] = [];
     const nextNodeIds = new Set<string>();
@@ -510,6 +624,7 @@ export class LeaferGraphNodeExecutionHost<
       }
 
       const targetSlot = normalizeConnectionSlot(link.target.slot);
+      // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
       const targetInput = targetNode.inputs[targetSlot];
       writeRuntimeValue(targetNode.inputValues, targetSlot, data);
       this.emitLinkPropagationEvent({
@@ -574,12 +689,25 @@ export class LeaferGraphNodeExecutionHost<
   }
 }
 
+/**
+ * 创建执行链路 ID。
+ *
+ * @param nodeId - 目标节点 ID。
+ * @returns 创建后的结果对象。
+ */
 function createExecutionChainId(nodeId: string): string {
   const chainId = `exec:${nodeId}:${Date.now()}:${executionChainSeed}`;
   executionChainSeed += 1;
   return chainId;
 }
 
+/**
+ * 创建执行上下文。
+ *
+ * @param chain - 链路。
+ * @param stepIndex - 步骤`Index`。
+ * @returns 创建后的结果对象。
+ */
 function createExecutionContext(
   chain: LeaferGraphExecutionChainState,
   stepIndex: number
@@ -594,6 +722,13 @@ function createExecutionContext(
   };
 }
 
+/**
+ * 创建动作执行选项。
+ *
+ * @param task - 任务。
+ * @param executionContext - 当前上下文。
+ * @returns 创建后的结果对象。
+ */
 function createActionExecutionOptions(
   task: LeaferGraphNodeExecutionTask,
   executionContext: LeaferGraphExecutionContext
@@ -605,6 +740,12 @@ function createActionExecutionOptions(
   };
 }
 
+/**
+ * 规范化连接槽位。
+ *
+ * @param slot - 槽位。
+ * @returns 处理后的结果。
+ */
 function normalizeConnectionSlot(slot: number | undefined): number {
   if (typeof slot !== "number" || !Number.isFinite(slot)) {
     return 0;
@@ -613,6 +754,14 @@ function normalizeConnectionSlot(slot: number | undefined): number {
   return Math.max(0, Math.floor(slot));
 }
 
+/**
+ * 写入运行时值。
+ *
+ * @param values - 值。
+ * @param slot - 槽位。
+ * @param data - 当前数据。
+ * @returns 无返回值。
+ */
 function writeRuntimeValue(values: unknown[], slot: number, data: unknown): void {
   while (values.length <= slot) {
     values.push(undefined);
@@ -621,6 +770,12 @@ function writeRuntimeValue(values: unknown[], slot: number, data: unknown): void
   values[slot] = data;
 }
 
+/**
+ * 克隆执行状态。
+ *
+ * @param state - 当前状态。
+ * @returns 处理后的结果。
+ */
 function cloneExecutionState(
   state: LeaferGraphNodeExecutionState | undefined
 ): LeaferGraphNodeExecutionState {
@@ -632,6 +787,12 @@ function cloneExecutionState(
       };
 }
 
+/**
+ * 克隆节点执行事件。
+ *
+ * @param event - 当前事件对象。
+ * @returns 处理后的结果。
+ */
 function cloneNodeExecutionEvent(
   event: LeaferGraphNodeExecutionEvent
 ): LeaferGraphNodeExecutionEvent {
@@ -642,6 +803,12 @@ function cloneNodeExecutionEvent(
   };
 }
 
+/**
+ * 克隆连线传播事件。
+ *
+ * @param event - 当前事件对象。
+ * @returns 处理后的结果。
+ */
 function cloneLinkPropagationEvent(
   event: LeaferGraphLinkPropagationEvent
 ): LeaferGraphLinkPropagationEvent {
@@ -651,6 +818,12 @@ function cloneLinkPropagationEvent(
   };
 }
 
+/**
+ * 克隆可读值。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function cloneReadableValue<T>(value: T): T {
   if (value === undefined || value === null) {
     return value;
@@ -663,6 +836,12 @@ function cloneReadableValue<T>(value: T): T {
   }
 }
 
+/**
+ * 转换为执行错误消息。
+ *
+ * @param error - 错误。
+ * @returns 处理后的结果。
+ */
 function toExecutionErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message;

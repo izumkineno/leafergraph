@@ -17,6 +17,9 @@ import {
  *
  * 这里刻意保留三位小数以内，
  * 避免 `Watch` 节点在演示时出现过长浮点串。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
  */
 function formatWatchNumber(value: number): string {
   if (!Number.isFinite(value)) {
@@ -33,8 +36,13 @@ function formatWatchNumber(value: number): string {
  * - `undefined` 显示为 `EMPTY`
  * - 基础类型直接转文本
  * - 数组和对象尽量做短格式展示
+ *
+ * @param value - 当前值。
+ * @param depth - `depth`。
+ * @returns 处理后的结果。
  */
 function formatWatchValue(value: unknown, depth = 0): string {
+  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   if (value === undefined) {
     return "EMPTY";
   }
@@ -57,6 +65,7 @@ function formatWatchValue(value: unknown, depth = 0): string {
 
   if (Array.isArray(value)) {
     if (depth >= 2) {
+      // 再按当前规则组合结果，并把派生数据一并收口到输出里。
       return "[...]";
     }
 
@@ -121,12 +130,22 @@ export class WatchNode extends BaseNode {
     ]
   };
 
-  /** 创建节点时先写入默认 Widget 文案。 */
+  /**
+   *  创建节点时先写入默认 Widget 文案。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onCreate(ctx: DevNodeContext) {
     ctx.setWidget(AUTHORING_BROWSER_TEMPLATE_TEXT_WIDGET_NAME, "EMPTY");
   }
 
-  /** 每次执行时，把最新输入同步到节点内部展示区域。 */
+  /**
+   *  每次执行时，把最新输入同步到节点内部展示区域。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx: DevNodeContext) {
     const inputValue = ctx.getInputAt(0);
     const displayText = formatWatchValue(inputValue);

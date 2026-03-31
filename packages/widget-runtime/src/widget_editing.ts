@@ -73,17 +73,31 @@ interface ActiveOptionsMenuState {
  *
  * @remarks
  * 当前格式固定为 `nodeId:widgetIndex`，够稳定也足够可读。
+ *
+ * @param nodeId - 目标节点 ID。
+ * @param widgetIndex - Widget `Index`。
+ * @returns 创建后的结果对象。
  */
 function createWidgetFocusKey(nodeId: string, widgetIndex: number): string {
   return `${nodeId}:${widgetIndex}`;
 }
 
-/** 判断一个事件目标是否为当前 window 下的 HTMLElement。 */
+/**
+ *  判断一个事件目标是否为当前 window 下的 HTMLElement。
+ *
+ * @param target - 当前目标对象。
+ * @returns 对应的判断结果。
+ */
 function isHTMLElement(target: EventTarget | null): target is HTMLElement {
   return target instanceof HTMLElement;
 }
 
-/** 判断当前按键是否属于 Widget 聚焦时应优先截获的组合。 */
+/**
+ *  判断当前按键是否属于 Widget 聚焦时应优先截获的组合。
+ *
+ * @param event - 当前事件对象。
+ * @returns 对应的判断结果。
+ */
 function isReservedWidgetFocusKey(event: KeyboardEvent): boolean {
   if (event.ctrlKey || event.metaKey) {
     return true;
@@ -117,6 +131,11 @@ function isReservedWidgetFocusKey(event: KeyboardEvent): boolean {
 class LeaferGraphWidgetTextEditor extends InnerEditor {
   declare public editTarget: LeaferGraphEditableText;
 
+  /**
+   * 获取 `tag`。
+   *
+   * @returns 当前读取到的属性值。
+   */
   public get tag(): string {
     return LEAFER_GRAPH_WIDGET_EDITOR_TAG;
   }
@@ -178,6 +197,11 @@ class LeaferGraphWidgetTextEditor extends InnerEditor {
     this.editTarget.text = value;
   };
 
+  /**
+   * 处理 `onLoad` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   public onLoad(): void {
     const meta = this.editTarget[LEAFER_GRAPH_WIDGET_EDIT_META];
     if (!meta) {
@@ -226,7 +250,13 @@ class LeaferGraphWidgetTextEditor extends InnerEditor {
     });
   }
 
+  /**
+   * 处理 `onUpdate` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   public onUpdate(): void {
+    // 先整理当前阶段需要的输入、状态与依赖。
     const { editTarget: text } = this;
     const meta = text[LEAFER_GRAPH_WIDGET_EDIT_META];
     const appBounds =
@@ -304,6 +334,11 @@ class LeaferGraphWidgetTextEditor extends InnerEditor {
     this.editDom.style.fontSize = `${Math.max(fontSize * textScale, 12)}px`;
   }
 
+  /**
+   * 处理 `onUnload` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   public onUnload(): void {
     const meta = this.editTarget[LEAFER_GRAPH_WIDGET_EDIT_META];
     if (!meta) {
@@ -330,10 +365,21 @@ class LeaferGraphWidgetTextEditor extends InnerEditor {
     meta.manager.notifyTextEditorClosed();
   }
 
+  /**
+   * 读取`Edit` 值。
+   *
+   * @returns 处理后的结果。
+   */
   private readEditValue(): string {
     return (this.editDom.innerText || "").replace(/\r\n?/g, "\n");
   }
 
+  /**
+   * 写入`Edit` 值。
+   *
+   * @param value - 当前值。
+   * @returns 无返回值。
+   */
   private writeEditValue(value: string): void {
     this.editDom.innerText = value;
   }
@@ -405,6 +451,11 @@ export class LeaferGraphWidgetEditingManager
     }
   };
 
+  /**
+   * 初始化 LeaferGraphWidgetEditingManager 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: {
     app: App;
     container: HTMLElement;
@@ -432,6 +483,12 @@ export class LeaferGraphWidgetEditingManager
     this.ownerWindow.addEventListener("keydown", this.handleWindowKeyDown, true);
   }
 
+  /**
+   * 开始文本`Edit`。
+   *
+   * @param request - `request`。
+   * @returns 对应的判断结果。
+   */
   beginTextEdit(request: LeaferGraphWidgetTextEditRequest): boolean {
     if (
       !this.enabled ||
@@ -469,7 +526,14 @@ export class LeaferGraphWidgetEditingManager
     return true;
   }
 
+  /**
+   * 打开选项菜单。
+   *
+   * @param request - `request`。
+   * @returns 对应的判断结果。
+   */
   openOptionsMenu(request: LeaferGraphWidgetOptionsMenuRequest): boolean {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     if (!this.enabled || !this.options.allowOptionsMenu || !request.options.length) {
       return false;
     }
@@ -563,6 +627,11 @@ export class LeaferGraphWidgetEditingManager
     return true;
   }
 
+  /**
+   * 关闭活动编辑器。
+   *
+   * @returns 无返回值。
+   */
   closeActiveEditor(): void {
     if (this.editor?.innerEditing) {
       this.editor.closeInnerEditor();
@@ -595,6 +664,8 @@ export class LeaferGraphWidgetEditingManager
    * 显式把焦点切换到某个 Widget。
    *
    * @param key - 目标 Widget 焦点键。
+   *
+   * @returns 无返回值。
    */
   focusWidget(key: string): void {
     if (this.focusedWidgetKey === key) {
@@ -611,6 +682,8 @@ export class LeaferGraphWidgetEditingManager
 
   /**
    * 清理当前 Widget 焦点。
+   *
+   * @returns 无返回值。
    */
   clearWidgetFocus(): void {
     if (!this.focusedWidgetKey) {
@@ -635,6 +708,8 @@ export class LeaferGraphWidgetEditingManager
    * 运行时更新编辑浮层主题。
    *
    * @param theme - 新的 Widget 主题上下文。
+   *
+   * @returns 无返回值。
    */
   setTheme(theme: LeaferGraphWidgetThemeContext): void {
     this.theme = theme;
@@ -659,6 +734,8 @@ export class LeaferGraphWidgetEditingManager
    * @param element - 实际承载编辑内容的 DOM。
    * @param multiline - 是否为多行编辑。
    * @param frame - 可选的几何与 padding 覆盖配置。
+   *
+   * @returns 无返回值。
    */
   applyTextEditorTheme(
     element: HTMLDivElement,
@@ -683,6 +760,8 @@ export class LeaferGraphWidgetEditingManager
 
   /**
    * 在文本编辑浮层关闭后清理跟随循环。
+   *
+   * @returns 无返回值。
    */
   notifyTextEditorClosed(): void {
     this.stopEditorFollowLoop();
@@ -693,6 +772,8 @@ export class LeaferGraphWidgetEditingManager
    *
    * @remarks
    * 主包销毁时必须显式调用这里，才能完整释放 DOM 浮层、全局监听和官方 editor 实例。
+   *
+   * @returns 无返回值。
    */
   destroy(): void {
     this.closeActiveEditor();
@@ -713,6 +794,8 @@ export class LeaferGraphWidgetEditingManager
    *
    * @remarks
    * 文本编辑未启用前不会创建 Editor，减少非编辑场景下的额外开销。
+   *
+   * @returns 确保编辑器的结果。
    */
   private ensureEditor(): Editor {
     if (this.editor) {
@@ -744,7 +827,11 @@ export class LeaferGraphWidgetEditingManager
     return editor;
   }
 
-  /** 读取当前活跃文本编辑 DOM。 */
+  /**
+   *  读取当前活跃文本编辑 DOM。
+   *
+   * @returns 处理后的结果。
+   */
   private getActiveEditorDom(): HTMLDivElement | null {
     const innerEditor = this.editor?.innerEditor as LeaferGraphWidgetTextEditor | undefined;
     return innerEditor?.editDom ?? null;
@@ -756,10 +843,17 @@ export class LeaferGraphWidgetEditingManager
    * @remarks
    * 画布缩放、平移、节点移动都会影响文本在屏幕上的位置，
    * 因此编辑态下需要通过 RAF 持续同步 DOM 浮层位置。
+   *
+   * @returns 无返回值。
    */
   private startEditorFollowLoop(): void {
     this.stopEditorFollowLoop();
 
+    /**
+     * 处理 `loop` 相关逻辑。
+     *
+     * @returns 无返回值。
+     */
     const loop = (): void => {
       if (!this.editor?.innerEditing) {
         this.followEditorFrame = 0;
@@ -773,7 +867,11 @@ export class LeaferGraphWidgetEditingManager
     this.followEditorFrame = this.ownerWindow.requestAnimationFrame(loop);
   }
 
-  /** 停止文本编辑浮层的逐帧跟随更新。 */
+  /**
+   *  停止文本编辑浮层的逐帧跟随更新。
+   *
+   * @returns 无返回值。
+   */
   private stopEditorFollowLoop(): void {
     if (this.followEditorFrame) {
       this.ownerWindow.cancelAnimationFrame(this.followEditorFrame);
@@ -783,6 +881,8 @@ export class LeaferGraphWidgetEditingManager
 
   /**
    * 关闭当前打开的离散选项菜单。
+   *
+   * @returns 无返回值。
    */
   private closeOptionsMenu(): void {
     if (!this.activeMenu) {
@@ -801,13 +901,17 @@ export class LeaferGraphWidgetEditingManager
    * @remarks
    * 这里统一维护文本编辑器和选项菜单的基础样式，
    * 避免样式散落在 editor 页面层或各个 Widget 文件里。
+   *
+   * @returns 无返回值。
    */
   private ensureOverlayStyle(): void {
+    // 先整理当前阶段需要的输入、状态与依赖。
     const { document } = this.ownerWindow;
     if (document.getElementById(LEAFER_GRAPH_WIDGET_OVERLAY_STYLE_ID)) {
       return;
     }
 
+    // 再执行核心逻辑，并把结果或副作用统一收口。
     const style = document.createElement("style");
     style.id = LEAFER_GRAPH_WIDGET_OVERLAY_STYLE_ID;
     style.textContent = `
@@ -869,6 +973,8 @@ export class LeaferGraphWidgetEditingManager
    * 应用离散菜单主题变量。
    *
    * @param root - 菜单根元素。
+   *
+   * @returns 无返回值。
    */
   private applyMenuTheme(root: HTMLDivElement): void {
     const { tokens } = this.theme;
@@ -890,6 +996,8 @@ export class LeaferGraphWidgetEditingManager
    * @param root - 菜单根元素。
    * @param anchorClientX - 视口坐标系中的锚点 X。
    * @param anchorClientY - 视口坐标系中的锚点 Y。
+   *
+   * @returns 无返回值。
    */
   private positionMenu(
     root: HTMLDivElement,
@@ -916,6 +1024,9 @@ export class LeaferGraphWidgetEditingManager
    *
    * @remarks
    * 优先命中当前值对应项，否则回退到第一个未禁用选项。
+   *
+   * @param request - `request`。
+   * @returns 处理后的结果。
    */
   private resolveInitialMenuIndex(
     request: LeaferGraphWidgetOptionsMenuRequest
@@ -935,6 +1046,8 @@ export class LeaferGraphWidgetEditingManager
    * 更新菜单当前高亮项并同步 DOM focus。
    *
    * @param index - 目标高亮索引。
+   *
+   * @returns 无返回值。
    */
   private setActiveMenuIndex(index: number): void {
     if (!this.activeMenu) {
@@ -987,6 +1100,8 @@ export class LeaferGraphWidgetEditingManager
  * @remarks
  * 当宿主未启用真实编辑能力时，Widget 仍然可以安全调用这组方法，
  * 只是所有编辑请求都会被无副作用地忽略。
+ *
+ * @returns 创建后的结果对象。
  */
 export function createDisabledWidgetEditingContext(): LeaferGraphWidgetEditingContext {
   return {

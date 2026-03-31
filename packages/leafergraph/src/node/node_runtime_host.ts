@@ -65,6 +65,9 @@ export type {
   LeaferGraphNodeExecutionTaskResult
 } from "@leafergraph/execution";
 
+/**
+ * 封装 LeaferGraphNodeRuntimeHost 的宿主能力。
+ */
 export class LeaferGraphNodeRuntimeHost<
   TNodeState extends LeaferGraphRenderableNodeState,
   TNodeViewState extends LeaferGraphRuntimeNodeViewState<TNodeState>
@@ -80,6 +83,11 @@ export class LeaferGraphNodeRuntimeHost<
 
   private readonly nodeExecutionHost: LeaferGraphNodeExecutionHost<TNodeState>;
 
+  /**
+   * 初始化 LeaferGraphNodeRuntimeHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphNodeRuntimeHostOptions<TNodeState, TNodeViewState>
   ) {
@@ -101,6 +109,12 @@ export class LeaferGraphNodeRuntimeHost<
     });
   }
 
+  /**
+   * 获取节点快照。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeSnapshot(nodeId: string): NodeSerializeResult | undefined {
     const node = this.options.graphNodes.get(nodeId);
     if (!node) {
@@ -110,6 +124,13 @@ export class LeaferGraphNodeRuntimeHost<
     return serializeNode(this.options.nodeRegistry, node);
   }
 
+  /**
+   * 设置节点`Collapsed`。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param collapsed - `collapsed`。
+   * @returns 对应的判断结果。
+   */
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
     const node = this.options.graphNodes.get(nodeId);
     const state = this.options.nodeViews.get(nodeId);
@@ -130,6 +151,12 @@ export class LeaferGraphNodeRuntimeHost<
     return true;
   }
 
+  /**
+   * 处理 `getNodeResizeConstraint` 相关逻辑。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeResizeConstraint(
     nodeId: string
   ): LeaferGraphNodeResizeConstraint | undefined {
@@ -141,12 +168,24 @@ export class LeaferGraphNodeRuntimeHost<
     return this.options.resolveNodeResizeConstraint(node);
   }
 
+  /**
+   * 获取节点执行状态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeExecutionState(
     nodeId: string
   ): LeaferGraphNodeExecutionState | undefined {
     return this.nodeExecutionHost.getNodeExecutionState(nodeId);
   }
 
+  /**
+   * 获取节点`Inspector` 状态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 处理后的结果。
+   */
   getNodeInspectorState(
     nodeId: string
   ): LeaferGraphNodeInspectorState | undefined {
@@ -172,10 +211,22 @@ export class LeaferGraphNodeRuntimeHost<
     };
   }
 
+  /**
+   * 判断是否可以`Resize` 节点。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 对应的判断结果。
+   */
   canResizeNode(nodeId: string): boolean {
     return Boolean(this.getNodeResizeConstraint(nodeId)?.enabled);
   }
 
+  /**
+   * 判断是否可以执行节点。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 对应的判断结果。
+   */
   canExecuteNode(nodeId: string): boolean {
     const node = this.options.graphNodes.get(nodeId);
     if (!node) {
@@ -185,10 +236,22 @@ export class LeaferGraphNodeRuntimeHost<
     return Boolean(this.options.nodeRegistry.getNode(node.type)?.onExecute);
   }
 
+  /**
+   * 按类型列出节点 ID 列表。
+   *
+   * @param type - 类型。
+   * @returns 收集到的结果列表。
+   */
   listNodeIdsByType(type: string): string[] {
     return this.nodeExecutionHost.listNodeIdsByType(type);
   }
 
+  /**
+   * 重置节点`Size`。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 重置节点`Size`的结果。
+   */
   resetNodeSize(nodeId: string): TNodeState | undefined {
     const constraint = this.getNodeResizeConstraint(nodeId);
     if (!constraint?.enabled) {
@@ -201,6 +264,13 @@ export class LeaferGraphNodeRuntimeHost<
     });
   }
 
+  /**
+   * 处理 `playFromNode` 相关逻辑。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param context - 当前上下文。
+   * @returns 对应的判断结果。
+   */
   playFromNode(nodeId: string, context?: unknown): boolean {
     const entryTask = this.createEntryExecutionTask(nodeId, {
       source: "node-play",
@@ -229,10 +299,24 @@ export class LeaferGraphNodeRuntimeHost<
     return handled;
   }
 
+  /**
+   * 执行节点。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param context - 当前上下文。
+   * @returns 对应的判断结果。
+   */
   executeNode(nodeId: string, context?: unknown): boolean {
     return this.playFromNode(nodeId, context);
   }
 
+  /**
+   * 创建条目执行任务。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param options - 可选配置项。
+   * @returns 创建后的结果对象。
+   */
   createEntryExecutionTask(
     nodeId: string,
     options: LeaferGraphCreateEntryExecutionTaskOptions
@@ -240,6 +324,13 @@ export class LeaferGraphNodeRuntimeHost<
     return this.nodeExecutionHost.createEntryExecutionTask(nodeId, options);
   }
 
+  /**
+   * 执行执行任务。
+   *
+   * @param task - 任务。
+   * @param stepIndex - 步骤`Index`。
+   * @returns 执行执行任务的结果。
+   */
   executeExecutionTask(
     task: LeaferGraphNodeExecutionTask,
     stepIndex: number
@@ -247,26 +338,56 @@ export class LeaferGraphNodeRuntimeHost<
     return this.nodeExecutionHost.executeExecutionTask(task, stepIndex);
   }
 
+  /**
+   * 订阅节点执行。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeNodeExecution(
     listener: (event: LeaferGraphNodeExecutionEvent) => void
   ): () => void {
     return this.nodeExecutionHost.subscribeNodeExecution(listener);
   }
 
+  /**
+   * 映射外部节点执行。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   projectExternalNodeExecution(event: LeaferGraphNodeExecutionEvent): void {
     this.nodeExecutionHost.projectExternalNodeExecution(event);
   }
 
+  /**
+   * 订阅连线传播。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeLinkPropagation(
     listener: (event: LeaferGraphLinkPropagationEvent) => void
   ): () => void {
     return this.nodeExecutionHost.subscribeLinkPropagation(listener);
   }
 
+  /**
+   * 映射外部连线传播。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   projectExternalLinkPropagation(event: LeaferGraphLinkPropagationEvent): void {
     this.nodeExecutionHost.projectExternalLinkPropagation(event);
   }
 
+  /**
+   * 订阅节点状态。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeNodeState(
     listener: (event: LeaferGraphNodeStateChangeEvent) => void
   ): () => void {
@@ -277,6 +398,12 @@ export class LeaferGraphNodeRuntimeHost<
     };
   }
 
+  /**
+   * 映射外部节点状态。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   projectExternalNodeState(event: LeaferGraphNodeStateChangeEvent): void {
     if (!event.exists) {
       this.nodeExecutionHost.clearNodeExecutionState(event.nodeId);
@@ -297,6 +424,13 @@ export class LeaferGraphNodeRuntimeHost<
     }
   }
 
+  /**
+   * 处理 `notifyNodeStateChanged` 相关逻辑。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param reason - `reason`。
+   * @returns 无返回值。
+   */
   notifyNodeStateChanged(
     nodeId: string,
     reason: LeaferGraphNodeStateChangeReason
@@ -318,14 +452,31 @@ export class LeaferGraphNodeRuntimeHost<
     }
   }
 
+  /**
+   * 清理节点执行状态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
   clearNodeExecutionState(nodeId: string): void {
     this.nodeExecutionHost.clearNodeExecutionState(nodeId);
   }
 
+  /**
+   * 清理全部执行状态。
+   *
+   * @returns 无返回值。
+   */
   clearAllExecutionStates(): void {
     this.nodeExecutionHost.clearAllExecutionStates();
   }
 
+  /**
+   * 处理 `notifyLinkCreated` 相关逻辑。
+   *
+   * @param link - 连线。
+   * @returns 无返回值。
+   */
   notifyLinkCreated(link: GraphLink): void {
     this.dispatchConnectionsChange(
       link.source.nodeId,
@@ -343,6 +494,12 @@ export class LeaferGraphNodeRuntimeHost<
     this.notifyNodeStateChanged(link.target.nodeId, "connections");
   }
 
+  /**
+   * 处理 `notifyLinkRemoved` 相关逻辑。
+   *
+   * @param link - 连线。
+   * @returns 无返回值。
+   */
   notifyLinkRemoved(link: GraphLink): void {
     const sourceSlot = normalizeConnectionSlot(link.source.slot);
     const targetSlot = normalizeConnectionSlot(link.target.slot);
@@ -363,6 +520,15 @@ export class LeaferGraphNodeRuntimeHost<
     this.notifyNodeStateChanged(link.target.nodeId, "connections");
   }
 
+  /**
+   * 派发节点 Widget 动作。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param options - 可选配置项。
+   * @returns 对应的判断结果。
+   */
   emitNodeWidgetAction(
     nodeId: string,
     action: string,
@@ -397,6 +563,12 @@ export class LeaferGraphNodeRuntimeHost<
     return true;
   }
 
+  /**
+   * 处理 `refreshExecutedNode` 相关逻辑。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
   private refreshExecutedNode(nodeId: string): void {
     const state = this.options.nodeViews.get(nodeId);
     if (state) {
@@ -407,6 +579,14 @@ export class LeaferGraphNodeRuntimeHost<
     this.options.sceneRuntime.requestRender();
   }
 
+  /**
+   * 判断是否存在`Remaining` 连接。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param type - 类型。
+   * @param slot - 槽位。
+   * @returns 对应的判断结果。
+   */
   private hasRemainingConnections(
     nodeId: string,
     type: "input" | "output",
@@ -433,6 +613,15 @@ export class LeaferGraphNodeRuntimeHost<
     return false;
   }
 
+  /**
+   * 分发连接`Change`。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param type - 类型。
+   * @param slot - 槽位。
+   * @param connected - `connected`。
+   * @returns 无返回值。
+   */
   private dispatchConnectionsChange(
     nodeId: string,
     type: "input" | "output",
@@ -479,6 +668,13 @@ export class LeaferGraphNodeRuntimeHost<
   }
 }
 
+/**
+ * 处理 `createNodeIoValueEntries` 相关逻辑。
+ *
+ * @param slots - 槽位。
+ * @param values - 值。
+ * @returns 创建后的结果对象。
+ */
 function createNodeIoValueEntries(
   slots: readonly NodeSlotSpec[],
   values: readonly unknown[]
@@ -492,6 +688,12 @@ function createNodeIoValueEntries(
   }));
 }
 
+/**
+ * 规范化连接槽位。
+ *
+ * @param slot - 槽位。
+ * @returns 处理后的结果。
+ */
 function normalizeConnectionSlot(slot: number | undefined): number {
   if (typeof slot !== "number" || !Number.isFinite(slot)) {
     return 0;
@@ -500,6 +702,12 @@ function normalizeConnectionSlot(slot: number | undefined): number {
   return Math.max(0, Math.floor(slot));
 }
 
+/**
+ * 克隆节点状态事件。
+ *
+ * @param event - 当前事件对象。
+ * @returns 处理后的结果。
+ */
 function cloneNodeStateEvent(
   event: LeaferGraphNodeStateChangeEvent
 ): LeaferGraphNodeStateChangeEvent {
@@ -508,6 +716,12 @@ function cloneNodeStateEvent(
   };
 }
 
+/**
+ * 克隆可读值。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function cloneReadableValue<T>(value: T): T {
   if (value === undefined || value === null) {
     return value;

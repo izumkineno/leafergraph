@@ -90,7 +90,12 @@ export interface LeaferGraphWidgetInteractionBinding {
   destroy(): void;
 }
 
-/** 将任意数值压缩到 0~1 区间。 */
+/**
+ *  将任意数值压缩到 0~1 区间。
+ *
+ * @param value - 当前值。
+ * @returns 限制Widget `Progress`的结果。
+ */
 function clampWidgetProgress(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -102,6 +107,9 @@ function clampWidgetProgress(value: number): number {
 /**
  * 阻止 Widget 事件继续冒泡到节点拖拽和 editor 选区层。
  * 交互型 Widget 一旦消费事件，就不应该再让宿主把它误判成“拖节点”。
+ *
+ * @param event - 当前事件对象。
+ * @returns 无返回值。
  */
 export function stopWidgetPointerEvent(
   event: LeaferGraphWidgetPointerEvent
@@ -117,6 +125,9 @@ export function stopWidgetPointerEvent(
 /**
  * 判断一次指针命中是否来自 Widget 内部。
  * 当前通过图元名称前缀和父子链做约定式识别，避免把 Widget 交互混进节点拖拽层。
+ *
+ * @param target - 当前目标对象。
+ * @returns 对应的判断结果。
  */
 export function isWidgetInteractionTarget(
   target: LeaferGraphWidgetEventTargetLike | null | undefined
@@ -140,6 +151,12 @@ export function isWidgetInteractionTarget(
 /**
  * 将指针事件转换成线性 Widget 进度值。
  * 优先依赖 Leafer 的局部坐标转换；当某些宿主事件没有暴露转换函数时，再退回到节点世界坐标。
+ *
+ * @param event - 当前事件对象。
+ * @param group - 分组。
+ * @param bounds - `bounds`。
+ * @param getNodeX - `get` 节点 X。
+ * @returns 处理后的结果。
  */
 export function resolveLinearWidgetProgressFromEvent(
   event: LeaferGraphWidgetPointerEvent,
@@ -155,16 +172,26 @@ export function resolveLinearWidgetProgressFromEvent(
 /**
  * 绑定线性拖拽型 Widget 的最小交互链路。
  * 它统一处理命中判断、事件阻断、进度解析和销毁解绑。
+ *
+ * @param options - 可选配置项。
+ * @returns 用于解除当前绑定的清理函数。
  */
 export function bindLinearWidgetDrag(
   options: LeaferGraphLinearWidgetDragOptions
 ): LeaferGraphWidgetInteractionBinding {
+  // 先准备宿主依赖、初始状态和需要挂载的资源。
   const allowPointer =
     options.allowPointer ??
     ((event: LeaferGraphWidgetPointerEvent) => !event.middle && !event.right);
 
   let dragging = false;
 
+  /**
+   * 处理指针`Down`。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   const handlePointerDown = (event: LeaferGraphWidgetPointerEvent): void => {
     if (!allowPointer(event)) {
       return;
@@ -184,6 +211,12 @@ export function bindLinearWidgetDrag(
     );
   };
 
+  /**
+   * 处理指针`Move`。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   const handlePointerMove = (event: LeaferGraphWidgetPointerEvent): void => {
     if (!dragging) {
       return;
@@ -201,6 +234,13 @@ export function bindLinearWidgetDrag(
     );
   };
 
+  /**
+   * 处理指针`Up`。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
+  // 再建立绑定与同步关系，让运行期交互能够稳定生效。
   const handlePointerUp = (event: LeaferGraphWidgetPointerEvent): void => {
     if (!dragging) {
       return;
@@ -237,16 +277,26 @@ export function bindLinearWidgetDrag(
 /**
  * 绑定按压触发型 Widget 的最小交互链路。
  * 当前阶段默认在 `pointer.down` 即触发动作，以保证节点拖拽不会抢走首次交互。
+ *
+ * @param options - 可选配置项。
+ * @returns 用于解除当前绑定的清理函数。
  */
 export function bindPressWidgetInteraction(
   options: LeaferGraphPressWidgetInteractionOptions
 ): LeaferGraphWidgetInteractionBinding {
+  // 先准备宿主依赖、初始状态和需要挂载的资源。
   const allowPointer =
     options.allowPointer ??
     ((event: LeaferGraphWidgetPointerEvent) => !event.middle && !event.right);
   let hovered = false;
   let pressed = false;
 
+  /**
+   * 设置`Hovered`。
+   *
+   * @param nextHovered - 下一步`Hovered`。
+   * @returns 无返回值。
+   */
   const setHovered = (nextHovered: boolean): void => {
     if (hovered === nextHovered) {
       return;
@@ -256,6 +306,12 @@ export function bindPressWidgetInteraction(
     options.onHoverChange?.(hovered);
   };
 
+  /**
+   * 设置`Pressed`。
+   *
+   * @param nextPressed - 下一步`Pressed`。
+   * @returns 无返回值。
+   */
   const setPressed = (nextPressed: boolean): void => {
     if (pressed === nextPressed) {
       return;
@@ -265,6 +321,12 @@ export function bindPressWidgetInteraction(
     options.onPressChange?.(pressed);
   };
 
+  /**
+   * 处理指针`Enter`。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   const handlePointerEnter = (event: LeaferGraphWidgetPointerEvent): void => {
     if (!allowPointer(event)) {
       return;
@@ -273,11 +335,23 @@ export function bindPressWidgetInteraction(
     setHovered(true);
   };
 
+  /**
+   * 处理指针`Leave`。
+   *
+   * @returns 无返回值。
+   */
   const handlePointerLeave = (): void => {
     setHovered(false);
     setPressed(false);
   };
 
+  /**
+   * 处理指针`Down`。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
+  // 再建立绑定与同步关系，让运行期交互能够稳定生效。
   const handlePointerDown = (event: LeaferGraphWidgetPointerEvent): void => {
     if (!allowPointer(event)) {
       return;
@@ -289,6 +363,11 @@ export function bindPressWidgetInteraction(
     options.onPress(event);
   };
 
+  /**
+   * 处理指针`Up`。
+   *
+   * @returns 无返回值。
+   */
   const handlePointerUp = (): void => {
     setPressed(false);
   };

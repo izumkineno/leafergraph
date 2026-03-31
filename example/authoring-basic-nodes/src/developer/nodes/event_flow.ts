@@ -12,22 +12,51 @@ import {
   createStatusWidgetSpec
 } from "../shared";
 
+/**
+ * 处理 `createSequenceInputName` 相关逻辑。
+ *
+ * @param index - `index`。
+ * @returns 创建后的结果对象。
+ */
 function createSequenceInputName(index: number): string {
   return `in_${index + 1}`;
 }
 
+/**
+ * 处理 `createSequenceOutputName` 相关逻辑。
+ *
+ * @param index - `index`。
+ * @returns 创建后的结果对象。
+ */
 function createSequenceOutputName(index: number): string {
   return `out_${index + 1}`;
 }
 
+/**
+ * 处理 `createStepperOutputName` 相关逻辑。
+ *
+ * @param index - `index`。
+ * @returns 创建后的结果对象。
+ */
 function createStepperOutputName(index: number): string {
   return `step_${index + 1}`;
 }
 
+/**
+ * 限制`Index`。
+ *
+ * @param value - 当前值。
+ * @param min - `min`。
+ * @param max - `max`。
+ * @returns 限制`Index`的结果。
+ */
 function clampIndex(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * 封装 EventLogNode 的节点行为。
+ */
 export class EventLogNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventLog,
@@ -42,12 +71,24 @@ export class EventLogNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     console.log(`[events/log] ${action}`, param);
     updateStatus(ctx, `EVENT\n${action}: ${toDisplayText(param)}`);
   }
 }
 
+/**
+ * 封装 TriggerEventNode 的节点行为。
+ */
 export class TriggerEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventTrigger,
@@ -78,6 +119,11 @@ export class TriggerEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       initialized: false,
@@ -85,6 +131,12 @@ export class TriggerEventNode extends BaseNode {
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const value = Boolean(ctx.getInput("if"));
     const onlyOnChange = readWidgetBoolean(ctx, "only_on_change", true);
@@ -115,6 +167,9 @@ export class TriggerEventNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 SequenceNode 的节点行为。
+ */
 export class SequenceNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventSequence,
@@ -156,6 +211,15 @@ export class SequenceNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     if (action === "add_step") {
       const nextIndex = ctx.node.outputs.length;
@@ -187,6 +251,9 @@ export class SequenceNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 WaitAllNode 的节点行为。
+ */
 export class WaitAllNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventWaitAll,
@@ -232,13 +299,28 @@ export class WaitAllNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       ready: [] as boolean[]
     };
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, options, ctx) {
+    // 先整理当前阶段需要的输入、状态与依赖。
     if (action === "add_guard") {
       const nextIndex = ctx.node.inputs.length;
       ctx.api.addInput(`signal_${nextIndex + 1}`, "event");
@@ -258,6 +340,7 @@ export class WaitAllNode extends BaseNode {
     }
 
     if (action === "reset") {
+      // 再执行核心逻辑，并把结果或副作用统一收口。
       ctx.state.ready = [];
       updateStatus(ctx, `WAIT\n0 / ${ctx.node.inputs.length} ready`);
       return;
@@ -282,6 +365,9 @@ export class WaitAllNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 StepperNode 的节点行为。
+ */
 export class StepperNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventStepper,
@@ -325,12 +411,23 @@ export class StepperNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       index: 0
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const eventOutputCount = Math.max(1, ctx.node.outputs.length - 1);
     const inputIndex = ctx.getInput("index");
@@ -356,6 +453,15 @@ export class StepperNode extends BaseNode {
     );
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     if (action === "add_output") {
       const nextIndex = ctx.node.outputs.length - 1;
@@ -393,6 +499,9 @@ export class StepperNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 FilterEventNode 的节点行为。
+ */
 export class FilterEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventFilter,
@@ -437,6 +546,15 @@ export class FilterEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     if (action !== "event" || param == null) {
       return;
@@ -475,6 +593,9 @@ export class FilterEventNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 BranchEventNode 的节点行为。
+ */
 export class BranchEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventBranch,
@@ -496,17 +617,37 @@ export class BranchEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       value: false
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     ctx.state.value = Boolean(ctx.getInput("cond"));
     updateStatus(ctx, ctx.state.value ? "TRUE\nRoute → true" : "FALSE\nRoute → false");
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     if (action !== "in") {
       return;
@@ -518,6 +659,9 @@ export class BranchEventNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 CounterEventNode 的节点行为。
+ */
 export class CounterEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventCounter,
@@ -560,12 +704,23 @@ export class CounterEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       num: 0
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     const shouldCountExecution = readWidgetBoolean(ctx, "doCountExecution", false);
     ctx.setProp("doCountExecution", shouldCountExecution);
@@ -576,6 +731,15 @@ export class CounterEventNode extends BaseNode {
     updateStatus(ctx, `COUNT\n${ctx.state.num}`);
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param _param - 参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, _param, _options, ctx) {
     const previous = ctx.state.num;
     if (action === "inc") {
@@ -596,6 +760,9 @@ export class CounterEventNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 OnceEventNode 的节点行为。
+ */
 export class OnceEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventOnce,
@@ -623,12 +790,26 @@ export class OnceEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       locked: false
     };
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     if (action === "reset" || action === "reset_once") {
       ctx.state.locked = false;
@@ -651,6 +832,9 @@ export class OnceEventNode extends BaseNode {
   }
 }
 
+/**
+ * 封装 SemaphoreEventNode 的节点行为。
+ */
 export class SemaphoreEventNode extends BaseNode {
   static meta = {
     type: AUTHORING_BASIC_NODE_TYPES.eventSemaphore,
@@ -683,17 +867,37 @@ export class SemaphoreEventNode extends BaseNode {
     ]
   };
 
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
   createState() {
     return {
       ready: false
     };
   }
 
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onExecute(ctx) {
     ctx.setOutput("is_green", ctx.state.ready);
     updateStatus(ctx, ctx.state.ready ? "GREEN\nGate open" : "RED\nGate blocked");
   }
 
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 解构后的输入参数。
+   * @param _options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
   onAction(action, param, _options, ctx) {
     if (action === "green") {
       ctx.state.ready = true;

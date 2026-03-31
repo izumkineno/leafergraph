@@ -28,6 +28,12 @@ export interface LeaferGraphTimerRuntimePayload {
   timerTickMode?: "interval" | "timeout";
 }
 
+/**
+ * 处理 `resolveNormalizedIntervalMs` 相关逻辑。
+ *
+ * @param value - 当前值。
+ * @returns 处理后的结果。
+ */
 function resolveNormalizedIntervalMs(value: unknown): number {
   const nextValue = Number(value);
   if (!Number.isFinite(nextValue) || nextValue <= 0) {
@@ -37,6 +43,12 @@ function resolveNormalizedIntervalMs(value: unknown): number {
   return Math.max(1, Math.floor(nextValue));
 }
 
+/**
+ * 解析立即模式。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function resolveImmediate(value: unknown): boolean {
   if (typeof value === "boolean") {
     return value;
@@ -45,16 +57,35 @@ function resolveImmediate(value: unknown): boolean {
   return true;
 }
 
+/**
+ * 判断是否为定时器运行时载荷。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function isTimerRuntimePayload(value: unknown): value is LeaferGraphTimerRuntimePayload {
   return typeof value === "object" && value !== null;
 }
 
+/**
+ * 判断是否为图执行来源。
+ *
+ * @param value - 当前值。
+ * @returns 对应的判断结果。
+ */
 function isGraphExecutionSource(
   value: unknown
 ): value is LeaferGraphTimerRegistration["source"] {
   return value === "graph-play" || value === "graph-step";
 }
 
+/**
+ * 解析定时器 Widget 值。
+ *
+ * @param node - 节点。
+ * @param widgetName - Widget `Name`。
+ * @returns 处理后的结果。
+ */
 function resolveTimerWidgetValue(
   node: {
     widgets?: Array<{
@@ -73,6 +104,14 @@ function resolveTimerWidgetValue(
   return undefined;
 }
 
+/**
+ * 同步定时器 Widget 值。
+ *
+ * @param node - 节点。
+ * @param widgetName - Widget `Name`。
+ * @param value - 当前值。
+ * @returns 无返回值。
+ */
 function syncTimerWidgetValue(
   node: {
     widgets?: Array<{
@@ -91,6 +130,12 @@ function syncTimerWidgetValue(
   }
 }
 
+/**
+ * 解析定时器配置。
+ *
+ * @param node - 节点。
+ * @returns 处理后的结果。
+ */
 function resolveTimerConfig(node: {
   properties: {
     intervalMs?: unknown;

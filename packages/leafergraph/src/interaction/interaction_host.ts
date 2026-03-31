@@ -319,6 +319,11 @@ export class LeaferGraphInteractionHost<
     this.syncInteractionActivityState();
   };
 
+  /**
+   * 初始化 LeaferGraphInteractionHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(
     options: LeaferGraphInteractionHostOptions<TNodeState, TNodeViewState>
   ) {
@@ -346,8 +351,15 @@ export class LeaferGraphInteractionHost<
     this.ownerWindow.addEventListener("keyup", this.handleWindowKeyUp);
   }
 
-  /** 绑定节点拖拽交互。 */
+  /**
+   *  绑定节点拖拽交互。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param view - 视图。
+   * @returns 无返回值。
+   */
   bindNodeDragging(nodeId: string, view: Group): void {
+    // 先准备宿主依赖、初始状态和需要挂载的资源。
     view.on("pointer.enter", (event: LeaferGraphWidgetPointerEvent) => {
       this.options.runtime.setNodeHovered(nodeId, true);
 
@@ -361,6 +373,7 @@ export class LeaferGraphInteractionHost<
       }
     });
 
+    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     view.on("pointer.leave", () => {
       this.options.runtime.setNodeHovered(nodeId, false);
 
@@ -414,6 +427,10 @@ export class LeaferGraphInteractionHost<
    * 绑定节点右下角 resize 句柄。
    * 当前先做最小自定义实现，不直接缩放整个 Group，
    * 而是把拖拽结果写回节点布局尺寸，再走局部刷新。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param state - 当前状态。
+   * @returns 无返回值。
    */
   bindNodeResize(nodeId: string, state: TNodeViewState): void {
     if (!this.options.runtime.canResizeNode(nodeId)) {
@@ -452,6 +469,10 @@ export class LeaferGraphInteractionHost<
   /**
    * 绑定节点端口的最小拖线交互。
    * 当前允许从输入或输出端口发起拖线，并在窗口级 move / up 链路里完成候选解析与正式建线。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param state - 当前状态。
+   * @returns 无返回值。
    */
   bindNodePorts(nodeId: string, state: TNodeViewState): void {
     for (const portView of state.shellView.portViews) {
@@ -482,6 +503,10 @@ export class LeaferGraphInteractionHost<
   /**
    * 绑定左上角信号球的折叠开关。
    * 这里直接在 `pointer.down` 阶段消费事件，避免它被根节点拖拽逻辑抢走。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param state - 当前状态。
+   * @returns 无返回值。
    */
   bindNodeCollapseToggle(nodeId: string, state: TNodeViewState): void {
     state.shellView.signalButton.on(
@@ -517,7 +542,12 @@ export class LeaferGraphInteractionHost<
     );
   }
 
-  /** 某个节点被外部删除时，及时回收可能悬挂的交互状态。 */
+  /**
+   *  某个节点被外部删除时，及时回收可能悬挂的交互状态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
   handleNodeRemoved(nodeId: string): void {
     let cleared = false;
 
@@ -545,7 +575,11 @@ export class LeaferGraphInteractionHost<
     }
   }
 
-  /** 清理当前交互态，供整图重建和销毁前复用。 */
+  /**
+   *  清理当前交互态，供整图重建和销毁前复用。
+   *
+   * @returns 无返回值。
+   */
   clearInteractionState(): void {
     this.dragState = null;
     this.resizeState = null;
@@ -556,17 +590,31 @@ export class LeaferGraphInteractionHost<
     this.options.container.style.cursor = "";
   }
 
-  /** 判断某个节点当前是否处于 resize 拖拽态。 */
+  /**
+   *  判断某个节点当前是否处于 resize 拖拽态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 对应的判断结果。
+   */
   isResizingNode(nodeId: string): boolean {
     return this.resizeState?.nodeId === nodeId;
   }
 
-  /** 读取当前最小交互活跃态快照。 */
+  /**
+   *  读取当前最小交互活跃态快照。
+   *
+   * @returns 处理后的结果。
+   */
   getInteractionActivityState(): LeaferGraphInteractionActivityState {
     return { ...this.interactionActivityState };
   }
 
-  /** 订阅交互活跃态变化。 */
+  /**
+   *  订阅交互活跃态变化。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribeInteractionActivity(
     listener: (state: LeaferGraphInteractionActivityState) => void
   ): () => void {
@@ -578,7 +626,11 @@ export class LeaferGraphInteractionHost<
     };
   }
 
-  /** 卸载窗口级事件监听并清理交互态。 */
+  /**
+   *  卸载窗口级事件监听并清理交互态。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     this.clearInteractionState();
     this.ownerWindow.removeEventListener(
@@ -599,7 +651,14 @@ export class LeaferGraphInteractionHost<
     this.selectionBoxHost.destroy();
   }
 
-  /** 启动一次节点拖拽。 */
+  /**
+   *  启动一次节点拖拽。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param state - 当前状态。
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private startNodeDrag(
     nodeId: string,
     state: TNodeViewState,
@@ -632,7 +691,15 @@ export class LeaferGraphInteractionHost<
     this.options.container.style.cursor = "grabbing";
   }
 
-  /** 启动一次端口拖线。 */
+  /**
+   *  启动一次端口拖线。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param direction - `direction`。
+   * @param slot - 槽位。
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private startConnectionDrag(
     nodeId: string,
     direction: SlotDirection,
@@ -663,7 +730,12 @@ export class LeaferGraphInteractionHost<
     this.options.container.style.cursor = "crosshair";
   }
 
-  /** 根据当前鼠标位置刷新拖线预览和候选目标。 */
+  /**
+   *  根据当前鼠标位置刷新拖线预览和候选目标。
+   *
+   * @param point - 坐标。
+   * @returns 无返回值。
+   */
   private updateConnectionPreview(point: { x: number; y: number }): void {
     if (!this.connectionState) {
       return;
@@ -703,8 +775,14 @@ export class LeaferGraphInteractionHost<
       rawTarget && !validation.valid ? "not-allowed" : "crosshair";
   }
 
-  /** 在窗口级 pointer up 时完成或取消一次拖线。 */
+  /**
+   *  在窗口级 pointer up 时完成或取消一次拖线。
+   *
+   * @param point - 坐标。
+   * @returns 无返回值。
+   */
   private finishConnection(point?: { x: number; y: number }): void {
+    // 先整理当前阶段需要的输入、状态与依赖。
     const connection = this.connectionState;
     if (!connection) {
       return;
@@ -730,6 +808,7 @@ export class LeaferGraphInteractionHost<
         endpoints &&
         this.options.runtime.canCreateLink(endpoints.source, endpoints.target).valid
       ) {
+        // 再执行核心逻辑，并把结果或副作用统一收口。
         targetPort = rawTarget;
       }
     }
@@ -761,7 +840,11 @@ export class LeaferGraphInteractionHost<
     this.options.container.style.cursor = "";
   }
 
-  /** 清理当前拖线相关的视觉反馈和临时状态。 */
+  /**
+   *  清理当前拖线相关的视觉反馈和临时状态。
+   *
+   * @returns 无返回值。
+   */
   private clearConnectionState(): void {
     this.connectionState = null;
     this.options.runtime.setConnectionSourcePort(null);
@@ -770,7 +853,11 @@ export class LeaferGraphInteractionHost<
     this.syncInteractionActivityState();
   }
 
-  /** 根据当前内部状态同步对外可见的交互活跃态。 */
+  /**
+   *  根据当前内部状态同步对外可见的交互活跃态。
+   *
+   * @returns 无返回值。
+   */
   private syncInteractionActivityState(): void {
     let mode: LeaferGraphInteractionActivityState["mode"] = "idle";
     if (this.connectionState) {
@@ -808,6 +895,9 @@ export class LeaferGraphInteractionHost<
   /**
    * 判断当前事件命中是否来自节点 resize 句柄。
    * 这样可以避免根节点拖拽监听误把 resize 手势识别成移动节点。
+   *
+   * @param target - 当前目标对象。
+   * @returns 对应的判断结果。
    */
   private isResizeHandleTarget(
     target: LeaferGraphWidgetPointerEvent["target"]
@@ -824,7 +914,12 @@ export class LeaferGraphInteractionHost<
     return false;
   }
 
-  /** 判断当前事件命中是否来自节点端口热区，避免拖线按下被误识别成拖节点。 */
+  /**
+   *  判断当前事件命中是否来自节点端口热区，避免拖线按下被误识别成拖节点。
+   *
+   * @param target - 当前目标对象。
+   * @returns 对应的判断结果。
+   */
   private isPortHitTarget(
     target: LeaferGraphWidgetPointerEvent["target"]
   ): boolean {
@@ -844,6 +939,10 @@ export class LeaferGraphInteractionHost<
    * 通过节点局部坐标兜底判断一次按下是否命中了 resize 热区。
    * 有些 Leafer 事件在冒泡到根 Group 时，`target` 可能已经不是句柄本身，
    * 因此这里再补一层几何判断，避免 resize 和拖拽同时起效。
+   *
+   * @param event - 当前事件对象。
+   * @param state - 当前状态。
+   * @returns 对应的判断结果。
    */
   private isResizeHandleHit(
     event: LeaferGraphWidgetPointerEvent,
@@ -861,12 +960,22 @@ export class LeaferGraphInteractionHost<
     return localX >= width - 20 && localY >= height - 20;
   }
 
-  /** 根据拖线起点方向解析目标端应命中的相反方向。 */
+  /**
+   *  根据拖线起点方向解析目标端应命中的相反方向。
+   *
+   * @param direction - `direction`。
+   * @returns 处理后的结果。
+   */
   private getOppositeDirection(direction: SlotDirection): SlotDirection {
     return direction === "output" ? "input" : "output";
   }
 
-  /** 根据当前框选手势刷新矩形 overlay 和选区结果。 */
+  /**
+   *  根据当前框选手势刷新矩形 overlay 和选区结果。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private updateSelectionDrag(event: PointerEvent): void {
     const selectionState = this.selectionState;
     if (!selectionState) {
@@ -895,7 +1004,11 @@ export class LeaferGraphInteractionHost<
     this.syncInteractionActivityState();
   }
 
-  /** 结束一次空白区点击或框选拖拽。 */
+  /**
+   *  结束一次空白区点击或框选拖拽。
+   *
+   * @returns 无返回值。
+   */
   private finishSelectionDrag(): void {
     const selectionState = this.selectionState;
     if (!selectionState) {
@@ -910,7 +1023,12 @@ export class LeaferGraphInteractionHost<
     this.syncInteractionActivityState();
   }
 
-  /** 统一读取当前事件里的多选辅助修饰键。 */
+  /**
+   *  统一读取当前事件里的多选辅助修饰键。
+   *
+   * @param event - 当前事件对象。
+   * @returns 对应的判断结果。
+   */
   private isSelectionModifierPressed(
     event: LeaferGraphWidgetPointerEvent
   ): boolean {
@@ -921,7 +1039,12 @@ export class LeaferGraphInteractionHost<
     return Boolean(origin?.shiftKey ?? eventLike.shiftKey);
   }
 
-  /** 把一次框选手势归一成 page 坐标矩形。 */
+  /**
+   *  把一次框选手势归一成 page 坐标矩形。
+   *
+   * @param selectionState - 当前状态。
+   * @returns 处理后的结果。
+   */
   private resolveSelectionBounds(
     selectionState: GraphSelectionState
   ): { x: number; y: number; width: number; height: number } {
@@ -936,6 +1059,10 @@ export class LeaferGraphInteractionHost<
   /**
    * 把任意方向发起的拖线归一成正式 `output -> input` 端点对。
    * 这样左侧输入端口也能发起拖线，但真正落图时仍保持统一连线模型。
+   *
+   * @param originPort - 原点`Port`。
+   * @param candidatePort - 候选项`Port`。
+   * @returns 处理后的结果。
    */
   private resolveConnectionEndpoints(
     originPort: LeaferGraphConnectionPortState,

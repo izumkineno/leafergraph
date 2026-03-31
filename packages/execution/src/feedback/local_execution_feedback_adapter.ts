@@ -18,6 +18,9 @@ interface LeaferGraphLocalExecutionFeedbackAdapterOptions {
   ): () => void;
 }
 
+/**
+ * 封装 LeaferGraphLocalExecutionFeedbackAdapter 的适配逻辑。
+ */
 export class LeaferGraphLocalExecutionFeedbackAdapter
   implements ExecutionFeedbackAdapter
 {
@@ -27,6 +30,11 @@ export class LeaferGraphLocalExecutionFeedbackAdapter
 
   private readonly disposers: Array<() => void>;
 
+  /**
+   * 初始化 LeaferGraphLocalExecutionFeedbackAdapter 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphLocalExecutionFeedbackAdapterOptions) {
     this.disposers = [
       options.subscribeNodeExecution((event) => {
@@ -50,6 +58,12 @@ export class LeaferGraphLocalExecutionFeedbackAdapter
     ];
   }
 
+  /**
+   * 处理 `subscribe` 相关逻辑。
+   *
+   * @param listener - 需要注册的监听器。
+   * @returns 用于取消当前订阅的清理函数。
+   */
   subscribe(listener: (event: ExecutionFeedbackEvent) => void): () => void {
     this.listeners.add(listener);
 
@@ -58,6 +72,11 @@ export class LeaferGraphLocalExecutionFeedbackAdapter
     };
   }
 
+  /**
+   * 处理 `destroy` 相关逻辑。
+   *
+   * @returns 无返回值。
+   */
   destroy(): void {
     for (const dispose of this.disposers.splice(0)) {
       dispose();
@@ -65,6 +84,12 @@ export class LeaferGraphLocalExecutionFeedbackAdapter
     this.listeners.clear();
   }
 
+  /**
+   * 处理 `emit` 相关逻辑。
+   *
+   * @param event - 当前事件对象。
+   * @returns 无返回值。
+   */
   private emit(event: ExecutionFeedbackEvent): void {
     if (!this.listeners.size) {
       return;
