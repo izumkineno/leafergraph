@@ -52,6 +52,10 @@ const graph = createLeaferGraph(container, {
       },
       runtime: {
         linkPropagationAnimation: "performance"
+      },
+      history: {
+        maxEntries: 100,
+        resetOnDocumentSync: true
       }
     },
     widget: {
@@ -100,6 +104,8 @@ const menu = createLeaferContextMenu({
 - `graph.fill`
 - `graph.view.defaultFitPadding`
 - `graph.runtime.linkPropagationAnimation`
+- `graph.history.maxEntries`
+- `graph.history.resetOnDocumentSync`
 
 ### `widget`
 
@@ -162,6 +168,7 @@ Leafer 原生与官方插件配置桥接，当前已公开这些分组：
 负责主包 graph 级配置：
 
 - `LeaferGraphGraphConfig`
+- `LeaferGraphGraphHistoryConfig`
 - `LeaferGraphGraphViewConfig`
 - `LeaferGraphGraphRuntimeConfig`
 - `resolveDefaultLeaferGraphGraphConfig(...)`
@@ -170,6 +177,8 @@ Leafer 原生与官方插件配置桥接，当前已公开这些分组：
 - `VIEWPORT_MIN_SCALE`
 - `VIEWPORT_MAX_SCALE`
 - `DEFAULT_LINK_PROPAGATION_ANIMATION_PRESET`
+- `DEFAULT_HISTORY_MAX_ENTRIES`
+- `DEFAULT_HISTORY_RESET_ON_DOCUMENT_SYNC`
 
 ### `./widget`
 
@@ -233,6 +242,7 @@ Leafer 原生与官方插件配置桥接，当前已公开这些分组：
 
 - 外部调用方大多数只需要写 `config`
 - workspace 内部包应优先消费 normalize 结果
+- `graph.history` 只是历史配置真源；真正启用 undo/redo 仍要显式绑定 `@leafergraph/undo-redo`
 
 也就是说：
 
@@ -252,6 +262,8 @@ Leafer 原生与官方插件配置桥接，当前已公开这些分组：
   - 视觉 token、preset、mode
 - `leafergraph`
   - 消费 graph / widget / leafer config 并装配正式运行时
+- `@leafergraph/undo-redo`
+  - 消费 `graph.history`，但不会因为你写了 config 就自动安装到主包里
 - `@leafergraph/context-menu`
   - 消费菜单配置，不自己维护行为默认值真源
 

@@ -4,10 +4,10 @@
 
 它负责这些内容：
 
-- 画布控制、添加节点、粘贴
-- 节点从此处运行、复制、删除
+- 画布控制、添加节点、粘贴、撤回、重做、全选、删除选区
+- 节点从此处运行、复制、剪切、复制副本、删除
 - 连线删除
-- 内建剪贴板与默认批量删除回退逻辑
+- 内建剪贴板、默认快捷键标签接线位与默认批量删除回退逻辑
 
 它不负责这些内容：
 
@@ -33,6 +33,7 @@
 ```ts
 import { createLeaferContextMenu } from "@leafergraph/context-menu";
 import {
+  createLeaferGraphContextMenuClipboardStore,
   registerLeaferGraphContextMenuBuiltins,
   type LeaferGraphContextMenuBuiltinsHost
 } from "@leafergraph/context-menu-builtins";
@@ -41,9 +42,11 @@ const menu = createLeaferContextMenu({
   app: graph.app,
   container
 });
+const clipboard = createLeaferGraphContextMenuClipboardStore();
 
 const host: LeaferGraphContextMenuBuiltinsHost = {
   listNodes: () => graph.listNodes(),
+  listNodeIds: () => currentNodeIds,
   getNodeSnapshot: (nodeId) => graph.getNodeSnapshot(nodeId),
   findLinksByNode: (nodeId) => graph.findLinksByNode(nodeId),
   isNodeSelected: (nodeId) => graph.isNodeSelected(nodeId),
@@ -76,26 +79,41 @@ const host: LeaferGraphContextMenuBuiltinsHost = {
 
 const disposeBuiltins = registerLeaferGraphContextMenuBuiltins(menu, {
   host,
+  clipboard,
+  history: {
+    undo: () => history.undo(),
+    redo: () => history.redo(),
+    canUndo: () => history.canUndo(),
+    canRedo: () => history.canRedo()
+  },
+  resolveShortcutLabel: (actionId) => shortcutBinding.resolveShortcutLabel(actionId)
+});
+```
+
+不传 `features` 时会默认启用常用 builtins 集；如果只想关闭其中某一项，直接传显式 `false`：
+
+```ts
+registerLeaferGraphContextMenuBuiltins(menu, {
+  host,
   features: {
-    canvasAddNode: true,
-    canvasPaste: true,
-    canvasControls: true,
-    nodeRunFromHere: true,
-    nodeCopy: true,
-    nodeDelete: true,
-    linkDelete: true
+    canvasUndo: false,
+    nodeDuplicate: false
   }
 });
 ```
 
-如果宿主有批量删除日志或清理链路，推荐额外实现可选的 `removeNodes(...)`。
+如果宿主有批量删除日志或清理链路，推荐额外实现可选的 `removeNodes(...)`。如果你已经用了 `@leafergraph/shortcuts/graph`，推荐把 `resolveShortcutLabel(...)` 直接传进来，这样右键菜单会显示真实已注册的快捷键，而不是手写文案。
 
 ## 公开入口
 
 - `registerLeaferGraphContextMenuBuiltins(menu, options)`
+- `createLeaferGraphContextMenuClipboardStore()`
+- `getSharedLeaferGraphContextMenuClipboardStore()`
 - `LeaferGraphContextMenuBuiltinsHost`
+- `LeaferGraphContextMenuBuiltinActionId`
 - `LeaferGraphContextMenuBuiltinOptions`
 - `LeaferGraphContextMenuBuiltinFeatureFlags`
+- `LeaferGraphContextMenuBuiltinHistoryHost`
 - `LeaferGraphContextMenuClipboardFragment`
 - `LeaferGraphContextMenuClipboardState`
 

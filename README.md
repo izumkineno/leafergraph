@@ -1,6 +1,6 @@
 # LeaferGraph Workspace
 
-`leafergraph` 当前是一个 Leafer-first workspace，正式内容已经按“模型、执行、主题、配置、公共契约、Widget runtime、默认内容包、作者层、交互扩展与运行时宿主”拆成多个独立包。
+`leafergraph` 当前是一个 Leafer-first workspace，正式内容已经按“模型、执行、主题、配置、公共契约、Widget runtime、默认内容包、作者层、交互扩展、宿主输入扩展与运行时宿主”拆成多个独立包。
 
 历史上围绕若干已删目录的设计稿已经不再是当前仓库入口，本文只保留和现状一致的导航。
 
@@ -28,6 +28,10 @@
   - Leafer-first 右键菜单 runtime 包，负责 DOM 菜单运行时
 - `packages/context-menu-builtins`
   - `leafergraph` 节点图右键菜单 builtins 集成层，负责复制、粘贴、删除、运行等内建动作
+- `packages/shortcuts`
+  - 宿主输入扩展包，负责快捷键 runtime 与默认 graph 快捷键预设；当前按“非核心维护包 / 宿主输入扩展层”管理
+- `packages/undo-redo`
+  - 宿主状态扩展包，负责 undo/redo controller、graph 历史绑定与历史栈回放；当前也按“非核心维护包 / 宿主状态扩展层”管理
 - `example/`
   - 当前仍在维护的示例工程，主要包括 `mini-graph` 与 `authoring-basic-nodes`
 - `templates/`
@@ -63,6 +67,11 @@ flowchart LR
         authoringPkg["@leafergraph/authoring"]
     end
 
+    subgraph extensions["输入扩展与非核心维护"]
+        shortcutsPkg["@leafergraph/shortcuts"]
+        undoRedoPkg["@leafergraph/undo-redo"]
+    end
+
     execPkg --> nodePkg
 
     contractsPkg --> configPkg
@@ -95,6 +104,10 @@ flowchart LR
     contextMenuBuiltinsPkg --> contractsPkg
     contextMenuBuiltinsPkg --> nodePkg
 
+    undoRedoPkg --> configPkg
+    undoRedoPkg --> contractsPkg
+    undoRedoPkg --> nodePkg
+
     authoringPkg -.-> contractsPkg
     authoringPkg -.-> execPkg
     authoringPkg -.-> nodePkg
@@ -115,6 +128,8 @@ flowchart LR
 - 运行时支撑层：`@leafergraph/widget-runtime`
 - 内容与宿主层：`@leafergraph/basic-kit`、`leafergraph`、`@leafergraph/context-menu`
 - 菜单集成层：`@leafergraph/context-menu-builtins`
+- 输入扩展与非核心维护层：`@leafergraph/shortcuts`
+- 宿主状态扩展与非核心维护层：`@leafergraph/undo-redo`
 - 作者层：`@leafergraph/authoring`
 
 其中 `@leafergraph/contracts` 可以直接理解成“跨包公共协议层”：
@@ -163,11 +178,17 @@ flowchart LR
   - `@leafergraph/context-menu`
   - `@leafergraph/contracts`
   - `@leafergraph/node`
+- `@leafergraph/shortcuts`
+  - 无 workspace 内部依赖
+- `@leafergraph/undo-redo`
+  - `@leafergraph/config`
+  - `@leafergraph/contracts`
+  - `@leafergraph/node`
 - `@leafergraph/authoring`
   - 当前不通过 `dependencies` 直接绑定 workspace 包
   - 通过 `peerDependencies` 对齐 `@leafergraph/contracts`、`@leafergraph/execution`、`@leafergraph/node`、`@leafergraph/theme` 和 `leafergraph`
 
-如果你想从底层往上理解当前仓库，建议先按 `node -> theme -> config -> execution -> contracts -> widget-runtime -> leafergraph -> context-menu -> context-menu-builtins / basic-kit / authoring` 这条链阅读。
+如果你想从底层往上理解当前仓库，建议先按 `node -> theme -> config -> execution -> contracts -> widget-runtime -> leafergraph -> context-menu -> context-menu-builtins -> shortcuts -> undo-redo -> basic-kit / authoring` 这条链阅读。
 
 ## 推荐阅读顺序
 
@@ -181,10 +202,12 @@ flowchart LR
 8. [`packages/basic-kit/README.md`](./packages/basic-kit/README.md)
 9. [`packages/context-menu/README.md`](./packages/context-menu/README.md)
 10. [`packages/context-menu-builtins/README.md`](./packages/context-menu-builtins/README.md)
-11. [`packages/authoring/README.md`](./packages/authoring/README.md)
-12. [`packages/leafergraph/使用与扩展指南.md`](./packages/leafergraph/使用与扩展指南.md)
-13. [`packages/leafergraph/内部架构地图.md`](./packages/leafergraph/内部架构地图.md)
-14. [`templates/README.md`](./templates/README.md)
+11. [`packages/shortcuts/README.md`](./packages/shortcuts/README.md)
+12. [`packages/undo-redo/README.md`](./packages/undo-redo/README.md)
+13. [`packages/authoring/README.md`](./packages/authoring/README.md)
+14. [`packages/leafergraph/使用与扩展指南.md`](./packages/leafergraph/使用与扩展指南.md)
+15. [`packages/leafergraph/内部架构地图.md`](./packages/leafergraph/内部架构地图.md)
+16. [`templates/README.md`](./templates/README.md)
 
 如果你更关心当前仍在维护的设计文档，优先看：
 
@@ -211,6 +234,9 @@ bun run build:authoring
 bun run build:leafergraph
 bun run build:context-menu
 bun run build:context-menu-builtins
+bun run build:shortcuts
+bun run build:undo-redo
+bun run test:undo-redo
 bun run test:core
 bun run test:smoke
 bun run test
@@ -221,7 +247,7 @@ bun run test
 - `build:*`
   - 只覆盖正式包，以及当前仍在维护的 example 构建入口
 - `test:core`
-  - 运行正式包测试；当前已覆盖 `node`、`execution`、`theme`、`contracts`、`widget-runtime`、`basic-kit`、`authoring`、`context-menu`、`context-menu-builtins`
+  - 运行正式包测试；当前已覆盖 `node`、`execution`、`theme`、`contracts`、`widget-runtime`、`basic-kit`、`authoring`、`context-menu`、`context-menu-builtins`、`shortcuts`、`undo-redo` 和 `leafergraph`
 - `test:smoke`
   - 运行 `example/` 与活动模板的 `check/build` 级 smoke，不启动 dev server，也不替代 UI 行为测试
 - `test`

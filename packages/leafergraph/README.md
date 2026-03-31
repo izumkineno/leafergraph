@@ -9,7 +9,7 @@
 - 注册节点、模块、Widget 和插件
 - 处理节点拖拽、缩放、连线、选区和视口
 - 执行 `play / step / stop / playFromNode(...)`
-- 订阅宿主级运行反馈与交互提交事件
+- 订阅宿主级运行反馈、交互提交事件与正式 history feed
 
 它不再负责：
 
@@ -42,6 +42,8 @@
 | `@leafergraph/config` | 非视觉配置、默认值 resolver、normalize helper |
 | `@leafergraph/widget-runtime` | Widget registry、renderer lifecycle、editing 与 interaction helper |
 | `@leafergraph/basic-kit` | 基础 widgets、系统节点、默认内容 plugin |
+| `@leafergraph/shortcuts` | 宿主输入扩展层，负责快捷键 runtime 与 graph 预设 |
+| `@leafergraph/undo-redo` | 宿主状态扩展层，负责 undo/redo controller 与 history 回放 |
 | `leafergraph` | 图运行时、Leafer 场景装配、交互基础设施、实例 façade |
 
 一个实用判断是：
@@ -141,7 +143,10 @@ graph.createNode({
 - `applyGraphDocumentDiff(...)`
 - `play / step / stop / playFromNode(...)`
 - `registerNode(...) / registerWidget(...) / installModule(...) / use(...)`
-- `subscribeRuntimeFeedback(...) / subscribeInteractionCommit(...)`
+- `subscribeRuntimeFeedback(...) / subscribeInteractionCommit(...) / subscribeHistory(...)`
+
+如果你要接 undo / redo，这里只提供 `subscribeHistory(...)` 这类可回放历史事件，不会自动安装历史栈。
+显式绑定仍然应交给 `@leafergraph/undo-redo`，而 `graph.history` 配置真源在 `@leafergraph/config`。
 
 如果你要写静态类型，优先从真源包导入，而不是期待主包继续转发。
 
