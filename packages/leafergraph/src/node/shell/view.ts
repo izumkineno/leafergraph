@@ -436,55 +436,103 @@ function createNodeShellPortGlyph(
   port: NodeShellPortLayout,
   theme: NodeShellRenderTheme
 ): Group | Path | Rect {
-  // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
   const fill =
     port.slotColor ??
     (port.direction === "input" ? theme.inputPortFill : theme.outputPortFill);
-
-  switch (port.slotShape) {
-    case "box":
-      return new Rect({
-        x: port.portX,
-        y: port.portY,
-        width: port.portWidth,
-        height: port.portHeight,
-        fill,
-        stroke: theme.portStroke,
-        strokeWidth: theme.portStrokeWidth,
-        cornerRadius: resolveSlotFrameCornerRadius(
-          port.slotShape,
-          Math.max(port.portWidth, port.portHeight)
-        ),
-        hittable: false
-      });
-    case "arrow":
-      // 再按当前规则组合结果，并把派生数据一并收口到输出里。
-      return new Path({
-        path: buildArrowPortPath(port),
-        fill,
-        stroke: theme.portStroke,
-        strokeWidth: Math.max(1.5, theme.portStrokeWidth * 0.7),
-        strokeJoin: "round",
-        strokeCap: "round",
-        hittable: false
-      });
-    case "grid":
-      return createGridPortGlyph(port, fill, theme);
-    case "circle":
-    default:
-      return new Rect({
-        x: port.portX,
-        y: port.portY,
-        width: port.portWidth,
-        height: port.portHeight,
-        fill,
-        stroke: theme.portStroke,
-        strokeWidth: theme.portStrokeWidth,
-        cornerRadius: 999,
-        hittable: false
-      });
-  }
+  return nodeShellPortGlyphFactories[port.slotShape](port, fill, theme);
 }
+
+type NodeShellPortGlyphFactory = (
+  port: NodeShellPortLayout,
+  fill: string,
+  theme: NodeShellRenderTheme
+) => Group | Path | Rect;
+
+/**
+ * 创建 `box` 形状的端口图元。
+ *
+ * @param port - 端口布局。
+ * @param fill - 端口填充色。
+ * @param theme - 节点壳渲染主题。
+ * @returns `box` 端口图元。
+ */
+function createBoxPortGlyph(
+  port: NodeShellPortLayout,
+  fill: string,
+  theme: NodeShellRenderTheme
+): Rect {
+  return new Rect({
+    x: port.portX,
+    y: port.portY,
+    width: port.portWidth,
+    height: port.portHeight,
+    fill,
+    stroke: theme.portStroke,
+    strokeWidth: theme.portStrokeWidth,
+    cornerRadius: resolveSlotFrameCornerRadius(
+      port.slotShape,
+      Math.max(port.portWidth, port.portHeight)
+    ),
+    hittable: false
+  });
+}
+
+/**
+ * 创建 `arrow` 形状的端口图元。
+ *
+ * @param port - 端口布局。
+ * @param fill - 端口填充色。
+ * @param theme - 节点壳渲染主题。
+ * @returns `arrow` 端口图元。
+ */
+function createArrowPortGlyph(
+  port: NodeShellPortLayout,
+  fill: string,
+  theme: NodeShellRenderTheme
+): Path {
+  return new Path({
+    path: buildArrowPortPath(port),
+    fill,
+    stroke: theme.portStroke,
+    strokeWidth: Math.max(1.5, theme.portStrokeWidth * 0.7),
+    strokeJoin: "round",
+    strokeCap: "round",
+    hittable: false
+  });
+}
+
+/**
+ * 创建 `circle` 形状的端口图元。
+ *
+ * @param port - 端口布局。
+ * @param fill - 端口填充色。
+ * @param theme - 节点壳渲染主题。
+ * @returns `circle` 端口图元。
+ */
+function createCirclePortGlyph(
+  port: NodeShellPortLayout,
+  fill: string,
+  theme: NodeShellRenderTheme
+): Rect {
+  return new Rect({
+    x: port.portX,
+    y: port.portY,
+    width: port.portWidth,
+    height: port.portHeight,
+    fill,
+    stroke: theme.portStroke,
+    strokeWidth: theme.portStrokeWidth,
+    cornerRadius: 999,
+    hittable: false
+  });
+}
+
+const nodeShellPortGlyphFactories = {
+  box: createBoxPortGlyph,
+  arrow: createArrowPortGlyph,
+  grid: createGridPortGlyph,
+  circle: createCirclePortGlyph
+} satisfies Record<NodeShellPortLayout["slotShape"], NodeShellPortGlyphFactory>;
 
 /**
  * `grid` 形状用 2x2 小格子表达，避免和普通方形端口混淆。
@@ -570,4 +618,3 @@ function resolveSlotFrameCornerRadius(
 ): number {
   return resolveSlotCornerRadius(shape, size);
 }
-

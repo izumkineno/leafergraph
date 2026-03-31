@@ -19,7 +19,9 @@ export const LEAFER_GRAPH_WIDGET_HIT_AREA_NAME = "widget-hit-area";
  * 当前只读取名称和父子链，用于判断事件是否来自 Widget 内部。
  */
 export interface LeaferGraphWidgetEventTargetLike {
+  /** 当前图元名称。 */
   name?: string;
+  /** 当前图元的父节点。 */
   parent?: LeaferGraphWidgetEventTargetLike | null;
 }
 
@@ -28,18 +30,30 @@ export interface LeaferGraphWidgetEventTargetLike {
  * 这里只保留交互型 Widget 会真正消费的字段，避免把整份 Leafer 事件类型扩散到宿主各层。
  */
 export interface LeaferGraphWidgetPointerEvent {
+  /** 图坐标系中的 X。 */
   x: number;
+  /** 图坐标系中的 Y。 */
   y: number;
+  /** 原始事件对象中可读取的客户端坐标。 */
   origin?: {
+    /** 客户端 X。 */
     clientX?: number;
+    /** 客户端 Y。 */
     clientY?: number;
   };
+  /** 当前是否为左键。 */
   left?: boolean;
+  /** 当前是否为中键。 */
   middle?: boolean;
+  /** 当前是否为右键。 */
   right?: boolean;
+  /** 当前命中的目标。 */
   target?: LeaferGraphWidgetEventTargetLike | null;
+  /** 把当前事件转换到给定 Group 局部坐标系。 */
   getLocalPoint?(relative?: Group): { x: number; y: number };
+  /** 停止当前事件继续传播。 */
   stop?(): void;
+  /** 立即停止当前事件。 */
   stopNow?(): void;
 }
 
@@ -48,7 +62,9 @@ export interface LeaferGraphWidgetPointerEvent {
  * `Rect`、`Group` 等 Leafer 图元都满足这组结构约束。
  */
 export interface LeaferGraphWidgetEventSource {
+  /** 绑定事件监听。 */
   on(type: string, listener: (event: LeaferGraphWidgetPointerEvent) => void): void;
+  /** 解绑事件监听。 */
   off(
     type?: string | string[],
     listener?: (event: LeaferGraphWidgetPointerEvent) => void
@@ -60,13 +76,21 @@ export interface LeaferGraphWidgetEventSource {
  * 当前主要服务 slider，一旦后续增加 progress、seek、range 一类控件，也可以继续复用。
  */
 export interface LeaferGraphLinearWidgetDragOptions {
+  /** 当前 Widget 的命中层。 */
   hitArea: LeaferGraphWidgetEventSource;
+  /** 当前 Widget 所属 Group。 */
   group: Group;
+  /** 当前 Widget 在节点内的布局边界。 */
   bounds: LeaferGraphWidgetBounds;
+  /** 读取节点在图中的 X 坐标。 */
   getNodeX(): number;
+  /** 根据拖拽进度写入新值。 */
   onValue(nextProgress: number, event: LeaferGraphWidgetPointerEvent): void;
+  /** 额外的指针过滤条件。 */
   allowPointer?(event: LeaferGraphWidgetPointerEvent): boolean;
+  /** 拖拽开始回调。 */
   onStart?(event: LeaferGraphWidgetPointerEvent): void;
+  /** 拖拽结束回调。 */
   onEnd?(event: LeaferGraphWidgetPointerEvent): void;
 }
 
@@ -75,10 +99,15 @@ export interface LeaferGraphLinearWidgetDragOptions {
  * 适合 toggle、button、stepper 等“一次点击触发一次动作”的交互件。
  */
 export interface LeaferGraphPressWidgetInteractionOptions {
+  /** 当前 Widget 的命中层。 */
   hitArea: LeaferGraphWidgetEventSource;
+  /** 命中后触发的按压回调。 */
   onPress(event: LeaferGraphWidgetPointerEvent): void;
+  /** 额外的指针过滤条件。 */
   allowPointer?(event: LeaferGraphWidgetPointerEvent): boolean;
+  /** hover 状态变化回调。 */
   onHoverChange?(hovered: boolean): void;
+  /** press 状态变化回调。 */
   onPressChange?(pressed: boolean): void;
 }
 
@@ -87,6 +116,7 @@ export interface LeaferGraphPressWidgetInteractionOptions {
  * 当前只需要统一销毁入口，便于宿主在 renderer.destroy() 中稳定回收监听。
  */
 export interface LeaferGraphWidgetInteractionBinding {
+  /** 销毁当前交互绑定。 */
   destroy(): void;
 }
 

@@ -14,6 +14,7 @@ import "./app.css";
 import {
   type ExampleAuthoringBundleStatus,
   type ExampleGraphStatus,
+  type ExampleLeaferDebugConfig,
   type ExampleLinkPropagationAnimationOption,
   useExampleGraph,
 } from "./graph/use_example_graph";
@@ -26,6 +27,16 @@ interface ActionItem {
   title?: string;
   onClick(): void;
 }
+
+/** 顶部 debug 单选框使用的一组常见 Leafer 调试分类。 */
+const LEAFER_DEBUG_NAME_OPTIONS = [
+  { value: "", label: "None" },
+  { value: "RunTime", label: "RunTime" },
+  { value: "Renderer", label: "Renderer" },
+  { value: "Leafer", label: "Leafer" },
+  { value: "Life", label: "Life" },
+  { value: "setAttr", label: "setAttr" },
+] as const;
 
 /** 日志时间统一格式化为 `HH:mm:ss`。 */
 const LOG_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
@@ -120,6 +131,48 @@ function resolveAnimationPresetSelectValue(
 }
 
 /**
+ * 把布尔调试状态投影成顶部 select 用的值。
+ *
+ * @param value - 当前布尔状态。
+ * @returns 适合 select 的值。
+ */
+function resolveBooleanSelectValue(value: boolean): "on" | "off" {
+  return value ? "on" : "off";
+}
+
+/**
+ * 把 Leafer 的 filter / exclude 值投影成顶部单选值。
+ *
+ * @param value - 当前 filter / exclude。
+ * @returns 适合顶部 select 的值。
+ */
+function resolveLeaferDebugNameSelectValue(
+  value: ExampleLeaferDebugConfig["filter"] | ExampleLeaferDebugConfig["exclude"],
+): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return value[0] ?? "";
+}
+
+/**
+ * 把包围盒调试值投影成顶部 select 用的值。
+ *
+ * @param value - 当前包围盒调试值。
+ * @returns 适合顶部 select 的值。
+ */
+function resolveLeaferDebugBoundsSelectValue(
+  value: ExampleLeaferDebugConfig["showBounds"],
+): "off" | "bounds" | "hit" {
+  if (value === "hit") {
+    return "hit";
+  }
+
+  return value ? "bounds" : "off";
+}
+
+/**
  * 渲染当前示例应用。
  *
  * @returns 处理后的结果。
@@ -136,6 +189,7 @@ export function App() {
     chainSteps,
     errorMessage,
     historyState,
+    leaferDebugConfig,
     linkPropagationAnimationPreset,
     logs,
     registeredBundleCount,
@@ -238,6 +292,129 @@ export function App() {
             ))}
           </div>
 
+          <div class="toolbar-debug">
+            <p class="toolbar-debug-title">Leafer Debug</p>
+            <div class="toolbar-debug-grid">
+              <label class="toolbar-select-wrap toolbar-select-wrap--debug">
+                <span class="toolbar-select-label">Enable</span>
+                <select
+                  class="toolbar-select toolbar-select--compact"
+                  value={resolveBooleanSelectValue(leaferDebugConfig.enable)}
+                  disabled={status !== "ready"}
+                  onInput={(event) => {
+                    actions.setLeaferDebugConfig({
+                      enable: event.currentTarget.value === "on",
+                    });
+                  }}
+                >
+                  <option value="off">Off</option>
+                  <option value="on">On</option>
+                </select>
+              </label>
+
+              <label class="toolbar-select-wrap toolbar-select-wrap--debug">
+                <span class="toolbar-select-label">Warn</span>
+                <select
+                  class="toolbar-select toolbar-select--compact"
+                  value={resolveBooleanSelectValue(leaferDebugConfig.showWarn)}
+                  disabled={status !== "ready"}
+                  onInput={(event) => {
+                    actions.setLeaferDebugConfig({
+                      showWarn: event.currentTarget.value === "on",
+                    });
+                  }}
+                >
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </label>
+
+              <label class="toolbar-select-wrap toolbar-select-wrap--debug">
+                <span class="toolbar-select-label">Filter</span>
+                <select
+                  class="toolbar-select toolbar-select--compact"
+                  value={resolveLeaferDebugNameSelectValue(leaferDebugConfig.filter)}
+                  disabled={status !== "ready"}
+                  onInput={(event) => {
+                    actions.setLeaferDebugConfig({
+                      filter: event.currentTarget.value,
+                    });
+                  }}
+                >
+                  {LEAFER_DEBUG_NAME_OPTIONS.map((option) => (
+                    <option key={`filter-${option.value || "none"}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label class="toolbar-select-wrap toolbar-select-wrap--debug">
+                <span class="toolbar-select-label">Exclude</span>
+                <select
+                  class="toolbar-select toolbar-select--compact"
+                  value={resolveLeaferDebugNameSelectValue(leaferDebugConfig.exclude)}
+                  disabled={status !== "ready"}
+                  onInput={(event) => {
+                    actions.setLeaferDebugConfig({
+                      exclude: event.currentTarget.value,
+                    });
+                  }}
+                >
+                  {LEAFER_DEBUG_NAME_OPTIONS.map((option) => (
+                    <option key={`exclude-${option.value || "none"}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label class="toolbar-select-wrap toolbar-select-wrap--debug">
+                <span class="toolbar-select-label">Repaint</span>
+                <select
+                  class="toolbar-select toolbar-select--compact"
+                  value={resolveBooleanSelectValue(Boolean(leaferDebugConfig.showRepaint))}
+                  disabled={status !== "ready"}
+                  onInput={(event) => {
+                    actions.setLeaferDebugConfig({
+                      showRepaint: event.currentTarget.value === "on",
+                    });
+                  }}
+                >
+                  <option value="off">Off</option>
+                  <option value="on">On</option>
+                </select>
+              </label>
+
+              <label class="toolbar-select-wrap toolbar-select-wrap--debug">
+                <span class="toolbar-select-label">Bounds</span>
+                <select
+                  class="toolbar-select toolbar-select--compact"
+                  value={resolveLeaferDebugBoundsSelectValue(
+                    leaferDebugConfig.showBounds,
+                  )}
+                  disabled={status !== "ready"}
+                  onInput={(event) => {
+                    const value = event.currentTarget.value as
+                      | "off"
+                      | "bounds"
+                      | "hit";
+                    actions.setLeaferDebugConfig({
+                      showBounds:
+                        value === "hit"
+                          ? "hit"
+                          : value === "bounds",
+                    });
+                  }}
+                >
+                  <option value="off">Off</option>
+                  <option value="bounds">Bounds</option>
+                  <option value="hit">Hit</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
           <div class="toolbar-meta">
             <div class="status-row">
               <span class={`status-chip status-chip--${status}`}>
@@ -252,6 +429,9 @@ export function App() {
               <span class="stage-badge">Leafer Menu</span>
               <span class="stage-badge">
                 Animation {resolveAnimationPresetSelectValue(linkPropagationAnimationPreset)}
+              </span>
+              <span class="stage-badge">
+                Debug {leaferDebugConfig.enable ? "On" : "Off"}
               </span>
               <span class="stage-badge">
                 Bundles {registeredBundleCount}

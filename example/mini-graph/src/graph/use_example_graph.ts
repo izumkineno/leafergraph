@@ -11,6 +11,7 @@
  * 这样页面壳和图运行时可以保持清晰分层。
  */
 import { useEffect, useRef, useState } from "preact/hooks";
+import { Debug } from "leafer-ui";
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import {
   createLeaferGraphContextMenuClipboardStore,
@@ -62,6 +63,57 @@ const MAX_LOG_ENTRIES = 60;
 const EXAMPLE_GRAPH_HISTORY_CONFIG = {
   maxEntries: 100,
   resetOnDocumentSync: true
+} as const;
+
+/**
+ * mini-graph 自己维护的 Leafer debug 配置。
+ *
+ * @remarks
+ * Leafer 的调试能力来自 `leafer-ui` 的全局 `Debug`，并不属于 `leafergraph`
+ * 的正式 `config` 真源；因此这里单独作为 demo 配置管理，并在图实例生命周期内应用。
+ */
+export interface ExampleLeaferDebugConfig {
+  /** 是否开启 Leafer 调试模式。 */
+  enable: boolean;
+  /** 是否输出 Leafer warning。 */
+  showWarn: boolean;
+  /** 只打印指定调试分类。 */
+  filter: string | readonly string[];
+  /** 排除指定调试分类。 */
+  exclude: string | readonly string[];
+  /** 是否显示重绘区域。 */
+  showRepaint: boolean | string;
+  /** 是否显示元素包围盒或命中区域。 */
+  showBounds: boolean | string | "hit";
+}
+
+/** demo 默认的 Leafer debug 配置。 */
+const EXAMPLE_LEAFER_DEBUG_CONFIG = {
+  enable: false,
+  showWarn: true,
+  filter: "RunTime",
+  exclude: [],
+  showRepaint: false,
+  showBounds: false
+} as const satisfies ExampleLeaferDebugConfig;
+
+/**
+ * mini-graph 的示例级配置集合。
+ *
+ * @remarks
+ * `graph` 继续交给 `leafergraph` 主包消费，`leaferDebug` 则由 demo 自己在
+ * `createLeaferGraph(...)` 前后应用到 Leafer 全局调试开关。
+ */
+const EXAMPLE_MINI_GRAPH_CONFIG = {
+  graph: {
+    graph: {
+      runtime: {
+        linkPropagationAnimation: "expressive"
+      },
+      history: EXAMPLE_GRAPH_HISTORY_CONFIG
+    }
+  },
+  leaferDebug: EXAMPLE_LEAFER_DEBUG_CONFIG
 } as const;
 
 /** Widget 文本编辑器当前会把 DOM 挂到 body，这里用 class 统一判断编辑态。 */
@@ -162,6 +214,9 @@ export interface ExampleGraphActions {
   setLinkPropagationAnimationPreset(
     preset: ExampleLinkPropagationAnimationOption
   ): void;
+  setLeaferDebugConfig(
+    patch: Partial<ExampleLeaferDebugConfig>
+  ): void;
   removeNode(nodeId: string): void;
   removeLink(linkId: string): void;
   registerAuthoringBundle(file: File): Promise<void>;
@@ -177,6 +232,7 @@ export interface UseExampleGraphResult {
   authoringBundleStatus: ExampleAuthoringBundleStatus;
   registeredBundleCount: number;
   linkPropagationAnimationPreset: ExampleLinkPropagationAnimationOption;
+  leaferDebugConfig: ExampleLeaferDebugConfig;
   errorMessage: string;
   stageBadges: readonly { id: string; label: string }[];
   chainSteps: readonly { id: string; title: string; description: string }[];
@@ -393,6 +449,159 @@ function createEmptyHistoryState(): ExampleHistoryState {
 }
 
 /**
+ * 把一份 Leafer debug 配置克隆成可安全复用的普通对象。
+ *
+ * @param config - 原始配置。
+ * @returns 克隆后的配置对象。
+ */
+function cloneExampleLeaferDebugConfig(
+  config: ExampleLeaferDebugConfig
+): ExampleLeaferDebugConfig {
+  return {
+    ...config,
+    filter:
+      typeof config.filter === "string" ? config.filter : [...config.filter],
+    exclude:
+      typeof config.exclude === "string" ? config.exclude : [...config.exclude]
+  };
+}
+
+/**
+ * 把 demo 层的 debug 名称列表规范成 Leafer 真正接受的输入格式。
+ *
+ * @param value - demo 配置里的 filter / exclude 值。
+ * @returns 适合直接写回 `Debug.filter` / `Debug.exclude` 的值。
+ */
+function normalizeLeaferDebugNameList(
+  value: string | readonly string[] | undefined
+): string | string[] {
+  if (!value) {
+    return [];
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return [...value];
+}
+
+/**
+ * 把 debug 名称列表统一投影成字符串数组，便于比较和展示。
+ *
+ * @param value - filter / exclude 当前值。
+ * @returns 归一化后的名称列表。
+ */
+function listLeaferDebugNames(value: string | readonly string[]): string[] {
+  if (typeof value === "string") {
+    return value ? [value] : [];
+  }
+
+  return [...value].filter((name) => Boolean(name));
+}
+
+/**
+ * 比较两组 debug 名称列表是否等价。
+ *
+ * @param left - 左侧值。
+ * @param right - 右侧值。
+ * @returns 是否等价。
+ */
+function areLeaferDebugNameListsEqual(
+  left: string | readonly string[],
+  right: string | readonly string[]
+): boolean {
+  const leftNames = listLeaferDebugNames(left);
+  const rightNames = listLeaferDebugNames(right);
+  if (leftNames.length !== rightNames.length) {
+    return false;
+  }
+
+  return leftNames.every((name, index) => name === rightNames[index]);
+}
+
+/**
+ * 判断两份 Leafer debug 配置是否完全一致。
+ *
+ * @param left - 左侧配置。
+ * @param right - 右侧配置。
+ * @returns 是否完全一致。
+ */
+function isSameExampleLeaferDebugConfig(
+  left: ExampleLeaferDebugConfig,
+  right: ExampleLeaferDebugConfig
+): boolean {
+  return (
+    left.enable === right.enable &&
+    left.showWarn === right.showWarn &&
+    left.showRepaint === right.showRepaint &&
+    left.showBounds === right.showBounds &&
+    areLeaferDebugNameListsEqual(left.filter, right.filter) &&
+    areLeaferDebugNameListsEqual(left.exclude, right.exclude)
+  );
+}
+
+/**
+ * 把 debug 名称列表格式化成日志可读文本。
+ *
+ * @param value - filter / exclude 当前值。
+ * @returns 用于日志的文本。
+ */
+function formatLeaferDebugNameList(
+  value: string | readonly string[]
+): string {
+  const names = listLeaferDebugNames(value);
+  return names.length ? names.join(", ") : "none";
+}
+
+/**
+ * 把包围盒调试值格式化成日志可读文本。
+ *
+ * @param value - 当前包围盒调试值。
+ * @returns 用于日志的文本。
+ */
+function formatLeaferDebugBoundsValue(
+  value: ExampleLeaferDebugConfig["showBounds"]
+): string {
+  if (value === "hit") {
+    return "hit";
+  }
+
+  return value ? "bounds" : "off";
+}
+
+/**
+ * 读取当前 Leafer 全局 debug 配置快照。
+ *
+ * @returns 当前 Leafer debug 状态快照。
+ */
+function captureLeaferDebugConfig(): ExampleLeaferDebugConfig {
+  return {
+    enable: Debug.enable,
+    showWarn: Debug.showWarn,
+    filter: [...Debug.filterList],
+    exclude: [...Debug.excludeList],
+    showRepaint: Debug.showRepaint,
+    showBounds: Debug.showBounds
+  };
+}
+
+/**
+ * 把一组 Leafer debug 配置应用到当前页面。
+ *
+ * @param config - 目标 debug 配置。
+ * @returns 无返回值。
+ */
+function applyLeaferDebugConfig(config: ExampleLeaferDebugConfig): void {
+  Debug.enable = config.enable;
+  Debug.showWarn = config.showWarn;
+  Debug.filter = normalizeLeaferDebugNameList(config.filter);
+  Debug.exclude = normalizeLeaferDebugNameList(config.exclude);
+  Debug.showRepaint = config.showRepaint;
+  Debug.showBounds = config.showBounds;
+}
+
+/**
  * 解析当前系统主题偏好。
  *
  * demo 既要让 CSS 跟随系统主题，也要让图运行时主题同步切换，
@@ -444,6 +653,10 @@ export function useExampleGraph(): UseExampleGraphResult {
     setLinkPropagationAnimationPresetState
   ] =
     useState<ExampleLinkPropagationAnimationOption>("expressive");
+  const [leaferDebugConfig, setLeaferDebugConfigState] =
+    useState<ExampleLeaferDebugConfig>(() =>
+      cloneExampleLeaferDebugConfig(EXAMPLE_MINI_GRAPH_CONFIG.leaferDebug)
+    );
   const [errorMessage, setErrorMessage] = useState("");
 
   /**
@@ -1020,6 +1233,30 @@ export function useExampleGraph(): UseExampleGraphResult {
       );
       setLinkPropagationAnimationPresetState(preset);
     },
+    setLeaferDebugConfig(patch) {
+      setLeaferDebugConfigState((currentConfig) => {
+        const nextConfig = cloneExampleLeaferDebugConfig({
+          ...currentConfig,
+          ...patch
+        });
+        if (isSameExampleLeaferDebugConfig(currentConfig, nextConfig)) {
+          return currentConfig;
+        }
+
+        appendLog(
+          `已更新 Leafer Debug：enable=${
+            nextConfig.enable ? "on" : "off"
+          }，warn=${nextConfig.showWarn ? "on" : "off"}，filter=${formatLeaferDebugNameList(
+            nextConfig.filter
+          )}，exclude=${formatLeaferDebugNameList(
+            nextConfig.exclude
+          )}，repaint=${
+            nextConfig.showRepaint ? "on" : "off"
+          }，bounds=${formatLeaferDebugBoundsValue(nextConfig.showBounds)}`
+        );
+        return nextConfig;
+      });
+    },
     removeNode(nodeId) {
       removeNodesWithLogging([nodeId]);
     },
@@ -1134,6 +1371,12 @@ export function useExampleGraph(): UseExampleGraphResult {
      * @returns 无返回值。
      */
     let cleanupThemeListener = (): void => {};
+    /**
+     * 处理 `restoreLeaferDebugConfig` 相关逻辑。
+     *
+     * @returns 无返回值。
+     */
+    let restoreLeaferDebugConfig = (): void => {};
 
     /**
      *  浏览器窗口尺寸变化后，重新让图内容适配视图。
@@ -1166,6 +1409,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       cleanupNodeState();
       cleanupUndoRedo();
       cleanupThemeListener();
+      restoreLeaferDebugConfig();
       window.removeEventListener("resize", handleWindowResize);
 
       clearTrackedLinks();
@@ -1195,19 +1439,27 @@ export function useExampleGraph(): UseExampleGraphResult {
         themeModeRef.current = resolvePreferredThemeMode();
         nodeIdsRef.current.clear();
         setHistoryState(createEmptyHistoryState());
-        const graphConfig = {
+        const exampleConfig = {
           graph: {
-            runtime: {
-              linkPropagationAnimation: linkPropagationAnimationPreset
-            },
-            history: EXAMPLE_GRAPH_HISTORY_CONFIG
-          }
+            graph: {
+              runtime: {
+                linkPropagationAnimation: linkPropagationAnimationPreset
+              },
+              history: EXAMPLE_MINI_GRAPH_CONFIG.graph.graph.history
+            }
+          },
+          leaferDebug: cloneExampleLeaferDebugConfig(leaferDebugConfig)
+        };
+        const previousLeaferDebugConfig = captureLeaferDebugConfig();
+        applyLeaferDebugConfig(exampleConfig.leaferDebug);
+        restoreLeaferDebugConfig = () => {
+          applyLeaferDebugConfig(previousLeaferDebugConfig);
         };
         const graph = createLeaferGraph(stageHost, {
           document: createEmptyExampleDocument(),
           plugins: [leaferGraphBasicKitPlugin, miniGraphExampleDemoPlugin],
           themeMode: themeModeRef.current,
-          config: graphConfig
+          config: exampleConfig.graph
         });
         graphRef.current = graph;
 
@@ -1277,7 +1529,7 @@ export function useExampleGraph(): UseExampleGraphResult {
 
         const undoRedoBinding = bindLeaferGraphUndoRedo({
           host: graph,
-          config: graphConfig.graph.history
+          config: exampleConfig.graph.graph.history
         });
         undoRedoBindingRef.current = undoRedoBinding;
         const unsubscribeHistoryState = undoRedoBinding.controller.subscribeState(
@@ -1356,6 +1608,14 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     return cleanup;
   }, [linkPropagationAnimationPreset]);
+
+  useEffect(() => {
+    if (status !== "ready") {
+      return;
+    }
+
+    applyLeaferDebugConfig(leaferDebugConfig);
+  }, [leaferDebugConfig, status]);
 
   useEffect(() => {
     if (status !== "ready") {
@@ -1545,6 +1805,7 @@ export function useExampleGraph(): UseExampleGraphResult {
     authoringBundleStatus,
     registeredBundleCount,
     linkPropagationAnimationPreset,
+    leaferDebugConfig,
     errorMessage,
     stageBadges: EXAMPLE_STAGE_BADGES,
     chainSteps: EXAMPLE_CHAIN_STEPS

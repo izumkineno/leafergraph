@@ -22,8 +22,11 @@ const MISSING_WIDGET_TEXT_FILL = "#FFF1F2";
 
 /** Widget 在节点内部的最小布局描述。 */
 export interface LeaferGraphWidgetLayoutItem {
+  /** 当前 Widget 可用的布局边界。 */
   bounds: {
+    /** 边界宽度。 */
     width: number;
+    /** 边界高度。 */
     height: number;
   };
 }

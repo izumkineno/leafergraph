@@ -19,14 +19,23 @@ import type { LeaferGraphWidgetThemeTokens } from "@leafergraph/theme";
  * 用于统一控制 label 的位置与排版风格。
  */
 export interface LeaferGraphWidgetLabelOptions {
+  /** 标签文本起始 X。 */
   x: number;
+  /** 标签文本起始 Y。 */
   y: number;
+  /** 标签文本内容。 */
   text: string;
+  /** 标签文本宽度。 */
   width?: number;
+  /** 标签文本颜色。 */
   fill?: string;
+  /** 标签字体族。 */
   fontFamily?: string;
+  /** 标签字号。 */
   fontSize?: number;
+  /** 标签字重。 */
   fontWeight?: string;
+  /** 标签文本对齐方式。 */
   textAlign?: "left" | "center" | "right";
 }
 
@@ -35,15 +44,25 @@ export interface LeaferGraphWidgetLabelOptions {
  * 通常用于只读值、输入控件的显示值。
  */
 export interface LeaferGraphWidgetValueTextOptions {
+  /** 值文本起始 X。 */
   x: number;
+  /** 值文本起始 Y。 */
   y: number;
+  /** 值文本内容。 */
   text: string;
+  /** 值文本宽度。 */
   width?: number;
+  /** 值文本高度。 */
   height?: number;
+  /** 值文本颜色。 */
   fill?: string;
+  /** 值文本字体族。 */
   fontFamily?: string;
+  /** 值文本字号。 */
   fontSize?: number;
+  /** 值文本字重。 */
   fontWeight?: string;
+  /** 值文本对齐方式。 */
   textAlign?: "left" | "center" | "right";
 }
 
@@ -52,16 +71,27 @@ export interface LeaferGraphWidgetValueTextOptions {
  * 适合输入框、按钮、下拉框等组件的背景或描边层。
  */
 export interface LeaferGraphWidgetSurfaceOptions {
+  /** 表面矩形起始 X。 */
   x: number;
+  /** 表面矩形起始 Y。 */
   y: number;
+  /** 表面矩形宽度。 */
   width: number;
+  /** 表面矩形高度。 */
   height: number;
+  /** 图元名称。 */
   name?: string;
+  /** 填充色。 */
   fill?: string;
+  /** 描边色。 */
   stroke?: string;
+  /** 描边宽度。 */
   strokeWidth?: number;
+  /** 圆角。 */
   cornerRadius?: number | number[];
+  /** 鼠标指针样式。 */
   cursor?: string;
+  /** 是否允许命中。 */
   hittable?: boolean;
 }
 
@@ -71,10 +101,15 @@ export interface LeaferGraphWidgetSurfaceOptions {
  */
 export interface LeaferGraphWidgetFieldSurfaceOptions
   extends LeaferGraphWidgetSurfaceOptions {
+  /** 当前主题 token。 */
   theme: LeaferGraphWidgetThemeTokens;
+  /** hover 填充色覆写。 */
   hoverFill?: string;
+  /** hover 描边色覆写。 */
   hoverStroke?: string;
+  /** press 填充色覆写。 */
   pressFill?: string;
+  /** press 描边色覆写。 */
   pressStroke?: string;
 }
 
@@ -83,33 +118,53 @@ export interface LeaferGraphWidgetFieldSurfaceOptions
  * 命中层默认带有统一的 name，便于宿主判断“事件来自 Widget”。
  */
 export interface LeaferGraphWidgetHitAreaOptions {
+  /** 命中层起始 X。 */
   x: number;
+  /** 命中层起始 Y。 */
   y: number;
+  /** 命中层宽度。 */
   width: number;
+  /** 命中层高度。 */
   height: number;
+  /** 鼠标指针样式。 */
   cursor?: string;
+  /** 图元名称。 */
   name?: string;
+  /** 圆角。 */
   cornerRadius?: number | number[];
 }
 
 /** Widget 焦点环参数。 */
 export interface LeaferGraphWidgetFocusRingOptions {
+  /** 焦点环起始 X。 */
   x: number;
+  /** 焦点环起始 Y。 */
   y: number;
+  /** 焦点环宽度。 */
   width: number;
+  /** 焦点环高度。 */
   height: number;
+  /** 焦点环圆角。 */
   cornerRadius?: number | number[];
+  /** 焦点环描边色。 */
   stroke: string;
 }
 
 /** 分段 / 候选项组容器参数。 */
 export interface LeaferGraphWidgetSegmentContainerOptions {
+  /** 容器起始 X。 */
   x: number;
+  /** 容器起始 Y。 */
   y: number;
+  /** 容器宽度。 */
   width: number;
+  /** 容器高度。 */
   height?: number;
+  /** 子项间距。 */
   gap?: number;
+  /** 子项流向。 */
   flow?: "x" | "y";
+  /** 是否允许换行。 */
   wrap?: boolean;
 }
 

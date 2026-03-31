@@ -27,8 +27,11 @@ export type GraphDocumentRootState = Omit<GraphDocument, "nodes" | "links">;
 export interface GraphRuntimeState<
   TNodeState extends LeaferGraphRenderableNodeState = LeaferGraphRenderableNodeState
 > {
+  /** 当前图文档根状态。 */
   document: GraphDocumentRootState;
+  /** 当前图中的节点状态映射。 */
   nodes: Map<string, TNodeState>;
+  /** 当前图中的连线状态映射。 */
   links: Map<string, GraphLink>;
 }
 

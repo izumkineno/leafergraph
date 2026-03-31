@@ -15,6 +15,7 @@ import {
 import type { LeaferGraphUpdateNodeInput } from "@leafergraph/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";
+import { projectLeaferGraphDiffOperations } from "./diff_projection_operations";
 
 interface LeaferGraphFindHost {
   findId?(id: string): unknown;
@@ -189,182 +190,29 @@ export function projectLeaferGraphDocumentDiff(
   );
 
   // 先按 operation 顺序投影正式图结构变更，尽量走最小增量路径。
-  for (const operation of diff.operations) {
-    try {
-      switch (operation.type) {
-        case "document.update":
-          continue;
-        case "node.create": {
-          const nodeId = operation.input.id;
-          if (!nodeId || findGraphicById(graph.nodeLayer, `node-${nodeId}`)) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: "node.create 无法安全增量投影"
-            });
-          }
-          callLeaferGraphFacadeMethod(
-            graph,
-            "createNode",
-            (input) => apiHost.createNode(input),
-            operation.input
-          );
-          affectedNodeIds.add(nodeId);
-          continue;
-        }
-        case "node.update": {
-          const snapshot = findNodeSnapshotInDocument(nextDocument, operation.nodeId);
-          const currentSnapshot = callLeaferGraphFacadeMethod(
-            graph,
-            "getNodeSnapshot",
-            (nodeId) => apiHost.getNodeSnapshot(nodeId),
-            operation.nodeId
-          );
-          const refreshInput =
-            snapshot && currentSnapshot
-              ? createRefreshNodeInput({
-                  currentSnapshot,
-                  nextSnapshot: snapshot
-                })
-              : null;
-          if (
-            !snapshot ||
-            !refreshInput ||
-            !findGraphicById(graph.nodeLayer, `node-${operation.nodeId}`)
-          ) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: `node.update 目标节点缺失: ${operation.nodeId}`
-            });
-          }
-          if (
-            !callLeaferGraphFacadeMethod(
-              graph,
-              "updateNode",
-              (nodeId, input) => apiHost.updateNode(nodeId, input),
-              operation.nodeId,
-              refreshInput
-            )
-          ) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: `node.update 投影失败: ${operation.nodeId}`
-            });
-          }
-          affectedNodeIds.add(operation.nodeId);
-          continue;
-        }
-        case "node.move":
-          if (
-            !findGraphicById(graph.nodeLayer, `node-${operation.nodeId}`) ||
-            !callLeaferGraphFacadeMethod(
-              graph,
-              "moveNode",
-              (nodeId, input) => apiHost.moveNode(nodeId, input),
-              operation.nodeId,
-              operation.input
-            )
-          ) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: `node.move 投影失败: ${operation.nodeId}`
-            });
-          }
-          affectedNodeIds.add(operation.nodeId);
-          continue;
-        case "node.resize":
-          if (
-            !findGraphicById(graph.nodeLayer, `node-${operation.nodeId}`) ||
-            !callLeaferGraphFacadeMethod(
-              graph,
-              "resizeNode",
-              (nodeId, input) => apiHost.resizeNode(nodeId, input),
-              operation.nodeId,
-              operation.input
-            )
-          ) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: `node.resize 投影失败: ${operation.nodeId}`
-            });
-          }
-          affectedNodeIds.add(operation.nodeId);
-          continue;
-        case "node.remove":
-          if (
-            !findGraphicById(graph.nodeLayer, `node-${operation.nodeId}`) ||
-            !callLeaferGraphFacadeMethod(
-              graph,
-              "removeNode",
-              (nodeId) => apiHost.removeNode(nodeId),
-              operation.nodeId
-            )
-          ) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: `node.remove 投影失败: ${operation.nodeId}`
-            });
-          }
-          affectedNodeIds.add(operation.nodeId);
-          continue;
-        case "link.create": {
-          const linkId = operation.input.id;
-          if (!linkId || findGraphicById(graph.linkLayer, `graph-link-${linkId}`)) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: "link.create 无法安全增量投影"
-            });
-          }
-          callLeaferGraphFacadeMethod(
-            graph,
-            "createLink",
-            (input) => apiHost.createLink(input),
-            operation.input
-          );
-          affectedNodeIds.add(operation.input.source.nodeId);
-          affectedNodeIds.add(operation.input.target.nodeId);
-          affectedLinkIds.add(linkId);
-          continue;
-        }
-        case "link.remove":
-          if (
-            !findGraphicById(graph.linkLayer, `graph-link-${operation.linkId}`) ||
-            !callLeaferGraphFacadeMethod(
-              graph,
-              "removeLink",
-              (linkId) => apiHost.removeLink(linkId),
-              operation.linkId
-            )
-          ) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: `link.remove 投影失败: ${operation.linkId}`
-            });
-          }
-          affectedLinkIds.add(operation.linkId);
-          continue;
-        case "link.reconnect": {
-          if (!findGraphicById(graph.linkLayer, `graph-link-${operation.linkId}`)) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: `link.reconnect 目标连线缺失: ${operation.linkId}`
-            });
-          }
-          const result = callLeaferGraphFacadeMethod(
-            graph,
-            "applyGraphOperation",
-            (nextOperation) => apiHost.applyGraphOperation(nextOperation),
-            operation
-          );
-          if (!result.accepted) {
-            return createDiffProjectionFallback(nextDocument, {
-              reason: result.reason ?? `link.reconnect 投影失败: ${operation.linkId}`
-            });
-          }
-          result.affectedNodeIds.forEach((nodeId: string) =>
-            affectedNodeIds.add(nodeId)
-          );
-          result.affectedLinkIds.forEach((linkId: string) =>
-            affectedLinkIds.add(linkId)
-          );
-          continue;
-        }
-      }
-    } catch (error) {
-      return createDiffProjectionFallback(nextDocument, {
-        reason: error instanceof Error ? error.message : "diff 增量投影时发生未知异常"
-      });
-    }
+  const operationFallback = projectLeaferGraphDiffOperations(
+    {
+      graph,
+      apiHost,
+      nextDocument,
+      affectedNodeIds,
+      affectedLinkIds,
+      hasNodeGraphic: (nodeId) =>
+        Boolean(findGraphicById(graph.nodeLayer, `node-${nodeId}`)),
+      hasLinkGraphic: (linkId) =>
+        Boolean(findGraphicById(graph.linkLayer, `graph-link-${linkId}`)),
+      findNodeSnapshot: (nodeId) =>
+        findNodeSnapshotInDocument(nextDocument, nodeId),
+      createRefreshNodeInput,
+      createFallback: (reason) =>
+        createDiffProjectionFallback(nextDocument, { reason }),
+      callFacadeMethod: (methodName, fallback, ...args) =>
+        callLeaferGraphFacadeMethod(graph, methodName, fallback, ...args)
+    },
+    diff.operations
+  );
+  if (operationFallback) {
+    return operationFallback;
   }
 
   // 再处理 field change：优先走 widget fast path，剩余节点回退到完整 refresh。

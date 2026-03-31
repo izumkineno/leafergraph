@@ -5,7 +5,7 @@
  * 负责节点外壳、端口区和 Widget 区的尺寸与坐标计算。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState, NodeWidgetType } from "@leafergraph/node";
 import type { LeaferGraphWidgetBounds } from "@leafergraph/contracts";
 export type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
 import type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
@@ -107,34 +107,126 @@ export function resolveNodeWidgetPreferredHeight(
   widget: NodeLayoutSource["widgets"][number],
   metrics: NodeShellLayoutMetrics
 ): number {
-  const widgetOptions = widget.options ?? {};
-
-  switch (widget.type) {
-    case "toggle":
-      return 60;
-    case "slider":
-      return 64;
-    case "textarea":
-      return Math.max(
-        92,
-        36 + Math.max(Number(widgetOptions["rows"]) || 3, 2) * 22
-      );
-    case "radio": {
-      const items = Array.isArray(widgetOptions["items"])
-        ? widgetOptions["items"].length
-        : 0;
-      const count = Math.max(items, 1);
-      return Math.max(88, 40 + count * 28 + Math.max(count - 1, 0) * 6);
-    }
-    case "input":
-    case "select":
-    case "button":
-    case "checkbox":
-      return 58;
-    default:
-      return metrics.widgetHeight;
+  if (!isKnownNodeWidgetHeightType(widget.type)) {
+    return metrics.widgetHeight;
   }
+
+  return nodeWidgetHeightResolvers[widget.type](widget, metrics);
 }
+
+type NodeWidgetHeightResolver = (
+  widget: NodeLayoutSource["widgets"][number],
+  metrics: NodeShellLayoutMetrics
+) => number;
+
+type KnownNodeWidgetHeightType =
+  | "toggle"
+  | "slider"
+  | "textarea"
+  | "radio"
+  | "input"
+  | "select"
+  | "button"
+  | "checkbox";
+
+/**
+ * 判断当前 widget 类型是否使用内建的高度解析器。
+ *
+ * @param type - Widget 类型。
+ * @returns 是否命中已知高度解析器。
+ */
+function isKnownNodeWidgetHeightType(
+  type: NodeWidgetType
+): type is KnownNodeWidgetHeightType {
+  return type in nodeWidgetHeightResolvers;
+}
+
+/**
+ * 解析 `toggle` widget 的首选高度。
+ *
+ * @param _widget - 目标 Widget。
+ * @param _metrics - 节点布局度量。
+ * @returns `toggle` 的首选高度。
+ */
+function resolveToggleWidgetPreferredHeight(
+  _widget: NodeLayoutSource["widgets"][number],
+  _metrics: NodeShellLayoutMetrics
+): number {
+  return 60;
+}
+
+/**
+ * 解析 `slider` widget 的首选高度。
+ *
+ * @param _widget - 目标 Widget。
+ * @param _metrics - 节点布局度量。
+ * @returns `slider` 的首选高度。
+ */
+function resolveSliderWidgetPreferredHeight(
+  _widget: NodeLayoutSource["widgets"][number],
+  _metrics: NodeShellLayoutMetrics
+): number {
+  return 64;
+}
+
+/**
+ * 解析 `textarea` widget 的首选高度。
+ *
+ * @param widget - 目标 Widget。
+ * @param _metrics - 节点布局度量。
+ * @returns `textarea` 的首选高度。
+ */
+function resolveTextareaWidgetPreferredHeight(
+  widget: NodeLayoutSource["widgets"][number],
+  _metrics: NodeShellLayoutMetrics
+): number {
+  const widgetOptions = widget.options ?? {};
+  return Math.max(92, 36 + Math.max(Number(widgetOptions["rows"]) || 3, 2) * 22);
+}
+
+/**
+ * 解析 `radio` widget 的首选高度。
+ *
+ * @param widget - 目标 Widget。
+ * @param _metrics - 节点布局度量。
+ * @returns `radio` 的首选高度。
+ */
+function resolveRadioWidgetPreferredHeight(
+  widget: NodeLayoutSource["widgets"][number],
+  _metrics: NodeShellLayoutMetrics
+): number {
+  const widgetOptions = widget.options ?? {};
+  const items = Array.isArray(widgetOptions["items"])
+    ? widgetOptions["items"].length
+    : 0;
+  const count = Math.max(items, 1);
+  return Math.max(88, 40 + count * 28 + Math.max(count - 1, 0) * 6);
+}
+
+/**
+ * 解析输入控件类 widget 的统一首选高度。
+ *
+ * @param _widget - 目标 Widget。
+ * @param _metrics - 节点布局度量。
+ * @returns 输入控件类 widget 的首选高度。
+ */
+function resolveCompactWidgetPreferredHeight(
+  _widget: NodeLayoutSource["widgets"][number],
+  _metrics: NodeShellLayoutMetrics
+): number {
+  return 58;
+}
+
+const nodeWidgetHeightResolvers = {
+  toggle: resolveToggleWidgetPreferredHeight,
+  slider: resolveSliderWidgetPreferredHeight,
+  textarea: resolveTextareaWidgetPreferredHeight,
+  radio: resolveRadioWidgetPreferredHeight,
+  input: resolveCompactWidgetPreferredHeight,
+  select: resolveCompactWidgetPreferredHeight,
+  button: resolveCompactWidgetPreferredHeight,
+  checkbox: resolveCompactWidgetPreferredHeight
+} satisfies Record<KnownNodeWidgetHeightType, NodeWidgetHeightResolver>;
 
 /**
  * 计算 Widget 区总高度。
@@ -350,4 +442,3 @@ export function resolveNodeShellLayout(
     widgets: widgetLayouts
   };
 }
-

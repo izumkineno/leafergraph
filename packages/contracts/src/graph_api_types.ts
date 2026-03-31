@@ -277,6 +277,13 @@ export interface LeaferGraphNodeInspectorState {
   executionState: LeaferGraphNodeExecutionState;
 }
 
+/**
+ * 节点运行时状态变化原因。
+ *
+ * @remarks
+ * 这组值描述的是“为什么要通知宿主重新感知该节点状态”，
+ * 不直接等同于某个具体生命周期钩子名称。
+ */
 export type LeaferGraphNodeStateChangeReason =
   | "created"
   | "updated"
@@ -290,100 +297,172 @@ export type LeaferGraphNodeStateChangeReason =
   | "input-values"
   | "execution";
 
+/**
+ * 节点状态变化事件。
+ */
 export interface LeaferGraphNodeStateChangeEvent {
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** 当前事件发出时节点是否仍存在。 */
   exists: boolean;
+  /** 状态变化原因。 */
   reason: LeaferGraphNodeStateChangeReason;
+  /** 事件时间戳。 */
   timestamp: number;
 }
 
+/**
+ * 连接预览和命中检测使用的端口快照。
+ */
 export interface LeaferGraphConnectionPortState {
+  /** 所属节点 ID。 */
   nodeId: string;
+  /** 端口方向。 */
   direction: SlotDirection;
+  /** 端口索引。 */
   slot: number;
+  /** 端口中心点。 */
   center: {
+    /** 中心点 X。 */
     x: number;
+    /** 中心点 Y。 */
     y: number;
   };
+  /** 端口命中热区。 */
   hitBounds: {
+    /** 热区左上角 X。 */
     x: number;
+    /** 热区左上角 Y。 */
     y: number;
+    /** 热区宽度。 */
     width: number;
+    /** 热区高度。 */
     height: number;
   };
+  /** 端口槽位类型。 */
   slotType?: SlotType;
 }
 
+/**
+ * 连线可创建性校验结果。
+ */
 export interface LeaferGraphConnectionValidationResult {
+  /** 当前连线是否可创建。 */
   valid: boolean;
+  /** 不可创建时的原因说明。 */
   reason?: string;
 }
 
+/**
+ * 宿主创建连线时使用的输入结构。
+ */
 export interface LeaferGraphCreateLinkInput
   extends Omit<GraphLink, "id"> {
+  /** 连线 ID；未提供时由宿主生成。 */
   id?: string;
 }
 
+/** 正式图操作来源标识。 */
 export type GraphOperationSource = string;
 
+/**
+ * 正式图操作的公共基类。
+ */
 export interface GraphOperationBase {
+  /** 操作自身的稳定 ID。 */
   operationId: string;
+  /** 操作创建时间戳。 */
   timestamp: number;
+  /** 操作来源。 */
   source: GraphOperationSource;
 }
 
+/** 节点创建操作。 */
 export interface GraphNodeCreateOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "node.create";
+  /** 创建输入。 */
   input: LeaferGraphCreateNodeInput;
 }
 
+/** 节点更新操作。 */
 export interface GraphNodeUpdateOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "node.update";
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** 更新输入。 */
   input: LeaferGraphUpdateNodeInput;
 }
 
+/** 节点移动操作。 */
 export interface GraphNodeMoveOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "node.move";
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** 移动输入。 */
   input: LeaferGraphMoveNodeInput;
 }
 
+/** 节点 resize 操作。 */
 export interface GraphNodeResizeOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "node.resize";
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** resize 输入。 */
   input: LeaferGraphResizeNodeInput;
 }
 
+/** 节点删除操作。 */
 export interface GraphNodeRemoveOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "node.remove";
+  /** 目标节点 ID。 */
   nodeId: string;
 }
 
+/** 文档根字段更新操作。 */
 export interface GraphDocumentUpdateOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "document.update";
+  /** 文档更新输入。 */
   input: LeaferGraphUpdateDocumentInput;
 }
 
+/** 连线创建操作。 */
 export interface GraphLinkCreateOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "link.create";
+  /** 连线创建输入。 */
   input: LeaferGraphCreateLinkInput;
 }
 
+/** 连线删除操作。 */
 export interface GraphLinkRemoveOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "link.remove";
+  /** 目标连线 ID。 */
   linkId: string;
 }
 
+/** 连线重连操作。 */
 export interface GraphLinkReconnectOperation extends GraphOperationBase {
+  /** 操作类型。 */
   type: "link.reconnect";
+  /** 目标连线 ID。 */
   linkId: string;
+  /** 连线端点补丁输入。 */
   input: {
+    /** 可选新的起点。 */
     source?: GraphLinkEndpoint;
+    /** 可选新的终点。 */
     target?: GraphLinkEndpoint;
   };
 }
 
+/** 正式图操作联合类型。 */
 export type GraphOperation =
   | GraphDocumentUpdateOperation
   | GraphNodeCreateOperation
@@ -395,110 +474,181 @@ export type GraphOperation =
   | GraphLinkRemoveOperation
   | GraphLinkReconnectOperation;
 
+/**
+ * 应用正式图操作后的结果。
+ */
 export interface GraphOperationApplyResult {
+  /** 当前操作是否被宿主接受。 */
   accepted: boolean;
+  /** 当前操作是否实际修改了图状态。 */
   changed: boolean;
+  /** 原始操作对象。 */
   operation: GraphOperation;
+  /** 受影响节点 ID 列表。 */
   affectedNodeIds: string[];
+  /** 受影响连线 ID 列表。 */
   affectedLinkIds: string[];
+  /** 拒绝或无变化时的原因。 */
   reason?: string;
 }
 
+/** 历史记录种类。 */
 export type LeaferGraphHistoryRecordKind = "operation" | "snapshot";
 
+/**
+ * 历史记录公共基类。
+ */
 export interface LeaferGraphHistoryRecordBase {
+  /** 记录自身的稳定 ID。 */
   recordId: string;
+  /** 记录时间戳。 */
   timestamp: number;
+  /** 记录来源。 */
   source: string;
+  /** 可选标签。 */
   label?: string;
 }
 
+/** 基于正式图操作的历史记录。 */
 export interface LeaferGraphOperationHistoryRecord
   extends LeaferGraphHistoryRecordBase {
+  /** 记录类型。 */
   kind: "operation";
+  /** 撤销时要应用的操作列表。 */
   undoOperations: GraphOperation[];
+  /** 重做时要应用的操作列表。 */
   redoOperations: GraphOperation[];
 }
 
+/** 基于整图快照的历史记录。 */
 export interface LeaferGraphSnapshotHistoryRecord
   extends LeaferGraphHistoryRecordBase {
+  /** 记录类型。 */
   kind: "snapshot";
+  /** 变更前文档。 */
   beforeDocument: GraphDocument;
+  /** 变更后文档。 */
   afterDocument: GraphDocument;
 }
 
+/** 历史记录联合类型。 */
 export type LeaferGraphHistoryRecord =
   | LeaferGraphOperationHistoryRecord
   | LeaferGraphSnapshotHistoryRecord;
 
+/** 历史重置原因。 */
 export type LeaferGraphHistoryResetReason =
   | "replace-document"
   | "apply-document-diff";
 
+/** 历史记录事件。 */
 export interface LeaferGraphHistoryRecordEvent {
+  /** 事件类型。 */
   type: "history.record";
+  /** 历史记录正文。 */
   record: LeaferGraphHistoryRecord;
 }
 
+/** 历史重置事件。 */
 export interface LeaferGraphHistoryResetEvent {
+  /** 事件类型。 */
   type: "history.reset";
+  /** 重置事件时间戳。 */
   timestamp: number;
+  /** 历史重置原因。 */
   reason: LeaferGraphHistoryResetReason;
 }
 
+/** 历史事件联合类型。 */
 export type LeaferGraphHistoryEvent =
   | LeaferGraphHistoryRecordEvent
   | LeaferGraphHistoryResetEvent;
 
+/** 单个节点移动提交条目。 */
 export interface LeaferGraphNodeMoveCommitEntry {
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** 移动前位置。 */
   before: {
+    /** 移动前 X。 */
     x: number;
+    /** 移动前 Y。 */
     y: number;
   };
+  /** 移动后位置。 */
   after: {
+    /** 移动后 X。 */
     x: number;
+    /** 移动后 Y。 */
     y: number;
   };
 }
 
+/** 节点移动提交事件。 */
 export interface NodeMoveInteractionCommitEvent {
+  /** 事件类型。 */
   type: "node.move.commit";
+  /** 本次拖拽结束后提交的节点条目集合。 */
   entries: LeaferGraphNodeMoveCommitEntry[];
 }
 
+/** 节点 resize 提交事件。 */
 export interface NodeResizeInteractionCommitEvent {
+  /** 事件类型。 */
   type: "node.resize.commit";
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** resize 前尺寸。 */
   before: {
+    /** resize 前宽度。 */
     width: number;
+    /** resize 前高度。 */
     height: number;
   };
+  /** resize 后尺寸。 */
   after: {
+    /** resize 后宽度。 */
     width: number;
+    /** resize 后高度。 */
     height: number;
   };
 }
 
+/** 节点折叠状态提交事件。 */
 export interface NodeCollapseInteractionCommitEvent {
+  /** 事件类型。 */
   type: "node.collapse.commit";
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** 折叠前状态。 */
   beforeCollapsed: boolean;
+  /** 折叠后状态。 */
   afterCollapsed: boolean;
 }
 
+/** 节点 Widget 提交事件。 */
 export interface NodeWidgetInteractionCommitEvent {
+  /** 事件类型。 */
   type: "node.widget.commit";
+  /** 目标节点 ID。 */
   nodeId: string;
+  /** 目标 Widget 索引。 */
   widgetIndex: number;
+  /** 提交前单值快照。 */
   beforeValue: unknown;
+  /** 提交后单值快照。 */
   afterValue: unknown;
+  /** 提交前全部 Widget 列表快照。 */
   beforeWidgets: NodeRuntimeState["widgets"];
+  /** 提交后全部 Widget 列表快照。 */
   afterWidgets: NodeRuntimeState["widgets"];
 }
 
+/** 连线创建提交事件。 */
 export interface LinkCreateInteractionCommitEvent {
+  /** 事件类型。 */
   type: "link.create.commit";
+  /** 连线创建输入。 */
   input: LeaferGraphCreateLinkInput;
 }
 
@@ -518,7 +668,9 @@ export type LeaferGraphInteractionCommitEvent =
 
 /** 节点状态反馈事件。 */
 export interface NodeStateRuntimeFeedbackEvent {
+  /** 反馈事件固定类型。 */
   type: "node.state";
+  /** 节点状态事件正文。 */
   event: LeaferGraphNodeStateChangeEvent;
 }
 
@@ -541,10 +693,15 @@ export type RuntimeFeedbackEvent =
  * 是否具备外部 runtime 控制能力留到后续 adapter 层再展开。
  */
 export interface RuntimeAdapter {
+  /** 订阅统一运行反馈流。 */
   subscribe(listener: (event: RuntimeFeedbackEvent) => void): () => void;
+  /** 释放适配器占用的外部资源。 */
   destroy?(): void;
 }
 
+/** 节点执行反馈事件别名。 */
 export type NodeExecutionRuntimeFeedbackEvent = NodeExecutionFeedbackEvent;
+/** 图执行反馈事件别名。 */
 export type GraphExecutionRuntimeFeedbackEvent = GraphExecutionFeedbackEvent;
+/** 连线传播反馈事件别名。 */
 export type LinkPropagationRuntimeFeedbackEvent = LinkPropagationFeedbackEvent;

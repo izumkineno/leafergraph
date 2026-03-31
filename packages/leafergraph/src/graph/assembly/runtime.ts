@@ -8,6 +8,7 @@
 import { NodeRegistry } from "@leafergraph/node";
 import { LeaferGraphLocalExecutionFeedbackAdapter } from "@leafergraph/execution";
 import type {
+  LeaferGraphInteractionCommitEvent,
   LeaferGraphWidgetRenderer
 } from "@leafergraph/contracts";
 import type { NormalizedLeaferGraphConfig } from "@leafergraph/config";
@@ -186,76 +187,79 @@ export function createLeaferGraphRuntimeAssembly<
    */
   const getGraphDocument = () =>
     serializeRuntimeGraphDocument(nodeRegistry, options.graphState);
+  const interactionCommitHandlers = {
+    "node.move.commit": (event) => {
+      const record = createNodeMoveCommitHistoryRecord({
+        entries: event.entries,
+        source: "interaction.commit"
+      });
+      if (record) {
+        historySource.emit(createHistoryRecordEvent(record));
+      }
+    },
+    "node.resize.commit": (event) => {
+      const record = createNodeResizeHistoryRecord({
+        nodeId: event.nodeId,
+        before: event.before,
+        after: event.after,
+        source: "interaction.commit"
+      });
+      if (record) {
+        historySource.emit(createHistoryRecordEvent(record));
+      }
+    },
+    "node.collapse.commit": (event) => {
+      const afterDocument = getGraphDocument();
+      const record = createNodeCollapseHistoryRecord({
+        afterDocument,
+        nodeId: event.nodeId,
+        beforeCollapsed: event.beforeCollapsed,
+        afterCollapsed: event.afterCollapsed,
+        source: "interaction.commit"
+      });
+      if (record) {
+        historySource.emit(createHistoryRecordEvent(record));
+      }
+    },
+    "node.widget.commit": (event) => {
+      const afterDocument = getGraphDocument();
+      const record = createNodeWidgetHistoryRecord({
+        afterDocument,
+        nodeId: event.nodeId,
+        beforeWidgets: event.beforeWidgets,
+        afterWidgets: event.afterWidgets,
+        source: "interaction.commit"
+      });
+      if (record) {
+        historySource.emit(createHistoryRecordEvent(record));
+      }
+    },
+    "link.create.commit": (event) => {
+      try {
+        const link = sceneRuntime.sceneRuntimeHost.createLink(
+          event.input,
+          "interaction.commit"
+        );
+        const record = createLinkCreateHistoryRecord({
+          link,
+          source: "interaction.commit"
+        });
+        historySource.emit(createHistoryRecordEvent(record));
+      } catch {
+        // 当前阶段让正式交互事件继续可观测，但不重复抛出运行时错误。
+      }
+    }
+  } satisfies {
+    [TType in LeaferGraphInteractionCommitEvent["type"]]: (
+      event: Extract<LeaferGraphInteractionCommitEvent, { type: TType }>
+    ) => void;
+  };
   const disposeHistoryCapture = sceneRuntime.interactionCommitSource.subscribe(
     (event) => {
-      switch (event.type) {
-        case "node.move.commit": {
-          const record = createNodeMoveCommitHistoryRecord({
-            entries: event.entries,
-            source: "interaction.commit"
-          });
-          if (record) {
-            historySource.emit(createHistoryRecordEvent(record));
-          }
-          return;
-        }
-        case "node.resize.commit": {
-          const record = createNodeResizeHistoryRecord({
-            nodeId: event.nodeId,
-            before: event.before,
-            after: event.after,
-            source: "interaction.commit"
-          });
-          if (record) {
-            historySource.emit(createHistoryRecordEvent(record));
-          }
-          return;
-        }
-        case "node.collapse.commit": {
-          const afterDocument = getGraphDocument();
-          const record = createNodeCollapseHistoryRecord({
-            afterDocument,
-            nodeId: event.nodeId,
-            beforeCollapsed: event.beforeCollapsed,
-            afterCollapsed: event.afterCollapsed,
-            source: "interaction.commit"
-          });
-          if (record) {
-            historySource.emit(createHistoryRecordEvent(record));
-          }
-          return;
-        }
-        case "node.widget.commit": {
-          const afterDocument = getGraphDocument();
-          const record = createNodeWidgetHistoryRecord({
-            afterDocument,
-            nodeId: event.nodeId,
-            beforeWidgets: event.beforeWidgets,
-            afterWidgets: event.afterWidgets,
-            source: "interaction.commit"
-          });
-          if (record) {
-            historySource.emit(createHistoryRecordEvent(record));
-          }
-          return;
-        }
-        case "link.create.commit": {
-          try {
-            const link = sceneRuntime.sceneRuntimeHost.createLink(
-              event.input,
-              "interaction.commit"
-            );
-            const record = createLinkCreateHistoryRecord({
-              link,
-              source: "interaction.commit"
-            });
-            historySource.emit(createHistoryRecordEvent(record));
-          } catch {
-            // 当前阶段让正式交互事件继续可观测，但不重复抛出运行时错误。
-          }
-          return;
-        }
-      }
+      const handler = interactionCommitHandlers[event.type] as (
+        nextEvent: LeaferGraphInteractionCommitEvent
+      ) => void;
+      handler(event);
     }
   );
   const apiRuntime: LeaferGraphApiRuntime<TNodeState> = {

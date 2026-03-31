@@ -246,6 +246,41 @@ describe("history_runtime_integration", () => {
     }
   });
 
+  test("applyGraphOperation 对无变化的 node.update 不会生成新的 history.record", async () => {
+    const { graph, container } = await createReadyGraph();
+    graph.createNode({ id: "source-node", type: "test/source", x: 0, y: 0 });
+
+    const records: Array<{ kind: string; label?: string }> = [];
+    const unsubscribe = graph.subscribeHistory((event) => {
+      if (event.type === "history.record") {
+        records.push({
+          kind: event.record.kind,
+          label: event.record.label
+        });
+      }
+    });
+
+    try {
+      const result = graph.applyGraphOperation({
+        type: "node.update",
+        operationId: "test:node.update:noop",
+        timestamp: Date.now(),
+        source: "test",
+        nodeId: "source-node",
+        input: {}
+      });
+
+      expect(result.accepted).toBe(true);
+      expect(result.changed).toBe(false);
+      expect(result.reason).toBe("节点补丁没有产生变化");
+      expect(records).toEqual([]);
+    } finally {
+      unsubscribe();
+      graph.destroy();
+      container.remove();
+    }
+  });
+
   test("link.create.commit 会在本地自动落图并发出 history.record", async () => {
     const { graph, container } = await createReadyGraph();
     const historyEvents: LeaferGraphHistoryEvent[] = [];

@@ -5,15 +5,6 @@
  * 负责正式图查询、整图替换和正式图操作的历史捕获。
  */
 
-import {
-  createLinkCreateHistoryRecord,
-  createLinkReconnectHistoryRecord,
-  createLinkRemoveHistoryRecord,
-  createNodeCreateHistoryRecord,
-  createNodeMoveHistoryRecord,
-  createNodeResizeHistoryRecord,
-  createSnapshotHistoryRecord
-} from "../../graph/history";
 import type {
   LeaferGraphApiGraphOperation,
   LeaferGraphApiGraphOperationResult,
@@ -23,6 +14,7 @@ import type {
 } from "./types";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type { GraphDocument, GraphLink } from "@leafergraph/node";
+import { emitLeaferGraphApiGraphOperationHistory } from "./document_history";
 
 /**
  * 直接替换当前正式文档。
@@ -115,133 +107,14 @@ export function applyLeaferGraphApiGraphOperation<
     return result;
   }
 
-  // 再按正式操作类型分派对应的 history record，保持 operation / snapshot 语义不漂移。
-  switch (operation.type) {
-    case "node.create": {
-      const nodeSnapshot = result.affectedNodeIds[0]
-        ? runtime.nodeRuntimeHost.getNodeSnapshot(result.affectedNodeIds[0])
-        : undefined;
-      if (nodeSnapshot) {
-        context.emitHistoryRecord(
-          createNodeCreateHistoryRecord({
-            nodeSnapshot,
-            source: operation.source || "api"
-          })
-        );
-      }
-      break;
-    }
-    case "node.move": {
-      const afterSnapshot = runtime.nodeRuntimeHost.getNodeSnapshot(operation.nodeId);
-      if (beforeNodeSnapshot && afterSnapshot) {
-        context.emitHistoryRecord(
-          createNodeMoveHistoryRecord({
-            nodeId: operation.nodeId,
-            before: {
-              x: beforeNodeSnapshot.layout.x,
-              y: beforeNodeSnapshot.layout.y
-            },
-            after: {
-              x: afterSnapshot.layout.x,
-              y: afterSnapshot.layout.y
-            },
-            source: operation.source || "api"
-          })
-        );
-      }
-      break;
-    }
-    case "node.resize": {
-      const afterSnapshot = runtime.nodeRuntimeHost.getNodeSnapshot(operation.nodeId);
-      if (beforeNodeSnapshot && afterSnapshot) {
-        context.emitHistoryRecord(
-          createNodeResizeHistoryRecord({
-            nodeId: operation.nodeId,
-            before: context.resolveNodeSizeForHistory(
-              operation.nodeId,
-              beforeNodeSnapshot
-            ),
-            after: context.resolveNodeSizeForHistory(
-              operation.nodeId,
-              afterSnapshot
-            ),
-            source: operation.source || "api"
-          })
-        );
-      }
-      break;
-    }
-    case "link.create": {
-      const link = result.affectedLinkIds[0]
-        ? runtime.sceneRuntime.getLink(result.affectedLinkIds[0])
-        : undefined;
-      if (link) {
-        context.emitHistoryRecord(
-          createLinkCreateHistoryRecord({
-            link,
-            source: operation.source || "api"
-          })
-        );
-      }
-      break;
-    }
-    case "link.remove":
-      if (beforeLink) {
-        context.emitHistoryRecord(
-          createLinkRemoveHistoryRecord({
-            link: beforeLink,
-            source: operation.source || "api"
-          })
-        );
-      }
-      break;
-    case "link.reconnect": {
-      const afterLink = runtime.sceneRuntime.getLink(operation.linkId);
-      if (beforeLink && afterLink) {
-        context.emitHistoryRecord(
-          createLinkReconnectHistoryRecord({
-            linkId: operation.linkId,
-            before: beforeLink,
-            after: afterLink,
-            source: operation.source || "api"
-          })
-        );
-      }
-      break;
-    }
-    case "node.update":
-    case "node.remove":
-    case "document.update":
-      context.emitHistoryRecord(
-        createSnapshotHistoryRecord({
-          beforeDocument,
-          afterDocument: runtime.getGraphDocument(),
-          source: operation.source || "api",
-          label: resolveSnapshotOperationLabel(operation.type)
-        })
-      );
-      break;
-  }
+  emitLeaferGraphApiGraphOperationHistory({
+    context,
+    operation,
+    result,
+    beforeDocument,
+    beforeNodeSnapshot,
+    beforeLink
+  });
 
   return result;
-}
-
-/**
- * 解析快照类图操作的默认历史标签。
- *
- * @param type - 当前图操作类型。
- * @returns 快照历史标签。
- */
-export function resolveSnapshotOperationLabel(
-  type: "node.update" | "node.remove" | "document.update"
-): string {
-  switch (type) {
-    case "node.remove":
-      return "Remove Node";
-    case "document.update":
-      return "Update Document";
-    case "node.update":
-    default:
-      return "Update Node";
-  }
 }
