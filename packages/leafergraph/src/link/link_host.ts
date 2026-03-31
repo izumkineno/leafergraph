@@ -7,17 +7,20 @@
 
 import type { Group } from "leafer-ui";
 import { Arrow } from "@leafer-in/arrow";
-import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink } from "@leafergraph/node";
+import { buildLinkPathFromCurve } from "./link";
 import {
-  PORT_DIRECTION_LEFT,
-  PORT_DIRECTION_RIGHT,
-  buildLinkPathFromCurve,
-  resolveLinkCurve,
-  type LinkBezierCurve
-} from "./link";
-import type { NodeShellLayoutMetrics } from "../node/node_layout";
-import { resolveNodePortAnchorYForNode } from "../node/node_port";
-import { resolveNodeSlotFill } from "../node/node_slot_style";
+  resolveGraphLinkCurve,
+  type LeaferGraphLinkNodeState
+} from "./curve";
+import type { NodeShellLayoutMetrics } from "../node/shell/layout";
+import { resolveNodeSlotFill } from "../node/shell/slot_style";
+
+export type {
+  LeaferGraphLinkNodeState,
+  ResolveGraphLinkCurveInput
+} from "./curve";
+export { resolveGraphLinkCurve } from "./curve";
 
 /** 连线视图状态。 */
 export interface GraphLinkViewState<TNodeState = unknown> {
@@ -29,66 +32,6 @@ export interface GraphLinkViewState<TNodeState = unknown> {
   view: Arrow;
   source?: TNodeState;
   target?: TNodeState;
-}
-
-export type LeaferGraphLinkNodeState = Pick<
-  NodeRuntimeState,
-  "layout" | "inputs" | "outputs" | "flags"
->;
-
-/**
- * 根据节点与槽位解析一条正式连线共享曲线所需的输入。
- *
- * @remarks
- * 连线渲染与数据流动画都应复用这份输入，避免两边各自维护锚点规则。
- */
-export interface ResolveGraphLinkCurveInput<
-  TNodeState extends LeaferGraphLinkNodeState
-> {
-  source: TNodeState;
-  target: TNodeState;
-  sourceSlot: number;
-  targetSlot: number;
-  layoutMetrics: NodeShellLayoutMetrics;
-  defaultNodeWidth: number;
-  portSize: number;
-}
-
-/**
- *  根据节点与槽位解析一条正式连线的共享三次贝塞尔曲线。
- *
- * @param input - 输入参数。
- * @returns 处理后的结果。
- */
-export function resolveGraphLinkCurve<
-  TNodeState extends LeaferGraphLinkNodeState
->(input: ResolveGraphLinkCurveInput<TNodeState>): LinkBezierCurve {
-  const sourceWidth = input.source.layout.width ?? input.defaultNodeWidth;
-
-  return resolveLinkCurve(
-    {
-      sourceX: input.source.layout.x,
-      sourceY: input.source.layout.y,
-      sourceWidth,
-      targetX: input.target.layout.x,
-      targetY: input.target.layout.y,
-      sourcePortY: resolveNodePortAnchorYForNode(
-        input.source,
-        "output",
-        input.sourceSlot,
-        input.layoutMetrics
-      ),
-      targetPortY: resolveNodePortAnchorYForNode(
-        input.target,
-        "input",
-        input.targetSlot,
-        input.layoutMetrics
-      ),
-      portSize: input.portSize
-    },
-    PORT_DIRECTION_RIGHT,
-    PORT_DIRECTION_LEFT
-  );
 }
 
 interface LeaferGraphLinkHostOptions<TNodeState extends LeaferGraphLinkNodeState> {

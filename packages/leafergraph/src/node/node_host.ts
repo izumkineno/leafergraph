@@ -10,8 +10,8 @@ import type { NodeRuntimeState } from "@leafergraph/node";
 import {
   resolveNodeShellLayout,
   type NodeShellLayoutMetrics
-} from "./node_layout";
-import type { NodeShellView } from "./node_shell";
+} from "./shell/layout";
+import type { NodeShellView } from "./shell/view";
 import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/contracts";
 
 type LeaferGraphNodeShellLayout = ReturnType<typeof resolveNodeShellLayout>;
