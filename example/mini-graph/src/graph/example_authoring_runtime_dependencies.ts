@@ -2,9 +2,23 @@ import * as contractsRuntime from "@leafergraph/contracts";
 import * as executionRuntime from "@leafergraph/execution";
 import * as nodeRuntime from "@leafergraph/node";
 import * as leaferUiRuntime from "leafer-ui";
-import * as leafergraphRuntime from "leafergraph";
+import { LeaferGraph, createLeaferGraph } from "leafergraph";
 
 export type ExampleAuthoringRuntimeDependencyNamespace = Record<string, unknown>;
+
+/**
+ * mini-graph 只把主包允许暴露的 runtime façade 桥接给 browser bundle。
+ *
+ * @remarks
+ * 这里故意不用 `import * as leafergraphRuntime from "leafergraph"`：
+ * - 主包已经收口为 runtime-only root
+ * - `check:runtime-only-root` 只允许显式 named import
+ * - 后续如果需要新增桥接能力，必须同时满足主包边界和 checker 规则
+ */
+const leafergraphRuntime: ExampleAuthoringRuntimeDependencyNamespace = {
+  createLeaferGraph,
+  LeaferGraph
+};
 
 const STATIC_RUNTIME_DEPENDENCIES: Record<
   string,
