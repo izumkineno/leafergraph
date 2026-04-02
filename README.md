@@ -14,12 +14,13 @@
 
 ## 项目分层
 
-当前 workspace 可以按六层理解：
+当前 workspace 可以按七层理解：
 
 | 层级 | 包 | 作用 |
 | --- | --- | --- |
 | 基础真源 | `@leafergraph/node`、`@leafergraph/theme`、`@leafergraph/config` | 定义模型、视觉主题和非视觉配置真源 |
 | 执行与公共协议 | `@leafergraph/execution`、`@leafergraph/contracts` | 定义执行链、共享宿主类型、图 API 输入输出和 diff helper |
+| 聚合与桥接 | `@leafergraph/runtime-bridge` | 提供浏览器侧 bridge client、最小 transport 抽象和 portable 聚合入口 |
 | 运行时支撑 | `@leafergraph/widget-runtime` | 提供 Widget registry、renderer lifecycle、editing 和 interaction helper |
 | 内容与宿主 | `@leafergraph/basic-kit`、`leafergraph` | 提供默认内容包和 Leafer 图运行时主包 |
 | 菜单与宿主扩展 | `@leafergraph/context-menu`、`@leafergraph/context-menu-builtins`、`@leafergraph/shortcuts`、`@leafergraph/undo-redo` | 提供右键菜单、菜单 builtins、快捷键和历史栈扩展 |
@@ -45,6 +46,7 @@ flowchart LR
     subgraph protocol["执行与公共协议"]
         executionPkg["@leafergraph/execution"]
         contractsPkg["@leafergraph/contracts"]
+        runtimeBridgePkg["@leafergraph/runtime-bridge"]
         widgetRuntimePkg["@leafergraph/widget-runtime"]
     end
 
@@ -66,6 +68,11 @@ flowchart LR
     contractsPkg --> executionPkg
     contractsPkg --> nodePkg
     contractsPkg --> themePkg
+
+    runtimeBridgePkg --> contractsPkg
+    runtimeBridgePkg --> executionPkg
+    runtimeBridgePkg --> nodePkg
+    runtimeBridgePkg --> leafergraphPkg
 
     widgetRuntimePkg --> configPkg
     widgetRuntimePkg --> contractsPkg
@@ -150,6 +157,7 @@ flowchart LR
 | [`packages/config`](./packages/config/README.md) | 需要行为配置时 | `graph`、`widget`、`context-menu`、`leafer` 配置和 normalize helper |
 | [`packages/execution`](./packages/execution/README.md) | 需要执行内核时 | 执行上下文、传播语义、图级状态机和本地反馈适配器 |
 | [`packages/contracts`](./packages/contracts/README.md) | 需要跨包共享协议时 | 插件协议、图 API 输入输出、Widget 契约、history/diff helper |
+| [`packages/runtime-bridge`](./packages/runtime-bridge/README.md) | 需要本地后端桥接与聚合入口时 | bridge client、portable helper、execution re-export、transport 抽象 |
 | [`packages/widget-runtime`](./packages/widget-runtime/README.md) | 需要 Widget runtime 真源时 | registry、renderer lifecycle、editing、interaction helper |
 | [`packages/basic-kit`](./packages/basic-kit/README.md) | 需要默认内容时 | 基础 widgets、系统节点和一键安装 plugin |
 | [`packages/leafergraph`](./packages/leafergraph/README.md) | 需要图运行时主包时 | `LeaferGraph`、`createLeaferGraph(...)` 和 runtime façade |
@@ -197,6 +205,9 @@ flowchart LR
 - [authoring-basic-nodes](./example/authoring-basic-nodes/README.md)
   - 纯作者层示例包
   - 适合看 `@leafergraph/authoring` 产物如何收口成 plugin / module
+- [runtime-bridge-node-demo](./example/runtime-bridge-node-demo/README.md)
+  - Node authority + 浏览器 bridge client 的 backend-first 示例
+  - 适合看 `runtime-bridge`、document diff 和 control command 的真实接线
 
 ### 模板
 
@@ -229,6 +240,7 @@ bun run build:execution
 bun run build:theme
 bun run build:config
 bun run build:contracts
+bun run build:runtime-bridge
 bun run build:widget-runtime
 bun run build:basic-kit
 bun run build:authoring
@@ -239,6 +251,7 @@ bun run build:undo-redo
 bun run build:leafergraph
 bun run build:minimal-graph
 bun run build:authoring-basic-nodes
+bun run build:runtime-bridge-node-demo
 ```
 
 命令约定：

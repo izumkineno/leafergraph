@@ -11,7 +11,6 @@
  * 这样页面壳和图运行时可以保持清晰分层。
  */
 import { useEffect, useRef, useState } from "preact/hooks";
-import { Debug } from "leafer-ui";
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import {
   createLeaferGraphContextMenuClipboardStore,
@@ -38,6 +37,7 @@ import type {
   LeaferGraphThemeMode
 } from "@leafergraph/theme";
 import {
+  Debug,
   createLeaferGraph,
   type LeaferGraph
 } from "leafergraph";
@@ -69,8 +69,9 @@ const EXAMPLE_GRAPH_HISTORY_CONFIG = {
  * mini-graph 自己维护的 Leafer debug 配置。
  *
  * @remarks
- * Leafer 的调试能力来自 `leafer-ui` 的全局 `Debug`，并不属于 `leafergraph`
- * 的正式 `config` 真源；因此这里单独作为 demo 配置管理，并在图实例生命周期内应用。
+ * Leafer 的调试能力最终仍来自 Leafer 全局 `Debug`，这里只是通过
+ * `leafergraph` 主包统一透传，不属于 `leafergraph` 的正式 `config` 真源；
+ * 因此这里单独作为 demo 配置管理，并在图实例生命周期内应用。
  */
 export interface ExampleLeaferDebugConfig {
   /** 是否开启 Leafer 调试模式。 */
