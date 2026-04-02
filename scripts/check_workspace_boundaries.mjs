@@ -36,6 +36,20 @@ const packageRules = {
       "@leafergraph/theme"
     ]
   },
+  "@leafergraph/runtime-bridge": {
+    allowedWorkspaceDeps: [
+      "@leafergraph/contracts",
+      "@leafergraph/execution",
+      "@leafergraph/node",
+      "leafergraph"
+    ],
+    allowedSourceImports: [
+      "@leafergraph/contracts",
+      "@leafergraph/execution",
+      "@leafergraph/node",
+      "leafergraph"
+    ]
+  },
   "@leafergraph/widget-runtime": {
     allowedWorkspaceDeps: [
       "@leafergraph/config",
