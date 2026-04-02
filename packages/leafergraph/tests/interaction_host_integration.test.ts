@@ -466,6 +466,36 @@ describe("interaction_host_integration", () => {
     }
   });
 
+  test("node.collapse.commit 会在点击折叠按钮后发出一次提交", () => {
+    const harness = createInteractionHarness();
+    const { host, container, commits, nodeViews } = harness;
+
+    try {
+      const state = nodeViews.get("source-node")!;
+      host.bindNodeCollapseToggle("source-node", state);
+
+      (state.shellView.signalButton as unknown as FakeEventSource).emit(
+        "pointer.down",
+        createGraphPointerEvent({
+          target: state.shellView.signalButton,
+          x: 20,
+          y: 30
+        })
+      );
+
+      expect(state.state.flags.collapsed).toBe(true);
+      expect(commits).toContainEqual({
+        type: "node.collapse.commit",
+        nodeId: "source-node",
+        beforeCollapsed: false,
+        afterCollapsed: true
+      });
+    } finally {
+      host.destroy();
+      container.remove();
+    }
+  });
+
   test("空白区点击结束后会清空当前选区", () => {
     const harness = createInteractionHarness();
     const { host, container, selectedNodeIds, clearSelectedCount } = harness;

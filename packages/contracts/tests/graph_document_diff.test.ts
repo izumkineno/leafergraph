@@ -165,6 +165,44 @@ describe("contracts graph_document_diff", () => {
     expect(result.document.nodes[0]?.widgets?.[0]?.value).toBe(500);
   });
 
+  test("applyGraphDocumentDiffToDocument 应支持 node.collapse 与 node.widget.value.set 正式操作", () => {
+    const currentDocument = createTestDocument();
+    const diff: GraphDocumentDiff = {
+      documentId: "diff-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 2,
+      operations: [
+        {
+          type: "node.collapse",
+          nodeId: "node-1",
+          collapsed: true,
+          operationId: "diff-node-collapse",
+          timestamp: 2,
+          source: "authority.documentDiff"
+        },
+        {
+          type: "node.widget.value.set",
+          nodeId: "node-1",
+          widgetIndex: 0,
+          value: 250,
+          operationId: "diff-node-widget-value",
+          timestamp: 3,
+          source: "authority.documentDiff"
+        }
+      ],
+      fieldChanges: []
+    };
+
+    const result = applyGraphDocumentDiffToDocument(currentDocument, diff);
+
+    expect(result.success).toBe(true);
+    expect(result.requiresFullReplace).toBe(false);
+    expect(result.affectedNodeIds).toEqual(["node-1"]);
+    expect(result.document.nodes[0]?.flags?.collapsed).toBe(true);
+    expect(result.document.nodes[0]?.widgets?.[0]?.value).toBe(250);
+  });
+
   test("createCreateNodeInputFromNodeSnapshot 应保留展示字段与结构字段", () => {
     const snapshot = createNodeSnapshot();
 

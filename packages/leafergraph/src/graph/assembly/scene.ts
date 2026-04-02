@@ -284,6 +284,8 @@ export function createLeaferGraphSceneRuntimeAssembly<
     mountNodeView: (node) => sceneHost.mountNodeView(node),
     unmountNodeView: (nodeId) => sceneHost.unmountNodeView(nodeId),
     refreshNodeView: (state) => sceneHost.refreshNodeView(state),
+    setNodeWidgetValue: (nodeId, widgetIndex, newValue) =>
+      sceneHost.setNodeWidgetValue(nodeId, widgetIndex, newValue),
     mountLinkView: (link) => sceneHost.mountLinkView(link),
     removeLinkInternal: (linkId) => sceneHost.removeLink(linkId),
     updateConnectedLinks: (nodeId) => sceneHost.updateConnectedLinks(nodeId),
@@ -374,7 +376,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     clearSelectedNodes: () => viewHost.clearSelectedNodes(),
     sceneRuntime: sceneRuntimeHost,
     setNodeCollapsed: (nodeId, collapsed) =>
-      nodeRuntimeHost.setNodeCollapsed(nodeId, collapsed),
+      sceneRuntimeHost.setNodeCollapsed(nodeId, collapsed),
     canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
     getPagePointByClient: (event) => viewHost.getPagePointByClient(event),
     getPagePointFromGraphEvent: (event) =>

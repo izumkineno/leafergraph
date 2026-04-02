@@ -17,6 +17,22 @@ import type { GraphDocument, GraphLink } from "@leafergraph/node";
 import { emitLeaferGraphApiGraphOperationHistory } from "./document_history";
 
 /**
+ * 读取当前正式图文档。
+ *
+ * @param context - 当前 API 宿主上下文。
+ * @returns 当前正式图文档快照。
+ */
+export function getLeaferGraphApiDocument<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState
+>(
+  context: LeaferGraphApiHostContext<TNodeState, TNodeViewState, TLinkViewState>
+): GraphDocument {
+  return context.options.runtime.getGraphDocument();
+}
+
+/**
  * 直接替换当前正式文档。
  *
  * @param context - 当前 API 宿主上下文。

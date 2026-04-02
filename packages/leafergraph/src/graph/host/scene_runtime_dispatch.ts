@@ -60,6 +60,12 @@ export interface LeaferGraphSceneRuntimeMutationHostLike<
     nodeId: string,
     size: LeaferGraphResizeNodeInput
   ): TNodeState | undefined;
+  setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
+  setNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    newValue: unknown
+  ): boolean;
   createLink(input: LeaferGraphCreateLinkInput): GraphLink;
   removeLink(linkId: string): boolean;
   moveNodesByDelta(
@@ -301,6 +307,85 @@ function handleNodeResize<TNodeState extends NodeRuntimeState>(
 }
 
 /**
+ * 处理 `node.collapse` 正式图操作。
+ *
+ * @param context - 当前场景运行时上下文。
+ * @param operation - 节点折叠状态操作。
+ * @returns 标准化的操作应用结果。
+ */
+function handleNodeCollapse<TNodeState extends NodeRuntimeState>(
+  context: LeaferGraphSceneRuntimeDispatchContext<TNodeState>,
+  operation: Extract<GraphOperation, { type: "node.collapse" }>
+): InternalGraphOperationApplyResult<TNodeState> {
+  const currentNode = context.graphNodes.get(operation.nodeId);
+  if (!currentNode) {
+    return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+  }
+
+  const changed = context.mutationHost.setNodeCollapsed(
+    operation.nodeId,
+    operation.collapsed
+  );
+  if (changed) {
+    context.notifyNodeStateChanged?.(operation.nodeId, "collapsed");
+  }
+
+  return {
+    accepted: true,
+    changed,
+    operation,
+    affectedNodeIds: [operation.nodeId],
+    affectedLinkIds: [],
+    reason: changed ? undefined : "节点折叠状态没有变化",
+    node: context.graphNodes.get(operation.nodeId)
+  };
+}
+
+/**
+ * 处理 `node.widget.value.set` 正式图操作。
+ *
+ * @param context - 当前场景运行时上下文。
+ * @param operation - 节点 Widget 值写入操作。
+ * @returns 标准化的操作应用结果。
+ */
+function handleNodeWidgetValueSet<TNodeState extends NodeRuntimeState>(
+  context: LeaferGraphSceneRuntimeDispatchContext<TNodeState>,
+  operation: Extract<GraphOperation, { type: "node.widget.value.set" }>
+): InternalGraphOperationApplyResult<TNodeState> {
+  const currentNode = context.graphNodes.get(operation.nodeId);
+  if (!currentNode) {
+    return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+  }
+
+  const widget = currentNode.widgets[operation.widgetIndex];
+  if (!widget) {
+    return rejectGraphOperation(
+      operation,
+      `节点 widget 不存在：${operation.nodeId}#${operation.widgetIndex}`
+    );
+  }
+
+  const changed = context.mutationHost.setNodeWidgetValue(
+    operation.nodeId,
+    operation.widgetIndex,
+    operation.value
+  );
+  if (changed) {
+    context.notifyNodeStateChanged?.(operation.nodeId, "widget-value");
+  }
+
+  return {
+    accepted: true,
+    changed,
+    operation,
+    affectedNodeIds: [operation.nodeId],
+    affectedLinkIds: [],
+    reason: changed ? undefined : "节点 widget 值没有变化",
+    node: context.graphNodes.get(operation.nodeId)
+  };
+}
+
+/**
  * 处理 `node.remove` 正式图操作。
  *
  * @param context - 当前场景运行时上下文。
@@ -471,6 +556,8 @@ const sceneRuntimeOperationHandlers = {
   "node.update": handleNodeUpdate,
   "node.move": handleNodeMove,
   "node.resize": handleNodeResize,
+  "node.collapse": handleNodeCollapse,
+  "node.widget.value.set": handleNodeWidgetValueSet,
   "node.remove": handleNodeRemove,
   "link.create": handleLinkCreate,
   "link.remove": handleLinkRemove,

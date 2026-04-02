@@ -415,6 +415,28 @@ export interface GraphNodeResizeOperation extends GraphOperationBase {
   input: LeaferGraphResizeNodeInput;
 }
 
+/** 节点折叠状态操作。 */
+export interface GraphNodeCollapseOperation extends GraphOperationBase {
+  /** 操作类型。 */
+  type: "node.collapse";
+  /** 目标节点 ID。 */
+  nodeId: string;
+  /** 目标折叠状态。 */
+  collapsed: boolean;
+}
+
+/** 节点 Widget 值写入操作。 */
+export interface GraphNodeWidgetValueSetOperation extends GraphOperationBase {
+  /** 操作类型。 */
+  type: "node.widget.value.set";
+  /** 目标节点 ID。 */
+  nodeId: string;
+  /** 目标 Widget 索引。 */
+  widgetIndex: number;
+  /** 待写入的新值。 */
+  value: unknown;
+}
+
 /** 节点删除操作。 */
 export interface GraphNodeRemoveOperation extends GraphOperationBase {
   /** 操作类型。 */
@@ -469,6 +491,8 @@ export type GraphOperation =
   | GraphNodeUpdateOperation
   | GraphNodeMoveOperation
   | GraphNodeResizeOperation
+  | GraphNodeCollapseOperation
+  | GraphNodeWidgetValueSetOperation
   | GraphNodeRemoveOperation
   | GraphLinkCreateOperation
   | GraphLinkRemoveOperation

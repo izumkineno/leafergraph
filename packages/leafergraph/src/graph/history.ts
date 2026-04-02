@@ -391,39 +391,35 @@ export function createLinkReconnectHistoryRecord(options: {
  * @returns 创建后的结果对象。
  */
 export function createNodeCollapseHistoryRecord(options: {
-  afterDocument: GraphDocument;
   nodeId: string;
   beforeCollapsed: boolean;
   afterCollapsed: boolean;
   source: string;
   label?: string;
-}): LeaferGraphSnapshotHistoryRecord | null {
+}): LeaferGraphOperationHistoryRecord | null {
   if (options.beforeCollapsed === options.afterCollapsed) {
     return null;
   }
 
-  const beforeDocument = structuredClone(options.afterDocument);
-  const node = beforeDocument.nodes.find(
-    (currentNode) => currentNode.id === options.nodeId
-  );
-  if (!node) {
-    return null;
-  }
-
-  node.flags = node.flags ? structuredClone(node.flags) : {};
-  if (options.beforeCollapsed) {
-    node.flags.collapsed = true;
-  } else {
-    delete node.flags.collapsed;
-  }
-
-  return createSnapshotHistoryRecord({
-    beforeDocument,
-    afterDocument: options.afterDocument,
+  return createOperationHistoryRecord({
     source: options.source,
     label:
       options.label ??
-      (options.afterCollapsed ? "Collapse Node" : "Expand Node")
+      (options.afterCollapsed ? "Collapse Node" : "Expand Node"),
+    undoOperations: [
+      createGraphOperation("history.undo", {
+        type: "node.collapse",
+        nodeId: options.nodeId,
+        collapsed: options.beforeCollapsed
+      })
+    ],
+    redoOperations: [
+      createGraphOperation("history.redo", {
+        type: "node.collapse",
+        nodeId: options.nodeId,
+        collapsed: options.afterCollapsed
+      })
+    ]
   });
 }
 
@@ -434,32 +430,36 @@ export function createNodeCollapseHistoryRecord(options: {
  * @returns 创建后的结果对象。
  */
 export function createNodeWidgetHistoryRecord(options: {
-  afterDocument: GraphDocument;
   nodeId: string;
-  beforeWidgets: NodeSerializeResult["widgets"];
-  afterWidgets: NodeSerializeResult["widgets"];
+  widgetIndex: number;
+  beforeValue: unknown;
+  afterValue: unknown;
   source: string;
   label?: string;
-}): LeaferGraphSnapshotHistoryRecord | null {
-  if (isStructurallyEqual(options.beforeWidgets, options.afterWidgets)) {
+}): LeaferGraphOperationHistoryRecord | null {
+  if (isStructurallyEqual(options.beforeValue, options.afterValue)) {
     return null;
   }
 
-  const beforeDocument = structuredClone(options.afterDocument);
-  const node = beforeDocument.nodes.find(
-    (currentNode) => currentNode.id === options.nodeId
-  );
-  if (!node) {
-    return null;
-  }
-
-  node.widgets = options.beforeWidgets ? structuredClone(options.beforeWidgets) : [];
-
-  return createSnapshotHistoryRecord({
-    beforeDocument,
-    afterDocument: options.afterDocument,
+  return createOperationHistoryRecord({
     source: options.source,
-    label: options.label ?? "Update Widget"
+    label: options.label ?? "Update Widget",
+    undoOperations: [
+      createGraphOperation("history.undo", {
+        type: "node.widget.value.set",
+        nodeId: options.nodeId,
+        widgetIndex: options.widgetIndex,
+        value: structuredClone(options.beforeValue)
+      })
+    ],
+    redoOperations: [
+      createGraphOperation("history.redo", {
+        type: "node.widget.value.set",
+        nodeId: options.nodeId,
+        widgetIndex: options.widgetIndex,
+        value: structuredClone(options.afterValue)
+      })
+    ]
   });
 }
 

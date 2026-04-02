@@ -14,11 +14,13 @@
 - 从 `GraphDocument` 恢复、更新和运行一张图
 - 注册节点、模块、 Widget 或插件
 - 订阅运行反馈、交互提交和 history feed
+- 在前端直接读取当前正式图文档快照
 
 不适合直接把它当成：
 
 - 图模型真源聚合包
 - 执行内核真源
+- 本地后端桥接聚合入口
 - 菜单、快捷键、历史栈或作者层总入口
 
 ## 根入口
@@ -152,6 +154,7 @@ await graph.ready;
 实例创建后，最常用的入口是：
 
 - 文档与操作
+  - `getGraphDocument()`
   - `replaceGraphDocument(...)`
   - `applyGraphOperation(...)`
   - `applyGraphDocumentDiff(...)`
@@ -188,6 +191,7 @@ await graph.ready;
 一个简单判断是：
 
 - 需要图实例和 Leafer 场景宿主，用 `leafergraph`
+- 需要浏览器侧 bridge client 或 transport 抽象，用 `@leafergraph/runtime-bridge`
 - 需要执行类型或执行反馈真源，用 `@leafergraph/execution`
 - 需要模型真源类型或 helper，不要再从主包绕路导入
 

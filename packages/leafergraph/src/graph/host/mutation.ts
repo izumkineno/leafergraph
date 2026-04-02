@@ -65,6 +65,11 @@ interface LeaferGraphMutationHostOptions<
   mountNodeView(node: TNodeState): TNodeViewState;
   unmountNodeView(nodeId: string): TNodeViewState | undefined;
   refreshNodeView(state: TNodeViewState): void;
+  setNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    newValue: unknown
+  ): boolean;
   mountLinkView(link: GraphLink): unknown | null;
   removeLinkInternal(linkId: string): boolean;
   updateConnectedLinks(nodeId: string): void;
@@ -269,6 +274,58 @@ export class LeaferGraphMutationHost<
     this.options.updateConnectedLinks(nodeId);
     this.options.requestRender();
     return node;
+  }
+
+  /**
+   * 切换一个节点的折叠态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param collapsed - 目标折叠状态。
+   * @returns 当前是否实际发生了变化。
+   */
+  setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
+    const node = this.options.graphNodes.get(nodeId);
+    const state = this.options.nodeViews.get(nodeId);
+    if (!node || !state) {
+      return false;
+    }
+
+    const nextCollapsed = Boolean(collapsed);
+    if (Boolean(node.flags.collapsed) === nextCollapsed) {
+      return false;
+    }
+
+    node.flags.collapsed = nextCollapsed;
+    this.options.refreshNodeView(state);
+    this.options.updateConnectedLinks(nodeId);
+    this.options.requestRender();
+    return true;
+  }
+
+  /**
+   * 更新节点内某个 Widget 的值。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - Widget 索引。
+   * @param newValue - 待写入的新值。
+   * @returns 当前是否实际完成更新。
+   */
+  setNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    newValue: unknown
+  ): boolean {
+    const node = this.options.graphNodes.get(nodeId);
+    if (!node) {
+      return false;
+    }
+
+    const currentValue = node.widgets[widgetIndex]?.value;
+    if (Object.is(currentValue, newValue)) {
+      return false;
+    }
+
+    return this.options.setNodeWidgetValue(nodeId, widgetIndex, newValue);
   }
 
   /**

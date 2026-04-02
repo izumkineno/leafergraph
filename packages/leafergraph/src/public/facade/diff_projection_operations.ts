@@ -46,7 +46,10 @@ export interface LeaferGraphDiffProjectionApiHostLike {
   ): unknown;
   removeLink(linkId: string): unknown;
   applyGraphOperation(
-    operation: Extract<DiffProjectionOperation, { type: "link.reconnect" }>
+    operation: Extract<
+      DiffProjectionOperation,
+      { type: "link.reconnect" | "node.collapse" | "node.widget.value.set" }
+    >
   ): GraphOperationApplyResult;
 }
 
@@ -266,6 +269,68 @@ function handleNodeResize(
 }
 
 /**
+ * 处理 `node.collapse` diff operation。
+ *
+ * @param context - 当前 diff 投影上下文。
+ * @param operation - 节点折叠状态操作。
+ * @returns 成功时返回 `null`；失败时返回 full replace fallback。
+ */
+function handleNodeCollapse(
+  context: LeaferGraphDiffProjectionOperationContext,
+  operation: Extract<DiffProjectionOperation, { type: "node.collapse" }>
+): ApplyGraphDocumentDiffResult | null {
+  if (!context.hasNodeGraphic(operation.nodeId)) {
+    return context.createFallback(`node.collapse 投影失败: ${operation.nodeId}`);
+  }
+
+  const result = context.callFacadeMethod(
+    "applyGraphOperation",
+    (nextOperation) => context.apiHost.applyGraphOperation(nextOperation),
+    operation
+  );
+  if (!result.accepted) {
+    return context.createFallback(
+      result.reason ?? `node.collapse 投影失败: ${operation.nodeId}`
+    );
+  }
+
+  result.affectedNodeIds.forEach((nodeId) => context.affectedNodeIds.add(nodeId));
+  return null;
+}
+
+/**
+ * 处理 `node.widget.value.set` diff operation。
+ *
+ * @param context - 当前 diff 投影上下文。
+ * @param operation - 节点 Widget 值更新操作。
+ * @returns 成功时返回 `null`；失败时返回 full replace fallback。
+ */
+function handleNodeWidgetValueSet(
+  context: LeaferGraphDiffProjectionOperationContext,
+  operation: Extract<DiffProjectionOperation, { type: "node.widget.value.set" }>
+): ApplyGraphDocumentDiffResult | null {
+  if (!context.hasNodeGraphic(operation.nodeId)) {
+    return context.createFallback(
+      `node.widget.value.set 投影失败: ${operation.nodeId}`
+    );
+  }
+
+  const result = context.callFacadeMethod(
+    "applyGraphOperation",
+    (nextOperation) => context.apiHost.applyGraphOperation(nextOperation),
+    operation
+  );
+  if (!result.accepted) {
+    return context.createFallback(
+      result.reason ?? `node.widget.value.set 投影失败: ${operation.nodeId}`
+    );
+  }
+
+  result.affectedNodeIds.forEach((nodeId) => context.affectedNodeIds.add(nodeId));
+  return null;
+}
+
+/**
  * 处理 `node.remove` diff operation。
  *
  * @param context - 当前 diff 投影上下文。
@@ -383,6 +448,8 @@ const diffProjectionOperationHandlers = {
   "node.update": handleNodeUpdate,
   "node.move": handleNodeMove,
   "node.resize": handleNodeResize,
+  "node.collapse": handleNodeCollapse,
+  "node.widget.value.set": handleNodeWidgetValueSet,
   "node.remove": handleNodeRemove,
   "link.create": handleLinkCreate,
   "link.remove": handleLinkRemove,

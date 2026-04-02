@@ -43,11 +43,6 @@ interface LeaferGraphSceneRuntimeSceneHostLike<TNodeViewState> {
   refreshNodeView(state: TNodeViewState): void;
   updateConnectedLinks(nodeId: string): void;
   updateConnectedLinksForNodes(nodeIds: readonly string[]): void;
-  setNodeWidgetValue(
-    nodeId: string,
-    widgetIndex: number,
-    newValue: unknown
-  ): boolean;
 }
 
 /**
@@ -173,6 +168,25 @@ export class LeaferGraphSceneRuntimeHost<
   }
 
   /**
+   * 更新某个节点的折叠态。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param collapsed - 目标折叠状态。
+   * @returns 对应的判断结果。
+   */
+  setNodeCollapsed(nodeId: string, collapsed: boolean): boolean {
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "node.collapse",
+        nodeId,
+        collapsed
+      })
+    );
+
+    return result.accepted && result.changed;
+  }
+
+  /**
    * 更新某个节点某个 Widget 的值，并触发 renderer 的 `update`。
    *
    * @param nodeId - 目标节点 ID。
@@ -186,14 +200,16 @@ export class LeaferGraphSceneRuntimeHost<
     widgetIndex: number,
     newValue: unknown
   ): boolean {
-    if (
-      this.options.sceneHost.setNodeWidgetValue(nodeId, widgetIndex, newValue)
-    ) {
-      this.options.notifyNodeStateChanged?.(nodeId, "widget-value");
-      return true;
-    }
+    const result = this.applyGraphOperationInternal(
+      createGraphOperation("api", {
+        type: "node.widget.value.set",
+        nodeId,
+        widgetIndex,
+        value: structuredClone(newValue)
+      })
+    );
 
-    return false;
+    return result.accepted && result.changed;
   }
 
   /**

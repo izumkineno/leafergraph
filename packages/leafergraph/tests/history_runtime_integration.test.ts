@@ -150,7 +150,7 @@ describe("history_runtime_integration", () => {
         { kind: "operation", label: "Create Node", source: "api" },
         { kind: "operation", label: "Move Node", source: "api" },
         { kind: "snapshot", label: "Update Node", source: "api" },
-        { kind: "snapshot", label: "Collapse Node", source: "api" },
+        { kind: "operation", label: "Collapse Node", source: "api" },
         { kind: "operation", label: "Create Link", source: "api" },
         { kind: "operation", label: "Reconnect Link", source: "test" },
         { kind: "operation", label: "Remove Link", source: "api" },
@@ -281,6 +281,96 @@ describe("history_runtime_integration", () => {
     }
   });
 
+  test("setNodeCollapsed 和 setNodeWidgetValue 应生成 operation history 与 undo/redo", async () => {
+    const { graph, container } = await createReadyGraph();
+    graph.createNode({
+      id: "widget-node",
+      type: "test/target",
+      x: 120,
+      y: 80,
+      widgets: [
+        {
+          type: "test/raw-widget",
+          name: "value",
+          value: 1
+        }
+      ]
+    });
+
+    const records: any[] = [];
+    const unsubscribe = graph.subscribeHistory((event) => {
+      if (event.type === "history.record") {
+        records.push(event.record);
+      }
+    });
+
+    try {
+      graph.setNodeCollapsed("widget-node", true);
+      graph.setNodeWidgetValue("widget-node", 0, 2);
+
+      const collapseRecord = records[0];
+      const widgetRecord = records[1];
+      expect(records).toHaveLength(2);
+      expect(collapseRecord).toMatchObject({
+        kind: "operation",
+        label: "Collapse Node",
+        source: "api"
+      });
+      expect(collapseRecord.undoOperations).toEqual([
+        {
+          type: "node.collapse",
+          nodeId: "widget-node",
+          collapsed: false,
+          operationId: collapseRecord.undoOperations[0].operationId,
+          timestamp: collapseRecord.undoOperations[0].timestamp,
+          source: "history.undo"
+        }
+      ]);
+      expect(collapseRecord.redoOperations).toEqual([
+        {
+          type: "node.collapse",
+          nodeId: "widget-node",
+          collapsed: true,
+          operationId: collapseRecord.redoOperations[0].operationId,
+          timestamp: collapseRecord.redoOperations[0].timestamp,
+          source: "history.redo"
+        }
+      ]);
+      expect(widgetRecord).toMatchObject({
+        kind: "operation",
+        label: "Update Widget",
+        source: "api"
+      });
+      expect(widgetRecord.undoOperations).toEqual([
+        {
+          type: "node.widget.value.set",
+          nodeId: "widget-node",
+          widgetIndex: 0,
+          value: 1,
+          operationId: widgetRecord.undoOperations[0].operationId,
+          timestamp: widgetRecord.undoOperations[0].timestamp,
+          source: "history.undo"
+        }
+      ]);
+      expect(widgetRecord.redoOperations).toEqual([
+        {
+          type: "node.widget.value.set",
+          nodeId: "widget-node",
+          widgetIndex: 0,
+          value: 2,
+          operationId: widgetRecord.redoOperations[0].operationId,
+          timestamp: widgetRecord.redoOperations[0].timestamp,
+          source: "history.redo"
+        }
+      ]);
+      expect(graph.getNodeSnapshot("widget-node")?.widgets?.[0]?.value).toBe(2);
+    } finally {
+      unsubscribe();
+      graph.destroy();
+      container.remove();
+    }
+  });
+
   test("link.create.commit 会在本地自动落图并发出 history.record", async () => {
     const { graph, container } = await createReadyGraph();
     const historyEvents: LeaferGraphHistoryEvent[] = [];
@@ -327,6 +417,104 @@ describe("history_runtime_integration", () => {
       ).toBe(true);
     } finally {
       unsubscribe();
+      graph.destroy();
+      container.remove();
+    }
+  });
+
+  test("node.widget.commit 会继续发出并写入 operation history", async () => {
+    const { graph, container } = await createReadyGraph();
+    let commitWidgetValue: ((newValue?: unknown) => void) | undefined;
+    graph.registerWidget(
+      {
+        type: "test/commit-widget",
+        title: "Commit Widget",
+        renderer(context) {
+          commitWidgetValue = context.commitValue;
+          return {
+            destroy() {}
+          };
+        }
+      },
+      { overwrite: true }
+    );
+    graph.createNode({
+      id: "widget-node",
+      type: "test/target",
+      x: 80,
+      y: 40,
+      widgets: [
+        {
+          type: "test/commit-widget",
+          name: "value",
+          value: 1
+        }
+      ]
+    });
+
+    const interactionEvents: LeaferGraphInteractionCommitEvent[] = [];
+    const historyRecords: any[] = [];
+    const unsubscribeInteraction = graph.subscribeInteractionCommit((event) => {
+      interactionEvents.push(event);
+    });
+    const unsubscribeHistory = graph.subscribeHistory((event) => {
+      if (event.type === "history.record") {
+        historyRecords.push(event.record);
+      }
+    });
+
+    try {
+      expect(commitWidgetValue).toBeDefined();
+
+      commitWidgetValue?.(2);
+
+      expect(interactionEvents).toEqual([
+        {
+          type: "node.widget.commit",
+          nodeId: "widget-node",
+          widgetIndex: 0,
+          beforeValue: 1,
+          afterValue: 2,
+          beforeWidgets: [
+            {
+              type: "test/commit-widget",
+              name: "value",
+              value: 1
+            }
+          ],
+          afterWidgets: [
+            {
+              type: "test/commit-widget",
+              name: "value",
+              value: 2
+            }
+          ]
+        }
+      ]);
+      expect(historyRecords).toHaveLength(1);
+      const historyRecord = historyRecords[0];
+      expect(historyRecord).toMatchObject({
+        kind: "operation",
+        label: "Update Widget",
+        source: "interaction.commit"
+      });
+      expect(historyRecord.undoOperations[0]).toMatchObject({
+        type: "node.widget.value.set",
+        nodeId: "widget-node",
+        widgetIndex: 0,
+        value: 1,
+        source: "history.undo"
+      });
+      expect(historyRecord.redoOperations[0]).toMatchObject({
+        type: "node.widget.value.set",
+        nodeId: "widget-node",
+        widgetIndex: 0,
+        value: 2,
+        source: "history.redo"
+      });
+    } finally {
+      unsubscribeHistory();
+      unsubscribeInteraction();
       graph.destroy();
       container.remove();
     }

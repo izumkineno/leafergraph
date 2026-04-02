@@ -209,9 +209,7 @@ export function createLeaferGraphRuntimeAssembly<
       }
     },
     "node.collapse.commit": (event) => {
-      const afterDocument = getGraphDocument();
       const record = createNodeCollapseHistoryRecord({
-        afterDocument,
         nodeId: event.nodeId,
         beforeCollapsed: event.beforeCollapsed,
         afterCollapsed: event.afterCollapsed,
@@ -222,12 +220,11 @@ export function createLeaferGraphRuntimeAssembly<
       }
     },
     "node.widget.commit": (event) => {
-      const afterDocument = getGraphDocument();
       const record = createNodeWidgetHistoryRecord({
-        afterDocument,
         nodeId: event.nodeId,
-        beforeWidgets: event.beforeWidgets,
-        afterWidgets: event.afterWidgets,
+        widgetIndex: event.widgetIndex,
+        beforeValue: event.beforeValue,
+        afterValue: event.afterValue,
         source: "interaction.commit"
       });
       if (record) {

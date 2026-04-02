@@ -15,9 +15,11 @@ import {
   createLinkCreateHistoryRecord,
   createLinkReconnectHistoryRecord,
   createLinkRemoveHistoryRecord,
+  createNodeCollapseHistoryRecord,
   createNodeCreateHistoryRecord,
   createNodeMoveHistoryRecord,
   createNodeResizeHistoryRecord,
+  createNodeWidgetHistoryRecord,
   createSnapshotHistoryRecord
 } from "../../graph/history";
 import type {
@@ -221,6 +223,75 @@ function handleNodeResizeHistory<
 }
 
 /**
+ * 处理 `node.collapse` 的 history record 发射。
+ *
+ * @param context - 当前历史分发上下文。
+ * @returns 无返回值。
+ */
+function handleNodeCollapseHistory<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState
+>(
+  context: LeaferGraphApiOperationHistoryContext<
+    TNodeState,
+    TNodeViewState,
+    TLinkViewState,
+    Extract<LeaferGraphApiGraphOperation, { type: "node.collapse" }>
+  >
+): void {
+  if (!context.beforeNodeSnapshot) {
+    return;
+  }
+
+  context.context.emitHistoryRecord(
+    createNodeCollapseHistoryRecord({
+      nodeId: context.operation.nodeId,
+      beforeCollapsed: Boolean(context.beforeNodeSnapshot.flags?.collapsed),
+      afterCollapsed: context.operation.collapsed,
+      source: context.operation.source || "api"
+    })
+  );
+}
+
+/**
+ * 处理 `node.widget.value.set` 的 history record 发射。
+ *
+ * @param context - 当前历史分发上下文。
+ * @returns 无返回值。
+ */
+function handleNodeWidgetValueSetHistory<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState
+>(
+  context: LeaferGraphApiOperationHistoryContext<
+    TNodeState,
+    TNodeViewState,
+    TLinkViewState,
+    Extract<LeaferGraphApiGraphOperation, { type: "node.widget.value.set" }>
+  >
+): void {
+  const afterSnapshot = context.context.options.runtime.nodeRuntimeHost.getNodeSnapshot(
+    context.operation.nodeId
+  );
+  if (!context.beforeNodeSnapshot || !afterSnapshot) {
+    return;
+  }
+
+  context.context.emitHistoryRecord(
+    createNodeWidgetHistoryRecord({
+      nodeId: context.operation.nodeId,
+      widgetIndex: context.operation.widgetIndex,
+      beforeValue:
+        context.beforeNodeSnapshot.widgets?.[context.operation.widgetIndex]?.value,
+      afterValue: afterSnapshot.widgets?.[context.operation.widgetIndex]?.value,
+      source: context.operation.source || "api"
+    })
+  );
+}
+
+/**
  * 处理 `link.create` 的 history record 发射。
  *
  * @param context - 当前历史分发上下文。
@@ -354,6 +425,8 @@ const graphOperationHistoryHandlers = {
   "node.create": handleNodeCreateHistory,
   "node.move": handleNodeMoveHistory,
   "node.resize": handleNodeResizeHistory,
+  "node.collapse": handleNodeCollapseHistory,
+  "node.widget.value.set": handleNodeWidgetValueSetHistory,
   "link.create": handleLinkCreateHistory,
   "link.remove": handleLinkRemoveHistory,
   "link.reconnect": handleLinkReconnectHistory,

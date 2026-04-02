@@ -47,6 +47,7 @@ import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import {
   applyLeaferGraphApiGraphOperation,
   findLeaferGraphApiLinksByNode,
+  getLeaferGraphApiDocument,
   getLeaferGraphApiLink,
   replaceLeaferGraphApiDocument
 } from "./document";
@@ -268,6 +269,15 @@ export class LeaferGraphApiHostController<
    */
   replaceGraphDocument(document: GraphDocument): void {
     replaceLeaferGraphApiDocument(this.context, document);
+  }
+
+  /**
+   * 读取当前正式图文档快照。
+   *
+   * @returns 当前正式图文档。
+   */
+  getGraphDocument(): GraphDocument {
+    return getLeaferGraphApiDocument(this.context);
   }
 
   /**

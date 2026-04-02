@@ -461,6 +461,69 @@ function applyOperationToDocument(
         []
       );
     }
+    case "node.collapse": {
+      const node = findNodeSnapshot(document, operation.nodeId);
+      if (!node) {
+        return createRejectedApplyStep(
+          document,
+          `node.collapse 目标节点不存在: ${operation.nodeId}`
+        );
+      }
+
+      const nextFlags = structuredClone(node.flags ?? {});
+      if (operation.collapsed) {
+        nextFlags.collapsed = true;
+      } else {
+        delete nextFlags.collapsed;
+      }
+
+      const nextNode = {
+        ...node
+      };
+      if (Object.keys(nextFlags).length) {
+        nextNode.flags = nextFlags;
+      } else {
+        delete nextNode.flags;
+      }
+
+      return createApplyStepResult(
+        upsertNodeSnapshot(document, nextNode),
+        [operation.nodeId],
+        []
+      );
+    }
+    case "node.widget.value.set": {
+      const node = findNodeSnapshot(document, operation.nodeId);
+      if (!node) {
+        return createRejectedApplyStep(
+          document,
+          `node.widget.value.set 目标节点不存在: ${operation.nodeId}`
+        );
+      }
+
+      const widget = node.widgets?.[operation.widgetIndex];
+      if (!widget) {
+        return createRejectedApplyStep(
+          document,
+          `node.widget.value.set 目标 widget 不存在: ${operation.nodeId}#${operation.widgetIndex}`
+        );
+      }
+
+      const nextWidgets = structuredClone(node.widgets ?? []);
+      nextWidgets[operation.widgetIndex] = {
+        ...nextWidgets[operation.widgetIndex],
+        value: structuredClone(operation.value)
+      };
+
+      return createApplyStepResult(
+        upsertNodeSnapshot(document, {
+          ...node,
+          widgets: nextWidgets
+        }),
+        [operation.nodeId],
+        []
+      );
+    }
     case "node.remove":
       return createApplyStepResult(
         removeNodeSnapshot(document, operation.nodeId),

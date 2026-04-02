@@ -19,12 +19,23 @@ import { projectLeaferGraphDocumentDiff } from "./diff_projection";
  * `LeaferGraph` 的文档与 diff façade。
  */
 export interface LeaferGraphDocumentFacade {
+  getGraphDocument(): GraphDocument;
   replaceGraphDocument(document: GraphDocument): void;
   applyGraphOperation(operation: GraphOperation): GraphOperationApplyResult;
   applyGraphDocumentDiff(
     diff: GraphDocumentDiff,
     nextDocument: GraphDocument
   ): ApplyGraphDocumentDiffResult;
+}
+
+/**
+ * 读取当前正式图文档。
+ *
+ * @param this - 当前图实例。
+ * @returns 当前正式图文档。
+ */
+function getLeaferGraphDocument(this: LeaferGraph): GraphDocument {
+  return getLeaferGraphApiHost(this).getGraphDocument();
 }
 
 /**
@@ -85,6 +96,7 @@ function applyLeaferGraphDocumentDiff(
 }
 
 export const leaferGraphDocumentFacadeMethods: LeaferGraphDocumentFacade = {
+  getGraphDocument: getLeaferGraphDocument,
   replaceGraphDocument: replaceLeaferGraphDocument,
   applyGraphOperation: applyLeaferGraphOperation,
   applyGraphDocumentDiff: applyLeaferGraphDocumentDiff

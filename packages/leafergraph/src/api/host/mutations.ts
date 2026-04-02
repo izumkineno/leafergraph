@@ -13,7 +13,9 @@ import {
   createNodeResizeHistoryRecord,
   createSnapshotHistoryRecord
 } from "../../graph/history";
+import { applyLeaferGraphApiGraphOperation } from "./document";
 import type {
+  LeaferGraphApiGraphOperation,
   LeaferGraphApiCreateLinkInput,
   LeaferGraphApiCreateNodeInput,
   LeaferGraphApiHostContext,
@@ -25,6 +27,8 @@ import type {
 } from "./types";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type { GraphLink } from "@leafergraph/node";
+
+let apiMutationOperationSeed = 1;
 
 /**
  * 设置单个节点的折叠态。
@@ -43,24 +47,12 @@ export function setLeaferGraphApiNodeCollapsed<
   nodeId: string,
   collapsed: boolean
 ): boolean {
-  const beforeDocument = context.captureDocumentBeforeHistory();
-  const changed = context.options.runtime.nodeRuntimeHost.setNodeCollapsed(
+  const result = applyLeaferGraphApiMutationOperation(context, {
+    type: "node.collapse",
     nodeId,
     collapsed
-  );
-
-  if (changed && beforeDocument) {
-    context.emitHistoryRecord(
-      createSnapshotHistoryRecord({
-        beforeDocument,
-        afterDocument: context.options.runtime.getGraphDocument(),
-        source: "api",
-        label: collapsed ? "Collapse Node" : "Expand Node"
-      })
-    );
-  }
-
-  return changed;
+  });
+  return result.accepted && result.changed;
 }
 
 /**
@@ -308,20 +300,58 @@ export function setLeaferGraphApiNodeWidgetValue<
   widgetIndex: number,
   newValue: unknown
 ): void {
-  const beforeDocument = context.captureDocumentBeforeHistory();
-  const changed = context.options.runtime.sceneRuntime.setNodeWidgetValue(
+  applyLeaferGraphApiMutationOperation(context, {
+    type: "node.widget.value.set",
     nodeId,
     widgetIndex,
-    newValue
-  );
-  if (changed && beforeDocument) {
-    context.emitHistoryRecord(
-      createSnapshotHistoryRecord({
-        beforeDocument,
-        afterDocument: context.options.runtime.getGraphDocument(),
-        source: "api",
-        label: "Update Widget"
-      })
-    );
-  }
+    value: structuredClone(newValue)
+  });
 }
+
+/**
+ * 以 `source: "api"` 创建并应用一条正式图操作。
+ *
+ * @param context - 当前 API 宿主上下文。
+ * @param input - 不含元信息的正式图操作输入。
+ * @returns 图操作应用结果。
+ */
+function applyLeaferGraphApiMutationOperation<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState,
+  TOperation extends GraphOperationInput
+>(
+  context: LeaferGraphApiHostContext<TNodeState, TNodeViewState, TLinkViewState>,
+  input: TOperation
+) {
+  return applyLeaferGraphApiGraphOperation(
+    context,
+    createLeaferGraphApiMutationOperation(input)
+  );
+}
+
+/**
+ * 为 API 直接 mutation 构造带元信息的正式图操作。
+ *
+ * @param input - 不含元信息的正式图操作输入。
+ * @returns 完整正式图操作。
+ */
+function createLeaferGraphApiMutationOperation<
+  TOperation extends GraphOperationInput
+>(input: TOperation): LeaferGraphApiGraphOperation {
+  const operation = {
+    ...input,
+    operationId: `api-mutation:${input.type}:${Date.now()}:${apiMutationOperationSeed}`,
+    timestamp: Date.now(),
+    source: "api"
+  } satisfies LeaferGraphApiGraphOperation;
+  apiMutationOperationSeed += 1;
+  return operation;
+}
+
+type GraphOperationInput = {
+  [TType in LeaferGraphApiGraphOperation["type"]]: Omit<
+    Extract<LeaferGraphApiGraphOperation, { type: TType }>,
+    "operationId" | "timestamp" | "source"
+  >;
+}[LeaferGraphApiGraphOperation["type"]];
