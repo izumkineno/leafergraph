@@ -78,6 +78,7 @@ export interface LeaferGraphSceneRuntimeAssemblyOptions<
   linkDefaultNodeWidth: number;
   linkPortSize: number;
   linkStroke: string;
+  respectReducedMotion: boolean;
   dataFlowAnimationStyle: LeaferGraphDataFlowAnimationStyleConfig;
 }
 
@@ -347,6 +348,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
             ...options.dataFlowAnimationStyle
           };
     },
+    respectReducedMotion: options.respectReducedMotion,
     getThemeMode: () => options.themeHost.getMode(),
     requestRender: options.requestRender,
     renderFrame: options.renderFrame,

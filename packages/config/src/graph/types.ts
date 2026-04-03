@@ -20,6 +20,8 @@ export interface LeaferGraphGraphRuntimeConfig {
     | "balanced"
     | "expressive"
     | false;
+  /** 是否遵循系统 reduced motion 偏好。 */
+  respectReducedMotion?: boolean;
 }
 
 /**
@@ -60,6 +62,8 @@ export interface NormalizedLeaferGraphGraphViewConfig {
 export interface NormalizedLeaferGraphGraphRuntimeConfig {
   /** 最终生效的连线传播动画预设。 */
   linkPropagationAnimation: "performance" | "balanced" | "expressive" | false;
+  /** 最终是否遵循系统 reduced motion 偏好。 */
+  respectReducedMotion: boolean;
 }
 
 /**

@@ -101,6 +101,7 @@ export function createLeaferGraphEntryRuntime(
     linkDefaultNodeWidth: initialGraphTheme.nodeShellLayoutMetrics.defaultNodeWidth,
     linkPortSize: initialGraphTheme.nodeShellLayoutMetrics.portSize,
     linkStroke: initialGraphTheme.linkStroke,
+    respectReducedMotion: resolvedConfig.graph.runtime.respectReducedMotion,
     dataFlowAnimationStyle: resolveConfiguredDataFlowAnimationStyle(
       initialGraphTheme,
       resolvedConfig

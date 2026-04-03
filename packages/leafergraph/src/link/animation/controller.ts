@@ -261,6 +261,10 @@ export class LeaferGraphLinkDataFlowAnimationHost<
    * @returns 当前是否应关闭动态效果。
    */
   private shouldReduceMotion(): boolean {
+    if (!this.options.respectReducedMotion) {
+      return false;
+    }
+
     return Boolean(this.reducedMotionMediaQuery?.matches);
   }
 
@@ -282,7 +286,7 @@ export class LeaferGraphLinkDataFlowAnimationHost<
   private readonly handleReducedMotionChange = (
     event: MediaQueryListEvent
   ): void => {
-    if (event.matches) {
+    if (this.options.respectReducedMotion && event.matches) {
       this.clear();
     }
   };

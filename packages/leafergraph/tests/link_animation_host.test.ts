@@ -95,7 +95,12 @@ function createMatchMedia(matches: boolean): typeof window.matchMedia {
     }) as MediaQueryList) as typeof window.matchMedia;
 }
 
-function createHostHarness(styleOverrides?: Partial<ReturnType<typeof createDefaultDataFlowAnimationStyleConfig>>) {
+function createHostHarness(
+  styleOverrides?: Partial<ReturnType<typeof createDefaultDataFlowAnimationStyleConfig>>,
+  hostOptions?: {
+    respectReducedMotion?: boolean;
+  }
+) {
   const container = createContainer();
   const linkLayer = new Group();
   const graphNodes = new Map<string, LeaferGraphLinkNodeState>([
@@ -150,6 +155,7 @@ function createHostHarness(styleOverrides?: Partial<ReturnType<typeof createDefa
       ...createDefaultDataFlowAnimationStyleConfig("expressive"),
       ...styleOverrides
     }),
+    respectReducedMotion: hostOptions?.respectReducedMotion ?? true,
     getThemeMode: () => "light",
     requestRender() {},
     renderFrame() {},
@@ -248,6 +254,30 @@ describe("link_animation_host", () => {
 
     expect(internals.activePulses).toHaveLength(0);
     expect(internals.activeParticles).toHaveLength(0);
+    host.destroy();
+  });
+
+  test("关闭 reduced motion 遵循后仍会创建活动动画", () => {
+    window.matchMedia = createMatchMedia(true);
+    installRequestAnimationFrameStub();
+
+    const { host, emit } = createHostHarness(
+      {
+        preset: "performance",
+        maxPulses: 2,
+        maxParticles: 0
+      },
+      {
+        respectReducedMotion: false
+      }
+    );
+    const internals = host as unknown as {
+      activePulses: unknown[];
+    };
+
+    emit(createPropagationEvent("link-a", "source-a", "target-a"));
+
+    expect(internals.activePulses).toHaveLength(1);
     host.destroy();
   });
 

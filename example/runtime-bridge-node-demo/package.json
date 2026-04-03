@@ -18,6 +18,7 @@
     "@happy-dom/global-registrator": "^20.0.10",
     "@leafergraph/basic-kit": "workspace:*",
     "@leafergraph/contracts": "workspace:*",
+    "@leafergraph/diff": "workspace:*",
     "@leafergraph/runtime-bridge": "workspace:*",
     "leafergraph": "workspace:*",
     "preact": "^10.29.0",

@@ -52,6 +52,27 @@
         "vite": "^8.0.1",
       },
     },
+    "example/runtime-bridge-node-demo": {
+      "name": "leafergraph-runtime-bridge-node-demo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+        "@leafergraph/basic-kit": "workspace:*",
+        "@leafergraph/contracts": "workspace:*",
+        "@leafergraph/diff": "workspace:*",
+        "@leafergraph/runtime-bridge": "workspace:*",
+        "leafergraph": "workspace:*",
+        "preact": "^10.29.0",
+        "ws": "^8.20.0",
+      },
+      "devDependencies": {
+        "@preact/preset-vite": "^2.10.4",
+        "@types/node": "^25.4.0",
+        "@types/ws": "^8.18.1",
+        "typescript": "~5.9.3",
+        "vite": "^8.0.1",
+      },
+    },
     "packages/authoring": {
       "name": "@leafergraph/authoring",
       "version": "0.1.0",
@@ -121,6 +142,18 @@
         "leafer-ui": "^2.0.3",
       },
     },
+    "packages/diff": {
+      "name": "@leafergraph/diff",
+      "version": "1.0.0",
+      "dependencies": {
+        "@leafergraph/contracts": "workspace:*",
+        "@leafergraph/node": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.0.0",
+        "typescript": "^5.0.0",
+      },
+    },
     "packages/execution": {
       "name": "@leafergraph/execution",
       "version": "0.1.0",
@@ -133,15 +166,12 @@
       "version": "0.1.0",
       "dependencies": {
         "@leafer-in/arrow": "^2.0.3",
-        "@leafer-in/export": "^2.0.3",
         "@leafer-in/find": "^2.0.3",
         "@leafer-in/flow": "^2.0.3",
         "@leafer-in/resize": "^2.0.3",
-        "@leafer-in/scroll": "^2.0.3",
         "@leafer-in/state": "^2.0.3",
         "@leafer-in/view": "^2.0.3",
         "@leafer-in/viewport": "^2.0.3",
-        "@leafer-ui/worker": "^2.0.3",
         "@leafergraph/config": "workspace:*",
         "@leafergraph/contracts": "workspace:*",
         "@leafergraph/execution": "workspace:*",
@@ -157,6 +187,16 @@
     "packages/node": {
       "name": "@leafergraph/node",
       "version": "0.1.0",
+    },
+    "packages/runtime-bridge": {
+      "name": "@leafergraph/runtime-bridge",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/contracts": "workspace:*",
+        "@leafergraph/execution": "workspace:*",
+        "@leafergraph/node": "workspace:*",
+        "leafergraph": "workspace:*",
+      },
     },
     "packages/shortcuts": {
       "name": "@leafergraph/shortcuts",
@@ -348,8 +388,6 @@
 
     "@leafer-in/editor": ["@leafer-in/editor@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-in/resize": "^2.0.3", "@leafer-ui/core": "^2.0.3", "@leafer-ui/draw": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-EzQNbzSpVJ8SPQdOzMQd3gZseqJPNbO/1LO+jNeoC6+tiJb2Jim3y86YYceQpzvJ3d/udGqrSPZrpyyJNzS+aQ=="],
 
-    "@leafer-in/export": ["@leafer-in/export@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-ui/draw": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-svXNET9expDK93uHjDCsdZf6QRFTC4AGkPjnwUDjNkN1HIiIOKachuWbpAV1cKZU1wSSree5pdAVfUgZMlEf8g=="],
-
     "@leafer-in/find": ["@leafer-in/find@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-ui/draw": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-UU1CAkayrRvI1dwqHdSgpn1VYyHR3UNsA+vMc3GHzJLVzRzh48ITiq++syXg7ngh28MfgxuB5aTne5lJk8TAmQ=="],
 
     "@leafer-in/flow": ["@leafer-in/flow@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-in/resize": "^2.0.3", "@leafer-ui/draw": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-mxM2eDiZ6cPZnege3yhnlQYS9dIfAYoty7TX6st01Xo5FsawF01c3/gKlhssr2SXyPBqv15Gf3163NODtNBo1A=="],
@@ -357,8 +395,6 @@
     "@leafer-in/interface": ["@leafer-in/interface@2.0.3", "", { "peerDependencies": { "@leafer-ui/interface": "^2.0.3", "@leafer/interface": "^2.0.3" } }, "sha512-5J065dRB7DJC0tjvH+Z7TByWUXWLY/ibN8Zkoq9O2k/PfhIRqrI6JAyjXpBmLWMqr58Yh4nstoj9xBbTpTAXfQ=="],
 
     "@leafer-in/resize": ["@leafer-in/resize@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-ui/draw": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-PK0FOm4vhsETXR/RvivpP7fXodr3bCqI8Uj2dPQ3TuBc4iYmgIuthR86i7e6NI/9jIeCiPYo9FkTqSokHyYkgg=="],
-
-    "@leafer-in/scroll": ["@leafer-in/scroll@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-ui/core": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-2jybTiNIe9G3m4mxh/4tp+KuRL2wbuGZF6EyBHg/lmJDUSyUwAB27bDNE1QFFhyaqZCS8Aqmm/iY+IVjKGjMOg=="],
 
     "@leafer-in/state": ["@leafer-in/state@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-ui/core": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-aBdEekmaGeRn6Y7focSvAm+L5694HBJ3sBajzroqP8Fsz159864eaOvkfRQnPZuNS0yeFUsSjkQxKAhkpkXXtQ=="],
 
@@ -410,13 +446,9 @@
 
     "@leafer-ui/web": ["@leafer-ui/web@2.0.3", "", { "dependencies": { "@leafer-in/interface": "2.0.3", "@leafer-ui/core": "2.0.3", "@leafer-ui/draw": "2.0.3", "@leafer-ui/interaction-web": "2.0.3", "@leafer-ui/interface": "2.0.3", "@leafer-ui/partner": "2.0.3", "@leafer/interface": "2.0.3", "@leafer/partner": "2.0.3", "@leafer/web-core": "2.0.3" } }, "sha512-h7HX+TFinrJ2vPXvpWme0KLyFLTxsMumzU5rzMcQA4AeDc/pbVmazVaWojeMdDWEuHixpscd84VNvkU3tZdZFA=="],
 
-    "@leafer-ui/worker": ["@leafer-ui/worker@2.0.3", "", { "dependencies": { "@leafer-in/interface": "2.0.3", "@leafer-ui/core": "2.0.3", "@leafer-ui/draw": "2.0.3", "@leafer-ui/interface": "2.0.3", "@leafer-ui/partner": "2.0.3", "@leafer/interface": "2.0.3", "@leafer/partner": "2.0.3", "@leafer/worker-core": "2.0.3" } }, "sha512-TLT7dFJZv7WO+HLuuK1q+jQdwCZXLZ/+r0Z9qhPokd3e2cWG4F5uORzCGDDKQLO7/NlbNbHnL+3YNOhYMT/2kA=="],
-
     "@leafer/canvas": ["@leafer/canvas@2.0.3", "", { "dependencies": { "@leafer/data": "2.0.3", "@leafer/debug": "2.0.3", "@leafer/file": "2.0.3", "@leafer/list": "2.0.3", "@leafer/math": "2.0.3", "@leafer/path": "2.0.3", "@leafer/platform": "2.0.3" } }, "sha512-OUNB3yU7dq2Hi4oZ4TIXACLZ5VOcDC4PJDSH0/roV0LyIDRUugTXcSdFWH0p2gySM/6QRDSIDIm+kp9J4BkMeQ=="],
 
     "@leafer/canvas-web": ["@leafer/canvas-web@2.0.3", "", { "dependencies": { "@leafer/core": "2.0.3" } }, "sha512-p1EFfeWLQKRYfON1tiz4CapqeNW0tsVyATCphFaENtfzpKcouENH9KacHEavMGmtiIabT91d/e+IuveV/cghvA=="],
-
-    "@leafer/canvas-worker": ["@leafer/canvas-worker@2.0.3", "", { "dependencies": { "@leafer/core": "2.0.3" } }, "sha512-P69M8rRHIkySekPW/6GOEGqHQDkPd3WfsGmQEmYdcn4WO7TDSSx4MzfLahZ45NhXTr06Da1hmByrZnwF5zeong=="],
 
     "@leafer/core": ["@leafer/core@2.0.3", "", { "dependencies": { "@leafer/canvas": "2.0.3", "@leafer/data": "2.0.3", "@leafer/debug": "2.0.3", "@leafer/decorator": "2.0.3", "@leafer/display": "2.0.3", "@leafer/display-module": "2.0.3", "@leafer/event": "2.0.3", "@leafer/file": "2.0.3", "@leafer/helper": "2.0.3", "@leafer/image": "2.0.3", "@leafer/layout": "2.0.3", "@leafer/list": "2.0.3", "@leafer/math": "2.0.3", "@leafer/path": "2.0.3", "@leafer/platform": "2.0.3", "@leafer/task": "2.0.3" } }, "sha512-WSrFj2bXsDGFDUH48U0v2Y5i+G0SU5yeozwsFDy4Y6P0aG7reEBHxKR8o9mGWyG69p27ceivoPKJROwB4HSzmA=="],
 
@@ -439,8 +471,6 @@
     "@leafer/image": ["@leafer/image@2.0.3", "", { "dependencies": { "@leafer/data": "2.0.3", "@leafer/file": "2.0.3", "@leafer/math": "2.0.3", "@leafer/platform": "2.0.3", "@leafer/task": "2.0.3" } }, "sha512-1B5/AuUsyq6droRcqsbrw5vEkdGr8bpVZOQlSlGrL1rZ9nvmWGVOBzfmWsANpWDTxT7Dbc/FvKduciDxvCQ6AQ=="],
 
     "@leafer/image-web": ["@leafer/image-web@2.0.3", "", { "dependencies": { "@leafer/core": "2.0.3" } }, "sha512-4z8y0HcGiyPEt8ir1dTPGtClWrjuCbmqWuKUfjopXpaElehwD8ZPTz3tjqROlN9TH0fcmN4+p38iCFTK9FpsoA=="],
-
-    "@leafer/image-worker": ["@leafer/image-worker@2.0.3", "", { "dependencies": { "@leafer/core": "2.0.3" } }, "sha512-KQdgPqvjd7w9wfKeWZo/PkvrLqOUoK9kd/Hfs6xfc4EkyQCGX5kqmhefrpUHqjq/Q6hnsqezQ+D3IRMpttkmuw=="],
 
     "@leafer/interface": ["@leafer/interface@2.0.3", "", {}, "sha512-w2qaNQhGVOGOQXxzwjVK/cg/2uEblQkgg5kR10fTatLspqg7FyoEUa7oVwLnk6zF/tRxD8Z7yyk4AqQq6+ZlOw=="],
 
@@ -468,8 +498,6 @@
 
     "@leafer/web-core": ["@leafer/web-core@2.0.3", "", { "dependencies": { "@leafer/canvas-web": "2.0.3", "@leafer/core": "2.0.3", "@leafer/image-web": "2.0.3", "@leafer/interface": "2.0.3", "@leafer/partner": "2.0.3" } }, "sha512-69YJCkAr6VVEWPsXq+PdgwURiPavsCgQYwLGM0/hQAOrTKHqws8GzH/H/ShUJJICs3s+bs7tVyYIUv73DvcUKg=="],
 
-    "@leafer/worker-core": ["@leafer/worker-core@2.0.3", "", { "dependencies": { "@leafer/canvas-worker": "2.0.3", "@leafer/core": "2.0.3", "@leafer/image-worker": "2.0.3", "@leafer/interface": "2.0.3", "@leafer/partner": "2.0.3" } }, "sha512-Zu7pJHj3enkDwQyc2bcW8ZsOOuouUu9a19X6vB8quKa7274CoHE2GYGlbNzTHi5JTeTNfxQ9SPPb0yenJrAZIQ=="],
-
     "@leafergraph/authoring": ["@leafergraph/authoring@workspace:packages/authoring"],
 
     "@leafergraph/authoring-basic-nodes": ["@leafergraph/authoring-basic-nodes@workspace:example/authoring-basic-nodes"],
@@ -484,9 +512,13 @@
 
     "@leafergraph/contracts": ["@leafergraph/contracts@workspace:packages/contracts"],
 
+    "@leafergraph/diff": ["@leafergraph/diff@workspace:packages/diff"],
+
     "@leafergraph/execution": ["@leafergraph/execution@workspace:packages/execution"],
 
     "@leafergraph/node": ["@leafergraph/node@workspace:packages/node"],
+
+    "@leafergraph/runtime-bridge": ["@leafergraph/runtime-bridge@workspace:packages/runtime-bridge"],
 
     "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:packages/shortcuts"],
 
@@ -602,6 +634,8 @@
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg=="],
 
+    "@types/bun": ["@types/bun@1.3.11", "", { "dependencies": { "bun-types": "1.3.11" } }, "sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg=="],
+
     "@types/estree": ["@types/estree@1.0.8", "", {}, "sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w=="],
 
     "@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
@@ -617,6 +651,8 @@
     "boolbase": ["boolbase@1.0.0", "", {}, "sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww=="],
 
     "browserslist": ["browserslist@4.28.1", "", { "dependencies": { "baseline-browser-mapping": "^2.9.0", "caniuse-lite": "^1.0.30001759", "electron-to-chromium": "^1.5.263", "node-releases": "^2.0.27", "update-browserslist-db": "^1.2.0" }, "bin": { "browserslist": "cli.js" } }, "sha512-ZC5Bd0LgJXgwGqUknZY/vkUQ04r8NXnJZ3yYi4vDmSiZmC/pdSN0NbNRPxZpbtO4uAfDUAFffO8IZoM3Gj8IkA=="],
+
+    "bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
     "caniuse-lite": ["caniuse-lite@1.0.30001778", "", {}, "sha512-PN7uxFL+ExFJO61aVmP1aIEG4i9whQd4eoSCebav62UwDyp5OHh06zN4jqKSMePVgxHifCw1QJxdRkA1Pisekg=="],
 
@@ -671,6 +707,8 @@
     "leafergraph": ["leafergraph@workspace:packages/leafergraph"],
 
     "leafergraph-minimal-graph-example": ["leafergraph-minimal-graph-example@workspace:example/mini-graph"],
+
+    "leafergraph-runtime-bridge-node-demo": ["leafergraph-runtime-bridge-node-demo@workspace:example/runtime-bridge-node-demo"],
 
     "lightningcss": ["lightningcss@1.32.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.32.0", "lightningcss-darwin-arm64": "1.32.0", "lightningcss-darwin-x64": "1.32.0", "lightningcss-freebsd-x64": "1.32.0", "lightningcss-linux-arm-gnueabihf": "1.32.0", "lightningcss-linux-arm64-gnu": "1.32.0", "lightningcss-linux-arm64-musl": "1.32.0", "lightningcss-linux-x64-gnu": "1.32.0", "lightningcss-linux-x64-musl": "1.32.0", "lightningcss-win32-arm64-msvc": "1.32.0", "lightningcss-win32-x64-msvc": "1.32.0" } }, "sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ=="],
 

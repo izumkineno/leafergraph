@@ -53,6 +53,7 @@ import {
   WebSocketRuntimeBridgeTransport,
   type WebSocketRuntimeBridgeTransportStatus
 } from "./websocket_transport";
+import { DiffEngine, deepClone } from "../shared/diff";
 import "./app.css";
 
 type DemoLogEntry = {
@@ -326,11 +327,15 @@ export function App() {
   const [nodeForm, setNodeForm] = useState<DemoNodeEntryForm>(INITIAL_NODE_FORM);
   const [blueprintForm, setBlueprintForm] =
     useState<DemoBlueprintEntryForm>(INITIAL_BLUEPRINT_FORM);
-  const [streamStats, setStreamStats] =
-    useState<DemoBrowserStreamStats>(EMPTY_STREAM_STATS);
+  const [streamStats, setStreamStats] = useState<DemoBrowserStreamStats>(EMPTY_STREAM_STATS);
   const [leaferDebugConfig, setLeaferDebugConfig] = useState<DemoLeaferDebugConfig>(
     cloneDemoLeaferDebugConfig(DEMO_DEFAULT_LEAFER_DEBUG_CONFIG)
   );
+  const [diffEnabled, setDiffEnabled] = useState(false);
+  const [diffEngine, setDiffEngine] = useState<DiffEngine | null>(null);
+  const [lastDiffResult, setLastDiffResult] = useState<any>(null);
+  const [showDialog, setShowDialog] = useState(false);
+  const [showLogDialog, setShowLogDialog] = useState(false);
 
   const applyStressLogMute = (currentBlueprintId: string | null): void => {
     const shouldMute = isStressBlueprintEntryId(currentBlueprintId);
@@ -384,7 +389,14 @@ export function App() {
         const graph = createLeaferGraph(container, {
           document: createRuntimeBridgeNodeDemoDocument(),
           plugins: [leaferGraphBasicKitPlugin],
-          themeMode: "light"
+          themeMode: "light",
+          config: {
+            graph: {
+              runtime: {
+                respectReducedMotion: false
+              }
+            }
+          }
         });
 
         await graph.ready;
@@ -884,6 +896,50 @@ export function App() {
     });
   };
 
+  useEffect(() => {
+    if (diffEnabled) {
+      try {
+        const engine = new DiffEngine();
+        setDiffEngine(engine);
+        appendLog("system", "diff.enabled", "Diff功能已启用");
+        return () => {
+          // 清理资源
+          setDiffEngine(null);
+          appendLog("system", "diff.disabled", "Diff功能已禁用");
+        };
+      } catch (error) {
+        const message = toErrorMessage(error);
+        setLastError(message);
+        appendLog("system", "diff.init.error", message);
+        setDiffEnabled(false);
+      }
+    } else {
+      setDiffEngine(null);
+    }
+  }, [diffEnabled]);
+
+  const computeDiff = () => {
+    if (!diffEngine || !runtimeRef.current) return;
+    
+    try {
+      const currentDoc = runtimeRef.current.graph.getGraphDocument();
+      const clonedDoc = deepClone(currentDoc);
+      
+      // 模拟文档变更
+      if (clonedDoc.nodes.length > 0) {
+        clonedDoc.nodes[0].title = `Updated ${Date.now()}`;
+      }
+      
+      const diff = diffEngine.computeDiff(currentDoc, clonedDoc);
+      setLastDiffResult(diff);
+      appendLog("system", "diff.computed", diff);
+    } catch (error) {
+      const message = toErrorMessage(error);
+      setLastError(message);
+      appendLog("system", "diff.compute.error", message);
+    }
+  };
+
   const nodeEntries = extensionsSync.entries.filter(isNodeEntry);
   const componentEntries = extensionsSync.entries.filter(isComponentEntry);
   const blueprintEntries = extensionsSync.entries.filter(isBlueprintEntry);
@@ -943,164 +999,12 @@ export function App() {
             >
               重拉快照
             </button>
-          </div>
-
-          <div className="demo-quick-panel">
-            <p className="demo-debug-title">频谱实验</p>
-            <div className="demo-quick-actions">
-              <button
-                disabled={
-                  !ready || transportStatus.state !== "connected" || busyAction !== null
-                }
-                onClick={() =>
-                  launchExperiment(
-                    DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID,
-                    "启动频谱实验室"
-                  )
-                }
-              >
-                实验室运行
-              </button>
-              <button
-                disabled={
-                  !ready || transportStatus.state !== "connected" || busyAction !== null
-                }
-                onClick={() =>
-                  launchExperiment(
-                    DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID,
-                    "启动频谱压力实验"
-                  )
-                }
-              >
-                压力运行
-              </button>
-            </div>
-            <p className="demo-quick-hint">
-              会自动加载远端蓝图并启动 authority 定时执行链。
-            </p>
-          </div>
-
-          <div className="demo-debug-panel">
-            <p className="demo-debug-title">Leafer 调试</p>
-            <div className="demo-debug-grid">
-              <label className="demo-debug-field">
-                <span className="demo-debug-label">启用</span>
-                <select
-                  className="demo-debug-select"
-                  disabled={!ready || busyAction !== null}
-                  value={resolveBooleanSelectValue(leaferDebugConfig.enable)}
-                  onInput={(event) => {
-                    updateLeaferDebugConfig({
-                      enable: event.currentTarget.value === "on"
-                    });
-                  }}
-                >
-                  <option value="off">关</option>
-                  <option value="on">开</option>
-                </select>
-              </label>
-
-              <label className="demo-debug-field">
-                <span className="demo-debug-label">警告</span>
-                <select
-                  className="demo-debug-select"
-                  disabled={!ready || busyAction !== null}
-                  value={resolveBooleanSelectValue(leaferDebugConfig.showWarn)}
-                  onInput={(event) => {
-                    updateLeaferDebugConfig({
-                      showWarn: event.currentTarget.value === "on"
-                    });
-                  }}
-                >
-                  <option value="on">开</option>
-                  <option value="off">关</option>
-                </select>
-              </label>
-
-              <label className="demo-debug-field">
-                <span className="demo-debug-label">过滤</span>
-                <select
-                  className="demo-debug-select"
-                  disabled={!ready || busyAction !== null}
-                  value={resolveLeaferDebugNameSelectValue(leaferDebugConfig.filter)}
-                  onInput={(event) => {
-                    updateLeaferDebugConfig({
-                      filter: event.currentTarget.value
-                    });
-                  }}
-                >
-                  {LEAFER_DEBUG_NAME_OPTIONS.map((option) => (
-                    <option key={`filter-${option.value || "none"}`} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="demo-debug-field">
-                <span className="demo-debug-label">排除</span>
-                <select
-                  className="demo-debug-select"
-                  disabled={!ready || busyAction !== null}
-                  value={resolveLeaferDebugNameSelectValue(leaferDebugConfig.exclude)}
-                  onInput={(event) => {
-                    updateLeaferDebugConfig({
-                      exclude: event.currentTarget.value
-                    });
-                  }}
-                >
-                  {LEAFER_DEBUG_NAME_OPTIONS.map((option) => (
-                    <option key={`exclude-${option.value || "none"}`} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="demo-debug-field">
-                <span className="demo-debug-label">重绘</span>
-                <select
-                  className="demo-debug-select"
-                  disabled={!ready || busyAction !== null}
-                  value={resolveBooleanSelectValue(
-                    Boolean(leaferDebugConfig.showRepaint)
-                  )}
-                  onInput={(event) => {
-                    updateLeaferDebugConfig({
-                      showRepaint: event.currentTarget.value === "on"
-                    });
-                  }}
-                >
-                  <option value="off">关</option>
-                  <option value="on">开</option>
-                </select>
-              </label>
-
-              <label className="demo-debug-field">
-                <span className="demo-debug-label">包围盒</span>
-                <select
-                  className="demo-debug-select"
-                  disabled={!ready || busyAction !== null}
-                  value={resolveLeaferDebugBoundsSelectValue(
-                    leaferDebugConfig.showBounds
-                  )}
-                  onInput={(event) => {
-                    const value = event.currentTarget.value as
-                      | "off"
-                      | "bounds"
-                      | "hit";
-                    updateLeaferDebugConfig({
-                      showBounds:
-                        value === "hit" ? "hit" : value === "bounds"
-                    });
-                  }}
-                >
-                  <option value="off">关</option>
-                  <option value="bounds">边界</option>
-                  <option value="hit">命中</option>
-                </select>
-              </label>
-            </div>
+            <button onClick={() => setShowDialog(!showDialog)}>
+              {showDialog ? '隐藏面板' : '显示面板'}
+            </button>
+            <button onClick={() => setShowLogDialog(!showLogDialog)}>
+              {showLogDialog ? '隐藏日志' : '显示日志'}
+            </button>
           </div>
         </div>
       </header>
@@ -1167,7 +1071,7 @@ export function App() {
       </section>
 
       <main className="demo-main">
-        <section className="canvas-card">
+        <section className="canvas-card maximized">
           <div className="canvas-heading">
             <div>
               <p className="eyebrow">权威端镜像</p>
@@ -1180,53 +1084,271 @@ export function App() {
           <div className="canvas-frame" ref={canvasRef} />
         </section>
 
-        <aside className="demo-side-column">
-          <RuntimeBridgeCatalogPanel
-            ready={ready}
-            busyAction={busyAction}
-            sync={extensionsSync}
-            componentEntries={componentEntries}
-            nodeEntries={nodeEntries}
-            blueprintEntries={blueprintEntries}
-            componentForm={componentForm}
-            nodeForm={nodeForm}
-            blueprintForm={blueprintForm}
-            onRefreshCatalog={refreshCatalog}
-            onLoadEntry={loadEntry}
-            onUnloadEntry={unloadEntry}
-            onUnregisterEntry={unregisterEntry}
-            onLoadBlueprint={loadBlueprint}
-            onUnloadBlueprint={unloadBlueprint}
-            onComponentFormChange={setComponentForm}
-            onNodeFormChange={setNodeForm}
-            onBlueprintFormChange={setBlueprintForm}
-            onRegisterComponentEntry={registerComponentEntry}
-            onRegisterNodeEntry={registerNodeEntry}
-            onRegisterBlueprintEntry={registerBlueprintEntry}
-          />
-
-          <section className="log-card">
-            <div className="log-heading">
-              <div>
-                <p className="eyebrow">运行反馈</p>
-                <h2>桥接事件日志</h2>
+        {showDialog && (
+          <div className="demo-dialog">
+            <div className="demo-dialog-content">
+              <div className="demo-dialog-header">
+                <h3>控制面板</h3>
+                <button className="demo-dialog-close" onClick={() => setShowDialog(false)}>×</button>
               </div>
-              <span className="log-count">{logs.length} 条</span>
-            </div>
-            <div className="log-list">
-              {logs.map((entry) => (
-                <article className={`log-entry log-${entry.channel}`} key={entry.id}>
-                  <div className="log-meta">
-                    <span>{entry.at}</span>
-                    <span>{resolveLogChannelLabel(entry.channel)}</span>
+              <div className="demo-dialog-body">
+                <div className="demo-quick-panel">
+                  <p className="demo-debug-title">频谱实验</p>
+                  <div className="demo-quick-actions">
+                    <button
+                      disabled={
+                        !ready || transportStatus.state !== "connected" || busyAction !== null
+                      }
+                      onClick={() =>
+                        launchExperiment(
+                          DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID,
+                          "启动频谱实验室"
+                        )
+                      }
+                    >
+                      实验室运行
+                    </button>
+                    <button
+                      disabled={
+                        !ready || transportStatus.state !== "connected" || busyAction !== null
+                      }
+                      onClick={() =>
+                        launchExperiment(
+                          DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID,
+                          "启动频谱压力实验"
+                        )
+                      }
+                    >
+                      压力运行
+                    </button>
                   </div>
-                  <h3>{entry.title}</h3>
-                  <pre>{entry.detail}</pre>
-                </article>
-              ))}
+                  <p className="demo-quick-hint">
+                    会自动加载远端蓝图并启动 authority 定时执行链。
+                  </p>
+                </div>
+
+                <div className="demo-debug-panel">
+                  <p className="demo-debug-title">Leafer 调试</p>
+                  <div className="demo-debug-grid">
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">启用</span>
+                      <select
+                        className="demo-debug-select"
+                        disabled={!ready || busyAction !== null}
+                        value={resolveBooleanSelectValue(leaferDebugConfig.enable)}
+                        onInput={(event) => {
+                          updateLeaferDebugConfig({
+                            enable: event.currentTarget.value === "on"
+                          });
+                        }}
+                      >
+                        <option value="off">关</option>
+                        <option value="on">开</option>
+                      </select>
+                    </label>
+
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">警告</span>
+                      <select
+                        className="demo-debug-select"
+                        disabled={!ready || busyAction !== null}
+                        value={resolveBooleanSelectValue(leaferDebugConfig.showWarn)}
+                        onInput={(event) => {
+                          updateLeaferDebugConfig({
+                            showWarn: event.currentTarget.value === "on"
+                          });
+                        }}
+                      >
+                        <option value="on">开</option>
+                        <option value="off">关</option>
+                      </select>
+                    </label>
+
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">过滤</span>
+                      <select
+                        className="demo-debug-select"
+                        disabled={!ready || busyAction !== null}
+                        value={resolveLeaferDebugNameSelectValue(leaferDebugConfig.filter)}
+                        onInput={(event) => {
+                          updateLeaferDebugConfig({
+                            filter: event.currentTarget.value
+                          });
+                        }}
+                      >
+                        {LEAFER_DEBUG_NAME_OPTIONS.map((option) => (
+                          <option key={`filter-${option.value || "none"}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">排除</span>
+                      <select
+                        className="demo-debug-select"
+                        disabled={!ready || busyAction !== null}
+                        value={resolveLeaferDebugNameSelectValue(leaferDebugConfig.exclude)}
+                        onInput={(event) => {
+                          updateLeaferDebugConfig({
+                            exclude: event.currentTarget.value
+                          });
+                        }}
+                      >
+                        {LEAFER_DEBUG_NAME_OPTIONS.map((option) => (
+                          <option key={`exclude-${option.value || "none"}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">重绘</span>
+                      <select
+                        className="demo-debug-select"
+                        disabled={!ready || busyAction !== null}
+                        value={resolveBooleanSelectValue(
+                          Boolean(leaferDebugConfig.showRepaint)
+                        )}
+                        onInput={(event) => {
+                          updateLeaferDebugConfig({
+                            showRepaint: event.currentTarget.value === "on"
+                          });
+                        }}
+                      >
+                        <option value="off">关</option>
+                        <option value="on">开</option>
+                      </select>
+                    </label>
+
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">包围盒</span>
+                      <select
+                        className="demo-debug-select"
+                        disabled={!ready || busyAction !== null}
+                        value={resolveLeaferDebugBoundsSelectValue(
+                          leaferDebugConfig.showBounds
+                        )}
+                        onInput={(event) => {
+                          const value = event.currentTarget.value as
+                            | "off"
+                            | "bounds"
+                            | "hit";
+                          updateLeaferDebugConfig({
+                            showBounds:
+                              value === "hit" ? "hit" : value === "bounds"
+                          });
+                        }}
+                      >
+                        <option value="off">关</option>
+                        <option value="bounds">边界</option>
+                        <option value="hit">命中</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="demo-debug-panel">
+                  <p className="demo-debug-title">Diff 功能</p>
+                  <div className="demo-debug-grid">
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">启用</span>
+                      <select
+                        className="demo-debug-select"
+                        disabled={!ready || busyAction !== null}
+                        value={resolveBooleanSelectValue(diffEnabled)}
+                        onInput={(event) => {
+                          setDiffEnabled(event.currentTarget.value === "on");
+                        }}
+                      >
+                        <option value="off">关</option>
+                        <option value="on">开</option>
+                      </select>
+                    </label>
+                    <label className="demo-debug-field">
+                      <span className="demo-debug-label">操作</span>
+                      <button
+                        className="demo-debug-button"
+                        disabled={!ready || !diffEnabled || busyAction !== null}
+                        onClick={computeDiff}
+                      >
+                        计算差异
+                      </button>
+                    </label>
+                  </div>
+                  {lastDiffResult && (
+                    <div className="demo-diff-result">
+                      <p className="demo-diff-title">差异结果</p>
+                      <pre className="demo-diff-details">
+                        {JSON.stringify(lastDiffResult, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                <RuntimeBridgeCatalogPanel
+                  ready={ready}
+                  busyAction={busyAction}
+                  sync={extensionsSync}
+                  componentEntries={componentEntries}
+                  nodeEntries={nodeEntries}
+                  blueprintEntries={blueprintEntries}
+                  componentForm={componentForm}
+                  nodeForm={nodeForm}
+                  blueprintForm={blueprintForm}
+                  onRefreshCatalog={refreshCatalog}
+                  onLoadEntry={loadEntry}
+                  onUnloadEntry={unloadEntry}
+                  onUnregisterEntry={unregisterEntry}
+                  onLoadBlueprint={loadBlueprint}
+                  onUnloadBlueprint={unloadBlueprint}
+                  onComponentFormChange={setComponentForm}
+                  onNodeFormChange={setNodeForm}
+                  onBlueprintFormChange={setBlueprintForm}
+                  onRegisterComponentEntry={registerComponentEntry}
+                  onRegisterNodeEntry={registerNodeEntry}
+                  onRegisterBlueprintEntry={registerBlueprintEntry}
+                />
+              </div>
             </div>
-          </section>
-        </aside>
+          </div>
+        )}
+
+        {showLogDialog && (
+          <div className="demo-dialog demo-log-dialog">
+            <div className="demo-dialog-content">
+              <div className="demo-dialog-header">
+                <h3>桥接事件日志</h3>
+                <button className="demo-dialog-close" onClick={() => setShowLogDialog(false)}>×</button>
+              </div>
+              <div className="demo-dialog-body">
+                <section className="log-card">
+                  <div className="log-heading">
+                    <div>
+                      <p className="eyebrow">运行反馈</p>
+                      <h2>桥接事件日志</h2>
+                    </div>
+                    <span className="log-count">{logs.length} 条</span>
+                  </div>
+                  <div className="log-list">
+                    {logs.map((entry) => (
+                      <article className={`log-entry log-${entry.channel}`} key={entry.id}>
+                        <div className="log-meta">
+                          <span>{entry.at}</span>
+                          <span>{resolveLogChannelLabel(entry.channel)}</span>
+                        </div>
+                        <h3>{entry.title}</h3>
+                        <pre>{entry.detail}</pre>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

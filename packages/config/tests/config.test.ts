@@ -35,7 +35,8 @@ describe("@leafergraph/config", () => {
           defaultFitPadding: 64
         },
         runtime: {
-          linkPropagationAnimation: "performance"
+          linkPropagationAnimation: "performance",
+          respectReducedMotion: true
         },
         history: {
           maxEntries: 100,
@@ -90,7 +91,8 @@ describe("@leafergraph/config", () => {
           defaultFitPadding: 96
         },
         runtime: {
-          linkPropagationAnimation: false
+          linkPropagationAnimation: false,
+          respectReducedMotion: false
         },
         history: {
           maxEntries: 24,
@@ -121,6 +123,7 @@ describe("@leafergraph/config", () => {
     expect(config.graph.fill).toBe("#101828");
     expect(config.graph.view.defaultFitPadding).toBe(96);
     expect(config.graph.runtime.linkPropagationAnimation).toBe(false);
+    expect(config.graph.runtime.respectReducedMotion).toBe(false);
     expect(config.graph.history.maxEntries).toBe(24);
     expect(config.graph.history.resetOnDocumentSync).toBe(false);
     expect(config.widget.editing.enabled).toBe(true);

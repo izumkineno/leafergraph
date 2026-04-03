@@ -40,6 +40,8 @@ export interface LeaferGraphLinkDataFlowAnimationHostOptions<
   resolveSlotTypeFillMap(): Readonly<Record<string, string>>;
   /** 解析当前动画样式。 */
   resolveStyle(): LeaferGraphDataFlowAnimationStyleConfig;
+  /** 是否遵循系统 reduced motion 偏好。 */
+  respectReducedMotion: boolean;
   /** 读取当前主题模式。 */
   getThemeMode(): LeaferGraphThemeMode;
   /** 请求宿主渲染一帧。 */

@@ -70,6 +70,7 @@ interface LeaferGraphRuntimeAssemblyOptions<
   linkDefaultNodeWidth: number;
   linkPortSize: number;
   linkStroke: string;
+  respectReducedMotion: boolean;
   dataFlowAnimationStyle: LeaferGraphDataFlowAnimationStyleConfig;
 }
 
@@ -157,6 +158,7 @@ export function createLeaferGraphRuntimeAssembly<
     linkDefaultNodeWidth: options.linkDefaultNodeWidth,
     linkPortSize: options.linkPortSize,
     linkStroke: options.linkStroke,
+    respectReducedMotion: options.respectReducedMotion,
     dataFlowAnimationStyle: options.dataFlowAnimationStyle
   });
   const bootstrapHost = new LeaferGraphBootstrapHost({

@@ -109,7 +109,8 @@ const EXAMPLE_MINI_GRAPH_CONFIG = {
   graph: {
     graph: {
       runtime: {
-        linkPropagationAnimation: "expressive"
+        linkPropagationAnimation: "expressive",
+        respectReducedMotion: false
       },
       history: EXAMPLE_GRAPH_HISTORY_CONFIG
     }
@@ -1444,7 +1445,9 @@ export function useExampleGraph(): UseExampleGraphResult {
           graph: {
             graph: {
               runtime: {
-                linkPropagationAnimation: linkPropagationAnimationPreset
+                linkPropagationAnimation: linkPropagationAnimationPreset,
+                respectReducedMotion:
+                  EXAMPLE_MINI_GRAPH_CONFIG.graph.graph.runtime.respectReducedMotion
               },
               history: EXAMPLE_MINI_GRAPH_CONFIG.graph.graph.history
             }

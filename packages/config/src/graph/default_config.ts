@@ -15,6 +15,9 @@ export const VIEWPORT_MAX_SCALE = 4;
 /** 连线传播动画默认预设。 */
 export const DEFAULT_LINK_PROPAGATION_ANIMATION_PRESET = "performance";
 
+/** 是否默认遵循系统 reduced motion 偏好。 */
+export const DEFAULT_RESPECT_REDUCED_MOTION = true;
+
 /** 默认最多保留的历史条数。 */
 export const DEFAULT_HISTORY_MAX_ENTRIES = 100;
 
@@ -33,7 +36,8 @@ export function resolveDefaultLeaferGraphGraphConfig(): NormalizedLeaferGraphGra
       defaultFitPadding: DEFAULT_FIT_VIEW_PADDING
     },
     runtime: {
-      linkPropagationAnimation: DEFAULT_LINK_PROPAGATION_ANIMATION_PRESET
+      linkPropagationAnimation: DEFAULT_LINK_PROPAGATION_ANIMATION_PRESET,
+      respectReducedMotion: DEFAULT_RESPECT_REDUCED_MOTION
     },
     history: {
       maxEntries: DEFAULT_HISTORY_MAX_ENTRIES,
@@ -62,7 +66,10 @@ export function normalizeLeaferGraphGraphConfig(
     runtime: {
       linkPropagationAnimation:
         config?.runtime?.linkPropagationAnimation ??
-        defaults.runtime.linkPropagationAnimation
+        defaults.runtime.linkPropagationAnimation,
+      respectReducedMotion:
+        config?.runtime?.respectReducedMotion ??
+        defaults.runtime.respectReducedMotion
     },
     history: {
       maxEntries: Math.max(
