@@ -26,6 +26,7 @@ import type {
   GraphNodeProperties,
   LeaferGraphRenderableNodeState
 } from "../types";
+import type { NodeRuntimeState } from "@leafergraph/node";
 
 const DEFAULT_GRAPH_LINK_SLOT = 0;
 
@@ -70,6 +71,15 @@ interface LeaferGraphMutationHostOptions<
     widgetIndex: number,
     newValue: unknown
   ): boolean;
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void;
   mountLinkView(link: GraphLink): unknown | null;
   removeLinkInternal(linkId: string): boolean;
   updateConnectedLinks(nodeId: string): void;
@@ -326,6 +336,30 @@ export class LeaferGraphMutationHost<
     }
 
     return this.options.setNodeWidgetValue(nodeId, widgetIndex, newValue);
+  }
+
+  /**
+   * 提交 widget 值变更，触发正式交互提交。
+   *
+   * @remarks
+   * 这个方法会转发给构造时注入的回调，由回调负责触发交互提交事件。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - Widget 索引。
+   * @param commit - 提交信息，包含变更前后的值。
+   *
+   * @returns 无返回值。
+   */
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void {
+    this.options.commitNodeWidgetValue(nodeId, widgetIndex, commit);
   }
 
   /**

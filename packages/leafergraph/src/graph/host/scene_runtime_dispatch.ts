@@ -66,6 +66,15 @@ export interface LeaferGraphSceneRuntimeMutationHostLike<
     widgetIndex: number,
     newValue: unknown
   ): boolean;
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void;
   createLink(input: LeaferGraphCreateLinkInput): GraphLink;
   removeLink(linkId: string): boolean;
   moveNodesByDelta(

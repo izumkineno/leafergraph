@@ -59,6 +59,16 @@ interface LeaferGraphSceneWidgetHostLike<
     newValue: unknown,
     widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>
   ): boolean;
+  
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void;
 }
 
 /**
@@ -210,5 +220,31 @@ export class LeaferGraphSceneHost<
       newValue,
       state.widgetInstances
     );
+  }
+
+  /**
+   * 提交 widget 值变更，触发交互提交事件。
+   *
+   * @remarks
+   * 这条路径用于 widget 完成编辑后提交最终值，
+   * 会触发 `node.widget.commit` 交互提交事件，
+   * 由外部订阅者处理（如 runtime-bridge 提交到服务器）。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - 节点内部 Widget 索引。
+   * @param commit - 提交信息，包含变更前后的值。
+   *
+   * @returns 无返回值。
+   */
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void {
+    this.options.widgetHost.commitNodeWidgetValue(nodeId, widgetIndex, commit);
   }
 }

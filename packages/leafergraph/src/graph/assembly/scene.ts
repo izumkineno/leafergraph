@@ -287,6 +287,8 @@ export function createLeaferGraphSceneRuntimeAssembly<
     refreshNodeView: (state) => sceneHost.refreshNodeView(state),
     setNodeWidgetValue: (nodeId, widgetIndex, newValue) =>
       sceneHost.setNodeWidgetValue(nodeId, widgetIndex, newValue),
+    commitNodeWidgetValue: (nodeId, widgetIndex, commit) =>
+      sceneHost.commitNodeWidgetValue(nodeId, widgetIndex, commit),
     mountLinkView: (link) => sceneHost.mountLinkView(link),
     removeLinkInternal: (linkId) => sceneHost.removeLink(linkId),
     updateConnectedLinks: (nodeId) => sceneHost.updateConnectedLinks(nodeId),

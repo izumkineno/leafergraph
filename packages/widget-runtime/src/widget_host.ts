@@ -238,6 +238,30 @@ export class LeaferGraphWidgetHost {
   }
 
   /**
+   * 提交 widget 值变更，触发正式交互提交。
+   *
+   * @remarks
+   * 这个方法是场景桥接层要求的入口，它会转发给构造时注入的回调。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - Widget 索引。
+   * @param commit - 提交信息，包含变更前后的值。
+   *
+   * @returns 无返回值。
+   */
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void {
+    this.options.commitNodeWidgetValue(nodeId, widgetIndex, commit);
+  }
+
+  /**
    *  为节点 Widget 生成稳定提交键。
    *
    * @param nodeId - 目标节点 ID。

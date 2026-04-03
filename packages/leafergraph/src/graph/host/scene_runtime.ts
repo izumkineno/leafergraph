@@ -213,6 +213,27 @@ export class LeaferGraphSceneRuntimeHost<
   }
 
   /**
+   * 提交 widget 值变更，触发交互提交事件。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param widgetIndex - Widget 索引。
+   * @param commit - 提交信息，包含变更前后的值。
+   *
+   * @returns 无返回值。
+   */
+  commitNodeWidgetValue(
+    nodeId: string,
+    widgetIndex: number,
+    commit: {
+      newValue?: unknown;
+      beforeValue: unknown;
+      beforeWidgets: NodeRuntimeState["widgets"];
+    }
+  ): void {
+    this.options.mutationHost.commitNodeWidgetValue(nodeId, widgetIndex, commit);
+  }
+
+  /**
    * 根据节点 ID 查询当前图中的所有关联连线。
    *
    * @param nodeId - 目标节点 ID。
