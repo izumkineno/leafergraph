@@ -14,4 +14,5 @@ export type {
 } from "./client/index.js";
 export * from "./portable/index.js";
 export * from "./execution/index.js";
+export * from "./extensions/index.js";
 export * from "./transport/index.js";

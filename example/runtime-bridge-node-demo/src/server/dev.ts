@@ -16,7 +16,7 @@ const server = await startRuntimeBridgeNodeDemoServer({
 });
 
 console.log(
-  `[runtime-bridge-node-demo] authority listening on ws://${server.host}:${server.port}`
+  `[runtime-bridge-node-demo] authority listening on ws://${server.host}:${server.port} (http ${server.httpOrigin})`
 );
 
 const shutdown = async () => {

@@ -5,6 +5,8 @@ import type {
   RuntimeFeedbackEvent
 } from "@leafergraph/runtime-bridge/portable";
 import type {
+  RuntimeBridgeCommand,
+  RuntimeBridgeCommandResult,
   RuntimeBridgeControlCommand,
   RuntimeBridgeInboundEvent
 } from "@leafergraph/runtime-bridge/transport";
@@ -12,6 +14,16 @@ import type {
   DemoBridgeClientMessage,
   DemoBridgeServerMessage
 } from "../shared/protocol";
+import {
+  summarizeDemoStreamFrame,
+  type DemoStreamFrame
+} from "../shared/stream";
+
+let runtimeBridgeNodeDemoLoggingMuted = false;
+
+export function setRuntimeBridgeNodeDemoLoggingMuted(muted: boolean): void {
+  runtimeBridgeNodeDemoLoggingMuted = muted;
+}
 
 /**
  * 输出 demo 服务端日志。
@@ -26,6 +38,10 @@ export function logRuntimeBridgeServer(
   action: string,
   detail?: string
 ): void {
+  if (runtimeBridgeNodeDemoLoggingMuted) {
+    return;
+  }
+
   const timestamp = new Date().toISOString();
   if (detail) {
     console.log(`[runtime-bridge-node-demo][${timestamp}][${scope}] ${action} ${detail}`);
@@ -48,6 +64,10 @@ export function logRuntimeBridgeServerError(
   action: string,
   detail?: string
 ): void {
+  if (runtimeBridgeNodeDemoLoggingMuted) {
+    return;
+  }
+
   const timestamp = new Date().toISOString();
   if (detail) {
     console.error(
@@ -175,6 +195,8 @@ export function formatInboundEventBehavior(
       return formatRuntimeFeedbackBehavior(event.feedback);
     case "history.event":
       return formatHistoryEventBehavior(event.event);
+    case "extensions.sync":
+      return `扩展同步 entries=${event.sync.entries.length} activeNodes=${event.sync.activeNodeEntryIds.length} activeComponents=${event.sync.activeComponentEntryIds.length} blueprint=${event.sync.currentBlueprintId ?? "none"}`;
   }
 
   return "unknown-inbound-event";
@@ -194,8 +216,8 @@ export function formatClientMessageBehavior(
       return `requestId=${message.requestId} 拉取整图快照`;
     case "operations.submit":
       return `requestId=${message.requestId} 提交操作 ${message.operations.length} 条${formatOperationPreview(message.operations)}`;
-    case "control.send":
-      return `requestId=${message.requestId} 控制命令 ${formatControlCommandBehavior(message.command)}`;
+    case "command.request":
+      return `requestId=${message.requestId} 命令 ${formatCommandBehavior(message.command)}`;
   }
 
   return "unknown-client-message";
@@ -215,10 +237,12 @@ export function formatServerMessageBehavior(
       return `requestId=${message.requestId} 返回快照 ${formatDocumentSummary(message.document)}`;
     case "operations.response":
       return `requestId=${message.requestId} 返回操作结果 ${message.results.length} 条`;
-    case "control.response":
-      return `requestId=${message.requestId} 控制命令已确认`;
+    case "command.response":
+      return `requestId=${message.requestId} 命令已确认 ${formatCommandResultBehavior(message.result)}`;
     case "bridge.event":
       return formatInboundEventBehavior(message.event);
+    case "stream.frame":
+      return formatDemoStreamFrameBehavior(message.frame);
     case "bridge.error":
       return `requestId=${message.requestId ?? "none"} error=${message.message}`;
   }
@@ -301,4 +325,59 @@ function formatUnknownValue(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function formatCommandBehavior(command: RuntimeBridgeCommand): string {
+  if (
+    command.type === "play" ||
+    command.type === "step" ||
+    command.type === "stop" ||
+    command.type === "play-from-node"
+  ) {
+    return formatControlCommandBehavior(command);
+  }
+
+  switch (command.type) {
+    case "catalog.list":
+      return "读取扩展目录";
+    case "entry.register":
+      return `注册目录条目 entry=${command.entry.entryId}`;
+    case "entry.load":
+      return `加载目录条目 entry=${command.entryId}`;
+    case "entry.unload":
+      return `卸载目录条目 entry=${command.entryId}`;
+    case "entry.unregister":
+      return `注销目录条目 entry=${command.entryId}`;
+    case "blueprint.load":
+      return `加载蓝图 entry=${command.entryId}`;
+    case "blueprint.unload":
+      return "卸载蓝图";
+  }
+
+  return "unknown-command";
+}
+
+function formatCommandResultBehavior(result: RuntimeBridgeCommandResult): string {
+  switch (result.type) {
+    case "control.ok":
+      return "control.ok";
+    case "catalog.list.result":
+      return `entries=${result.sync.entries.length}`;
+    case "entry.register.result":
+      return `registered=${result.entry.entryId}`;
+    case "entry.load.result":
+      return `activeNodes=${result.sync.activeNodeEntryIds.length} activeComponents=${result.sync.activeComponentEntryIds.length}`;
+    case "entry.unload.result":
+      return `activeNodes=${result.sync.activeNodeEntryIds.length} activeComponents=${result.sync.activeComponentEntryIds.length}`;
+    case "entry.unregister.result":
+      return `entries=${result.sync.entries.length}`;
+    case "blueprint.load.result":
+      return `blueprint=${result.sync.currentBlueprintId ?? "none"}`;
+    case "blueprint.unload.result":
+      return "blueprint=none";
+  }
+}
+
+function formatDemoStreamFrameBehavior(frame: DemoStreamFrame): string {
+  return summarizeDemoStreamFrame(frame);
 }

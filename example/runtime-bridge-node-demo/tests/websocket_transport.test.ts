@@ -11,6 +11,7 @@ import {
   serializeDemoBridgeMessage,
   type DemoBridgeClientMessage
 } from "../src/shared/protocol";
+import type { DemoStreamFrame } from "../src/shared/stream";
 
 type DemoListener<TKey extends keyof DemoWebSocketEventMap> = (
   event: DemoWebSocketEventMap[TKey]
@@ -101,8 +102,10 @@ afterEach(async () => {
 async function createTransportServer(): Promise<{
   url: string;
   emittedEvents: RuntimeBridgeInboundEvent[];
+  emittedFrames: DemoStreamFrame[];
 }> {
   const emittedEvents: RuntimeBridgeInboundEvent[] = [];
+  const emittedFrames: DemoStreamFrame[] = [];
   server = new WebSocketServer({
     port: 0,
     host: "127.0.0.1"
@@ -126,6 +129,32 @@ async function createTransportServer(): Promise<{
         })
       );
     }, 25);
+    setTimeout(() => {
+      const frame: DemoStreamFrame = {
+        kind: "perf",
+        nodeId: "demo-perf-node",
+        frameIndex: 1,
+        emittedAt: Date.now(),
+        sampleRate: 8000,
+        frameSize: 1024,
+        waveformPeak: 0.9,
+        waveformRms: 0.42,
+        dominantFrequency: 440,
+        generatorElapsedMs: 0.7,
+        fftElapsedMs: 1.1,
+        totalElapsedMs: 1.8,
+        framesPerSecond: 30,
+        publishedFramesPerSecond: 30,
+        history: [1.7, 1.8, 1.9]
+      };
+      emittedFrames.push(frame);
+      socket.send(
+        serializeDemoBridgeMessage({
+          type: "stream.frame",
+          frame
+        })
+      );
+    }, 45);
 
     socket.on("message", (payload) => {
       const message = parseDemoBridgeMessage(payload) as DemoBridgeClientMessage;
@@ -155,11 +184,24 @@ async function createTransportServer(): Promise<{
             })
           );
           return;
-        case "control.send":
+        case "command.request":
           socket.send(
             serializeDemoBridgeMessage({
-              type: "control.response",
-              requestId: message.requestId
+              type: "command.response",
+              requestId: message.requestId,
+              result:
+                message.command.type === "play"
+                  ? { type: "control.ok" }
+                  : {
+                      type: "catalog.list.result",
+                      sync: {
+                        entries: [],
+                        activeNodeEntryIds: [],
+                        activeComponentEntryIds: [],
+                        currentBlueprintId: null,
+                        emittedAt: Date.now()
+                      }
+                    }
             })
           );
           return;
@@ -177,14 +219,16 @@ async function createTransportServer(): Promise<{
 
   return {
     url: `ws://127.0.0.1:${port}`,
-    emittedEvents
+    emittedEvents,
+    emittedFrames
   };
 }
 
 describe("WebSocketRuntimeBridgeTransport", () => {
-  test("requestSnapshot / submitOperations / sendControl / bridge.event 应工作", async () => {
-    const { url, emittedEvents } = await createTransportServer();
+  test("requestSnapshot / submitOperations / requestCommand / stream.frame / bridge.event 应工作", async () => {
+    const { url, emittedEvents, emittedFrames } = await createTransportServer();
     const receivedEvents: RuntimeBridgeInboundEvent[] = [];
+    const receivedFrames: DemoStreamFrame[] = [];
     transport = new WebSocketRuntimeBridgeTransport({
       url,
       createSocket: (socketUrl) =>
@@ -192,6 +236,9 @@ describe("WebSocketRuntimeBridgeTransport", () => {
     });
     transport.subscribe((event) => {
       receivedEvents.push(event);
+    });
+    transport.subscribeStream((frame) => {
+      receivedFrames.push(frame);
     });
 
     await transport.connect();
@@ -206,12 +253,18 @@ describe("WebSocketRuntimeBridgeTransport", () => {
         source: "transport.test"
       }
     ]);
+    const catalogResult = await transport.requestCommand({
+      type: "catalog.list"
+    });
     await transport.sendControl({
       type: "play"
     });
 
     const startedAt = Date.now();
-    while (receivedEvents.length === 0 && Date.now() - startedAt < 2000) {
+    while (
+      (receivedEvents.length === 0 || receivedFrames.length === 0) &&
+      Date.now() - startedAt < 2000
+    ) {
       await Bun.sleep(20);
     }
 
@@ -223,6 +276,10 @@ describe("WebSocketRuntimeBridgeTransport", () => {
         type: "node.collapse"
       }
     });
+    expect(catalogResult).toMatchObject({
+      type: "catalog.list.result"
+    });
     expect(receivedEvents).toEqual(emittedEvents);
+    expect(receivedFrames).toEqual(emittedFrames);
   });
 });

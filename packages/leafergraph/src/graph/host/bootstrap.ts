@@ -63,11 +63,13 @@ export interface LeaferGraphBootstrapRuntimeLike {
   initialize(options: LeaferGraphOptions): Promise<void>;
   replaceGraphDocument(document?: LeaferGraphOptions["document"]): void;
   registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void;
+  unregisterNode(type: string): void;
   listNodes(): NodeDefinition[];
   registerWidget(
     entry: LeaferGraphWidgetEntry,
     options?: RegisterWidgetOptions
   ): void;
+  unregisterWidget(type: string): void;
   getWidget(type: string): LeaferGraphWidgetEntry | undefined;
   listWidgets(): LeaferGraphWidgetEntry[];
 }
@@ -232,6 +234,16 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
   }
 
   /**
+   * 从注册表移除单个节点定义。
+   *
+   * @param type - 节点类型。
+   * @returns 无返回值。
+   */
+  unregisterNode(type: string): void {
+    this.options.nodeRegistry.unregisterNode(type);
+  }
+
+  /**
    *  注册单个完整 Widget 条目。
    *
    * @param entry - 条目。
@@ -243,6 +255,16 @@ export class LeaferGraphBootstrapHost implements LeaferGraphBootstrapRuntimeLike
     options?: RegisterWidgetOptions
   ): void {
     this.options.widgetRegistry.registerWidget(entry, options);
+  }
+
+  /**
+   * 从注册表移除单个 Widget 条目。
+   *
+   * @param type - Widget 类型。
+   * @returns 无返回值。
+   */
+  unregisterWidget(type: string): void {
+    this.options.widgetRegistry.unregisterWidget(type);
   }
 
   /**

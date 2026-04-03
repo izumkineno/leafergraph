@@ -10,8 +10,11 @@ import type {
 } from "@leafergraph/contracts/graph-document-diff";
 import { applyGraphDocumentDiffToDocument } from "@leafergraph/contracts/graph-document-diff";
 import type { LeaferGraph } from "leafergraph";
+import type { RuntimeBridgeBrowserExtensionManager } from "../extensions/browser_manager.js";
 import type {
   LeaferGraphRuntimeBridgeTransport,
+  RuntimeBridgeCommand,
+  RuntimeBridgeCommandResult,
   RuntimeBridgeControlCommand,
   RuntimeBridgeInboundEvent
 } from "../transport/index.js";
@@ -27,6 +30,7 @@ export type LeaferGraphRuntimeBridgeClientGraphLike = Pick<
 export interface LeaferGraphRuntimeBridgeClientOptions {
   graph: LeaferGraphRuntimeBridgeClientGraphLike;
   transport: LeaferGraphRuntimeBridgeTransport;
+  extensionManager?: RuntimeBridgeBrowserExtensionManager;
 }
 
 /**
@@ -39,6 +43,7 @@ export interface LeaferGraphRuntimeBridgeClientOptions {
 export class LeaferGraphRuntimeBridgeClient {
   private readonly graph: LeaferGraphRuntimeBridgeClientGraphLike;
   private readonly transport: LeaferGraphRuntimeBridgeTransport;
+  private readonly extensionManager?: RuntimeBridgeBrowserExtensionManager;
   private readonly historyListeners = new Set<
     (event: LeaferGraphHistoryEvent) => void
   >();
@@ -49,6 +54,7 @@ export class LeaferGraphRuntimeBridgeClient {
   constructor(options: LeaferGraphRuntimeBridgeClientOptions) {
     this.graph = options.graph;
     this.transport = options.transport;
+    this.extensionManager = options.extensionManager;
   }
 
   /**
@@ -62,15 +68,18 @@ export class LeaferGraphRuntimeBridgeClient {
     }
 
     await this.transport.connect?.();
-    const bootstrapSnapshot = this.requestSnapshot();
-    this.inboundQueue = bootstrapSnapshot.then(() => undefined);
+    const bootstrapExtensions = this.bootstrapExtensions();
     this.transportUnsubscribe = this.transport.subscribe((event) => {
       this.inboundQueue = this.inboundQueue
         .catch(() => undefined)
+        .then(() => bootstrapExtensions)
         .then(() => this.handleInboundEvent(event));
     });
+    const bootstrapSnapshot = bootstrapExtensions.then(() => this.requestSnapshot());
+    this.inboundQueue = bootstrapSnapshot.then(() => undefined);
 
     try {
+      await bootstrapExtensions;
       await bootstrapSnapshot;
       this.connected = true;
     } catch (error) {
@@ -155,12 +164,33 @@ export class LeaferGraphRuntimeBridgeClient {
   }
 
   /**
+   * 发送一条正式 bridge command。
+   *
+   * @param command - 待发送命令。
+   * @returns transport 返回结果。
+   */
+  async requestCommand(
+    command: RuntimeBridgeCommand
+  ): Promise<RuntimeBridgeCommandResult> {
+    if (!this.transport.requestCommand) {
+      throw new Error("Current transport does not support requestCommand(...).");
+    }
+
+    return this.transport.requestCommand(command);
+  }
+
+  /**
    * 发送一条底层 control command。
    *
    * @param command - 控制命令。
    * @returns 无返回值。
    */
   async sendControl(command: RuntimeBridgeControlCommand): Promise<void> {
+    if (this.transport.requestCommand) {
+      await this.transport.requestCommand(command);
+      return;
+    }
+
     await this.transport.sendControl(command);
   }
 
@@ -203,6 +233,9 @@ export class LeaferGraphRuntimeBridgeClient {
 
   private async handleInboundEvent(event: RuntimeBridgeInboundEvent): Promise<void> {
     switch (event.type) {
+      case "extensions.sync":
+        await this.extensionManager?.sync(event.sync);
+        return;
       case "document.snapshot":
         this.graph.replaceGraphDocument(event.document);
         return;
@@ -242,6 +275,21 @@ export class LeaferGraphRuntimeBridgeClient {
     for (const listener of this.historyListeners) {
       listener(event);
     }
+  }
+
+  private async bootstrapExtensions(): Promise<void> {
+    if (!this.extensionManager || !this.transport.requestCommand) {
+      return;
+    }
+
+    const result = await this.transport.requestCommand({
+      type: "catalog.list"
+    });
+    if (result.type !== "catalog.list.result") {
+      throw new Error(`Unexpected command result: ${result.type}`);
+    }
+
+    await this.extensionManager.sync(result.sync);
   }
 }
 

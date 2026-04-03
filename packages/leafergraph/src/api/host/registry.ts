@@ -79,6 +79,24 @@ export function registerLeaferGraphApiNode<
 }
 
 /**
+ * 从注册表移除一个节点定义。
+ *
+ * @param context - 当前 API 宿主上下文。
+ * @param type - 节点类型。
+ * @returns 无返回值。
+ */
+export function unregisterLeaferGraphApiNode<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState
+>(
+  context: LeaferGraphApiHostContext<TNodeState, TNodeViewState, TLinkViewState>,
+  type: string
+): void {
+  context.options.runtime.bootstrapRuntime.unregisterNode(type);
+}
+
+/**
  * 注册一个完整 widget 条目。
  *
  * @param context - 当前 API 宿主上下文。
@@ -97,6 +115,24 @@ export function registerLeaferGraphApiWidget<
     input.entry,
     input.options
   );
+}
+
+/**
+ * 从注册表移除一个 widget 条目。
+ *
+ * @param context - 当前 API 宿主上下文。
+ * @param type - widget 类型。
+ * @returns 无返回值。
+ */
+export function unregisterLeaferGraphApiWidget<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphApiNodeViewState<TNodeState>,
+  TLinkViewState extends LeaferGraphApiLinkViewState
+>(
+  context: LeaferGraphApiHostContext<TNodeState, TNodeViewState, TLinkViewState>,
+  type: string
+): void {
+  context.options.runtime.bootstrapRuntime.unregisterWidget(type);
 }
 
 /**

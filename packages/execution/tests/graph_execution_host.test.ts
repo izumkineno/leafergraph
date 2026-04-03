@@ -247,6 +247,66 @@ describe("@leafergraph/execution LeaferGraphGraphExecutionHost", () => {
     });
   });
 
+  it("interval timer 在定时回调中重复注册相同配置时，不应把执行耗时叠加到下一次触发", () => {
+    const timers = new ManualTimerScheduler();
+    globalThis.setTimeout = timers.setTimeout;
+    globalThis.clearTimeout = timers.clearTimeout;
+
+    let executionCount = 0;
+    const host = new LeaferGraphGraphExecutionHost({
+      nodeExecutionHost: {
+        listNodeIdsByType(type) {
+          return type === LEAFER_GRAPH_ON_PLAY_NODE_TYPE ? ["timer-interval"] : [];
+        },
+        createEntryExecutionTask(nodeId, options) {
+          return createExecutionTask(nodeId, options);
+        },
+        executeExecutionTask(task) {
+          executionCount += 1;
+          const payload = task.chain.payload as {
+            registerGraphTimer?(input: {
+              nodeId: string;
+              runId: string;
+              source: "graph-play" | "graph-step";
+              startedAt: number;
+              intervalMs: number;
+              immediate: boolean;
+              mode?: "interval" | "timeout";
+            }): void;
+          };
+
+          if (executionCount >= 2) {
+            timers.elapse(3);
+          }
+
+          payload.registerGraphTimer?.({
+            nodeId: task.nodeId,
+            runId: task.chain.runId!,
+            source: task.chain.source,
+            startedAt: task.chain.startedAt,
+            intervalMs: 5,
+            immediate: false,
+            mode: "interval"
+          });
+
+          return {
+            handled: true,
+            nextTasks: []
+          };
+        }
+      }
+    });
+
+    expect(host.play()).toBe(true);
+    expect(executionCount).toBe(1);
+
+    timers.tick(5);
+    expect(executionCount).toBe(2);
+
+    timers.tick(2);
+    expect(executionCount).toBe(3);
+  });
+
   it("resetState 会清空正在 step 中的 run 并回到 idle", () => {
     const host = new LeaferGraphGraphExecutionHost({
       nodeExecutionHost: {

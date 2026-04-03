@@ -61,8 +61,12 @@ export class ManualTimerScheduler {
     this.timers.delete(handle as unknown as number);
   }) as typeof clearTimeout;
 
-  tick(durationMs: number): void {
+  elapse(durationMs: number): void {
     this.now += Math.max(0, durationMs);
+  }
+
+  tick(durationMs: number): void {
+    this.elapse(durationMs);
 
     while (true) {
       const readyTimers = [...this.timers.entries()]

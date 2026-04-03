@@ -4,6 +4,8 @@ import type {
 } from "@leafergraph/contracts";
 import type {
   LeaferGraphRuntimeBridgeTransport,
+  RuntimeBridgeCommand,
+  RuntimeBridgeCommandResult,
   RuntimeBridgeControlCommand,
   RuntimeBridgeInboundEvent
 } from "@leafergraph/runtime-bridge/transport";
@@ -16,6 +18,7 @@ import {
   parseDemoBridgeMessage,
   serializeDemoBridgeMessage
 } from "../shared/protocol";
+import type { DemoStreamFrame } from "../shared/stream";
 
 const SOCKET_CONNECTING = 0;
 const SOCKET_OPEN = 1;
@@ -72,6 +75,7 @@ export interface WebSocketRuntimeBridgeTransportDebugEvent {
     | "outbound.request"
     | "inbound.response"
     | "inbound.bridge.event"
+    | "inbound.stream.frame"
     | "bridge.error";
   at: number;
   detail?: unknown;
@@ -97,8 +101,8 @@ type DemoBridgeClientRequestInput =
       operations: GraphOperation[];
     }
   | {
-      type: "control.send";
-      command: RuntimeBridgeControlCommand;
+      type: "command.request";
+      command: RuntimeBridgeCommand;
     };
 
 /**
@@ -119,6 +123,9 @@ export class WebSocketRuntimeBridgeTransport
   >();
   private readonly debugListeners = new Set<
     (event: WebSocketRuntimeBridgeTransportDebugEvent) => void
+  >();
+  private readonly streamListeners = new Set<
+    (frame: DemoStreamFrame) => void
   >();
   private readonly statusListeners = new Set<
     (status: WebSocketRuntimeBridgeTransportStatus) => void
@@ -152,7 +159,7 @@ export class WebSocketRuntimeBridgeTransport
     switch (message.type) {
       case "snapshot.response":
       case "operations.response":
-      case "control.response":
+      case "command.response":
         this.emitDebug({
           type: "inbound.response",
           at: Date.now(),
@@ -169,6 +176,16 @@ export class WebSocketRuntimeBridgeTransport
         });
         for (const listener of this.inboundListeners) {
           listener(message.event);
+        }
+        return;
+      case "stream.frame":
+        this.emitDebug({
+          type: "inbound.stream.frame",
+          at: Date.now(),
+          detail: message.frame
+        });
+        for (const listener of this.streamListeners) {
+          listener(message.frame);
         }
         return;
       case "bridge.error":
@@ -302,6 +319,13 @@ export class WebSocketRuntimeBridgeTransport
     };
   }
 
+  subscribeStream(listener: (frame: DemoStreamFrame) => void): () => void {
+    this.streamListeners.add(listener);
+    return () => {
+      this.streamListeners.delete(listener);
+    };
+  }
+
   subscribeStatus(
     listener: (status: WebSocketRuntimeBridgeTransportStatus) => void
   ): () => void {
@@ -353,13 +377,24 @@ export class WebSocketRuntimeBridgeTransport
   }
 
   async sendControl(command: RuntimeBridgeControlCommand): Promise<void> {
+    const response = await this.requestCommand(command);
+    if (response.type !== "control.ok") {
+      throw new Error(`Unexpected command result type: ${response.type}`);
+    }
+  }
+
+  async requestCommand(
+    command: RuntimeBridgeCommand
+  ): Promise<RuntimeBridgeCommandResult> {
     const response = await this.sendRequest({
-      type: "control.send",
+      type: "command.request",
       command: structuredClone(command)
     });
-    if (response.type !== "control.response") {
+    if (response.type !== "command.response") {
       throw new Error(`Unexpected response type: ${response.type}`);
     }
+
+    return response.result;
   }
 
   private async sendRequest(

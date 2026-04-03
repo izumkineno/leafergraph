@@ -59,6 +59,37 @@ class FakeCanvasRenderingContext2D {
 
 class FakePath2D {}
 
+function defineCanvasGlobal(name: string, value: unknown): void {
+  const targets: unknown[] = [globalThis];
+  const globalObject = globalThis as typeof globalThis & {
+    global?: typeof globalThis;
+    self?: typeof globalThis;
+    window?: typeof globalThis;
+  };
+
+  if (globalObject.global) {
+    targets.push(globalObject.global);
+  }
+  if (globalObject.self) {
+    targets.push(globalObject.self);
+  }
+  if (globalObject.window) {
+    targets.push(globalObject.window);
+  }
+
+  for (const target of targets) {
+    if (!target || typeof target !== "object") {
+      continue;
+    }
+
+    Object.defineProperty(target, name, {
+      configurable: true,
+      writable: true,
+      value
+    });
+  }
+}
+
 /**
  * 初始化 Node authority 需要的最小 DOM 环境。
  *
@@ -73,17 +104,12 @@ export function ensureRuntimeBridgeDemoHeadlessDom(): void {
     url: "http://127.0.0.1/"
   });
 
-  if (!("CanvasRenderingContext2D" in globalThis)) {
-    Object.assign(globalThis, {
-      CanvasRenderingContext2D: FakeCanvasRenderingContext2D
-    });
-  }
+  defineCanvasGlobal(
+    "CanvasRenderingContext2D",
+    FakeCanvasRenderingContext2D
+  );
 
-  if (!("Path2D" in globalThis)) {
-    Object.assign(globalThis, {
-      Path2D: FakePath2D
-    });
-  }
+  defineCanvasGlobal("Path2D", FakePath2D);
 
   const fakeGetContext = (() =>
     new FakeCanvasRenderingContext2D() as unknown as CanvasRenderingContext2D) as

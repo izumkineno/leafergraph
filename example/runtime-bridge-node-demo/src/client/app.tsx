@@ -2,7 +2,16 @@ import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Debug } from "leafergraph";
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
-import { createLeaferGraph, type LeaferGraph } from "@leafergraph/runtime-bridge";
+import {
+  createLeaferGraph,
+  RuntimeBridgeBrowserExtensionManager,
+  type LeaferGraph,
+  type RuntimeBridgeBlueprintCatalogEntry,
+  type RuntimeBridgeCatalogEntry,
+  type RuntimeBridgeComponentCatalogEntry,
+  type RuntimeBridgeExtensionsSync,
+  type RuntimeBridgeNodeCatalogEntry
+} from "@leafergraph/runtime-bridge";
 import { LeaferGraphRuntimeBridgeClient } from "@leafergraph/runtime-bridge/client";
 import {
   createGraphOperationsFromInteractionCommit,
@@ -15,7 +24,30 @@ import {
   createRuntimeBridgeNodeDemoDocument,
   RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS
 } from "../shared/document";
+import {
+  DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID,
+  DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID
+} from "../shared/catalog";
 import { formatDemoPayload, formatDemoTimestamp } from "../shared/log_format";
+import {
+  summarizeDemoStreamFrame,
+  type DemoBrowserStreamStats,
+  type DemoStreamFrame
+} from "../shared/stream";
+import {
+  DemoHttpArtifactClient,
+  resolveRuntimeBridgeDemoHttpBaseUrl
+} from "./artifact_client";
+import {
+  RuntimeBridgeCatalogPanel,
+  type DemoBlueprintEntryForm,
+  type DemoComponentEntryForm,
+  type DemoNodeEntryForm
+} from "./catalog_panel";
+import {
+  createRuntimeBridgeNodeDemoStreamStore,
+  installRuntimeBridgeNodeDemoBrowserStreamStore
+} from "./stream_store";
 import {
   resolveRuntimeBridgeDemoWebSocketUrl,
   WebSocketRuntimeBridgeTransport,
@@ -26,7 +58,13 @@ import "./app.css";
 type DemoLogEntry = {
   id: number;
   at: string;
-  channel: "system" | "transport" | "history" | "runtime" | "interaction";
+  channel:
+    | "system"
+    | "transport"
+    | "history"
+    | "runtime"
+    | "interaction"
+    | "catalog";
   title: string;
   detail: string;
 };
@@ -35,6 +73,9 @@ type DemoClientRuntime = {
   graph: LeaferGraph;
   bridgeClient: LeaferGraphRuntimeBridgeClient;
   transport: WebSocketRuntimeBridgeTransport;
+  artifactClient: DemoHttpArtifactClient;
+  extensionManager: RuntimeBridgeBrowserExtensionManager;
+  streamStore: ReturnType<typeof createRuntimeBridgeNodeDemoStreamStore>;
   cleanup: Array<() => void>;
 };
 
@@ -62,6 +103,14 @@ const initialTransportStatus: WebSocketRuntimeBridgeTransportStatus = {
   lastError: null
 };
 
+const EMPTY_EXTENSIONS_SYNC: RuntimeBridgeExtensionsSync = {
+  entries: [],
+  activeNodeEntryIds: [],
+  activeComponentEntryIds: [],
+  currentBlueprintId: null,
+  emittedAt: 0
+};
+
 const DEMO_DEFAULT_LEAFER_DEBUG_CONFIG: DemoLeaferDebugConfig = {
   enable: false,
   showWarn: true,
@@ -71,7 +120,43 @@ const DEMO_DEFAULT_LEAFER_DEBUG_CONFIG: DemoLeaferDebugConfig = {
   showBounds: false
 };
 
+const INITIAL_COMPONENT_FORM: DemoComponentEntryForm = {
+  entryId: "custom/component/demo-widget",
+  name: "自定义组件",
+  widgetTypes: "custom/demo-widget",
+  browserFile: null
+};
+
+const INITIAL_NODE_FORM: DemoNodeEntryForm = {
+  entryId: "custom/node/demo-node",
+  name: "自定义节点",
+  nodeTypes: "custom/demo-node",
+  componentEntryIds: "",
+  authorityFile: null,
+  browserFile: null
+};
+
+const INITIAL_BLUEPRINT_FORM: DemoBlueprintEntryForm = {
+  entryId: "custom/blueprint/demo-scene",
+  name: "自定义蓝图",
+  nodeEntryIds: "",
+  componentEntryIds: "",
+  documentFile: null
+};
+
+const EMPTY_STREAM_STATS: DemoBrowserStreamStats = {
+  totalFrames: 0,
+  framesPerSecond: 0,
+  latestNodeCount: 0,
+  lastFrameAt: null,
+  lastFrameKind: null
+};
+
 let logEntrySeed = 1;
+
+function isStressBlueprintEntryId(entryId: string | null | undefined): boolean {
+  return entryId === DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID;
+}
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -148,8 +233,23 @@ function resolveLogChannelLabel(channel: DemoLogEntry["channel"]): string {
     case "runtime":
       return "运行时";
     case "interaction":
-    default:
       return "交互";
+    case "catalog":
+    default:
+      return "目录";
+  }
+}
+
+function resolveStreamKindLabel(kind: DemoStreamFrame["kind"] | null): string {
+  switch (kind) {
+    case "scope":
+      return "波形";
+    case "spectrum":
+      return "频谱";
+    case "perf":
+      return "性能";
+    default:
+      return "无";
   }
 }
 
@@ -173,6 +273,35 @@ function applyDemoLeaferDebugConfig(config: DemoLeaferDebugConfig): void {
   Debug.showBounds = config.showBounds;
 }
 
+function parseListInput(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function readFileBytes(file: File): Promise<Uint8Array> {
+  return new Uint8Array(await file.arrayBuffer());
+}
+
+function isNodeEntry(
+  entry: RuntimeBridgeCatalogEntry
+): entry is RuntimeBridgeNodeCatalogEntry {
+  return entry.entryKind === "node-entry";
+}
+
+function isComponentEntry(
+  entry: RuntimeBridgeCatalogEntry
+): entry is RuntimeBridgeComponentCatalogEntry {
+  return entry.entryKind === "component-entry";
+}
+
+function isBlueprintEntry(
+  entry: RuntimeBridgeCatalogEntry
+): entry is RuntimeBridgeBlueprintCatalogEntry {
+  return entry.entryKind === "blueprint-entry";
+}
+
 /**
  * backend-first demo 调试台。
  *
@@ -182,21 +311,50 @@ export function App() {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<DemoClientRuntime | null>(null);
   const initialDebugConfigRef = useRef<DemoLeaferDebugConfig | null>(null);
+  const lastStreamLogAtRef = useRef(0);
+  const stressLogsMutedRef = useRef(false);
   const [transportStatus, setTransportStatus] = useState(initialTransportStatus);
   const [logs, setLogs] = useState<DemoLogEntry[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
   const [currentRevision, setCurrentRevision] = useState<string | number>(1);
   const [ready, setReady] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [extensionsSync, setExtensionsSync] =
+    useState<RuntimeBridgeExtensionsSync>(EMPTY_EXTENSIONS_SYNC);
+  const [componentForm, setComponentForm] =
+    useState<DemoComponentEntryForm>(INITIAL_COMPONENT_FORM);
+  const [nodeForm, setNodeForm] = useState<DemoNodeEntryForm>(INITIAL_NODE_FORM);
+  const [blueprintForm, setBlueprintForm] =
+    useState<DemoBlueprintEntryForm>(INITIAL_BLUEPRINT_FORM);
+  const [streamStats, setStreamStats] =
+    useState<DemoBrowserStreamStats>(EMPTY_STREAM_STATS);
   const [leaferDebugConfig, setLeaferDebugConfig] = useState<DemoLeaferDebugConfig>(
     cloneDemoLeaferDebugConfig(DEMO_DEFAULT_LEAFER_DEBUG_CONFIG)
   );
+
+  const applyStressLogMute = (currentBlueprintId: string | null): void => {
+    const shouldMute = isStressBlueprintEntryId(currentBlueprintId);
+    if (stressLogsMutedRef.current === shouldMute) {
+      return;
+    }
+
+    stressLogsMutedRef.current = shouldMute;
+    lastStreamLogAtRef.current = 0;
+
+    if (shouldMute) {
+      setLogs([]);
+    }
+  };
 
   const appendLog = (
     channel: DemoLogEntry["channel"],
     title: string,
     detail: unknown
   ) => {
+    if (stressLogsMutedRef.current) {
+      return;
+    }
+
     const nextEntry: DemoLogEntry = {
       id: logEntrySeed,
       at: formatDemoTimestamp(),
@@ -236,12 +394,23 @@ export function App() {
           return;
         }
 
+        const websocketUrl = resolveRuntimeBridgeDemoWebSocketUrl();
         const transport = new WebSocketRuntimeBridgeTransport({
-          url: resolveRuntimeBridgeDemoWebSocketUrl()
+          url: websocketUrl
+        });
+        const artifactClient = new DemoHttpArtifactClient({
+          baseUrl: resolveRuntimeBridgeDemoHttpBaseUrl(websocketUrl)
+        });
+        const streamStore = createRuntimeBridgeNodeDemoStreamStore();
+        installRuntimeBridgeNodeDemoBrowserStreamStore(streamStore);
+        const extensionManager = new RuntimeBridgeBrowserExtensionManager({
+          graph,
+          artifactReader: artifactClient
         });
         const bridgeClient = new LeaferGraphRuntimeBridgeClient({
           graph,
-          transport
+          transport,
+          extensionManager
         });
 
         const syncRevision = () => {
@@ -263,11 +432,41 @@ export function App() {
 
             setTransportStatus(status);
             setLastError(status.lastError);
+            if (status.state === "idle") {
+              streamStore.clear();
+            }
+          })
+        );
+        cleanup.push(
+          streamStore.subscribeStats((stats) => {
+            if (!disposed) {
+              setStreamStats(stats);
+            }
+          })
+        );
+        cleanup.push(
+          transport.subscribeStream((frame) => {
+            if (!disposed) {
+              streamStore.publish(frame);
+            }
           })
         );
         cleanup.push(
           transport.subscribeDebug((event) => {
             if (disposed) {
+              return;
+            }
+
+            if (event.type === "inbound.stream.frame") {
+              const now = Date.now();
+              if (now - lastStreamLogAtRef.current >= 1000) {
+                lastStreamLogAtRef.current = now;
+                appendLog(
+                  "transport",
+                  "stream.frame",
+                  summarizeDemoStreamFrame(event.detail as DemoStreamFrame)
+                );
+              }
               return;
             }
 
@@ -278,6 +477,36 @@ export function App() {
             ) {
               syncRevisionSoon();
             }
+          })
+        );
+        cleanup.push(
+          transport.subscribe((event) => {
+            if (disposed) {
+              return;
+            }
+
+            if (event.type === "document.snapshot") {
+              streamStore.clear();
+            }
+          })
+        );
+        cleanup.push(
+          extensionManager.subscribeSync((sync) => {
+            if (disposed) {
+              return;
+            }
+
+            applyStressLogMute(sync.currentBlueprintId);
+            setExtensionsSync(sync);
+            appendLog("catalog", "extensions.sync", {
+              entries: sync.entries.map((entry) => ({
+                entryId: entry.entryId,
+                entryKind: entry.entryKind
+              })),
+              activeNodeEntryIds: sync.activeNodeEntryIds,
+              activeComponentEntryIds: sync.activeComponentEntryIds,
+              currentBlueprintId: sync.currentBlueprintId
+            });
           })
         );
         cleanup.push(
@@ -329,9 +558,15 @@ export function App() {
           graph,
           bridgeClient,
           transport,
+          artifactClient,
+          extensionManager,
+          streamStore,
           cleanup
         };
         setReady(true);
+        const initialSyncState = extensionManager.getSyncState();
+        applyStressLogMute(initialSyncState.currentBlueprintId);
+        setExtensionsSync(initialSyncState);
         setCurrentRevision(graph.getGraphDocument().revision);
         appendLog("system", "graph.ready", {
           defaultBridgeUrl: transport.getStatus().url,
@@ -349,6 +584,7 @@ export function App() {
     return () => {
       disposed = true;
       setReady(false);
+      stressLogsMutedRef.current = false;
       const runtime = runtimeRef.current;
       runtimeRef.current = null;
       if (!runtime) {
@@ -382,6 +618,19 @@ export function App() {
     }
   };
 
+  const ensureConnectedRuntime = async (): Promise<DemoClientRuntime> => {
+    const runtime = runtimeRef.current;
+    if (!runtime) {
+      throw new Error("图运行时尚未初始化。");
+    }
+
+    if (!runtime.bridgeClient.isConnected()) {
+      await runtime.bridgeClient.connect();
+    }
+
+    return runtime;
+  };
+
   const connect = () => {
     const runtime = runtimeRef.current;
     if (!runtime) {
@@ -401,6 +650,7 @@ export function App() {
     }
 
     void runAction("断开", async () => {
+      runtime.streamStore.clear();
       await runtime.bridgeClient.disconnect();
     });
   };
@@ -445,8 +695,180 @@ export function App() {
     }
 
     void runAction("重拉快照", async () => {
+      runtime.streamStore.clear();
       await runtime.bridgeClient.requestSnapshot();
       setCurrentRevision(runtime.graph.getGraphDocument().revision);
+    });
+  };
+
+  const refreshCatalog = () => {
+    void runAction("刷新目录", async () => {
+      const runtime = await ensureConnectedRuntime();
+      const result = await runtime.bridgeClient.requestCommand({
+        type: "catalog.list"
+      });
+      if (result.type !== "catalog.list.result") {
+        throw new Error(`Unexpected result: ${result.type}`);
+      }
+      setExtensionsSync(result.sync);
+    });
+  };
+
+  const loadEntry = (entryId: string) => {
+    void runAction(`加载条目 ${entryId}`, async () => {
+      const runtime = await ensureConnectedRuntime();
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.load",
+        entryId
+      });
+    });
+  };
+
+  const unloadEntry = (entryId: string) => {
+    void runAction(`卸载条目 ${entryId}`, async () => {
+      const runtime = await ensureConnectedRuntime();
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.unload",
+        entryId
+      });
+    });
+  };
+
+  const unregisterEntry = (entryId: string) => {
+    void runAction(`注销条目 ${entryId}`, async () => {
+      const runtime = await ensureConnectedRuntime();
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.unregister",
+        entryId
+      });
+    });
+  };
+
+  const loadBlueprint = (entryId: string) => {
+    void runAction(`加载蓝图 ${entryId}`, async () => {
+      const runtime = await ensureConnectedRuntime();
+      runtime.streamStore.clear();
+      await runtime.bridgeClient.requestCommand({
+        type: "blueprint.load",
+        entryId
+      });
+      setCurrentRevision(runtime.graph.getGraphDocument().revision);
+    });
+  };
+
+  const unloadBlueprint = () => {
+    void runAction("卸载蓝图", async () => {
+      const runtime = await ensureConnectedRuntime();
+      runtime.streamStore.clear();
+      await runtime.bridgeClient.requestCommand({
+        type: "blueprint.unload"
+      });
+      setCurrentRevision(runtime.graph.getGraphDocument().revision);
+    });
+  };
+
+  const launchExperiment = (entryId: string, label: string) => {
+    void runAction(label, async () => {
+      const runtime = await ensureConnectedRuntime();
+      runtime.streamStore.clear();
+      await runtime.bridgeClient.requestCommand({
+        type: "blueprint.load",
+        entryId
+      });
+      await runtime.bridgeClient.play();
+      setCurrentRevision(runtime.graph.getGraphDocument().revision);
+    });
+  };
+
+  const registerComponentEntry = () => {
+    void runAction("注册组件条目", async () => {
+      const runtime = await ensureConnectedRuntime();
+      if (!componentForm.browserFile) {
+        throw new Error("请先选择组件 browser artifact。");
+      }
+
+      const browserArtifactRef = await runtime.artifactClient.writeArtifact({
+        bytes: await readFileBytes(componentForm.browserFile),
+        contentType: componentForm.browserFile.type || "text/javascript",
+        suggestedName: componentForm.browserFile.name
+      });
+
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.register",
+        entry: {
+          entryId: componentForm.entryId.trim(),
+          entryKind: "component-entry",
+          name: componentForm.name.trim(),
+          widgetTypes: parseListInput(componentForm.widgetTypes),
+          browserArtifactRef
+        }
+      });
+
+      setComponentForm(INITIAL_COMPONENT_FORM);
+    });
+  };
+
+  const registerNodeEntry = () => {
+    void runAction("注册节点条目", async () => {
+      const runtime = await ensureConnectedRuntime();
+      if (!nodeForm.authorityFile || !nodeForm.browserFile) {
+        throw new Error("请同时选择 authority 与 browser artifact。");
+      }
+
+      const authorityArtifactRef = await runtime.artifactClient.writeArtifact({
+        bytes: await readFileBytes(nodeForm.authorityFile),
+        contentType: nodeForm.authorityFile.type || "text/javascript",
+        suggestedName: nodeForm.authorityFile.name
+      });
+      const browserArtifactRef = await runtime.artifactClient.writeArtifact({
+        bytes: await readFileBytes(nodeForm.browserFile),
+        contentType: nodeForm.browserFile.type || "text/javascript",
+        suggestedName: nodeForm.browserFile.name
+      });
+
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.register",
+        entry: {
+          entryId: nodeForm.entryId.trim(),
+          entryKind: "node-entry",
+          name: nodeForm.name.trim(),
+          nodeTypes: parseListInput(nodeForm.nodeTypes),
+          componentEntryIds: parseListInput(nodeForm.componentEntryIds),
+          authorityArtifactRef,
+          browserArtifactRef
+        }
+      });
+
+      setNodeForm(INITIAL_NODE_FORM);
+    });
+  };
+
+  const registerBlueprintEntry = () => {
+    void runAction("注册蓝图条目", async () => {
+      const runtime = await ensureConnectedRuntime();
+      if (!blueprintForm.documentFile) {
+        throw new Error("请先选择 blueprint JSON 文件。");
+      }
+
+      const documentArtifactRef = await runtime.artifactClient.writeArtifact({
+        bytes: await readFileBytes(blueprintForm.documentFile),
+        contentType: blueprintForm.documentFile.type || "application/json",
+        suggestedName: blueprintForm.documentFile.name
+      });
+
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.register",
+        entry: {
+          entryId: blueprintForm.entryId.trim(),
+          entryKind: "blueprint-entry",
+          name: blueprintForm.name.trim(),
+          nodeEntryIds: parseListInput(blueprintForm.nodeEntryIds),
+          componentEntryIds: parseListInput(blueprintForm.componentEntryIds),
+          documentArtifactRef
+        }
+      });
+
+      setBlueprintForm(INITIAL_BLUEPRINT_FORM);
     });
   };
 
@@ -461,6 +883,10 @@ export function App() {
       return nextConfig;
     });
   };
+
+  const nodeEntries = extensionsSync.entries.filter(isNodeEntry);
+  const componentEntries = extensionsSync.entries.filter(isComponentEntry);
+  const blueprintEntries = extensionsSync.entries.filter(isBlueprintEntry);
 
   return (
     <div className="demo-shell">
@@ -517,6 +943,41 @@ export function App() {
             >
               重拉快照
             </button>
+          </div>
+
+          <div className="demo-quick-panel">
+            <p className="demo-debug-title">频谱实验</p>
+            <div className="demo-quick-actions">
+              <button
+                disabled={
+                  !ready || transportStatus.state !== "connected" || busyAction !== null
+                }
+                onClick={() =>
+                  launchExperiment(
+                    DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID,
+                    "启动频谱实验室"
+                  )
+                }
+              >
+                实验室运行
+              </button>
+              <button
+                disabled={
+                  !ready || transportStatus.state !== "connected" || busyAction !== null
+                }
+                onClick={() =>
+                  launchExperiment(
+                    DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID,
+                    "启动频谱压力实验"
+                  )
+                }
+              >
+                压力运行
+              </button>
+            </div>
+            <p className="demo-quick-hint">
+              会自动加载远端蓝图并启动 authority 定时执行链。
+            </p>
           </div>
 
           <div className="demo-debug-panel">
@@ -656,6 +1117,36 @@ export function App() {
           <strong className="status-value">{String(currentRevision)}</strong>
         </article>
         <article className="status-card">
+          <span className="status-label">目录条目</span>
+          <strong className="status-value">{extensionsSync.entries.length}</strong>
+        </article>
+        <article className="status-card">
+          <span className="status-label">流帧速率</span>
+          <strong className="status-value">
+            {streamStats.framesPerSecond.toFixed(1)} fps
+          </strong>
+        </article>
+        <article className="status-card">
+          <span className="status-label">最近流类型</span>
+          <strong className="status-value">
+            {resolveStreamKindLabel(streamStats.lastFrameKind)}
+          </strong>
+        </article>
+        <article className="status-card">
+          <span className="status-label">当前蓝图</span>
+          <strong className="status-value">
+            {extensionsSync.currentBlueprintId ?? "无"}
+          </strong>
+        </article>
+        <article className="status-card">
+          <span className="status-label">流节点缓存</span>
+          <strong className="status-value">{streamStats.latestNodeCount}</strong>
+        </article>
+        <article className="status-card">
+          <span className="status-label">累计流帧</span>
+          <strong className="status-value">{streamStats.totalFrames}</strong>
+        </article>
+        <article className="status-card">
           <span className="status-label">桥接地址</span>
           <strong className="status-value status-url">{transportStatus.url}</strong>
         </article>
@@ -666,11 +1157,11 @@ export function App() {
           </strong>
         </article>
         <article className="status-card">
-          <span className="status-label">Leafer 调试</span>
-          <strong
-            className={`status-value ${leaferDebugConfig.enable ? "status-connected" : "status-idle"}`}
-          >
-            {leaferDebugConfig.enable ? "已启用" : "已关闭"}
+          <span className="status-label">最近流时间</span>
+          <strong className="status-value">
+            {streamStats.lastFrameAt
+              ? formatDemoTimestamp(streamStats.lastFrameAt)
+              : "无"}
           </strong>
         </article>
       </section>
@@ -689,26 +1180,52 @@ export function App() {
           <div className="canvas-frame" ref={canvasRef} />
         </section>
 
-        <aside className="log-card">
-          <div className="log-heading">
-            <div>
-              <p className="eyebrow">运行反馈</p>
-              <h2>桥接事件日志</h2>
+        <aside className="demo-side-column">
+          <RuntimeBridgeCatalogPanel
+            ready={ready}
+            busyAction={busyAction}
+            sync={extensionsSync}
+            componentEntries={componentEntries}
+            nodeEntries={nodeEntries}
+            blueprintEntries={blueprintEntries}
+            componentForm={componentForm}
+            nodeForm={nodeForm}
+            blueprintForm={blueprintForm}
+            onRefreshCatalog={refreshCatalog}
+            onLoadEntry={loadEntry}
+            onUnloadEntry={unloadEntry}
+            onUnregisterEntry={unregisterEntry}
+            onLoadBlueprint={loadBlueprint}
+            onUnloadBlueprint={unloadBlueprint}
+            onComponentFormChange={setComponentForm}
+            onNodeFormChange={setNodeForm}
+            onBlueprintFormChange={setBlueprintForm}
+            onRegisterComponentEntry={registerComponentEntry}
+            onRegisterNodeEntry={registerNodeEntry}
+            onRegisterBlueprintEntry={registerBlueprintEntry}
+          />
+
+          <section className="log-card">
+            <div className="log-heading">
+              <div>
+                <p className="eyebrow">运行反馈</p>
+                <h2>桥接事件日志</h2>
+              </div>
+              <span className="log-count">{logs.length} 条</span>
             </div>
-            <span className="log-count">{logs.length} 条</span>
-          </div>
-          <div className="log-list">
-            {logs.map((entry) => (
-              <article className={`log-entry log-${entry.channel}`} key={entry.id}>
-                <div className="log-meta">
-                  <span>{entry.at}</span>
-                  <span>{resolveLogChannelLabel(entry.channel)}</span>
-                </div>
-                <h3>{entry.title}</h3>
-                <pre>{entry.detail}</pre>
-              </article>
-            ))}
-          </div>
+            <div className="log-list">
+              {logs.map((entry) => (
+                <article className={`log-entry log-${entry.channel}`} key={entry.id}>
+                  <div className="log-meta">
+                    <span>{entry.at}</span>
+                    <span>{resolveLogChannelLabel(entry.channel)}</span>
+                  </div>
+                  <h3>{entry.title}</h3>
+                  <pre>{entry.detail}</pre>
+                </article>
+              ))}
+            </div>
+          </section>
         </aside>
       </main>
     </div>

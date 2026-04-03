@@ -3,8 +3,12 @@ import type {
   GraphOperation,
   GraphOperationApplyResult
 } from "@leafergraph/runtime-bridge/portable";
-import type { RuntimeBridgeControlCommand } from "@leafergraph/runtime-bridge/transport";
-import type { RuntimeBridgeInboundEvent } from "@leafergraph/runtime-bridge/transport";
+import type {
+  RuntimeBridgeCommand,
+  RuntimeBridgeCommandResult,
+  RuntimeBridgeInboundEvent
+} from "@leafergraph/runtime-bridge/transport";
+import type { DemoStreamFrameMessage } from "./stream";
 
 export const RUNTIME_BRIDGE_NODE_DEMO_WS_HOST = "127.0.0.1";
 export const RUNTIME_BRIDGE_NODE_DEMO_WS_PORT = 7788;
@@ -20,9 +24,9 @@ export type DemoBridgeClientMessage =
       operations: GraphOperation[];
     }
   | {
-      type: "control.send";
+      type: "command.request";
       requestId: string;
-      command: RuntimeBridgeControlCommand;
+      command: RuntimeBridgeCommand;
     };
 
 export type DemoBridgeServerMessage =
@@ -37,13 +41,15 @@ export type DemoBridgeServerMessage =
       results: readonly GraphOperationApplyResult[];
     }
   | {
-      type: "control.response";
+      type: "command.response";
       requestId: string;
+      result: RuntimeBridgeCommandResult;
     }
   | {
       type: "bridge.event";
       event: RuntimeBridgeInboundEvent;
     }
+  | DemoStreamFrameMessage
   | {
       type: "bridge.error";
       requestId?: string;

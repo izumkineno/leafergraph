@@ -82,6 +82,8 @@ import {
   listLeaferGraphApiWidgets,
   registerLeaferGraphApiNode,
   registerLeaferGraphApiWidget,
+  unregisterLeaferGraphApiNode,
+  unregisterLeaferGraphApiWidget,
   useLeaferGraphApiPlugin
 } from "./registry";
 import {
@@ -232,6 +234,16 @@ export class LeaferGraphApiHostController<
   }
 
   /**
+   * 从注册表移除单个节点定义。
+   *
+   * @param type - 节点类型。
+   * @returns 无返回值。
+   */
+  unregisterNode(type: string): void {
+    unregisterLeaferGraphApiNode(this.context, type);
+  }
+
+  /**
    * 注册单个完整 widget 条目。
    *
    * @param entry - widget 条目。
@@ -240,6 +252,16 @@ export class LeaferGraphApiHostController<
    */
   registerWidget(entry: LeaferGraphWidgetEntry, options?: RegisterWidgetOptions): void {
     registerLeaferGraphApiWidget(this.context, { entry, options });
+  }
+
+  /**
+   * 从注册表移除单个 widget 条目。
+   *
+   * @param type - widget 类型。
+   * @returns 无返回值。
+   */
+  unregisterWidget(type: string): void {
+    unregisterLeaferGraphApiWidget(this.context, type);
   }
 
   /**

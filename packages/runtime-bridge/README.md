@@ -60,6 +60,57 @@
 
 - `LeaferGraphRuntimeBridgeClient`
 
+## 扩展 Artifact 边界
+
+远端扩展目录里的 artifact 按运行位置拆分，不是“同一份 bundle 到处都跑”。
+
+### `authorityArtifact`
+
+只给 Node authority 使用。
+
+它的职责是：
+
+- 在 authority 进程里真正注册远端节点类型
+- 让后端能够执行节点逻辑
+- 让 authority 在加载 blueprint 或应用 operation 时识别这些节点
+
+对 `node-entry` 来说，`authorityArtifact` 当前要求导出：
+
+- `NodeModule`
+- 或 `NodeDefinition[]`
+
+### `browserArtifact`
+
+只给浏览器侧 graph 使用。
+
+它的职责是：
+
+- 在前端本地图实例里安装节点或 widget 类型
+- 让 `document.snapshot` / `document.diff` 能被本地正确恢复
+- 提供浏览器里的节点展示、widget 渲染与交互壳
+
+当前约束是：
+
+- `node-entry` 的 `browserArtifact` 导出 `NodeModule` 或 `NodeDefinition[]`
+- `component-entry` 的 `browserArtifact` 导出 `LeaferGraphWidgetEntry[]`
+
+### 为什么要拆成两份
+
+因为 authority 和 browser 的责任不同：
+
+- authority 关心执行和真源文档，不应该依赖浏览器 widget/UI 实现
+- browser 关心显示和交互，不应该依赖 Node-only 的执行宿主逻辑
+
+因此一个远端节点条目通常会同时带两份 artifact：
+
+- `authorityArtifactRef`
+- `browserArtifactRef`
+
+而另外两类条目是：
+
+- `component-entry` 只有 `browserArtifactRef`
+- `blueprint-entry` 只有 `documentArtifactRef`
+
 ## 最小使用方式
 
 ```ts

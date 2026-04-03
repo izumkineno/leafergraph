@@ -13,10 +13,13 @@ import type {
 } from "@leafergraph/contracts/graph-document-diff";
 import type {
   LeaferGraphRuntimeBridgeTransport,
+  RuntimeBridgeCommand,
+  RuntimeBridgeCommandResult,
   RuntimeBridgeControlCommand,
   RuntimeBridgeInboundEvent
 } from "../src/transport/index.js";
 import { LeaferGraphRuntimeBridgeClient } from "../src/client/index.js";
+import { RuntimeBridgeBrowserExtensionManager } from "../src/extensions/index.js";
 
 function createDocument(revision: string): GraphDocument {
   return {
@@ -68,7 +71,11 @@ function createDiff(revision: string): GraphDocumentDiff {
 }
 
 function flushQueue(): Promise<void> {
-  return Promise.resolve().then(() => undefined).then(() => undefined);
+  return Promise.resolve()
+    .then(() => undefined)
+    .then(() => undefined)
+    .then(() => undefined)
+    .then(() => undefined);
 }
 
 class MockTransport implements LeaferGraphRuntimeBridgeTransport {
@@ -76,6 +83,7 @@ class MockTransport implements LeaferGraphRuntimeBridgeTransport {
   snapshotRequests = 0;
   submittedOperations: readonly GraphOperation[] = [];
   controlCommands: RuntimeBridgeControlCommand[] = [];
+  commands: RuntimeBridgeCommand[] = [];
   private readonly listeners = new Set<
     (event: RuntimeBridgeInboundEvent) => void
   >();
@@ -100,6 +108,28 @@ class MockTransport implements LeaferGraphRuntimeBridgeTransport {
 
   async sendControl(command: RuntimeBridgeControlCommand): Promise<void> {
     this.controlCommands.push(command);
+  }
+
+  async requestCommand(
+    command: RuntimeBridgeCommand
+  ): Promise<RuntimeBridgeCommandResult> {
+    this.commands.push(command);
+    if (command.type === "catalog.list") {
+      return {
+        type: "catalog.list.result",
+        sync: {
+          entries: [],
+          activeNodeEntryIds: [],
+          activeComponentEntryIds: [],
+          currentBlueprintId: null,
+          emittedAt: Date.now()
+        }
+      };
+    }
+
+    return {
+      type: "control.ok"
+    };
   }
 
   subscribe(listener: (event: RuntimeBridgeInboundEvent) => void): () => void {
@@ -278,6 +308,7 @@ describe("runtime bridge client", () => {
     });
     await flushQueue();
     await flushQueue();
+    await flushQueue();
 
     expect(state.projectedFeedbacks).toEqual([feedback]);
     expect(receivedHistoryEvents).toEqual([historyEvent]);
@@ -305,7 +336,7 @@ describe("runtime bridge client", () => {
     await client.playFromNode("node-1");
     const result = await client.submitOperation(operation);
 
-    expect(transport.controlCommands).toEqual([
+    expect(transport.commands).toEqual([
       { type: "play" },
       { type: "step" },
       { type: "stop" },
@@ -317,5 +348,30 @@ describe("runtime bridge client", () => {
       changed: true,
       operation
     });
+  });
+
+  test("extension manager 存在时应先同步 extensions 再请求 snapshot", async () => {
+    const transport = new MockTransport();
+    const { graph, state } = createFakeGraph(createDocument("0"));
+    const extensionSyncs: string[] = [];
+    const extensionManager = {
+      async sync(sync: {
+        entries: Array<{ entryId: string }>;
+      }) {
+        extensionSyncs.push(`entries:${sync.entries.length}`);
+      }
+    } as RuntimeBridgeBrowserExtensionManager;
+    const client = new LeaferGraphRuntimeBridgeClient({
+      graph,
+      transport,
+      extensionManager
+    });
+
+    await client.connect();
+
+    expect(transport.commands[0]).toEqual({ type: "catalog.list" });
+    expect(transport.snapshotRequests).toBe(1);
+    expect(extensionSyncs).toEqual(["entries:0"]);
+    expect(state.replacedDocuments).toEqual([createDocument("1")]);
   });
 });

@@ -580,9 +580,20 @@ export class LeaferGraphGraphExecutionHost<
     const timerId = normalizeGraphTimerId(input.timerId);
     const timerMode = normalizeGraphTimerMode(input.mode);
     const timerKey = createGraphTimerKey(input.runId, input.nodeId, timerId);
-    this.clearGraphTimerByKey(timerKey);
-
     const intervalMs = normalizeGraphTimerInterval(input.intervalMs);
+    const existingTimer = this.activeTimersByKey.get(timerKey);
+    // Interval timer 在 tick 回调开始时已经预订了下一次触发；
+    // 如果本轮执行再次以同配置注册，就复用现有调度，避免把执行耗时叠进帧间隔。
+    if (
+      existingTimer &&
+      existingTimer.mode === timerMode &&
+      existingTimer.intervalMs === intervalMs
+    ) {
+      this.timerActivatedDuringAdvance = true;
+      return;
+    }
+
+    this.clearGraphTimerByKey(timerKey);
     const timerHandle = setTimeout(() => {
       this.handleGraphTimerTick(input.runId, input.nodeId, timerId);
     }, intervalMs);

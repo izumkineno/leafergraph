@@ -43,6 +43,41 @@ bun run dev:runtime-bridge-node-demo:client
 
 也可以直接拖动节点、折叠节点、修改 `system/timer` widget，观察 operation 上传和 authority 回投。
 
+## Authority Artifact 与 Browser Artifact
+
+这个 demo 里最容易混淆的一点，是远端节点条目通常会同时出现两份 artifact：
+
+- `authorityArtifact`
+- `browserArtifact`
+
+它们不是重复字段，而是分别给两端加载。
+
+### `authorityArtifact`
+
+由 Node authority 加载，用来：
+
+- 真正在后端注册节点类型
+- 执行节点逻辑
+- 让 authority 能在蓝图替换、operation 应用和运行控制里识别这些节点
+
+### `browserArtifact`
+
+由浏览器加载，用来：
+
+- 在本地图实例里注册节点或 widget 类型
+- 正确恢复 authority 发来的 `document.snapshot` / `document.diff`
+- 渲染节点外观和 widget 交互
+
+### 三类条目的要求
+
+- `node-entry` 同时需要 `authorityArtifactRef` 和 `browserArtifactRef`
+- `component-entry` 只需要 `browserArtifactRef`
+- `blueprint-entry` 只需要 `documentArtifactRef`
+
+### demo 里的当前实现
+
+当前示例里的远端节点条目为了简化演示，authority/browser 两侧使用的是同一份节点源码生成的两个 artifact ref；这只是 demo 便利做法，不代表正式场景必须共用同一份代码。
+
 ## 构建与测试
 
 ```bash

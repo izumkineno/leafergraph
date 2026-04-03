@@ -23,6 +23,10 @@
       "types": "./src/execution/index.ts",
       "import": "./src/execution/index.ts"
     },
+    "./extensions": {
+      "types": "./src/extensions/index.ts",
+      "import": "./src/extensions/index.ts"
+    },
     "./transport": {
       "types": "./src/transport/index.ts",
       "import": "./src/transport/index.ts"

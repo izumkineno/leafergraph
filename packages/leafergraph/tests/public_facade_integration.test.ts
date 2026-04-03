@@ -67,6 +67,8 @@ describe("public_facade_integration", () => {
     try {
       const representativeMethods = [
         "use",
+        "unregisterNode",
+        "unregisterWidget",
         "getNodeView",
         "setNodeSelected",
         "getNodeSnapshot",
@@ -91,6 +93,48 @@ describe("public_facade_integration", () => {
       graphFromFactory.destroy();
       containerA.remove();
       containerB.remove();
+    }
+  });
+
+  test("register/unregisterNode 与 register/unregisterWidget 应可对称生效", async () => {
+    const container = createContainer();
+    const graph = createLeaferGraph(container, {
+      document: createEmptyDocument()
+    });
+
+    await graph.ready;
+
+    try {
+      graph.registerNode({
+        type: "demo/unregister-node",
+        title: "Demo"
+      });
+      graph.registerWidget({
+        type: "demo/unregister-widget",
+        renderer() {
+          return {};
+        }
+      });
+
+      expect(graph.listNodes().some((node) => node.type === "demo/unregister-node")).toBe(
+        true
+      );
+      expect(
+        graph.listWidgets().some((widget) => widget.type === "demo/unregister-widget")
+      ).toBe(true);
+
+      graph.unregisterNode("demo/unregister-node");
+      graph.unregisterWidget("demo/unregister-widget");
+
+      expect(graph.listNodes().some((node) => node.type === "demo/unregister-node")).toBe(
+        false
+      );
+      expect(
+        graph.listWidgets().some((widget) => widget.type === "demo/unregister-widget")
+      ).toBe(false);
+    } finally {
+      graph.destroy();
+      container.remove();
     }
   });
 });

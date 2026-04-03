@@ -23,10 +23,12 @@ export interface LeaferGraphRegistryFacade {
   use(plugin: LeaferGraphNodePlugin): Promise<void>;
   installModule(module: NodeModule, options?: InstallNodeModuleOptions): void;
   registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void;
+  unregisterNode(type: string): void;
   registerWidget(
     entry: LeaferGraphWidgetEntry,
     options?: RegisterWidgetOptions
   ): void;
+  unregisterWidget(type: string): void;
   getWidget(type: string): LeaferGraphWidgetEntry | undefined;
   listWidgets(): LeaferGraphWidgetEntry[];
   listNodes(): NodeDefinition[];
@@ -79,6 +81,17 @@ function registerLeaferGraphNode(
 }
 
 /**
+ * 从注册表移除单个节点定义。
+ *
+ * @param this - 当前图实例。
+ * @param type - 节点类型。
+ * @returns 无返回值。
+ */
+function unregisterLeaferGraphNode(this: LeaferGraph, type: string): void {
+  getLeaferGraphApiHost(this).unregisterNode(type);
+}
+
+/**
  * 注册单个完整 Widget 条目。
  *
  * @param this - 当前图实例。
@@ -92,6 +105,17 @@ function registerLeaferGraphWidget(
   options?: RegisterWidgetOptions
 ): void {
   getLeaferGraphApiHost(this).registerWidget(entry, options);
+}
+
+/**
+ * 从注册表移除单个 Widget 条目。
+ *
+ * @param this - 当前图实例。
+ * @param type - Widget 类型。
+ * @returns 无返回值。
+ */
+function unregisterLeaferGraphWidget(this: LeaferGraph, type: string): void {
+  getLeaferGraphApiHost(this).unregisterWidget(type);
 }
 
 /**
@@ -132,7 +156,9 @@ export const leaferGraphRegistryFacadeMethods: LeaferGraphRegistryFacade = {
   use: useLeaferGraphPlugin,
   installModule: installLeaferGraphModule,
   registerNode: registerLeaferGraphNode,
+  unregisterNode: unregisterLeaferGraphNode,
   registerWidget: registerLeaferGraphWidget,
+  unregisterWidget: unregisterLeaferGraphWidget,
   getWidget: getLeaferGraphWidget,
   listWidgets: listLeaferGraphWidgets,
   listNodes: listLeaferGraphNodes
