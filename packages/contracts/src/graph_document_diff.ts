@@ -524,6 +524,26 @@ function applyOperationToDocument(
         []
       );
     }
+    case "node.rename": {
+      const node = findNodeSnapshot(document, operation.nodeId);
+      if (!node) {
+        return createRejectedApplyStep(
+          document,
+          `node.rename 目标节点不存在: ${operation.nodeId}`
+        );
+      }
+
+      if (node.title === operation.title) {
+        return createApplyStepResult(document, [operation.nodeId], []);
+      }
+
+      const updatedDocument = upsertNodeSnapshot(document, {
+        ...node,
+        title: operation.title
+      });
+
+      return createApplyStepResult(updatedDocument, [operation.nodeId], []);
+    }
     case "node.remove":
       return createApplyStepResult(
         removeNodeSnapshot(document, operation.nodeId),

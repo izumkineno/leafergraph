@@ -443,6 +443,16 @@ export class LeaferGraphInteractionRuntimeHostController<
   }
 
   /**
+   * 开始编辑节点标题。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
+  beginNodeTitleEdit(nodeId: string): void {
+    this.options.beginNodeTitleEdit(nodeId);
+  }
+
+  /**
    * 按端口键切换当前高亮图元。
    *
    * @param portKey - 当前端口键值。

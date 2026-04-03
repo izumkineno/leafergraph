@@ -437,6 +437,18 @@ export interface GraphNodeWidgetValueSetOperation extends GraphOperationBase {
   value: unknown;
 }
 
+/** 节点标题重命名操作。 */
+export interface GraphNodeRenameOperation extends GraphOperationBase {
+  /** 操作类型。 */
+  type: "node.rename";
+  /** 目标节点 ID。 */
+  nodeId: string;
+  /** 新标题文本。 */
+  title: string;
+  /** 原标题文本。 */
+  beforeTitle: string;
+}
+
 /** 节点删除操作。 */
 export interface GraphNodeRemoveOperation extends GraphOperationBase {
   /** 操作类型。 */
@@ -493,6 +505,7 @@ export type GraphOperation =
   | GraphNodeResizeOperation
   | GraphNodeCollapseOperation
   | GraphNodeWidgetValueSetOperation
+  | GraphNodeRenameOperation
   | GraphNodeRemoveOperation
   | GraphLinkCreateOperation
   | GraphLinkRemoveOperation
@@ -676,18 +689,31 @@ export interface LinkCreateInteractionCommitEvent {
   input: LeaferGraphCreateLinkInput;
 }
 
+/** 节点标题重命名提交事件。 */
+export interface NodeRenameInteractionCommitEvent {
+  /** 事件类型。 */
+  type: "node.rename.commit";
+  /** 目标节点 ID。 */
+  nodeId: string;
+  /** 原标题文本。 */
+  beforeTitle: string;
+  /** 新标题文本。 */
+  afterTitle: string;
+}
+
 /**
  * 宿主对外暴露的交互提交事件。
  *
  * @remarks
  * 这组事件专门服务 editor 把“本地预览已结束”的交互
- * 统一转成正式 `GraphOperation` 并提交到 authority。
+ * 统一转成正式 `GraphOperation` 并提交到 authority.
  */
 export type LeaferGraphInteractionCommitEvent =
   | NodeMoveInteractionCommitEvent
   | NodeResizeInteractionCommitEvent
   | NodeCollapseInteractionCommitEvent
   | NodeWidgetInteractionCommitEvent
+  | NodeRenameInteractionCommitEvent
   | LinkCreateInteractionCommitEvent;
 
 /** 节点状态反馈事件。 */

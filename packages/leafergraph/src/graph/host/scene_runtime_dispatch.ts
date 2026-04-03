@@ -61,6 +61,7 @@ export interface LeaferGraphSceneRuntimeMutationHostLike<
     size: LeaferGraphResizeNodeInput
   ): TNodeState | undefined;
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
+  renameNode(nodeId: string, newTitle: string): void;
   setNodeWidgetValue(
     nodeId: string,
     widgetIndex: number,
@@ -427,6 +428,46 @@ function handleNodeRemove<TNodeState extends NodeRuntimeState>(
 }
 
 /**
+ * 处理 `node.rename` 正式图操作。
+ *
+ * @param context - 当前场景运行时上下文。
+ * @param operation - 节点重命名操作。
+ * @returns 标准化的操作应用结果。
+ */
+function handleNodeRename<TNodeState extends NodeRuntimeState>(
+  context: LeaferGraphSceneRuntimeDispatchContext<TNodeState>,
+  operation: Extract<GraphOperation, { type: "node.rename" }>
+): InternalGraphOperationApplyResult<TNodeState> {
+  const current = context.graphNodes.get(operation.nodeId);
+  if (!current) {
+    return rejectGraphOperation(operation, `节点不存在：${operation.nodeId}`);
+  }
+
+  if (current.title === operation.title) {
+    return {
+      accepted: true,
+      changed: false,
+      operation,
+      affectedNodeIds: [],
+      affectedLinkIds: [],
+      reason: "标题未发生变化"
+    };
+  }
+
+  context.mutationHost.renameNode(operation.nodeId, operation.title);
+  context.notifyNodeStateChanged?.(operation.nodeId, "updated");
+
+  return {
+    accepted: true,
+    changed: true,
+    operation,
+    affectedNodeIds: [operation.nodeId],
+    affectedLinkIds: [],
+    node: context.graphNodes.get(operation.nodeId)
+  };
+}
+
+/**
  * 处理 `link.create` 正式图操作。
  *
  * @param context - 当前场景运行时上下文。
@@ -567,6 +608,7 @@ const sceneRuntimeOperationHandlers = {
   "node.resize": handleNodeResize,
   "node.collapse": handleNodeCollapse,
   "node.widget.value.set": handleNodeWidgetValueSet,
+  "node.rename": handleNodeRename,
   "node.remove": handleNodeRemove,
   "link.create": handleLinkCreate,
   "link.remove": handleLinkRemove,

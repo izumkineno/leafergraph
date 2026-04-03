@@ -57,6 +57,8 @@ export interface NodeShellView {
   signalButton: Rect;
   categoryBadge: Rect;
   categoryLabel: Text;
+  titleLabel: Text | null;
+  titleHitArea: Rect | null;
   widgetBackground: Rect | null;
   widgetDivider: Rect | null;
   resizeHandle: Box;
@@ -118,7 +120,32 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     stroke: theme.cardStroke,
     strokeWidth: 1,
     cornerRadius: theme.nodeRadius,
-    cursor: "grab"
+    cursor: "grab",
+    shadow: {
+      color: theme.cardShadow.normal.color,
+      blur: theme.cardShadow.normal.blur,
+      offsetX: theme.cardShadow.normal.offsetX,
+      offsetY: theme.cardShadow.normal.offsetY,
+      spread: theme.cardShadow.normal.spread
+    },
+    hoverStyle: {
+      shadow: {
+        color: theme.cardShadow.hover.color,
+        blur: theme.cardShadow.hover.blur,
+        offsetX: theme.cardShadow.hover.offsetX,
+        offsetY: theme.cardShadow.hover.offsetY,
+        spread: theme.cardShadow.hover.spread
+      }
+    },
+    selectedStyle: {
+      shadow: {
+        color: theme.cardShadow.selected.color,
+        blur: theme.cardShadow.selected.blur,
+        offsetX: theme.cardShadow.selected.offsetX,
+        offsetY: theme.cardShadow.selected.offsetY,
+        spread: theme.cardShadow.selected.spread
+      }
+    }
   });
 
   const header = new Rect({
@@ -128,6 +155,13 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     cornerRadius: shellLayout.collapsed
       ? theme.nodeRadius
       : [theme.nodeRadius, theme.nodeRadius, 0, 0],
+    shadow: {
+      color: theme.headerShadow.color,
+      blur: theme.headerShadow.blur,
+      offsetX: theme.headerShadow.offsetX,
+      offsetY: theme.headerShadow.offsetY,
+      spread: theme.headerShadow.spread
+    },
     hittable: false
   });
 
@@ -172,8 +206,11 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     cursor: "pointer"
   });
 
+  const signalButtonRight = theme.signalGlowX + theme.signalGlowSize + theme.signalHitPadding;
+  const titleX = signalButtonRight + theme.titleSignalGap;
+  
   const titleLabel = new Text({
-    x: theme.titleX,
+    x: titleX,
     y: theme.titleY,
     text: title,
     fill: theme.titleFill,
@@ -181,6 +218,17 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     fontSize: theme.titleFontSize,
     fontWeight: theme.titleFontWeight,
     hittable: false
+  });
+
+  const titleHitArea = new Rect({
+    x: titleX - 4,
+    y: 2,
+    width: shellLayout.width - titleX - 4,
+    height: theme.headerHeight - 4,
+    fill: "rgba(255, 255, 255, 0.001)",
+    cornerRadius: 4,
+    cursor: "grab",
+    name: `node-title-hit-${nodeId}`
   });
 
   const categoryBadge = new Rect({
@@ -214,6 +262,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     signalLight,
     signalButton,
     titleLabel,
+    titleHitArea,
     categoryBadge,
     categoryLabel
   ];
@@ -228,6 +277,13 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       height: shellLayout.height - shellLayout.widgetTop,
       fill: theme.widgetFill,
       cornerRadius: [0, 0, theme.nodeRadius, theme.nodeRadius],
+      shadow: {
+        color: theme.widgetShadow.color,
+        blur: theme.widgetShadow.blur,
+        offsetX: theme.widgetShadow.offsetX,
+        offsetY: theme.widgetShadow.offsetY,
+        spread: theme.widgetShadow.spread
+      },
       hittable: false
     });
     widgetDivider = new Rect({
@@ -402,6 +458,8 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     signalButton,
     categoryBadge,
     categoryLabel,
+    titleLabel,
+    titleHitArea,
     widgetBackground,
     widgetDivider,
     resizeHandle,

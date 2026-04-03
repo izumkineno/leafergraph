@@ -42,6 +42,7 @@ import {
   createLinkCreateHistoryRecord,
   createNodeCollapseHistoryRecord,
   createNodeMoveCommitHistoryRecord,
+  createNodeRenameHistoryRecord,
   createNodeResizeHistoryRecord,
   createNodeWidgetHistoryRecord,
   serializeRuntimeGraphDocument
@@ -227,6 +228,17 @@ export function createLeaferGraphRuntimeAssembly<
         widgetIndex: event.widgetIndex,
         beforeValue: event.beforeValue,
         afterValue: event.afterValue,
+        source: "interaction.commit"
+      });
+      if (record) {
+        historySource.emit(createHistoryRecordEvent(record));
+      }
+    },
+    "node.rename.commit": (event) => {
+      const record = createNodeRenameHistoryRecord({
+        nodeId: event.nodeId,
+        beforeTitle: event.beforeTitle,
+        afterTitle: event.afterTitle,
         source: "interaction.commit"
       });
       if (record) {

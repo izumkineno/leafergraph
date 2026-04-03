@@ -80,6 +80,8 @@ interface LeaferGraphMutationHostOptions<
       beforeWidgets: NodeRuntimeState["widgets"];
     }
   ): void;
+  /** 重命名节点标题。 */
+  renameNode(nodeId: string, newTitle: string): void;
   mountLinkView(link: GraphLink): unknown | null;
   removeLinkInternal(linkId: string): boolean;
   updateConnectedLinks(nodeId: string): void;
@@ -360,6 +362,26 @@ export class LeaferGraphMutationHost<
     }
   ): void {
     this.options.commitNodeWidgetValue(nodeId, widgetIndex, commit);
+  }
+
+  /**
+   * 重命名节点标题。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param newTitle - 新标题文本。
+   * @returns 无返回值。
+   */
+  renameNode(nodeId: string, newTitle: string): void {
+    const node = this.options.graphNodes.get(nodeId);
+    if (!node) {
+      return;
+    }
+
+    node.title = newTitle;
+    const state = this.options.nodeViews.get(nodeId);
+    if (state) {
+      this.options.refreshNodeView(state);
+    }
   }
 
   /**

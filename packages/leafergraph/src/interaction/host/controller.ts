@@ -302,6 +302,51 @@ export class LeaferGraphInteractionHostController<
   }
 
   /**
+   * 绑定节点标题双击编辑功能。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param state - 当前节点视图状态。
+   * @returns 无返回值。
+   */
+  bindNodeTitleEdit(nodeId: string, state: TNodeViewState): void {
+    let clickCount = 0;
+    let clickTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const titleHitArea = state.shellView.titleHitArea;
+    if (!titleHitArea) {
+      return;
+    }
+
+    titleHitArea.on("pointer.down", (event) => {
+      if (event.right || event.middle) {
+        return;
+      }
+
+      if (!this.options.runtime.isNodeSelected(nodeId)) {
+        this.options.runtime.setSelectedNodeIds([nodeId], "replace");
+      }
+      this.options.runtime.focusNode(nodeId);
+
+      clickCount++;
+      if (clickCount === 1) {
+        clickTimeout = setTimeout(() => {
+          clickCount = 0;
+          // 单击事件，允许触发拖动
+        }, 300);
+      } else if (clickCount === 2) {
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
+        }
+        clickCount = 0;
+        // 双击事件，触发编辑
+        this.options.runtime.beginNodeTitleEdit(nodeId);
+        event.stopNow?.();
+        event.stop?.();
+      }
+    });
+  }
+
+  /**
    * 某个节点被外部删除时，及时回收可能悬挂的交互状态。
    *
    * @param nodeId - 目标节点 ID。

@@ -31,6 +31,23 @@ export function resolveLeaferGraphInteractionDraggedNodeIds<
 }
 
 /**
+ * 开始编辑节点标题，委托给上层打开编辑器。
+ *
+ * @param context - 当前交互运行时上下文。
+ * @param nodeId - 目标节点 ID。
+ * @returns 无返回值。
+ */
+export function beginLeaferGraphInteractionNodeTitleEdit<
+  TNodeState extends NodeRuntimeState,
+  TNodeViewState extends LeaferGraphInteractionRuntimeNodeViewState<TNodeState>
+>(
+  context: LeaferGraphInteractionRuntimeContext<TNodeState, TNodeViewState>,
+  nodeId: string
+): void {
+  context.options.beginNodeTitleEdit(nodeId);
+}
+
+/**
  * 按位移量批量移动节点。
  *
  * @param context - 当前交互运行时上下文。

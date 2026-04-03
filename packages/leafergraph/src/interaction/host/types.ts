@@ -146,6 +146,10 @@ export interface LeaferGraphInteractiveNodeViewState<
     signalButton: LeaferGraphWidgetEventSource;
     /** 当前节点的端口视图列表。 */
     portViews: LeaferGraphInteractivePortViewState[];
+    /** 标题文本元素。 */
+    titleLabel: LeaferGraphWidgetEventSource | null;
+    /** 标题点击热区。 */
+    titleHitArea: LeaferGraphWidgetEventSource | null;
   };
   /** 当前节点是否处于 hover 态。 */
   hovered: boolean;

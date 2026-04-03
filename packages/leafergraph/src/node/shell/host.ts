@@ -360,6 +360,8 @@ export class LeaferGraphNodeShellHost<
       signalButton: hiddenSignalButton,
       categoryBadge: hiddenCategoryBadge,
       categoryLabel: hiddenCategoryLabel,
+      titleLabel: null,
+      titleHitArea: null,
       widgetBackground: null,
       widgetDivider: null,
       resizeHandle,

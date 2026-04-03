@@ -44,6 +44,34 @@ export interface NodeShellLayoutMetrics {
 }
 
 /**
+ * 单个阴影配置。
+ */
+export interface ShadowConfig {
+  /** 阴影颜色。 */
+  color: string;
+  /** 模糊半径。 */
+  blur: number;
+  /** X 轴偏移。 */
+  offsetX: number;
+  /** Y 轴偏移。 */
+  offsetY: number;
+  /** 阴影扩散。 */
+  spread: number;
+}
+
+/**
+ * 元素状态阴影配置组（常态、悬浮、选中）。
+ */
+export interface StateShadowConfig {
+  /** 常态阴影。 */
+  normal: ShadowConfig;
+  /** 悬浮状态阴影。 */
+  hover: ShadowConfig;
+  /** 选中状态阴影。 */
+  selected: ShadowConfig;
+}
+
+/**
  * 节点壳渲染需要的样式主题。
  */
 export interface NodeShellRenderTheme {
@@ -67,8 +95,12 @@ export interface NodeShellRenderTheme {
   cardFill: string;
   /** 节点卡片描边色。 */
   cardStroke: string;
+  /** 节点卡片阴影配置。 */
+  cardShadow: StateShadowConfig;
   /** 标题栏背景色。 */
   headerFill: string;
+  /** 标题栏阴影配置。 */
+  headerShadow: ShadowConfig;
   /** 标题栏分隔线颜色。 */
   headerDividerFill: string;
   /** 标题文本颜色。 */
@@ -83,6 +115,8 @@ export interface NodeShellRenderTheme {
   titleX: number;
   /** 标题纵向偏移。 */
   titleY: number;
+  /** 标题与信号球之间的间距。 */
+  titleSignalGap: number;
   /** 分类标签背景色。 */
   categoryFill: string;
   /** 分类标签描边色。 */
@@ -119,6 +153,8 @@ export interface NodeShellRenderTheme {
   signalHitPadding: number;
   /** Widget 区域默认填充色。 */
   widgetFill: string;
+  /** Widget 容器阴影配置。 */
+  widgetShadow: ShadowConfig;
   /** 输入端口默认填充色。 */
   inputPortFill: string;
   /** 输出端口默认填充色。 */

@@ -156,6 +156,8 @@ export interface LeaferGraphInteractionRuntimeLike<
   setNodeCollapsed(nodeId: string, collapsed: boolean): boolean;
   /** 当前节点是否允许 resize。 */
   canResizeNode(nodeId: string): boolean;
+  /** 开始编辑节点标题。 */
+  beginNodeTitleEdit(nodeId: string): void;
   /** 列出当前选区节点 ID。 */
   listSelectedNodeIds(): string[];
   /** 当前节点是否处于选中态。 */
@@ -188,6 +190,8 @@ export interface LeaferGraphInteractionRuntimeLike<
   };
   /** 解析节点当前尺寸。 */
   resolveNodeSize(nodeId: string): { width: number; height: number } | undefined;
+  /** 开始编辑节点标题。 */
+  beginNodeTitleEdit(nodeId: string): void;
 }
 
 /**
@@ -242,10 +246,9 @@ export interface LeaferGraphInteractionRuntimeHostOptions<
     y: number;
   };
   /** 解析节点当前尺寸。 */
-  resolveNodeSize(state: TNodeViewState): {
-    width: number;
-    height: number;
-  };
+  resolveNodeSize(state: TNodeViewState): { width: number; height: number } | undefined;
+  /** 开始编辑节点标题。 */
+  beginNodeTitleEdit(nodeId: string): void;
   /** 按槽位类型着色的端口颜色表。 */
   slotTypeFillMap: Readonly<Record<string, string>>;
   /** 未知槽位类型的回退颜色。 */

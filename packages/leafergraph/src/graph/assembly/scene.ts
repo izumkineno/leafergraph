@@ -240,11 +240,13 @@ export function createLeaferGraphSceneRuntimeAssembly<
       interactionHost.bindNodePorts(nodeId, state);
       interactionHost.bindNodeResize(nodeId, state);
       interactionHost.bindNodeCollapseToggle(nodeId, state);
+      interactionHost.bindNodeTitleEdit(nodeId, state);
     },
     onNodeRefreshed: (nodeId, state) => {
       interactionHost.bindNodePorts(nodeId, state);
       interactionHost.bindNodeResize(nodeId, state);
       interactionHost.bindNodeCollapseToggle(nodeId, state);
+      interactionHost.bindNodeTitleEdit(nodeId, state);
       nodeShellHost.applyNodeSelectionStyles(state);
     }
   });
@@ -289,6 +291,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
       sceneHost.setNodeWidgetValue(nodeId, widgetIndex, newValue),
     commitNodeWidgetValue: (nodeId, widgetIndex, commit) =>
       sceneHost.commitNodeWidgetValue(nodeId, widgetIndex, commit),
+    renameNode: (nodeId, newTitle) => sceneHost.renameNode(nodeId, newTitle),
     mountLinkView: (link) => sceneHost.mountLinkView(link),
     removeLinkInternal: (linkId) => sceneHost.removeLink(linkId),
     updateConnectedLinks: (nodeId) => sceneHost.updateConnectedLinks(nodeId),
@@ -381,6 +384,66 @@ export function createLeaferGraphSceneRuntimeAssembly<
     sceneRuntime: sceneRuntimeHost,
     setNodeCollapsed: (nodeId, collapsed) =>
       sceneRuntimeHost.setNodeCollapsed(nodeId, collapsed),
+    beginNodeTitleEdit: (nodeId) => {
+      const state = options.nodeViews.get(nodeId);
+      if (!state || !options.widgetEditingManager.enabled) {
+        return;
+      }
+
+      const originalTitle = state.state.title;
+      const titleLabel = state.shellView.titleLabel;
+      if (!titleLabel) {
+        return;
+      }
+      
+      const headerHeight =
+        options.nodeShellLayoutMetrics.headerHeight;
+
+      const textWidth = titleLabel.width ?? (originalTitle.length * 10);
+      const textHeight = titleLabel.height ?? headerHeight;
+
+      options.widgetEditingManager.beginTextEdit({
+        nodeId,
+        widgetIndex: -1,
+        value: originalTitle,
+        readOnly: false,
+        multiline: false,
+        maxLength: 100,
+        target: titleLabel,
+        frame: {
+          width: Math.max(textWidth + 20, 120),
+          height: textHeight,
+          offsetX: 0,
+          offsetY: -8,
+          paddingLeft: 10,
+          paddingRight: 10,
+          paddingTop: 4,
+          paddingBottom: 4
+        },
+        placeholder: "Enter node title",
+        onCommit: (newTitleRaw) => {
+          let trimmedTitle = newTitleRaw.trim();
+          if (!trimmedTitle) {
+            trimmedTitle = originalTitle;
+          }
+
+          trimmedTitle = trimmedTitle.replace(/[\r\n]/g, " ").slice(0, 100);
+
+          if (trimmedTitle === originalTitle) {
+            return;
+          }
+
+          sceneRuntimeHost.updateNode(nodeId, { title: trimmedTitle });
+          interactionCommitSource.emit({
+            type: "node.rename.commit",
+            nodeId,
+            beforeTitle: originalTitle,
+            afterTitle: trimmedTitle
+          });
+        },
+        onCancel: () => {}
+      });
+    },
     canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
     getPagePointByClient: (event) => viewHost.getPagePointByClient(event),
     getPagePointFromGraphEvent: (event) =>

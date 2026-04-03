@@ -33,7 +33,7 @@ import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 
 type SnapshotOperationType = Extract<
   LeaferGraphApiGraphOperation,
-  { type: "node.update" | "node.remove" | "document.update" }
+  { type: "node.update" | "node.rename" | "node.remove" | "document.update" }
 >["type"];
 
 /**
@@ -401,7 +401,7 @@ function handleSnapshotHistory<
     TLinkViewState,
     Extract<
       LeaferGraphApiGraphOperation,
-      { type: "node.update" | "node.remove" | "document.update" }
+      { type: "node.update" | "node.rename" | "node.remove" | "document.update" }
     >
   >
 ): void {
@@ -417,6 +417,7 @@ function handleSnapshotHistory<
 
 const SNAPSHOT_OPERATION_LABELS = {
   "node.update": "Update Node",
+  "node.rename": "Rename Node",
   "node.remove": "Remove Node",
   "document.update": "Update Document"
 } satisfies Record<SnapshotOperationType, string>;
@@ -426,6 +427,7 @@ const graphOperationHistoryHandlers = {
   "node.move": handleNodeMoveHistory,
   "node.resize": handleNodeResizeHistory,
   "node.collapse": handleNodeCollapseHistory,
+  "node.rename": handleSnapshotHistory,
   "node.widget.value.set": handleNodeWidgetValueSetHistory,
   "link.create": handleLinkCreateHistory,
   "link.remove": handleLinkRemoveHistory,

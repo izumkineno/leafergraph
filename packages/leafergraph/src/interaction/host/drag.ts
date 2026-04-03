@@ -17,7 +17,8 @@ import {
   isPortHitTarget,
   isResizeHandleHit,
   isResizeHandleTarget,
-  isSelectionModifierPressed
+  isSelectionModifierPressed,
+  isNodeTitleHitTarget
 } from "./hit_test";
 
 /**
@@ -75,10 +76,11 @@ export function bindLeaferGraphNodeDragging<
         (targetNodeId) => context.options.runtime.resolveNodeSize(targetNodeId),
         (graphEvent) => context.options.runtime.getPagePointFromGraphEvent(graphEvent)
       );
+    const isTitleHit = isNodeTitleHitTarget(event.target);
     const shiftPressed = isSelectionModifierPressed(event);
 
     if (!event.right && !event.middle) {
-      if (!interactiveSubTarget && shiftPressed) {
+      if (!interactiveSubTarget && !isTitleHit && shiftPressed) {
         const mode = context.options.runtime.isNodeSelected(nodeId) ? "remove" : "add";
         context.options.runtime.setSelectedNodeIds([nodeId], mode);
         return;

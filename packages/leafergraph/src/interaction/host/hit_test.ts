@@ -55,6 +55,27 @@ export function isPortHitTarget(
 }
 
 /**
+ * 判断当前事件命中是否来自节点标题热区。
+ *
+ * @param target - 当前事件命中目标。
+ * @returns 当前命中是否来自节点标题热区。
+ */
+export function isNodeTitleHitTarget(
+  target: LeaferGraphWidgetPointerEvent["target"]
+): boolean {
+  let current = target;
+
+  while (current) {
+    if ((current.name ?? "").startsWith("node-title-hit-")) {
+      return true;
+    }
+    current = current.parent ?? null;
+  }
+
+  return false;
+}
+
+/**
  * 通过节点局部坐标兜底判断一次按下是否命中了 resize 热区。
  *
  * @param event - 当前 Leafer 指针事件。

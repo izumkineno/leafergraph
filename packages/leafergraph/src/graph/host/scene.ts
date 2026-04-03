@@ -247,4 +247,22 @@ export class LeaferGraphSceneHost<
   ): void {
     this.options.widgetHost.commitNodeWidgetValue(nodeId, widgetIndex, commit);
   }
+
+  /**
+   * 重命名节点标题。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param newTitle - 新标题文本。
+   *
+   * @returns 无返回值。
+   */
+  renameNode(nodeId: string, newTitle: string): void {
+    const state = this.options.nodeViews.get(nodeId);
+    if (!state) {
+      return;
+    }
+
+    state.state.title = newTitle;
+    this.options.nodeHost.refreshNodeView(state);
+  }
 }

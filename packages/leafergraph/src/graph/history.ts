@@ -424,6 +424,45 @@ export function createNodeCollapseHistoryRecord(options: {
 }
 
 /**
+ * 创建节点重命名历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
+export function createNodeRenameHistoryRecord(options: {
+  nodeId: string;
+  beforeTitle: string;
+  afterTitle: string;
+  source: string;
+  label?: string;
+}): LeaferGraphOperationHistoryRecord | null {
+  if (options.beforeTitle === options.afterTitle) {
+    return null;
+  }
+
+  return createOperationHistoryRecord({
+    source: options.source,
+    label: options.label ?? "Rename Node",
+    undoOperations: [
+      createGraphOperation("history.undo", {
+        type: "node.rename",
+        nodeId: options.nodeId,
+        title: options.beforeTitle,
+        beforeTitle: options.afterTitle
+      })
+    ],
+    redoOperations: [
+      createGraphOperation("history.redo", {
+        type: "node.rename",
+        nodeId: options.nodeId,
+        title: options.afterTitle,
+        beforeTitle: options.beforeTitle
+      })
+    ]
+  });
+}
+
+/**
  * 创建节点 Widget 历史记录。
  *
  * @param options - 可选配置项。

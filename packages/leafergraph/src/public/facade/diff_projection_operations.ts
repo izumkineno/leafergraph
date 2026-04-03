@@ -48,7 +48,7 @@ export interface LeaferGraphDiffProjectionApiHostLike {
   applyGraphOperation(
     operation: Extract<
       DiffProjectionOperation,
-      { type: "link.reconnect" | "node.collapse" | "node.widget.value.set" }
+      { type: "link.reconnect" | "node.collapse" | "node.widget.value.set" | "node.rename" }
     >
   ): GraphOperationApplyResult;
 }
@@ -299,6 +299,36 @@ function handleNodeCollapse(
 }
 
 /**
+ * 处理 `node.rename` diff operation。
+ *
+ * @param context - 当前 diff 投影上下文。
+ * @param operation - 节点重命名操作。
+ * @returns 成功时返回 `null`；失败时返回 full replace fallback。
+ */
+function handleNodeRename(
+  context: LeaferGraphDiffProjectionOperationContext,
+  operation: Extract<DiffProjectionOperation, { type: "node.rename" }>
+): ApplyGraphDocumentDiffResult | null {
+  if (!context.hasNodeGraphic(operation.nodeId)) {
+    return context.createFallback(`node.rename 投影失败: ${operation.nodeId}`);
+  }
+
+  const result = context.callFacadeMethod(
+    "applyGraphOperation",
+    (nextOperation) => context.apiHost.applyGraphOperation(nextOperation),
+    operation
+  );
+  if (!result.accepted) {
+    return context.createFallback(
+      result.reason ?? `node.rename 投影失败: ${operation.nodeId}`
+    );
+  }
+
+  result.affectedNodeIds.forEach((nodeId) => context.affectedNodeIds.add(nodeId));
+  return null;
+}
+
+/**
  * 处理 `node.widget.value.set` diff operation。
  *
  * @param context - 当前 diff 投影上下文。
@@ -449,6 +479,7 @@ const diffProjectionOperationHandlers = {
   "node.move": handleNodeMove,
   "node.resize": handleNodeResize,
   "node.collapse": handleNodeCollapse,
+  "node.rename": handleNodeRename,
   "node.widget.value.set": handleNodeWidgetValueSet,
   "node.remove": handleNodeRemove,
   "link.create": handleLinkCreate,

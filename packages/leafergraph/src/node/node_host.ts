@@ -29,6 +29,8 @@ export interface NodeViewState<
   shellView: NodeShellView;
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
   hovered: boolean;
+  titleLabel?: Text;
+  titleHitArea?: Rect;
 }
 
 /**

@@ -3,7 +3,9 @@ import type {
   LeaferGraphGraphThemeTokens,
   LeaferGraphNodeShellStyleConfig,
   NodeShellLayoutMetrics,
-  NodeShellRenderTheme
+  NodeShellRenderTheme,
+  ShadowConfig,
+  StateShadowConfig
 } from "./types";
 import type {
   LeaferGraphLinkPropagationAnimationPreset,
@@ -86,6 +88,92 @@ const ERROR_BADGE_STROKE_LIGHT = "rgba(239, 68, 68, 0.24)";
 const ERROR_BADGE_TEXT_FILL_LIGHT = "#991B1B";
 const SELECTED_RING_OUTSET = 4;
 const SELECTED_RING_STROKE_WIDTH = 3;
+
+/** 默认卡片阴影配置 - 深色模式 */
+const CARD_SHADOW_DARK: StateShadowConfig = {
+  normal: {
+    color: "rgba(0, 0, 0, 0.35)",
+    blur: 12,
+    offsetX: 0,
+    offsetY: 4,
+    spread: 0
+  },
+  hover: {
+    color: "rgba(0, 0, 0, 0.45)",
+    blur: 16,
+    offsetX: 0,
+    offsetY: 6,
+    spread: 0
+  },
+  selected: {
+    color: "rgba(56, 189, 248, 0.35)",
+    blur: 20,
+    offsetX: 0,
+    offsetY: 8,
+    spread: 0
+  }
+};
+
+/** 默认卡片阴影配置 - 浅色模式 */
+const CARD_SHADOW_LIGHT: StateShadowConfig = {
+  normal: {
+    color: "rgba(15, 23, 42, 0.10)",
+    blur: 12,
+    offsetX: 0,
+    offsetY: 4,
+    spread: 0
+  },
+  hover: {
+    color: "rgba(15, 23, 42, 0.14)",
+    blur: 16,
+    offsetX: 0,
+    offsetY: 6,
+    spread: 0
+  },
+  selected: {
+    color: "rgba(37, 99, 235, 0.22)",
+    blur: 20,
+    offsetX: 0,
+    offsetY: 8,
+    spread: 0
+  }
+};
+
+/** 默认Header阴影配置 - 深色模式 */
+const HEADER_SHADOW_DARK: ShadowConfig = {
+  color: "rgba(0, 0, 0, 0.25)",
+  blur: 6,
+  offsetX: 0,
+  offsetY: 2,
+  spread: 0
+};
+
+/** 默认Header阴影配置 - 浅色模式 */
+const HEADER_SHADOW_LIGHT: ShadowConfig = {
+  color: "rgba(15, 23, 42, 0.08)",
+  blur: 4,
+  offsetX: 0,
+  offsetY: 2,
+  spread: 0
+};
+
+/** 默认Widget容器阴影配置 - 深色模式 */
+const WIDGET_SHADOW_DARK: ShadowConfig = {
+  color: "rgba(0, 0, 0, 0.18)",
+  blur: 4,
+  offsetX: 0,
+  offsetY: 2,
+  spread: 0
+};
+
+/** 默认Widget容器阴影配置 - 浅色模式 */
+const WIDGET_SHADOW_LIGHT: ShadowConfig = {
+  color: "rgba(15, 23, 42, 0.06)",
+  blur: 3,
+  offsetX: 0,
+  offsetY: 1,
+  spread: 0
+};
 
 /** 默认槽位类型颜色表。 */
 export const SLOT_TYPE_FILL_MAP: Readonly<Record<string, string>> = {
@@ -316,7 +404,9 @@ export function resolveDefaultNodeShellRenderTheme(
       resizeHandleStrokeWidth: 1.5,
       cardFill: CARD_FILL,
       cardStroke: CARD_STROKE,
+      cardShadow: CARD_SHADOW_DARK,
       headerFill: HEADER_FILL,
+      headerShadow: HEADER_SHADOW_DARK,
       headerDividerFill: HEADER_DIVIDER_FILL,
       titleFill: TITLE_FILL,
       titleFontFamily: NODE_FONT_FAMILY,
@@ -324,6 +414,7 @@ export function resolveDefaultNodeShellRenderTheme(
       titleFontWeight: "600",
       titleX: 38,
       titleY: 15,
+      titleSignalGap: 8,
       categoryFill: CATEGORY_FILL,
       categoryStroke: CATEGORY_STROKE,
       categoryTextFill: CATEGORY_TEXT_FILL,
@@ -342,6 +433,7 @@ export function resolveDefaultNodeShellRenderTheme(
       signalLightSize: SIGNAL_SIZE,
       signalHitPadding: 4,
       widgetFill: WIDGET_FILL,
+      widgetShadow: WIDGET_SHADOW_DARK,
       inputPortFill: INPUT_PORT_FILL,
       outputPortFill: OUTPUT_PORT_FILL,
       portStroke: CARD_FILL,
@@ -364,7 +456,9 @@ export function resolveDefaultNodeShellRenderTheme(
     resizeHandleStrokeWidth: 1.85,
     cardFill: "rgba(255, 255, 255, 0.96)",
     cardStroke: "rgba(148, 163, 184, 0.28)",
+    cardShadow: CARD_SHADOW_LIGHT,
     headerFill: "rgba(248, 250, 252, 0.96)",
+    headerShadow: HEADER_SHADOW_LIGHT,
     headerDividerFill: "rgba(148, 163, 184, 0.16)",
     titleFill: "#0F172A",
     titleFontFamily: NODE_FONT_FAMILY,
@@ -372,6 +466,7 @@ export function resolveDefaultNodeShellRenderTheme(
     titleFontWeight: "600",
     titleX: 38,
     titleY: 15,
+    titleSignalGap: 8,
     categoryFill: "rgba(241, 245, 249, 0.96)",
     categoryStroke: "rgba(203, 213, 225, 0.88)",
     categoryTextFill: "#64748B",
@@ -390,6 +485,7 @@ export function resolveDefaultNodeShellRenderTheme(
     signalLightSize: SIGNAL_SIZE,
     signalHitPadding: 4,
     widgetFill: "rgba(248, 250, 252, 0.92)",
+    widgetShadow: WIDGET_SHADOW_LIGHT,
     inputPortFill: INPUT_PORT_FILL,
     outputPortFill: OUTPUT_PORT_FILL,
     portStroke: "#FFFFFF",
