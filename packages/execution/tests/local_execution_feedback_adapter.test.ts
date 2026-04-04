@@ -52,8 +52,9 @@ describe("@leafergraph/execution LeaferGraphLocalExecutionFeedbackAdapter", () =
         startedAt: 1
       },
       state: {
-        status: "success",
-        runCount: 1
+        status: "running",
+        runCount: 1,
+        progress: 0.75
       }
     });
     onGraphExecution?.({
@@ -81,6 +82,15 @@ describe("@leafergraph/execution LeaferGraphLocalExecutionFeedbackAdapter", () =
       "graph.execution",
       "link.propagation"
     ]);
+    expect(
+      (feedbackEvents[0] as {
+        event?: {
+          state?: {
+            progress?: number;
+          };
+        };
+      }).event?.state?.progress
+    ).toBe(0.75);
 
     adapter.destroy();
     onNodeExecution?.({

@@ -44,6 +44,7 @@ export const AUTHORING_BASIC_NODE_TYPES = {
   eventCounter: "events/counter",
   eventOnce: "events/once",
   eventSemaphore: "events/semaphore",
+  eventQueue: "events/queue",
   eventDelay: "events/delay",
   eventTimer: "events/timer"
 } as const;
@@ -96,6 +97,7 @@ export const AUTHORING_BASIC_EVENT_NODE_TYPES = [
   AUTHORING_BASIC_NODE_TYPES.eventCounter,
   AUTHORING_BASIC_NODE_TYPES.eventOnce,
   AUTHORING_BASIC_NODE_TYPES.eventSemaphore,
+  AUTHORING_BASIC_NODE_TYPES.eventQueue,
   AUTHORING_BASIC_NODE_TYPES.eventDelay,
   AUTHORING_BASIC_NODE_TYPES.eventTimer
 ] as const;

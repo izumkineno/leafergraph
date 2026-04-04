@@ -32,6 +32,7 @@ import type {
 } from "leafergraph";
 import {
   EXAMPLE_EVENT_RELAY_NODE_TYPE,
+  EXAMPLE_LONG_TASK_PROBE_NODE_TYPE,
   EXAMPLE_TICK_MONITOR_NODE_TYPE
 } from "./example_demo_plugin";
 import type { ExampleTrackedLinkEntry } from "./use_example_graph";
@@ -46,6 +47,8 @@ export interface CreateExampleContextMenuOptions {
   fit(): void;
   reset(): void;
   clearLog(): void;
+  ensureAuthoringBasicNodesRegistered(): Promise<boolean>;
+  playLongTaskProbeDemo(nodeId: string): void;
   listNodeIds(): readonly string[];
   createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState;
   createLink(input: LeaferGraphCreateLinkInput): GraphLink;
@@ -68,7 +71,13 @@ export interface CreateExampleContextMenuOptions {
 
 const SYSTEM_ON_PLAY_NODE_TYPE = "system/on-play";
 const SYSTEM_TIMER_NODE_TYPE = "system/timer";
+const AUTHORING_BASIC_EVENT_QUEUE_NODE_TYPE = "events/queue";
+const AUTHORING_BASIC_EVENT_DELAY_NODE_TYPE = "events/delay";
+const AUTHORING_BASIC_EVENT_LOG_NODE_TYPE = "events/log";
 const DEMO_CHAIN_NODE_GAP_X = 360;
+const DELAY_DEMO_TIMER_INTERVAL_MS = 250;
+const DELAY_DEMO_QUEUE_CAPACITY = 6;
+const DELAY_DEMO_WAIT_MS = 1600;
 
 /** 外部除了销毁外，还需要在节点和连线生命周期变化时同步菜单 target。 */
 export interface ExampleContextMenuHandle {
@@ -266,6 +275,25 @@ function createCanvasMenuItems(
       }
     },
     {
+      key: "demo-canvas-insert-long-task-chain",
+      label: "插入长任务测试链",
+      description: "Start Event -> Long Task Probe -> Tick Monitor，并自动演示运行进度",
+      order: 73,
+      onSelect() {
+        insertLongTaskProbeDemoChain(options, context);
+      }
+    },
+    {
+      key: "demo-canvas-insert-delay-long-task-chain",
+      label: "插入 Delay 长任务示例链",
+      description:
+        "Start Event -> Timer -> Queue -> Delay -> Log Event，首次使用会按需加载 authoring-basic-nodes",
+      order: 74,
+      onSelect() {
+        void insertDelayLongTaskDemoChain(options, context);
+      }
+    },
+    {
       key: "demo-canvas-clear-log",
       label: "Clear Log",
       order: 80,
@@ -345,6 +373,158 @@ function insertAnimationDemoChain(
       error instanceof Error
         ? `插入动画示例链失败：${error.message}`
         : "插入动画示例链失败"
+    );
+  }
+}
+
+/**
+ * 插入长任务测试链，并自动回放一段 probe 状态演示。
+ *
+ * @param options - 可选配置项。
+ * @param context - 当前上下文。
+ * @returns 无返回值。
+ */
+function insertLongTaskProbeDemoChain(
+  options: CreateExampleContextMenuOptions,
+  context: LeaferContextMenuContext
+): void {
+  const origin = resolveCanvasCreatePosition(context);
+
+  try {
+    const startNode = options.createNode({
+      type: SYSTEM_ON_PLAY_NODE_TYPE,
+      x: origin.x,
+      y: origin.y
+    });
+    const probeNode = options.createNode({
+      type: EXAMPLE_LONG_TASK_PROBE_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X,
+      y: origin.y
+    });
+    const monitorNode = options.createNode({
+      type: EXAMPLE_TICK_MONITOR_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X * 2,
+      y: origin.y
+    });
+
+    options.createLink({
+      source: { nodeId: startNode.id, slot: 0 },
+      target: { nodeId: probeNode.id, slot: 0 }
+    });
+    options.createLink({
+      source: { nodeId: probeNode.id, slot: 0 },
+      target: { nodeId: monitorNode.id, slot: 0 }
+    });
+
+    options.graph.setSelectedNodeIds([probeNode.id], "replace");
+    options.fit();
+    options.playLongTaskProbeDemo(probeNode.id);
+    options.appendLog(
+      "已插入长任务测试链：Start Event -> Long Task Probe -> Tick Monitor"
+    );
+  } catch (error) {
+    options.appendLog(
+      error instanceof Error
+        ? `插入长任务测试链失败：${error.message}`
+        : "插入长任务测试链失败"
+    );
+  }
+}
+
+/**
+ * 插入 Delay 长任务示例链，并直接触发一次等待进度演示。
+ *
+ * @param options - 可选配置项。
+ * @param context - 当前上下文。
+ * @returns 无返回值。
+ */
+async function insertDelayLongTaskDemoChain(
+  options: CreateExampleContextMenuOptions,
+  context: LeaferContextMenuContext
+): Promise<void> {
+  const origin = resolveCanvasCreatePosition(context);
+
+  if (!hasNodeType(options, AUTHORING_BASIC_EVENT_DELAY_NODE_TYPE)) {
+    const ready = await options.ensureAuthoringBasicNodesRegistered();
+    if (!ready) {
+      options.appendLog("插入 Delay 长任务示例链失败：authoring-basic-nodes 未就绪");
+      return;
+    }
+  }
+
+  if (
+    !hasNodeType(options, AUTHORING_BASIC_EVENT_QUEUE_NODE_TYPE) ||
+    !hasNodeType(options, AUTHORING_BASIC_EVENT_DELAY_NODE_TYPE) ||
+    !hasNodeType(options, AUTHORING_BASIC_EVENT_LOG_NODE_TYPE)
+  ) {
+    options.appendLog(
+      "插入 Delay 长任务示例链失败：缺少 events/queue、events/delay 或 events/log 节点定义"
+    );
+    return;
+  }
+
+  try {
+    const startNode = options.createNode({
+      type: SYSTEM_ON_PLAY_NODE_TYPE,
+      x: origin.x,
+      y: origin.y
+    });
+    const timerNode = options.createNode({
+      type: SYSTEM_TIMER_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X,
+      y: origin.y
+    });
+    const queueNode = options.createNode({
+      type: AUTHORING_BASIC_EVENT_QUEUE_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X * 2,
+      y: origin.y
+    });
+    const delayNode = options.createNode({
+      type: AUTHORING_BASIC_EVENT_DELAY_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X * 3,
+      y: origin.y
+    });
+    const logNode = options.createNode({
+      type: AUTHORING_BASIC_EVENT_LOG_NODE_TYPE,
+      x: origin.x + DEMO_CHAIN_NODE_GAP_X * 4,
+      y: origin.y
+    });
+
+    options.graph.setNodeWidgetValue(timerNode.id, 0, DELAY_DEMO_TIMER_INTERVAL_MS);
+    options.graph.setNodeWidgetValue(queueNode.id, 0, DELAY_DEMO_QUEUE_CAPACITY);
+    options.graph.setNodeWidgetValue(delayNode.id, 0, DELAY_DEMO_WAIT_MS);
+    options.createLink({
+      source: { nodeId: startNode.id, slot: 0 },
+      target: { nodeId: timerNode.id, slot: 0 }
+    });
+    options.createLink({
+      source: { nodeId: timerNode.id, slot: 0 },
+      target: { nodeId: queueNode.id, slot: 0 }
+    });
+    options.createLink({
+      source: { nodeId: queueNode.id, slot: 0 },
+      target: { nodeId: delayNode.id, slot: 0 }
+    });
+    options.createLink({
+      source: { nodeId: delayNode.id, slot: 0 },
+      target: { nodeId: logNode.id, slot: 0 }
+    });
+    options.createLink({
+      source: { nodeId: delayNode.id, slot: 0 },
+      target: { nodeId: queueNode.id, slot: 1 }
+    });
+
+    options.graph.setSelectedNodeIds([delayNode.id], "replace");
+    options.fit();
+    options.play();
+    options.appendLog(
+      `已插入 Delay 长任务示例链：Start Event -> Timer ${DELAY_DEMO_TIMER_INTERVAL_MS}ms -> Queue ${DELAY_DEMO_QUEUE_CAPACITY} -> Delay ${DELAY_DEMO_WAIT_MS}ms -> Log Event`
+    );
+  } catch (error) {
+    options.appendLog(
+      error instanceof Error
+        ? `插入 Delay 长任务示例链失败：${error.message}`
+        : "插入 Delay 长任务示例链失败"
     );
   }
 }
@@ -436,6 +616,20 @@ function createLinkMenuItems(
  */
 function resolveContextMenuHost(container: HTMLElement): HTMLElement {
   return container.ownerDocument.body ?? container;
+}
+
+/**
+ * 判断当前注册表里是否已经存在指定节点类型。
+ *
+ * @param options - 可选配置项。
+ * @param nodeType - 节点类型。
+ * @returns 是否存在。
+ */
+function hasNodeType(
+  options: CreateExampleContextMenuOptions,
+  nodeType: string
+): boolean {
+  return options.graph.listNodes().some((node) => node.type === nodeType);
 }
 
 /**

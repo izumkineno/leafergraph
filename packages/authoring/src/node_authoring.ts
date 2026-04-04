@@ -15,6 +15,7 @@ import type {
   NodeResizeConfig,
   NodeRuntimeState,
   NodeSerializeResult,
+  NodeShellConfig,
   NodeSlotSpec,
   NodeWidgetSpec,
   SlotDirection
@@ -59,6 +60,8 @@ export interface DevNodeMeta {
   size?: [number, number];
   /** 节点 resize 约束。 */
   resize?: NodeResizeConfig;
+  /** 节点壳静态配置。 */
+  shell?: NodeShellConfig;
   /** 输入槽位声明。 */
   inputs?: NodeSlotSpec[];
   /** 输出槽位声明。 */
@@ -426,6 +429,7 @@ export function defineAuthoringNode<
     keywords: meta.keywords,
     size: meta.size,
     resize: meta.resize,
+    shell: meta.shell,
     inputs: meta.inputs,
     outputs: meta.outputs,
     properties: meta.properties,
@@ -561,6 +565,7 @@ function normalizeNodeMeta(meta: DevNodeMeta): DevNodeMeta {
     keywords: cloneStringList(meta.keywords),
     size: meta.size ? [meta.size[0], meta.size[1]] : undefined,
     resize: meta.resize ? { ...meta.resize } : undefined,
+    shell: meta.shell ? { ...meta.shell } : undefined,
     inputs: cloneSlotSpecs(meta.inputs),
     outputs: cloneSlotSpecs(meta.outputs),
     properties: clonePropertySpecs(meta.properties),

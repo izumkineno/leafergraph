@@ -245,8 +245,9 @@ export function App() {
             authoring 库，再继续扩展图内容。顶部默认使用更容易观察的
             Expressive 连线动画预设，也可以继续切换其它运行时动画预设，
             用来对比性能优先和平衡表现两类反馈。
-            右键画布即可验证 Leafer-first 上下文菜单，并直接插入动画示例链，
-            或从当前注册表继续添加 System / Example 节点。
+            右键画布即可验证 Leafer-first 上下文菜单，并直接插入动画示例链、
+            长任务测试链或 Delay 长任务示例链，或从当前注册表继续添加
+            System / Example 节点。
           </p>
         </div>
 

@@ -29,6 +29,14 @@ export interface LeaferGraphNodeExecutionState {
   status: LeaferGraphNodeExecutionStatus;
   /** 当前节点在本次运行生命周期中的累计执行次数。 */
   runCount: number;
+  /**
+   * 当前长任务进度。
+   *
+   * @remarks
+   * 仅在 `status === "running"` 时有意义，范围固定为 `0..1`。
+   * 宿主收到 `success / error / idle` 后应清空该字段。
+   */
+  progress?: number;
   /** 最近一次进入执行的时间戳。 */
   lastExecutedAt?: number;
   /** 最近一次成功完成执行的时间戳。 */

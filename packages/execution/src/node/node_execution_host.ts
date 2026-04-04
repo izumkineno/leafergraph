@@ -66,6 +66,8 @@ interface LeaferGraphNodeExecutionHostOptions<
 }
 
 let executionChainSeed = 1;
+const INTERNAL_EXECUTION_STATE_OVERRIDE_KEY =
+  "__leafergraphExecutionStateOverride";
 
 /**
  * 封装 LeaferGraphNodeExecutionHost 的宿主能力。
@@ -234,12 +236,23 @@ export class LeaferGraphNodeExecutionHost<
       }
       handled = true;
       const finishedAt = Date.now();
-      this.updateExecutionState(task.nodeId, {
-        status: "success",
-        runCountDelta: 1,
-        lastSucceededAt: finishedAt,
-        clearLastErrorMessage: true
-      });
+      const executionStateOverride =
+        consumeInternalExecutionStateOverride(node);
+      if (executionStateOverride?.status === "running") {
+        this.updateExecutionState(task.nodeId, {
+          status: "running",
+          runCountDelta: 1,
+          progress: executionStateOverride.progress,
+          clearLastErrorMessage: true
+        });
+      } else {
+        this.updateExecutionState(task.nodeId, {
+          status: "success",
+          runCountDelta: 1,
+          lastSucceededAt: finishedAt,
+          clearLastErrorMessage: true
+        });
+      }
       this.emitNodeExecutionEvent(
         task,
         sequence,
@@ -498,6 +511,7 @@ export class LeaferGraphNodeExecutionHost<
     input: {
       status: LeaferGraphNodeExecutionState["status"];
       runCountDelta?: number;
+      progress?: number;
       lastExecutedAt?: number;
       lastSucceededAt?: number;
       lastFailedAt?: number;
@@ -510,6 +524,10 @@ export class LeaferGraphNodeExecutionHost<
     this.executionStateByNodeId.set(nodeId, {
       status: input.status,
       runCount: prevState.runCount + (input.runCountDelta ?? 0),
+      progress:
+        input.status === "running"
+          ? normalizeExecutionProgress(input.progress) ?? prevState.progress
+          : undefined,
       lastExecutedAt: input.lastExecutedAt ?? prevState.lastExecutedAt,
       lastSucceededAt: input.lastSucceededAt ?? prevState.lastSucceededAt,
       lastFailedAt: input.lastFailedAt ?? prevState.lastFailedAt,
@@ -788,6 +806,20 @@ function cloneExecutionState(
 }
 
 /**
+ * 规范化执行进度。
+ *
+ * @param progress - 原始进度值。
+ * @returns 规范化后的进度；无效输入返回 `undefined`。
+ */
+function normalizeExecutionProgress(progress: number | undefined): number | undefined {
+  if (typeof progress !== "number" || !Number.isFinite(progress)) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.min(1, progress));
+}
+
+/**
  * 克隆节点执行事件。
  *
  * @param event - 当前事件对象。
@@ -834,6 +866,36 @@ function cloneReadableValue<T>(value: T): T {
   } catch {
     return value;
   }
+}
+
+function consumeInternalExecutionStateOverride(
+  node: NodeRuntimeState
+): {
+  status: "running";
+  progress?: number;
+} | null {
+  const data = node.data;
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  const record = data as Record<string, unknown>;
+  const rawOverride = record[INTERNAL_EXECUTION_STATE_OVERRIDE_KEY];
+  delete record[INTERNAL_EXECUTION_STATE_OVERRIDE_KEY];
+
+  if (!rawOverride || typeof rawOverride !== "object") {
+    return null;
+  }
+
+  const progress = (rawOverride as { progress?: unknown }).progress;
+  if ((rawOverride as { status?: unknown }).status !== "running") {
+    return null;
+  }
+
+  return {
+    status: "running",
+    progress: typeof progress === "number" ? progress : undefined
+  };
 }
 
 /**

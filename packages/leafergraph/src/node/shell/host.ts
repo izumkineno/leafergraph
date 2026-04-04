@@ -32,13 +32,31 @@ import { createNodeShell } from "./view";
 import type { NodeShellPortLayout } from "./ports";
 import type { LeaferGraphNodeShellStyleConfig } from "../../graph/style";
 import { resolveSlotTypeFill } from "./slot_style";
+import {
+  buildNodeShellProgressSegmentPath
+} from "./progress_ring";
 
 type LeaferGraphNodeShellThemeMode = "light" | "dark";
+type LeaferGraphAnimationFrameHandle = number;
+
+interface ResolvedNodeShellVisualState {
+  signalColor: string;
+  progressColor: string;
+  progress?: number;
+  showProgress: boolean;
+  showIndeterminateProgress: boolean;
+  errorMessage?: string;
+}
+
+const NODE_SHELL_INDETERMINATE_PROGRESS_SEGMENT_RATIO = 0.18;
+const NODE_SHELL_INDETERMINATE_PROGRESS_SPEED = 0.0002;
 
 /**
  * 节点壳宿主装配选项。
  */
 export interface LeaferGraphNodeShellHostOptions {
+  container: HTMLElement;
+  nodeViews: Map<string, NodeViewState>;
   nodeRegistry: NodeRegistry;
   layoutMetrics: NodeShellLayoutMetrics;
   style: LeaferGraphNodeShellStyleConfig;
@@ -48,6 +66,9 @@ export interface LeaferGraphNodeShellHostOptions {
   resolveNodeExecutionState(nodeId: string): LeaferGraphNodeExecutionState | undefined;
   canResizeNode(nodeId: string): boolean;
   isNodeResizing(nodeId: string): boolean;
+  requestRender(): void;
+  renderFrame(): void;
+  respectReducedMotion: boolean;
 }
 
 /**
@@ -61,6 +82,9 @@ export class LeaferGraphNodeShellHost<
   TNodeState extends LeaferGraphRenderableNodeState
 > {
   private readonly options: LeaferGraphNodeShellHostOptions;
+  private readonly ownerWindow: Window | null;
+  private readonly activeIndeterminateNodeIds = new Set<string>();
+  private frameId: LeaferGraphAnimationFrameHandle | null = null;
 
   /**
    * 初始化 LeaferGraphNodeShellHost 实例。
@@ -69,6 +93,19 @@ export class LeaferGraphNodeShellHost<
    */
   constructor(options: LeaferGraphNodeShellHostOptions) {
     this.options = options;
+    this.ownerWindow =
+      options.container.ownerDocument.defaultView ??
+      (typeof window === "undefined" ? null : window);
+  }
+
+  /**
+   * 销毁当前节点壳宿主持有的动画循环。
+   *
+   * @returns 无返回值。
+   */
+  destroy(): void {
+    this.stopIndeterminateProgressLoop();
+    this.activeIndeterminateNodeIds.clear();
   }
 
   /**
@@ -112,18 +149,23 @@ export class LeaferGraphNodeShellHost<
       this.options.layoutMetrics
     );
     const mode = this.options.getThemeMode();
+    const theme = this.options.resolveRenderTheme(mode);
+    const visualState = this.resolveNodeShellVisualState(node);
 
     const shellOptions: CreateNodeShellOptions = {
       nodeId: node.id,
       x: node.layout.x,
       y: node.layout.y,
       title: node.title,
-      signalColor: this.resolveSignalColor(node),
-      errorMessage: this.resolveExecutionErrorMessage(node.id),
+      signalColor: visualState.signalColor,
+      progressColor: visualState.progressColor,
+      progress: visualState.progress,
+      showIndeterminateProgress: visualState.showIndeterminateProgress,
+      errorMessage: visualState.errorMessage,
       selectedStroke: this.resolveSelectedNodeStroke(),
       shellLayout: resolvedShellLayout,
       categoryLayout,
-      theme: this.options.resolveRenderTheme(mode)
+      theme
     };
 
     return createNodeShell(shellOptions);
@@ -138,14 +180,28 @@ export class LeaferGraphNodeShellHost<
    * @returns 无返回值。
    */
   applyNodeSelectionStyles(state: NodeViewState<TNodeState>): void {
+    this.applyNodeShellStatusStyles(state);
+  }
+
+  /**
+   * 将节点稳定状态统一映射到当前 shell 视图。
+   *
+   * @param state - 当前节点视图状态。
+   * @returns 无返回值。
+   */
+  applyNodeShellStatusStyles(state: NodeViewState<TNodeState>): void {
     const selected = Boolean(state.state.flags.selected);
     const ringStroke = this.resolveSelectedNodeStroke();
+    const theme = this.options.resolveRenderTheme(this.options.getThemeMode());
+    const visualState = this.resolveNodeShellVisualState(state.state);
 
     state.selectedRing.selectedStyle = {
       stroke: ringStroke,
-      opacity: 0.92
+      opacity: theme.selectedRingOpacity
     };
     state.selectedRing.selected = selected;
+    this.applySignalStyles(state, theme, visualState);
+    this.applyProgressRingStyles(state, visualState);
     this.syncNodeResizeHandleVisibility(state);
   }
 
@@ -166,7 +222,11 @@ export class LeaferGraphNodeShellHost<
       !Boolean(state.state.flags.collapsed) &&
       (state.hovered || this.options.isNodeResizing(state.state.id));
 
+    const changed = state.resizeHandle.visible !== visible;
     state.resizeHandle.visible = visible;
+    if (changed) {
+      this.options.requestRender();
+    }
   }
 
   /**
@@ -234,6 +294,7 @@ export class LeaferGraphNodeShellHost<
   ): NodeShellView {
     // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
     const selectedStroke = this.resolveSelectedNodeStroke();
+    const theme = this.options.resolveRenderTheme(this.options.getThemeMode());
     const group = new Group({
       x: node.layout.x,
       y: node.layout.y,
@@ -285,6 +346,25 @@ export class LeaferGraphNodeShellHost<
       height: 0,
       visible: false,
       fill: "transparent",
+      hittable: false
+    });
+    const missingSignalGlow = new Rect({
+      x: theme.signalGlowX,
+      y: theme.signalGlowY,
+      width: theme.signalGlowSize,
+      height: theme.signalGlowSize,
+      fill: this.options.style.missingNodeStroke,
+      opacity: theme.signalGlowOpacity,
+      cornerRadius: 999,
+      hittable: false
+    });
+    const missingSignalLight = new Rect({
+      x: theme.signalLightX,
+      y: theme.signalLightY,
+      width: theme.signalLightSize,
+      height: theme.signalLightSize,
+      fill: this.options.style.missingNodeTextFill,
+      cornerRadius: 999,
       hittable: false
     });
     // 再按当前规则组合结果，并把派生数据一并收口到输出里。
@@ -343,6 +423,8 @@ export class LeaferGraphNodeShellHost<
     group.add([
       selectedRing,
       card,
+      missingSignalGlow,
+      missingSignalLight,
       label,
       hiddenSignalButton,
       hiddenCategoryBadge,
@@ -355,8 +437,13 @@ export class LeaferGraphNodeShellHost<
       view: group,
       card,
       selectedRing,
+      progressTrack: null,
+      progressRing: null,
+      progressGeometry: null,
       header: card,
       headerDivider: hiddenHeaderDivider,
+      signalGlow: missingSignalGlow,
+      signalLight: missingSignalLight,
       signalButton: hiddenSignalButton,
       categoryBadge: hiddenCategoryBadge,
       categoryLabel: hiddenCategoryLabel,
@@ -377,6 +464,340 @@ export class LeaferGraphNodeShellHost<
    */
   private resolveSelectedNodeStroke(): string {
     return this.options.resolveSelectedStroke(this.options.getThemeMode());
+  }
+
+  /**
+   * 统一解析节点当前应投影到 shell 的视觉状态。
+   *
+   * @param node - 目标节点。
+   * @param theme - 当前节点壳渲染主题。
+   * @returns 当前节点对应的 shell 视觉状态。
+   */
+  private resolveNodeShellVisualState(
+    node: TNodeState
+  ): ResolvedNodeShellVisualState {
+    if (this.isMissingNodeType(node)) {
+      return {
+        signalColor: this.options.style.missingNodeTextFill,
+        progressColor: this.options.style.signalRunningFill,
+        showProgress: false,
+        showIndeterminateProgress: false
+      };
+    }
+
+    const executionState = this.options.resolveNodeExecutionState(node.id);
+    const progress = this.resolveExecutionProgress(executionState);
+    const running = executionState?.status === "running";
+    const longTask = this.isNodeLongTask(node);
+    const showIndeterminateProgress =
+      running && longTask && typeof progress !== "number";
+    const showProgress = running && (typeof progress === "number" || showIndeterminateProgress);
+
+    return {
+      signalColor: this.resolveSignalColor(executionState),
+      progressColor: this.options.style.signalRunningFill,
+      progress,
+      showProgress,
+      showIndeterminateProgress,
+      errorMessage: this.resolveExecutionErrorMessage(executionState)
+    };
+  }
+
+  /**
+   * 同步左上角旧信号灯颜色。
+   *
+   * @param state - 当前节点视图状态。
+   * @param theme - 当前主题。
+   * @param visualState - 已解析的视觉状态。
+   * @returns 无返回值。
+   */
+  private applySignalStyles(
+    state: NodeViewState<TNodeState>,
+    theme: NodeShellRenderTheme,
+    visualState: ResolvedNodeShellVisualState
+  ): void {
+    state.shellView.signalGlow.fill = visualState.signalColor;
+    state.shellView.signalGlow.opacity = theme.signalGlowOpacity;
+    state.shellView.signalLight.fill = visualState.signalColor;
+  }
+
+  /**
+   * 同步 determinate / indeterminate 进度外环。
+   *
+   * @param state - 当前节点视图状态。
+   * @param visualState - 已解析的视觉状态。
+   * @returns 无返回值。
+   */
+  private applyProgressRingStyles(
+    state: NodeViewState<TNodeState>,
+    visualState: ResolvedNodeShellVisualState
+  ): void {
+    const progressTrack = state.shellView.progressTrack;
+    const progressRing = state.shellView.progressRing;
+    const progressGeometry = state.shellView.progressGeometry;
+    if (!progressTrack || !progressRing || !progressGeometry) {
+      this.unregisterIndeterminateProgressNode(state.state.id);
+      return;
+    }
+
+    progressTrack.visible = visualState.showProgress;
+    progressTrack.opacity = visualState.showProgress ? 1 : 0;
+    progressRing.visible = visualState.showProgress;
+    progressRing.stroke = visualState.progressColor;
+
+    if (!visualState.showProgress) {
+      progressRing.path = "";
+      this.unregisterIndeterminateProgressNode(state.state.id);
+      return;
+    }
+
+    if (typeof visualState.progress === "number") {
+      progressRing.path = buildNodeShellProgressSegmentPath(
+        progressGeometry,
+        0,
+        visualState.progress
+      );
+      this.unregisterIndeterminateProgressNode(state.state.id);
+      return;
+    }
+
+    if (!visualState.showIndeterminateProgress) {
+      progressRing.path = "";
+      this.unregisterIndeterminateProgressNode(state.state.id);
+      return;
+    }
+
+    if (this.shouldReduceMotion()) {
+      progressRing.path = this.buildStaticIndeterminateProgressPath(
+        progressGeometry
+      );
+      this.unregisterIndeterminateProgressNode(state.state.id);
+      return;
+    }
+
+    this.registerIndeterminateProgressNode(state.state.id);
+    this.updateIndeterminateProgressPath(state, this.now());
+  }
+
+  /**
+   * 当前节点是否被声明为长耗时任务节点。
+   *
+   * @param node - 目标节点。
+   * @returns 是否为长耗时节点。
+   */
+  private isNodeLongTask(node: TNodeState): boolean {
+    return Boolean(this.options.nodeRegistry.getNode(node.type)?.shell?.longTask);
+  }
+
+  /**
+   * 从执行状态里读取 shell 可用的 determinate progress。
+   *
+   * @param executionState - 当前执行状态。
+   * @returns 归一后的 progress。
+   */
+  private resolveExecutionProgress(
+    executionState: LeaferGraphNodeExecutionState | undefined
+  ): number | undefined {
+    if (executionState?.status !== "running") {
+      return undefined;
+    }
+
+    const progress = executionState.progress;
+    if (typeof progress !== "number" || !Number.isFinite(progress)) {
+      return undefined;
+    }
+
+    return Math.max(0, Math.min(1, progress));
+  }
+
+  /**
+   * 注册一个需要 indeterminate 进度动画的节点。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
+  private registerIndeterminateProgressNode(nodeId: string): void {
+    this.activeIndeterminateNodeIds.add(nodeId);
+    this.ensureIndeterminateProgressLoop();
+  }
+
+  /**
+   * 取消一个 indeterminate 进度动画节点。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
+  private unregisterIndeterminateProgressNode(nodeId: string): void {
+    this.activeIndeterminateNodeIds.delete(nodeId);
+    if (!this.activeIndeterminateNodeIds.size) {
+      this.stopIndeterminateProgressLoop();
+    }
+  }
+
+  /**
+   * 确保 indeterminate 进度外环的 RAF 循环已启动。
+   *
+   * @returns 无返回值。
+   */
+  private ensureIndeterminateProgressLoop(): void {
+    if (this.frameId !== null || !this.ownerWindow || !this.activeIndeterminateNodeIds.size) {
+      return;
+    }
+
+    this.frameId = this.ownerWindow.requestAnimationFrame(
+      this.handleIndeterminateProgressFrame
+    );
+  }
+
+  /**
+   * 停止 indeterminate 进度外环 RAF 循环。
+   *
+   * @returns 无返回值。
+   */
+  private stopIndeterminateProgressLoop(): void {
+    if (this.frameId === null || !this.ownerWindow) {
+      this.frameId = null;
+      return;
+    }
+
+    this.ownerWindow.cancelAnimationFrame(this.frameId);
+    this.frameId = null;
+  }
+
+  /**
+   * 在一帧里更新全部活动中的 indeterminate 进度外环。
+   *
+   * @param timestamp - 当前帧时间戳。
+   * @returns 无返回值。
+   */
+  private readonly handleIndeterminateProgressFrame = (timestamp: number): void => {
+    this.frameId = null;
+    if (!this.activeIndeterminateNodeIds.size) {
+      return;
+    }
+
+    let hasActiveNodes = false;
+    let changed = false;
+
+    if (this.shouldReduceMotion()) {
+      for (const nodeId of [...this.activeIndeterminateNodeIds]) {
+        const state = this.options.nodeViews.get(nodeId) as
+          | NodeViewState<TNodeState>
+          | undefined;
+        const geometry = state?.shellView.progressGeometry;
+        const ring = state?.shellView.progressRing;
+        if (!state || !geometry || !ring) {
+          this.activeIndeterminateNodeIds.delete(nodeId);
+          continue;
+        }
+
+        ring.path = this.buildStaticIndeterminateProgressPath(geometry);
+        changed = true;
+        this.activeIndeterminateNodeIds.delete(nodeId);
+      }
+
+      if (changed) {
+        this.options.renderFrame();
+      }
+      return;
+    }
+
+    for (const nodeId of [...this.activeIndeterminateNodeIds]) {
+      const state = this.options.nodeViews.get(nodeId) as
+        | NodeViewState<TNodeState>
+        | undefined;
+      if (!state) {
+        this.activeIndeterminateNodeIds.delete(nodeId);
+        continue;
+      }
+
+      const visualState = this.resolveNodeShellVisualState(state.state);
+      if (!visualState.showIndeterminateProgress) {
+        this.activeIndeterminateNodeIds.delete(nodeId);
+        continue;
+      }
+
+      hasActiveNodes = true;
+      changed = this.updateIndeterminateProgressPath(state, timestamp) || changed;
+    }
+
+    if (changed) {
+      this.options.renderFrame();
+    }
+
+    if (hasActiveNodes) {
+      this.ensureIndeterminateProgressLoop();
+    }
+  };
+
+  /**
+   * 更新单个节点 indeterminate 进度外环路径。
+   *
+   * @param state - 当前节点视图状态。
+   * @param timestamp - 当前时间戳。
+   * @returns 当前路径是否被更新。
+   */
+  private updateIndeterminateProgressPath(
+    state: NodeViewState<TNodeState>,
+    timestamp: number
+  ): boolean {
+    const progressRing = state.shellView.progressRing;
+    const progressGeometry = state.shellView.progressGeometry;
+    if (!progressRing || !progressGeometry) {
+      return false;
+    }
+
+    const nextPath = buildNodeShellProgressSegmentPath(
+      progressGeometry,
+      (timestamp * NODE_SHELL_INDETERMINATE_PROGRESS_SPEED) % 1,
+      NODE_SHELL_INDETERMINATE_PROGRESS_SEGMENT_RATIO
+    );
+    if (progressRing.path === nextPath) {
+      return false;
+    }
+
+    progressRing.path = nextPath;
+    return true;
+  }
+
+  /**
+   * reduced motion 模式下的静态运行中外环。
+   *
+   * @param progressGeometry - 当前外环几何。
+   * @returns 静态片段路径。
+   */
+  private buildStaticIndeterminateProgressPath(
+    progressGeometry: NonNullable<NodeShellView["progressGeometry"]>
+  ): string {
+    return buildNodeShellProgressSegmentPath(
+      progressGeometry,
+      0,
+      NODE_SHELL_INDETERMINATE_PROGRESS_SEGMENT_RATIO
+    );
+  }
+
+  /**
+   * 当前环境是否要求减少动态效果。
+   *
+   * @returns 当前是否需要 reduced motion。
+   */
+  private shouldReduceMotion(): boolean {
+    if (!this.options.respectReducedMotion) {
+      return false;
+    }
+
+    return Boolean(
+      this.ownerWindow?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    );
+  }
+
+  /**
+   * 读取统一动画时钟。
+   *
+   * @returns 当前时钟。
+   */
+  private now(): number {
+    return this.ownerWindow?.performance?.now?.() ?? Date.now();
   }
 
   /**
@@ -429,11 +850,13 @@ export class LeaferGraphNodeShellHost<
   /**
    * 解析节点状态灯颜色。
    *
-   * @param node - 目标节点。
+   * @param executionState - 当前执行状态。
    * @returns 当前节点状态灯颜色。
    */
-  private resolveSignalColor(node: TNodeState): string {
-    switch (this.options.resolveNodeExecutionState(node.id)?.status) {
+  private resolveSignalColor(
+    executionState: LeaferGraphNodeExecutionState | undefined
+  ): string {
+    switch (executionState?.status) {
       case "running":
         return this.options.style.signalRunningFill;
       case "success":
@@ -448,11 +871,12 @@ export class LeaferGraphNodeShellHost<
   /**
    * 解析节点当前是否需要在画布里展示错误文案。
    *
-   * @param nodeId - 目标节点 ID。
+   * @param executionState - 当前执行状态。
    * @returns 当前错误文案。
    */
-  private resolveExecutionErrorMessage(nodeId: string): string | undefined {
-    const executionState = this.options.resolveNodeExecutionState(nodeId);
+  private resolveExecutionErrorMessage(
+    executionState: LeaferGraphNodeExecutionState | undefined
+  ): string | undefined {
     if (executionState?.status !== "error") {
       return undefined;
     }
@@ -472,4 +896,3 @@ export class LeaferGraphNodeShellHost<
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 }
-

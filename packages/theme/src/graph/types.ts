@@ -85,6 +85,12 @@ export interface NodeShellRenderTheme {
   selectedRingStrokeWidth: number;
   /** 选中外环透明度。 */
   selectedRingOpacity: number;
+  /** 进度外环向外扩张距离。 */
+  progressRingOutset: number;
+  /** 进度外环描边宽度。 */
+  progressRingStrokeWidth: number;
+  /** 进度外环轨道颜色。 */
+  progressTrackStroke: string;
   /** resize 句柄填充色。 */
   resizeHandleFill: string;
   /** resize 句柄描边色。 */
@@ -151,6 +157,22 @@ export interface NodeShellRenderTheme {
   signalLightSize: number;
   /** 状态灯可点击热区的额外补白。 */
   signalHitPadding: number;
+  /** signal badge 与状态灯之间的间距。 */
+  signalBadgeGap: number;
+  /** signal badge 宽度。 */
+  signalBadgeWidth: number;
+  /** signal badge 高度。 */
+  signalBadgeHeight: number;
+  /** signal badge 描边宽度。 */
+  signalBadgeStrokeWidth: number;
+  /** signal badge 字体族。 */
+  signalBadgeFontFamily: string;
+  /** signal badge 字号。 */
+  signalBadgeFontSize: number;
+  /** signal badge 字重。 */
+  signalBadgeFontWeight: string;
+  /** signal 活跃点尺寸。 */
+  signalActivityDotSize: number;
   /** Widget 区域默认填充色。 */
   widgetFill: string;
   /** Widget 容器阴影配置。 */

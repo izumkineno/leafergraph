@@ -286,6 +286,7 @@ export function createLeaferGraphRuntimeAssembly<
     interactionHost: sceneRuntime.interactionHost,
     interactionRuntime: sceneRuntime.interactionRuntimeHost,
     nodeRuntimeHost: sceneRuntime.nodeRuntimeHost,
+    nodeShellHost: sceneRuntime.nodeShellHost,
     dataFlowAnimationHost: sceneRuntime.dataFlowAnimationHost,
     graphExecutionHost: sceneRuntime.graphExecutionHost,
     themeHost: widgetEnvironment.themeHost,

@@ -46,7 +46,10 @@ import {
   loadAuthoringBundleRegistration,
   type ExampleAuthoringBundleRegistration
 } from "./example_authoring_bundle_loader";
-import { miniGraphExampleDemoPlugin } from "./example_demo_plugin";
+import {
+  EXAMPLE_LONG_TASK_PROBE_NODE_TYPE,
+  miniGraphExampleDemoPlugin
+} from "./example_demo_plugin";
 import { createEmptyExampleDocument } from "./example_document";
 import {
   createExampleContextMenu,
@@ -120,6 +123,7 @@ const EXAMPLE_MINI_GRAPH_CONFIG = {
 
 /** Widget 文本编辑器当前会把 DOM 挂到 body，这里用 class 统一判断编辑态。 */
 const WIDGET_TEXT_EDITOR_SELECTOR = ".leafergraph-widget-text-editor";
+const AUTHORING_BASIC_DELAY_NODE_TYPE = "events/delay";
 
 /** 键盘 paste / duplicate 没有画布点击点时，沿用和菜单 builtins 一致的偏移量。 */
 const DEFAULT_CLIPBOARD_PASTE_OFFSET = {
@@ -151,7 +155,7 @@ const EXAMPLE_CHAIN_STEPS = [
     id: "context-menu",
     title: "右键菜单入口",
     description:
-      "右键画布可直接插入动画示例链，或从当前节点注册表里创建 System / Example 节点。"
+      "右键画布可直接插入动画示例链、长任务测试链和 Delay 长任务示例链；Delay 示例链会在首次使用时按需加载 authoring-basic-nodes，并用进度外圈展示等待进度。"
   },
   {
     id: "register-bundle",
@@ -642,6 +646,11 @@ export function useExampleGraph(): UseExampleGraphResult {
   const registeredBundleFingerprintsRef = useRef(new Set<string>());
   const registeredBundlesRef = useRef<ExampleRegisteredBundleEntry[]>([]);
   const trackedLinksRef = useRef(new Map<string, ExampleTrackedLinkEntry>());
+  const longTaskProbeDemoTimeoutIdsRef = useRef<number[]>([]);
+  const autoRegisteredAuthoringBasicNodesRef = useRef(false);
+  const authoringBasicNodesRegistrationPromiseRef = useRef<Promise<boolean> | null>(
+    null
+  );
   const logEntrySeedRef = useRef(1);
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
   const [historyState, setHistoryState] =
@@ -695,6 +704,220 @@ export function useExampleGraph(): UseExampleGraphResult {
     requestAnimationFrame(() => {
       graphRef.current?.fitView(DEFAULT_FIT_VIEW_PADDING);
     });
+  };
+
+  /**
+   * 清理仍在排队的 long-task probe 演示定时器。
+   *
+   * @returns 无返回值。
+   */
+  const clearLongTaskProbeDemoPlayback = (): void => {
+    const ownerWindow =
+      stageRef.current?.ownerDocument.defaultView ??
+      (typeof window === "undefined" ? undefined : window);
+
+    if (!ownerWindow) {
+      longTaskProbeDemoTimeoutIdsRef.current = [];
+      return;
+    }
+
+    for (const timeoutId of longTaskProbeDemoTimeoutIdsRef.current) {
+      ownerWindow.clearTimeout(timeoutId);
+    }
+
+    longTaskProbeDemoTimeoutIdsRef.current = [];
+  };
+
+  /**
+   * 安排一段 long-task probe 演示步骤。
+   *
+   * @param callback - 回调。
+   * @param delayMs - 延迟毫秒数。
+   * @returns 无返回值。
+   */
+  const scheduleLongTaskProbeDemoStep = (
+    callback: () => void,
+    delayMs: number
+  ): void => {
+    const ownerWindow =
+      stageRef.current?.ownerDocument.defaultView ??
+      (typeof window === "undefined" ? undefined : window);
+
+    if (!ownerWindow) {
+      callback();
+      return;
+    }
+
+    const timeoutId = ownerWindow.setTimeout(() => {
+      longTaskProbeDemoTimeoutIdsRef.current =
+        longTaskProbeDemoTimeoutIdsRef.current.filter(
+          (currentTimeoutId) => currentTimeoutId !== timeoutId
+        );
+      callback();
+    }, delayMs);
+
+    longTaskProbeDemoTimeoutIdsRef.current.push(timeoutId);
+  };
+
+  /**
+   * 投影一条 probe 节点执行反馈，用于稳定演示 shell 状态。
+   *
+   * @param input - 输入参数。
+   * @returns 是否成功投影。
+   */
+  const projectLongTaskProbeExecutionState = (input: {
+    nodeId: string;
+    chainId: string;
+    sequence: number;
+    startedAt: number;
+    runCount: number;
+    status: "running" | "success";
+    progress?: number;
+  }): boolean => {
+    const graph = graphRef.current;
+    if (!graph) {
+      return false;
+    }
+
+    const snapshot = graph.getNodeSnapshot(input.nodeId);
+    if (!snapshot) {
+      return false;
+    }
+
+    const timestamp = Date.now();
+    graph.projectRuntimeFeedback({
+      type: "node.execution",
+      event: {
+        chainId: input.chainId,
+        rootNodeId: snapshot.id,
+        rootNodeType: snapshot.type,
+        rootNodeTitle: snapshot.title,
+        nodeId: snapshot.id,
+        nodeType: snapshot.type,
+        nodeTitle: snapshot.title,
+        depth: 0,
+        sequence: input.sequence,
+        source: "node-play",
+        trigger: "direct",
+        timestamp,
+        executionContext: {
+          source: "node-play",
+          entryNodeId: snapshot.id,
+          stepIndex: Math.max(input.sequence - 1, 0),
+          startedAt: input.startedAt
+        },
+        state:
+          input.status === "success"
+            ? {
+                status: "success",
+                runCount: input.runCount,
+                lastSucceededAt: timestamp
+              }
+            : {
+                status: "running",
+                runCount: input.runCount,
+                progress: input.progress
+              }
+      }
+    });
+
+    return true;
+  };
+
+  /**
+   * 自动播放一次 long-task probe 状态演示。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 无返回值。
+   */
+  const playLongTaskProbeDemo = (nodeId: string): void => {
+    const graph = graphRef.current;
+    if (!graph) {
+      appendLog("图实例尚未就绪，暂时无法播放 Long Task Probe 演示");
+      return;
+    }
+
+    const snapshot = graph.getNodeSnapshot(nodeId);
+    if (!snapshot) {
+      appendLog(`Long Task Probe 节点不存在：${nodeId}`);
+      return;
+    }
+
+    clearLongTaskProbeDemoPlayback();
+    graph.setSelectedNodeIds([nodeId], "replace");
+    scheduleFitView();
+
+    const startedAt = Date.now();
+    const chainId = `mini-graph-long-task-demo:${nodeId}:${startedAt}`;
+    const baseRunCount = Math.max(
+      graph.getNodeExecutionState(nodeId)?.runCount ?? 0,
+      1
+    );
+    const played = graph.play();
+
+    appendLog(
+      played
+        ? `已启动 Long Task Probe 演示：${snapshot.title}`
+        : `Long Task Probe 演示已开始投影：${snapshot.title}`
+    );
+
+    scheduleLongTaskProbeDemoStep(() => {
+      projectLongTaskProbeExecutionState({
+        nodeId,
+        chainId,
+        sequence: 1,
+        startedAt,
+        runCount: baseRunCount,
+        status: "running"
+      });
+    }, 0);
+    scheduleLongTaskProbeDemoStep(() => {
+      projectLongTaskProbeExecutionState({
+        nodeId,
+        chainId,
+        sequence: 2,
+        startedAt,
+        runCount: baseRunCount,
+        status: "running",
+        progress: 0.22
+      });
+    }, 480);
+    scheduleLongTaskProbeDemoStep(() => {
+      projectLongTaskProbeExecutionState({
+        nodeId,
+        chainId,
+        sequence: 3,
+        startedAt,
+        runCount: baseRunCount,
+        status: "running",
+        progress: 0.52
+      });
+    }, 1020);
+    scheduleLongTaskProbeDemoStep(() => {
+      projectLongTaskProbeExecutionState({
+        nodeId,
+        chainId,
+        sequence: 4,
+        startedAt,
+        runCount: baseRunCount,
+        status: "running",
+        progress: 0.82
+      });
+    }, 1620);
+    scheduleLongTaskProbeDemoStep(() => {
+      const projected = projectLongTaskProbeExecutionState({
+        nodeId,
+        chainId,
+        sequence: 5,
+        startedAt,
+        runCount: baseRunCount,
+        status: "success"
+      });
+
+      if (projected) {
+        appendLog(`Long Task Probe 演示完成：${snapshot.title}`);
+      }
+    }, 2300);
   };
 
   /**
@@ -1014,6 +1237,64 @@ export function useExampleGraph(): UseExampleGraphResult {
   };
 
   /**
+   * 右键菜单首次需要 Delay 示例链时，再懒加载 authoring-basic-nodes。
+   *
+   * @param graph - 当前图实例。
+   * @returns 是否已确保相关节点可用。
+   */
+  const ensureAuthoringBasicNodesRegistered = async (
+    graph: LeaferGraph
+  ): Promise<boolean> => {
+    if (graph.listNodes().some((node) => node.type === AUTHORING_BASIC_DELAY_NODE_TYPE)) {
+      return true;
+    }
+
+    if (authoringBasicNodesRegistrationPromiseRef.current) {
+      return authoringBasicNodesRegistrationPromiseRef.current;
+    }
+
+    const registrationPromise = (async () => {
+      try {
+        const module = await import("../../../authoring-basic-nodes/src/index.ts");
+        graph.use(module.default);
+        autoRegisteredAuthoringBasicNodesRef.current = true;
+        appendLog(
+          "已为右键菜单加载 authoring-basic-nodes，可直接插入 Delay 长任务示例链"
+        );
+        return true;
+      } catch (error) {
+        appendLog(
+          error instanceof Error
+            ? `加载 authoring-basic-nodes 失败：${error.message}`
+            : "加载 authoring-basic-nodes 失败"
+        );
+        return false;
+      } finally {
+        authoringBasicNodesRegistrationPromiseRef.current = null;
+      }
+    })();
+
+    authoringBasicNodesRegistrationPromiseRef.current = registrationPromise;
+    return registrationPromise;
+  };
+
+  /**
+   * graph 重建后，如右键菜单曾按需启用过 authoring-basic-nodes，则同步重放。
+   *
+   * @param graph - 当前图实例。
+   * @returns 是否重放成功。
+   */
+  const replayAutoRegisteredAuthoringBasicNodes = async (
+    graph: LeaferGraph
+  ): Promise<boolean> => {
+    if (!autoRegisteredAuthoringBasicNodesRef.current) {
+      return true;
+    }
+
+    return ensureAuthoringBasicNodesRegistered(graph);
+  };
+
+  /**
    *  统一创建节点，并把日志语义收口到 hook 内部。
    *
    * @param input - 输入参数。
@@ -1095,6 +1376,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       return;
     }
 
+    clearLongTaskProbeDemoPlayback();
     graph.stop();
     graph.replaceGraphDocument(createEmptyExampleDocument());
     clearTrackedLinks();
@@ -1414,6 +1696,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       restoreLeaferDebugConfig();
       window.removeEventListener("resize", handleWindowResize);
 
+      clearLongTaskProbeDemoPlayback();
       clearTrackedLinks();
       setHistoryState(createEmptyHistoryState());
       nodeIdsRef.current.clear();
@@ -1491,7 +1774,10 @@ export function useExampleGraph(): UseExampleGraphResult {
           return;
         }
 
-        const replaySucceeded = await replayRegisteredBundles(graph);
+        const replayAutoRegisteredSucceeded =
+          await replayAutoRegisteredAuthoringBasicNodes(graph);
+        const replaySucceeded =
+          replayAutoRegisteredSucceeded && (await replayRegisteredBundles(graph));
         setAuthoringBundleStatus(
           registeredBundlesRef.current.length
             ? replaySucceeded
@@ -1586,7 +1872,7 @@ export function useExampleGraph(): UseExampleGraphResult {
           `历史已启用：最多保留 ${undoRedoBinding.config.maxEntries} 条，文档同步重置=${undoRedoBinding.config.resetOnDocumentSync ? "on" : "off"}`
         );
         appendLog(
-          "右键画布可直接插入动画示例链，或从 Example 分类添加 Event Relay / Tick Monitor"
+          "右键画布可直接插入动画示例链、长任务测试链和 Delay 长任务示例链"
         );
         appendLog("可点击顶部按钮选择编译后的 JS bundle 来注册 authoring 库");
         appendLog("Leafer 右键菜单已就绪，可右键画布添加节点，右键节点或连线执行删除");
@@ -1642,6 +1928,16 @@ export function useExampleGraph(): UseExampleGraphResult {
       fit: actions.fit,
       reset: actions.reset,
       clearLog: actions.clearLog,
+      ensureAuthoringBasicNodesRegistered: async () => {
+        const activeGraph = graphRef.current;
+        if (!activeGraph) {
+          appendLog("图实例尚未就绪，暂时无法加载 Delay 示例链所需节点");
+          return false;
+        }
+
+        return ensureAuthoringBasicNodesRegistered(activeGraph);
+      },
+      playLongTaskProbeDemo,
       listNodeIds() {
         return [...nodeIdsRef.current];
       },
@@ -1799,6 +2095,75 @@ export function useExampleGraph(): UseExampleGraphResult {
       shortcutsBinding.destroy();
     };
   }, [status]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") {
+      return;
+    }
+
+    const debugWindow = window as Window & {
+      __MINI_GRAPH_TEST__?: {
+        getGraph(): LeaferGraph | null;
+        getStatus(): typeof status;
+        listNodeIds(): string[];
+        createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState;
+        createLink(input: LeaferGraphCreateLinkInput): GraphLink;
+        createLongTaskProbe(position?: { x?: number; y?: number }): NodeRuntimeState;
+        selectNode(nodeId: string): void;
+        fit(): void;
+        playLongTaskProbeDemo(nodeId: string): void;
+        play(): void;
+        stop(): void;
+        reset(): void;
+        appendLog(message: string): void;
+      };
+    };
+
+    debugWindow.__MINI_GRAPH_TEST__ = {
+      getGraph: () => graphRef.current,
+      getStatus: () => status,
+      listNodeIds: () => [...nodeIdsRef.current],
+      createNode: createNodeWithLogging,
+      createLink: createLinkWithLogging,
+      createLongTaskProbe(position) {
+        return createNodeWithLogging({
+          type: EXAMPLE_LONG_TASK_PROBE_NODE_TYPE,
+          x: position?.x ?? 180,
+          y: position?.y ?? 160
+        });
+      },
+      selectNode(nodeId) {
+        graphRef.current?.setSelectedNodeIds([nodeId], "replace");
+      },
+      fit() {
+        actions.fit();
+      },
+      playLongTaskProbeDemo(nodeId) {
+        playLongTaskProbeDemo(nodeId);
+      },
+      play() {
+        actions.play();
+      },
+      stop() {
+        actions.stop();
+      },
+      reset() {
+        actions.reset();
+      },
+      appendLog
+    };
+
+    return () => {
+      delete debugWindow.__MINI_GRAPH_TEST__;
+    };
+  }, [
+    actions,
+    appendLog,
+    createLinkWithLogging,
+    createNodeWithLogging,
+    playLongTaskProbeDemo,
+    status
+  ]);
 
   return {
     stageRef,

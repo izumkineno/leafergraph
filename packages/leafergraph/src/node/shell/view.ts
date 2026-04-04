@@ -11,6 +11,12 @@ export type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
 import type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./layout";
 import {
+  buildNodeShellProgressSegmentPath,
+  buildNodeShellProgressTrackPath,
+  createNodeShellProgressGeometry,
+  type NodeShellProgressGeometry
+} from "./progress_ring";
+import {
   resolveNodePortHitAreaBounds,
   type NodeShellPortLayout
 } from "./ports";
@@ -26,6 +32,9 @@ export interface CreateNodeShellOptions {
   y: number;
   title: string;
   signalColor: string;
+  progressColor?: string;
+  progress?: number;
+  showIndeterminateProgress?: boolean;
   errorMessage?: string;
   selectedStroke: string;
   shellLayout: NodeShellLayout;
@@ -52,8 +61,13 @@ export interface NodeShellView {
   view: Group;
   card: Rect;
   selectedRing: Rect;
+  progressTrack: Path | null;
+  progressRing: Path | null;
+  progressGeometry: NodeShellProgressGeometry | null;
   header: Rect;
   headerDivider: Rect;
+  signalGlow: Rect;
+  signalLight: Rect;
   signalButton: Rect;
   categoryBadge: Rect;
   categoryLabel: Text;
@@ -81,6 +95,9 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     y,
     title,
     signalColor,
+    progressColor,
+    progress,
+    showIndeterminateProgress,
     errorMessage,
     selectedStroke,
     shellLayout,
@@ -94,6 +111,49 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     y,
     id: `node-${nodeId}`,
     name: `node-${nodeId}`
+  });
+
+  const progressGeometry = createNodeShellProgressGeometry({
+    x: -theme.progressRingOutset,
+    y: -theme.progressRingOutset,
+    width: shellLayout.width + theme.progressRingOutset * 2,
+    height: shellLayout.height + theme.progressRingOutset * 2,
+    radius: theme.nodeRadius + theme.progressRingOutset
+  });
+
+  const progressTrack = new Path({
+    path: buildNodeShellProgressTrackPath(progressGeometry),
+    stroke: theme.progressTrackStroke,
+    strokeWidth: theme.progressRingStrokeWidth,
+    strokeCap: "round",
+    strokeJoin: "round",
+    fill: "transparent",
+    opacity:
+      typeof progress === "number" || showIndeterminateProgress ? 1 : 0,
+    visible: Boolean(
+      typeof progressColor === "string" &&
+      progressColor &&
+      (typeof progress === "number" || showIndeterminateProgress)
+    ),
+    hittable: false
+  });
+
+  const progressRing = new Path({
+    path: resolveInitialProgressRingPath(progressGeometry, {
+      progress,
+      showIndeterminateProgress: Boolean(showIndeterminateProgress)
+    }),
+    stroke: progressColor || signalColor,
+    strokeWidth: theme.progressRingStrokeWidth,
+    strokeCap: "round",
+    strokeJoin: "round",
+    fill: "transparent",
+    visible: Boolean(
+      typeof progressColor === "string" &&
+      progressColor &&
+      (typeof progress === "number" || showIndeterminateProgress)
+    ),
+    hittable: false
   });
 
   const selectedRing = new Rect({
@@ -206,8 +266,10 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     cursor: "pointer"
   });
 
-  const signalButtonRight = theme.signalGlowX + theme.signalGlowSize + theme.signalHitPadding;
-  const titleX = signalButtonRight + theme.titleSignalGap;
+  const titleX = Math.max(
+    theme.titleX,
+    theme.signalGlowX + theme.signalGlowSize + theme.titleSignalGap
+  );
   
   const titleLabel = new Text({
     x: titleX,
@@ -223,7 +285,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   const titleHitArea = new Rect({
     x: titleX - 4,
     y: 2,
-    width: shellLayout.width - titleX - 4,
+    width: Math.max(shellLayout.width - titleX - 4, 20),
     height: theme.headerHeight - 4,
     fill: "rgba(255, 255, 255, 0.001)",
     cornerRadius: 4,
@@ -415,7 +477,14 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   });
   resizeHandle.add([resizeHandleHitArea, resizeHandleIcon]);
 
-  group.add([selectedRing, ...parts, widgetLayer, resizeHandle]);
+  group.add([
+    progressTrack,
+    selectedRing,
+    progressRing,
+    ...parts,
+    widgetLayer,
+    resizeHandle
+  ]);
 
   if (normalizedErrorMessage) {
     const errorBadgeX = 12;
@@ -453,8 +522,13 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     view: group,
     card,
     selectedRing,
+    progressTrack,
+    progressRing,
+    progressGeometry,
     header,
     headerDivider,
+    signalGlow,
+    signalLight,
     signalButton,
     categoryBadge,
     categoryLabel,
@@ -675,4 +749,40 @@ function resolveSlotFrameCornerRadius(
   size: number
 ): number {
   return resolveSlotCornerRadius(shape, size);
+}
+
+const NODE_SHELL_INDETERMINATE_PROGRESS_SEGMENT_RATIO = 0.18;
+
+/**
+ * 解析进度外环的初始路径。
+ *
+ * @param geometry - 进度外环几何。
+ * @param options - 进度显示选项。
+ * @returns 初始路径字符串。
+ */
+function resolveInitialProgressRingPath(
+  geometry: NodeShellProgressGeometry,
+  options: {
+    progress?: number;
+    showIndeterminateProgress: boolean;
+  }
+): string {
+  const normalizedProgress =
+    typeof options.progress === "number"
+      ? Math.max(0, Math.min(options.progress, 1))
+      : undefined;
+
+  if (typeof normalizedProgress === "number" && normalizedProgress > 0) {
+    return buildNodeShellProgressSegmentPath(geometry, 0, normalizedProgress);
+  }
+
+  if (options.showIndeterminateProgress) {
+    return buildNodeShellProgressSegmentPath(
+      geometry,
+      0,
+      NODE_SHELL_INDETERMINATE_PROGRESS_SEGMENT_RATIO
+    );
+  }
+
+  return "";
 }

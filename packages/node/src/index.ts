@@ -36,6 +36,7 @@ export type {
   NodeModule,
   NodeModuleScope,
   NodeResizeConfig,
+  NodeShellConfig,
   WidgetDefinition
 } from "./definition.js";
 /** 节点注册表控制项。 */

@@ -119,6 +119,11 @@ export interface LeaferGraphApiRuntime<
     /** 销毁数据流动画宿主。 */
     destroy(): void;
   };
+  /** 节点壳状态动画宿主。 */
+  nodeShellHost: {
+    /** 销毁节点壳状态动画宿主。 */
+    destroy(): void;
+  };
   /** 场景 runtime 提供的最小图操作能力集合。 */
   sceneRuntime: Pick<
     LeaferGraphSceneRuntimeHost<TNodeState, LeaferGraphApiNodeViewState<TNodeState>>,

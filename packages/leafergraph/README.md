@@ -209,4 +209,5 @@ bun run test:leafergraph
 - [使用与扩展指南](./使用与扩展指南.md)
 - [内部架构地图](./内部架构地图.md)
 - [渲染刷新策略](./渲染刷新策略.md)
+- [节点状态与外壳规范](../../docs/节点状态与外壳规范.md)
 - [mini-graph 示例](../../example/mini-graph/README.md)

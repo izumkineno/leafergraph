@@ -4,7 +4,9 @@ import type { LeaferGraphTimerRuntimePayload } from "../builtin/timer_node.js";
 import type {
   LeaferGraphExecutionSource,
   LeaferGraphGraphExecutionEvent,
-  LeaferGraphGraphExecutionState
+  LeaferGraphGraphExecutionState,
+  LeaferGraphNodeExecutionEvent,
+  LeaferGraphNodeExecutionState
 } from "../types.js";
 import type {
   LeaferGraphNodeExecutionHost,
@@ -34,6 +36,17 @@ interface LeaferGraphActiveTimer {
   startedAt: number;
   intervalMs: number;
   handle: ReturnType<typeof setTimeout>;
+  trackProgress: boolean;
+  progressChainId: string;
+  nextProgressSequence: number;
+  progressHandle?: ReturnType<typeof setTimeout>;
+  progressElapsedMs: number;
+}
+
+interface LeaferGraphTimerProgressNodeSnapshot {
+  id: string;
+  type: string;
+  title: string;
 }
 
 interface LeaferGraphGraphExecutionHostOptions<
@@ -44,10 +57,21 @@ interface LeaferGraphGraphExecutionHostOptions<
     | "listNodeIdsByType"
     | "createEntryExecutionTask"
     | "executeExecutionTask"
-  >;
+  > & {
+    getNodeExecutionState?(
+      nodeId: string
+    ): LeaferGraphNodeExecutionState | undefined;
+    getNodeSnapshot?(
+      nodeId: string
+    ): LeaferGraphTimerProgressNodeSnapshot | undefined;
+    projectExternalNodeExecution?(event: LeaferGraphNodeExecutionEvent): void;
+  };
 }
 
 let graphExecutionRunSeed = 1;
+const GRAPH_TIMER_PROGRESS_INTERVAL_STEP_COUNT = 6;
+const GRAPH_TIMER_PROGRESS_INTERVAL_MIN_MS = 80;
+const GRAPH_TIMER_PROGRESS_INTERVAL_MAX_MS = 220;
 
 /**
  * 封装 LeaferGraphGraphExecutionHost 的宿主能力。
@@ -114,7 +138,7 @@ export class LeaferGraphGraphExecutionHost<
    * @returns 无返回值。
    */
   projectExternalGraphExecution(event: LeaferGraphGraphExecutionEvent): void {
-    this.clearAllGraphTimers();
+    this.clearAllGraphTimers(false);
     this.activeRun = null;
     this.state = cloneGraphExecutionState(event.state);
 
@@ -189,7 +213,7 @@ export class LeaferGraphGraphExecutionHost<
     }
 
     const activeRun = this.activeRun;
-    this.clearGraphTimersForRun(activeRun.runId);
+    this.clearGraphTimersForRun(activeRun.runId, true);
     const stoppedAt = Date.now();
     this.activeRun = null;
     this.state = {
@@ -219,7 +243,7 @@ export class LeaferGraphGraphExecutionHost<
       Boolean(prevRun) || this.state.status !== "idle" || this.state.queueSize > 0;
     const stoppedAt = hadExecution ? Date.now() : this.state.stoppedAt;
 
-    this.clearAllGraphTimers();
+    this.clearAllGraphTimers(true);
     this.activeRun = null;
     this.state = {
       status: "idle",
@@ -500,7 +524,7 @@ export class LeaferGraphGraphExecutionHost<
       return;
     }
 
-    this.clearGraphTimersForRun(activeRun.runId);
+    this.clearGraphTimersForRun(activeRun.runId, false);
     const stoppedAt = Date.now();
     this.activeRun = null;
     this.state = {
@@ -543,6 +567,7 @@ export class LeaferGraphGraphExecutionHost<
           immediate: registration.immediate,
           timerId: registration.timerId,
           mode: registration.mode,
+          trackProgress: registration.trackProgress,
           source: input.source,
           runId: input.runId,
           startedAt: input.startedAt
@@ -550,7 +575,8 @@ export class LeaferGraphGraphExecutionHost<
       },
       unregisterGraphTimer: ({ nodeId, timerId }) => {
         this.clearGraphTimerByKey(
-          createGraphTimerKey(input.runId, nodeId, timerId)
+          createGraphTimerKey(input.runId, nodeId, timerId),
+          true
         );
       }
     };
@@ -568,6 +594,7 @@ export class LeaferGraphGraphExecutionHost<
     immediate: boolean;
     timerId?: string;
     mode?: "interval" | "timeout";
+    trackProgress?: boolean;
     source: LeaferGraphGraphExecutionSource;
     runId: string;
     startedAt: number;
@@ -581,6 +608,9 @@ export class LeaferGraphGraphExecutionHost<
     const timerMode = normalizeGraphTimerMode(input.mode);
     const timerKey = createGraphTimerKey(input.runId, input.nodeId, timerId);
     const intervalMs = normalizeGraphTimerInterval(input.intervalMs);
+    const trackProgress = Boolean(
+      input.trackProgress && timerMode === "timeout" && intervalMs > 0
+    );
     const existingTimer = this.activeTimersByKey.get(timerKey);
     // Interval timer 在 tick 回调开始时已经预订了下一次触发；
     // 如果本轮执行再次以同配置注册，就复用现有调度，避免把执行耗时叠进帧间隔。
@@ -593,7 +623,7 @@ export class LeaferGraphGraphExecutionHost<
       return;
     }
 
-    this.clearGraphTimerByKey(timerKey);
+    this.clearGraphTimerByKey(timerKey, false);
     const timerHandle = setTimeout(() => {
       this.handleGraphTimerTick(input.runId, input.nodeId, timerId);
     }, intervalMs);
@@ -607,9 +637,29 @@ export class LeaferGraphGraphExecutionHost<
       source: input.source,
       startedAt: input.startedAt,
       intervalMs,
-      handle: timerHandle
+      handle: timerHandle,
+      trackProgress,
+      progressChainId: createGraphTimerProgressChainId(
+        input.runId,
+        input.nodeId,
+        timerId
+      ),
+      nextProgressSequence: 0,
+      progressElapsedMs: 0
     });
     this.timerActivatedDuringAdvance = true;
+
+    if (trackProgress) {
+      queueMicrotask(() => {
+        const activeTimer = this.activeTimersByKey.get(timerKey);
+        if (!activeTimer?.trackProgress) {
+          return;
+        }
+
+        this.emitGraphTimerNodeExecution(activeTimer, "running", 0);
+        this.scheduleGraphTimerProgressTick(activeTimer.timerKey);
+      });
+    }
   }
 
   /**
@@ -645,7 +695,7 @@ export class LeaferGraphGraphExecutionHost<
       this.activeTimersByKey.set(timerKey, timer);
     } else {
       // 再执行核心更新步骤，并同步派生副作用与收尾状态。
-      this.activeTimersByKey.delete(timerKey);
+      this.clearGraphTimerByKey(timerKey, false);
     }
 
     const task = this.options.nodeExecutionHost.createEntryExecutionTask(nodeId, {
@@ -663,7 +713,7 @@ export class LeaferGraphGraphExecutionHost<
     });
 
     if (!task) {
-      this.clearGraphTimerByKey(timerKey);
+      this.clearGraphTimerByKey(timerKey, true);
       this.finalizeRunIfCompleted(activeRun);
       return;
     }
@@ -683,6 +733,125 @@ export class LeaferGraphGraphExecutionHost<
     if (this.activeRun) {
       this.finalizeRunIfCompleted(this.activeRun);
     }
+  }
+
+  /**
+   * 安排图定时器进度更新。
+   *
+   * @param timerKey - 定时器键值。
+   * @returns 无返回值。
+   */
+  private scheduleGraphTimerProgressTick(timerKey: string): void {
+    const timer = this.activeTimersByKey.get(timerKey);
+    if (!timer?.trackProgress) {
+      return;
+    }
+
+    if (timer.progressHandle) {
+      clearTimeout(timer.progressHandle);
+    }
+
+    timer.progressHandle = setTimeout(() => {
+      this.handleGraphTimerProgressTick(timerKey);
+    }, resolveGraphTimerProgressInterval(timer.intervalMs));
+    this.activeTimersByKey.set(timerKey, timer);
+  }
+
+  /**
+   * 处理图定时器进度更新。
+   *
+   * @param timerKey - 定时器键值。
+   * @returns 无返回值。
+   */
+  private handleGraphTimerProgressTick(timerKey: string): void {
+    const timer = this.activeTimersByKey.get(timerKey);
+    if (!timer?.trackProgress) {
+      return;
+    }
+
+    timer.progressHandle = undefined;
+    const nextElapsedMs = Math.min(
+      timer.progressElapsedMs + resolveGraphTimerProgressInterval(timer.intervalMs),
+      timer.intervalMs
+    );
+
+    if (nextElapsedMs >= timer.intervalMs) {
+      timer.progressElapsedMs = timer.intervalMs;
+      this.activeTimersByKey.set(timerKey, timer);
+      return;
+    }
+
+    timer.progressElapsedMs = nextElapsedMs;
+    this.activeTimersByKey.set(timerKey, timer);
+    this.emitGraphTimerNodeExecution(
+      timer,
+      "running",
+      nextElapsedMs / timer.intervalMs
+    );
+    this.scheduleGraphTimerProgressTick(timerKey);
+  }
+
+  /**
+   * 投影图定时器期间的节点执行态。
+   *
+   * @param timer - 活动定时器。
+   * @param status - 节点状态。
+   * @param progress - 当前进度。
+   * @returns 无返回值。
+   */
+  private emitGraphTimerNodeExecution(
+    timer: LeaferGraphActiveTimer,
+    status: "running" | "idle",
+    progress?: number
+  ): void {
+    const snapshot = this.options.nodeExecutionHost.getNodeSnapshot?.(timer.nodeId);
+    if (!snapshot) {
+      return;
+    }
+
+    const previousState =
+      this.options.nodeExecutionHost.getNodeExecutionState?.(timer.nodeId);
+    const safeProgress =
+      status === "running" ? normalizeGraphTimerProgress(progress) : undefined;
+
+    this.options.nodeExecutionHost.projectExternalNodeExecution?.({
+      chainId: timer.progressChainId,
+      rootNodeId: snapshot.id,
+      rootNodeType: snapshot.type,
+      rootNodeTitle: snapshot.title,
+      nodeId: snapshot.id,
+      nodeType: snapshot.type,
+      nodeTitle: snapshot.title,
+      depth: 0,
+      sequence: timer.nextProgressSequence++,
+      source: timer.source,
+      trigger: "direct",
+      timestamp: Date.now(),
+      executionContext: {
+        source: timer.source,
+        runId: timer.runId,
+        entryNodeId: snapshot.id,
+        stepIndex: timer.nextProgressSequence - 1,
+        startedAt: timer.startedAt
+      },
+      state:
+        status === "running"
+          ? {
+              status: "running",
+              runCount: previousState?.runCount ?? 0,
+              progress: safeProgress,
+              lastExecutedAt:
+                previousState?.lastExecutedAt ?? previousState?.lastSucceededAt
+            }
+          : {
+              status: "idle",
+              runCount: previousState?.runCount ?? 0,
+              lastExecutedAt: previousState?.lastExecutedAt,
+              lastSucceededAt: previousState?.lastSucceededAt,
+              lastFailedAt: previousState?.lastFailedAt,
+              lastErrorMessage: previousState?.lastErrorMessage
+            }
+    });
   }
 
   /**
@@ -707,14 +876,13 @@ export class LeaferGraphGraphExecutionHost<
    * @param runId - 当前运行 ID。
    * @returns 无返回值。
    */
-  private clearGraphTimersForRun(runId: string): void {
+  private clearGraphTimersForRun(runId: string, emitIdle: boolean): void {
     for (const [timerKey, timer] of this.activeTimersByKey.entries()) {
       if (timer.runId !== runId) {
         continue;
       }
 
-      clearTimeout(timer.handle);
-      this.activeTimersByKey.delete(timerKey);
+      this.clearActiveTimer(timerKey, timer, emitIdle);
     }
   }
 
@@ -723,11 +891,10 @@ export class LeaferGraphGraphExecutionHost<
    *
    * @returns 无返回值。
    */
-  private clearAllGraphTimers(): void {
-    for (const timer of this.activeTimersByKey.values()) {
-      clearTimeout(timer.handle);
+  private clearAllGraphTimers(emitIdle: boolean): void {
+    for (const [timerKey, timer] of this.activeTimersByKey.entries()) {
+      this.clearActiveTimer(timerKey, timer, emitIdle);
     }
-    this.activeTimersByKey.clear();
   }
 
   /**
@@ -736,14 +903,37 @@ export class LeaferGraphGraphExecutionHost<
    * @param timerKey - 定时器键值。
    * @returns 无返回值。
    */
-  private clearGraphTimerByKey(timerKey: string): void {
+  private clearGraphTimerByKey(timerKey: string, emitIdle: boolean): void {
     const timer = this.activeTimersByKey.get(timerKey);
     if (!timer) {
       return;
     }
 
+    this.clearActiveTimer(timerKey, timer, emitIdle);
+  }
+
+  /**
+   * 清理一个活动定时器，并按需把等待中的节点恢复到 idle。
+   *
+   * @param timerKey - 定时器键值。
+   * @param timer - 活动定时器。
+   * @param emitIdle - 是否同步投影 idle。
+   * @returns 无返回值。
+   */
+  private clearActiveTimer(
+    timerKey: string,
+    timer: LeaferGraphActiveTimer,
+    emitIdle: boolean
+  ): void {
     clearTimeout(timer.handle);
+    if (timer.progressHandle) {
+      clearTimeout(timer.progressHandle);
+    }
+
     this.activeTimersByKey.delete(timerKey);
+    if (emitIdle && timer.trackProgress) {
+      this.emitGraphTimerNodeExecution(timer, "idle");
+    }
   }
 
   /**
@@ -857,4 +1047,54 @@ function normalizeGraphTimerMode(
   mode: "interval" | "timeout" | undefined
 ): "interval" | "timeout" {
   return mode === "timeout" ? "timeout" : "interval";
+}
+
+/**
+ * 创建图定时器进度链路 ID。
+ *
+ * @param runId - 当前运行 ID。
+ * @param nodeId - 目标节点 ID。
+ * @param timerId - 当前定时器 ID。
+ * @returns 创建后的结果对象。
+ */
+function createGraphTimerProgressChainId(
+  runId: string,
+  nodeId: string,
+  timerId: string
+): string {
+  return `graph-timer:${runId}:${nodeId}:${timerId}`;
+}
+
+/**
+ * 解析图定时器进度更新间隔。
+ *
+ * @param intervalMs - 间隔毫秒数。
+ * @returns 处理后的结果。
+ */
+function resolveGraphTimerProgressInterval(intervalMs: number): number {
+  const stepMs = Math.floor(
+    normalizeGraphTimerInterval(intervalMs) / GRAPH_TIMER_PROGRESS_INTERVAL_STEP_COUNT
+  );
+
+  return Math.max(
+    GRAPH_TIMER_PROGRESS_INTERVAL_MIN_MS,
+    Math.min(
+      GRAPH_TIMER_PROGRESS_INTERVAL_MAX_MS,
+      stepMs || GRAPH_TIMER_PROGRESS_INTERVAL_MIN_MS
+    )
+  );
+}
+
+/**
+ * 规范化图定时器进度。
+ *
+ * @param progress - 原始进度值。
+ * @returns 处理后的结果。
+ */
+function normalizeGraphTimerProgress(progress: number | undefined): number | undefined {
+  if (typeof progress !== "number" || !Number.isFinite(progress)) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.min(1, progress));
 }

@@ -65,6 +65,15 @@ const NODE_SIGNAL_FILL = "#94A3B8";
 const NODE_SIGNAL_RUNNING_FILL = "#F59E0B";
 const NODE_SIGNAL_SUCCESS_FILL = "#10B981";
 const NODE_SIGNAL_ERROR_FILL = "#EF4444";
+const PROGRESS_RING_OUTSET = 10;
+const PROGRESS_RING_STROKE_WIDTH = 3;
+const PROGRESS_TRACK_STROKE_DARK = "rgba(148, 163, 184, 0.22)";
+const PROGRESS_TRACK_STROKE_LIGHT = "rgba(100, 116, 139, 0.18)";
+const SIGNAL_BADGE_GAP = 6;
+const SIGNAL_BADGE_WIDTH = 14;
+const SIGNAL_BADGE_HEIGHT = 14;
+const SIGNAL_BADGE_STROKE_WIDTH = 1;
+const SIGNAL_ACTIVITY_DOT_SIZE = 5;
 const DATA_FLOW_PARTICLE_SIZE = 8;
 const DATA_FLOW_GLOW_SIZE = 18;
 const DATA_FLOW_DURATION_MS = 420;
@@ -399,6 +408,9 @@ export function resolveDefaultNodeShellRenderTheme(
       selectedRingOutset: SELECTED_RING_OUTSET,
       selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
       selectedRingOpacity: 0.92,
+      progressRingOutset: PROGRESS_RING_OUTSET,
+      progressRingStrokeWidth: PROGRESS_RING_STROKE_WIDTH,
+      progressTrackStroke: PROGRESS_TRACK_STROKE_DARK,
       resizeHandleFill: "rgba(255, 255, 255, 0.001)",
       resizeHandleStroke: "rgba(255, 255, 255, 0.72)",
       resizeHandleStrokeWidth: 1.5,
@@ -432,6 +444,14 @@ export function resolveDefaultNodeShellRenderTheme(
       signalLightY: 19,
       signalLightSize: SIGNAL_SIZE,
       signalHitPadding: 4,
+      signalBadgeGap: SIGNAL_BADGE_GAP,
+      signalBadgeWidth: SIGNAL_BADGE_WIDTH,
+      signalBadgeHeight: SIGNAL_BADGE_HEIGHT,
+      signalBadgeStrokeWidth: SIGNAL_BADGE_STROKE_WIDTH,
+      signalBadgeFontFamily: NODE_FONT_FAMILY,
+      signalBadgeFontSize: 8.5,
+      signalBadgeFontWeight: "700",
+      signalActivityDotSize: SIGNAL_ACTIVITY_DOT_SIZE,
       widgetFill: WIDGET_FILL,
       widgetShadow: WIDGET_SHADOW_DARK,
       inputPortFill: INPUT_PORT_FILL,
@@ -451,6 +471,9 @@ export function resolveDefaultNodeShellRenderTheme(
     selectedRingOutset: SELECTED_RING_OUTSET,
     selectedRingStrokeWidth: SELECTED_RING_STROKE_WIDTH,
     selectedRingOpacity: 0.92,
+    progressRingOutset: PROGRESS_RING_OUTSET,
+    progressRingStrokeWidth: PROGRESS_RING_STROKE_WIDTH,
+    progressTrackStroke: PROGRESS_TRACK_STROKE_LIGHT,
     resizeHandleFill: "rgba(255, 255, 255, 0.001)",
     resizeHandleStroke: "rgba(15, 23, 42, 0.72)",
     resizeHandleStrokeWidth: 1.85,
@@ -484,6 +507,14 @@ export function resolveDefaultNodeShellRenderTheme(
     signalLightY: 19,
     signalLightSize: SIGNAL_SIZE,
     signalHitPadding: 4,
+    signalBadgeGap: SIGNAL_BADGE_GAP,
+    signalBadgeWidth: SIGNAL_BADGE_WIDTH,
+    signalBadgeHeight: SIGNAL_BADGE_HEIGHT,
+    signalBadgeStrokeWidth: SIGNAL_BADGE_STROKE_WIDTH,
+    signalBadgeFontFamily: NODE_FONT_FAMILY,
+    signalBadgeFontSize: 8.5,
+    signalBadgeFontWeight: "700",
+    signalActivityDotSize: SIGNAL_ACTIVITY_DOT_SIZE,
     widgetFill: "rgba(248, 250, 252, 0.92)",
     widgetShadow: WIDGET_SHADOW_LIGHT,
     inputPortFill: INPUT_PORT_FILL,

@@ -30,6 +30,15 @@ export interface NodeResizeConfig {
 }
 
 /**
+ * 节点壳静态配置。
+ * 它描述的是“这类节点在宿主壳层应该如何被表达”，不是业务运行时数据。
+ */
+export interface NodeShellConfig {
+  /** 该类节点是否属于长耗时任务。 */
+  longTask?: boolean;
+}
+
+/**
  * 节点类型定义。
  * 它描述的是“某一类节点”的静态能力，而不是某个节点实例的当前状态。
  */
@@ -56,6 +65,8 @@ export interface NodeDefinition extends NodeLifecycle {
   size?: [number, number];
   /** 节点 resize 约束。建议新代码优先使用该字段。 */
   resize?: NodeResizeConfig;
+  /** 节点壳静态配置。 */
+  shell?: NodeShellConfig;
   /** 兼容旧写法的最小宽度快捷字段。 */
   minWidth?: number;
   /** 兼容旧写法的最小高度快捷字段。 */

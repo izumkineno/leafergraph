@@ -4,6 +4,7 @@ import {
   LEAFER_GRAPH_ON_PLAY_NODE_TYPE,
   LeaferGraphGraphExecutionHost,
   type LeaferGraphCreateEntryExecutionTaskOptions,
+  type LeaferGraphNodeExecutionState,
   type LeaferGraphNodeExecutionTask,
   type LeaferGraphNodeExecutionTaskResult
 } from "../src";
@@ -305,6 +306,94 @@ describe("@leafergraph/execution LeaferGraphGraphExecutionHost", () => {
 
     timers.tick(2);
     expect(executionCount).toBe(3);
+  });
+
+  it("trackProgress timeout 会投影 waiting progress，并在 stop 时恢复 idle", async () => {
+    const timers = new ManualTimerScheduler();
+    globalThis.setTimeout = timers.setTimeout;
+    globalThis.clearTimeout = timers.clearTimeout;
+
+    let projectedState: LeaferGraphNodeExecutionState | undefined;
+    const projectedEvents: Array<{
+      status?: string;
+      progress?: number;
+    }> = [];
+    const host = new LeaferGraphGraphExecutionHost({
+      nodeExecutionHost: {
+        listNodeIdsByType(type) {
+          return type === LEAFER_GRAPH_ON_PLAY_NODE_TYPE ? ["delay-progress"] : [];
+        },
+        createEntryExecutionTask(nodeId, options) {
+          return createExecutionTask(nodeId, options);
+        },
+        executeExecutionTask(task) {
+          const payload = task.chain.payload as {
+            registerGraphTimer?(input: {
+              nodeId: string;
+              runId: string;
+              source: "graph-play" | "graph-step";
+              startedAt: number;
+              intervalMs: number;
+              immediate: boolean;
+              mode?: "interval" | "timeout";
+              trackProgress?: boolean;
+            }): void;
+          };
+          payload.registerGraphTimer?.({
+            nodeId: task.nodeId,
+            runId: task.chain.runId!,
+            source: task.chain.source,
+            startedAt: task.chain.startedAt,
+            intervalMs: 600,
+            immediate: false,
+            mode: "timeout",
+            trackProgress: true
+          });
+          return {
+            handled: true,
+            nextTasks: []
+          };
+        },
+        getNodeExecutionState() {
+          return projectedState;
+        },
+        getNodeSnapshot(nodeId) {
+          return {
+            id: nodeId,
+            type: "authoring-basic/event-delay",
+            title: "Delay 600ms"
+          };
+        },
+        projectExternalNodeExecution(event) {
+          projectedState = event.state;
+          projectedEvents.push({
+            status: event.state.status,
+            progress: event.state.progress
+          });
+        }
+      }
+    });
+
+    expect(host.play()).toBe(true);
+    await Promise.resolve();
+
+    expect(projectedEvents[0]).toMatchObject({
+      status: "running",
+      progress: 0
+    });
+
+    timers.tick(100);
+    expect(projectedEvents.at(-1)).toMatchObject({
+      status: "running"
+    });
+    expect(projectedEvents.at(-1)?.progress).toBeGreaterThan(0);
+    expect(projectedEvents.at(-1)?.progress).toBeLessThan(1);
+
+    expect(host.stop()).toBe(true);
+    expect(projectedEvents.at(-1)).toMatchObject({
+      status: "idle"
+    });
+    expect(projectedEvents.at(-1)?.progress).toBeUndefined();
   });
 
   it("resetState 会清空正在 step 中的 run 并回到 idle", () => {

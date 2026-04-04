@@ -3,6 +3,7 @@ import type { NodeDefinition } from "@leafergraph/node";
 
 export const EXAMPLE_EVENT_RELAY_NODE_TYPE = "example/event-relay";
 export const EXAMPLE_TICK_MONITOR_NODE_TYPE = "example/tick-monitor";
+export const EXAMPLE_LONG_TASK_PROBE_NODE_TYPE = "example/long-task-probe";
 
 type ExampleEventPayload = {
   source?: unknown;
@@ -91,11 +92,60 @@ const tickMonitorNodeDefinition: NodeDefinition = {
   }
 };
 
+const longTaskProbeNodeDefinition: NodeDefinition = {
+  type: EXAMPLE_LONG_TASK_PROBE_NODE_TYPE,
+  title: "Long Task Probe",
+  category: "Example",
+  description: "转发输入事件，并用于测试 node shell 长任务信号灯与进度外圈。",
+  shell: {
+    longTask: true
+  },
+  inputs: [
+    {
+      name: "In",
+      type: "event",
+      label: "In",
+      shape: "box"
+    }
+  ],
+  outputs: [
+    {
+      name: "Out",
+      type: "event",
+      label: "Out",
+      shape: "box"
+    }
+  ],
+  properties: [
+    {
+      name: "runCount",
+      type: "number",
+      default: 0
+    },
+    {
+      name: "status",
+      type: "string",
+      default: "IDLE"
+    }
+  ],
+  onExecute(node, _context, api) {
+    const payload = readEventPayload(node.inputValues[0]);
+    const nextRunCount = resolveNextRunCount(node.properties.runCount);
+
+    node.properties.runCount = nextRunCount;
+    node.properties.status = resolveEventStatus("PROBE", nextRunCount, payload);
+    node.title = `Long Task Probe ${nextRunCount}`;
+
+    api?.setOutputData(0, payload ?? createFallbackEventPayload(nextRunCount));
+  }
+};
+
 export const miniGraphExampleDemoPlugin: LeaferGraphNodePlugin = {
   name: "mini-graph/example-demo",
   install(context) {
     context.registerNode(eventRelayNodeDefinition, { overwrite: true });
     context.registerNode(tickMonitorNodeDefinition, { overwrite: true });
+    context.registerNode(longTaskProbeNodeDefinition, { overwrite: true });
   }
 };
 
@@ -151,7 +201,7 @@ function createFallbackEventPayload(runCount: number): ExampleEventPayload {
  * @returns 处理后的结果。
  */
 function resolveEventStatus(
-  label: "RELAY" | "MONITOR",
+  label: "RELAY" | "MONITOR" | "PROBE",
   runCount: number,
   payload: ExampleEventPayload | null
 ): string {

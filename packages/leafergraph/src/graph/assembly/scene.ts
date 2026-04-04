@@ -91,6 +91,7 @@ export interface LeaferGraphSceneRuntimeAssemblyOptions<
 export interface LeaferGraphSceneRuntimeAssemblyResult<
   TNodeState extends LeaferGraphRenderableNodeState
 > {
+  nodeShellHost: LeaferGraphNodeShellHost<TNodeState>;
   widgetHost: LeaferGraphWidgetHost;
   viewHost: LeaferGraphViewHost<TNodeState, NodeViewState<TNodeState>>;
   sceneRuntimeHost: LeaferGraphSceneRuntimeHost<
@@ -199,6 +200,8 @@ export function createLeaferGraphSceneRuntimeAssembly<
   });
 
   const nodeShellHost = new LeaferGraphNodeShellHost<TNodeState>({
+    container: options.container,
+    nodeViews: options.nodeViews,
     nodeRegistry: options.nodeRegistry,
     layoutMetrics: options.nodeShellLayoutMetrics,
     style: options.nodeShellStyle,
@@ -208,7 +211,10 @@ export function createLeaferGraphSceneRuntimeAssembly<
     resolveNodeExecutionState: (nodeId) =>
       nodeRuntimeHost.getNodeExecutionState(nodeId),
     canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
-    isNodeResizing: (nodeId) => interactionHost.isResizingNode(nodeId)
+    isNodeResizing: (nodeId) => interactionHost.isResizingNode(nodeId),
+    requestRender: options.requestRender,
+    renderFrame: options.renderFrame,
+    respectReducedMotion: options.respectReducedMotion
   });
 
   const viewHost = new LeaferGraphViewHost({
@@ -216,7 +222,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     graphNodes: options.graphState.nodes,
     nodeViews: options.nodeViews,
     applyNodeSelectionStyles: (state) =>
-      nodeShellHost.applyNodeSelectionStyles(state),
+      nodeShellHost.applyNodeShellStatusStyles(state),
     requestRender: options.requestRender
   });
 
@@ -232,7 +238,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     destroyNodeWidgets: (state) =>
       widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
     onNodeViewCreated: (state) => {
-      nodeShellHost.applyNodeSelectionStyles(state);
+      nodeShellHost.applyNodeShellStatusStyles(state);
       viewHost.bringNodeViewToFront(state);
     },
     onNodeMounted: (nodeId, state) => {
@@ -247,7 +253,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
       interactionHost.bindNodeResize(nodeId, state);
       interactionHost.bindNodeCollapseToggle(nodeId, state);
       interactionHost.bindNodeTitleEdit(nodeId, state);
-      nodeShellHost.applyNodeSelectionStyles(state);
+      nodeShellHost.applyNodeShellStatusStyles(state);
     }
   });
 
@@ -511,6 +517,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
   });
 
   return {
+    nodeShellHost,
     widgetHost,
     viewHost,
     sceneRuntimeHost,

@@ -8,6 +8,7 @@
 - 互补文档：
   - 包入口看 [`../packages/node/README.md`](../packages/node/README.md)
   - 宿主用法看 [`../packages/leafergraph/README.md`](../packages/leafergraph/README.md)
+  - 节点壳状态规范看 [`节点状态与外壳规范.md`](./节点状态与外壳规范.md)
   - 前瞻演进看 [`架构演进与提案总览.md`](./架构演进与提案总览.md)
 
 ## 1. 当前 API 结论
@@ -45,6 +46,7 @@
 - `widgets`
 - `properties`
 - `resize`
+- `shell`
 - 生命周期钩子
 
 它属于 `packages/node`，不是 editor UI 类型。
@@ -178,6 +180,22 @@
 - widget 交互
 
 共享稳定几何。
+
+### 5.4 节点状态外壳需要服从统一规范
+
+当前节点壳状态系统已经固定为：
+
+- `signal cluster`
+- `selected ring`
+- `progress ring`
+
+其中：
+
+- `signal cluster` 只表达执行态与缺失/折叠/长任务活动标记
+- `selected ring` 只表达选中态
+- `progress ring` 只表达长任务进度
+
+详细约束见 [`节点状态与外壳规范.md`](./节点状态与外壳规范.md)。
 
 ## 6. 当前视觉与实现边界
 

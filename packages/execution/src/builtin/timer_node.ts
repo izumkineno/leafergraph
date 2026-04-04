@@ -15,6 +15,7 @@ export interface LeaferGraphTimerRegistration {
   immediate: boolean;
   timerId?: string;
   mode?: "interval" | "timeout";
+  trackProgress?: boolean;
 }
 
 export interface LeaferGraphTimerRuntimePayload {

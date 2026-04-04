@@ -18,13 +18,28 @@ import {
 import { setNodeTitle } from "./shared";
 
 const EVENT_TIMER_MAIN_ID = "loop";
+const QUEUE_DEFAULT_CAPACITY = 16;
+const INTERNAL_EXECUTION_STATE_OVERRIDE_KEY =
+  "__leafergraphExecutionStateOverride";
 
 let delayTicketSequence = 0;
+let queueEntrySequence = 0;
 
 interface DelayTicket {
   id: string;
   payload: unknown;
   delayMs: number;
+  runId?: string;
+}
+
+interface QueueEntry {
+  id: string;
+  payload: unknown;
+}
+
+interface QueueDispatchTicket {
+  id: string;
+  entry: QueueEntry;
   runId?: string;
 }
 
@@ -37,6 +52,27 @@ interface DelayTicket {
 function createDelayTicketId(nodeId: string): string {
   delayTicketSequence += 1;
   return `${nodeId}:delay:${delayTicketSequence}`;
+}
+
+/**
+ * 创建队列条目 ID。
+ *
+ * @param nodeId - 目标节点 ID。
+ * @returns 创建后的结果对象。
+ */
+function createQueueEntryId(nodeId: string): string {
+  queueEntrySequence += 1;
+  return `${nodeId}:queue:${queueEntrySequence}`;
+}
+
+/**
+ * 创建 Queue 放行票据 ID。
+ *
+ * @param entryId - 队列条目 ID。
+ * @returns 创建后的结果对象。
+ */
+function createQueueDispatchTicketId(entryId: string): string {
+  return `${entryId}:release`;
 }
 
 /**
@@ -96,18 +132,157 @@ function resolveTimerEventName(
 }
 
 /**
- * 格式化延迟状态。
+ * 格式化单飞 Delay 状态。
  *
- * @param pending - `pending`。
- * @param delayMs - 延迟`Ms`。
+ * @param options - 当前状态快照。
  * @returns 处理后的结果。
  */
-function formatDelayStatus(pending: readonly DelayTicket[], delayMs: number): string {
-  if (!pending.length) {
-    return `READY\n${delayMs} ms\nQueue empty`;
+function formatSingleDelayStatus(options: {
+  delayMs: number;
+  active: DelayTicket | null;
+  droppedCount: number;
+  mode?: "ready" | "running" | "fired" | "dropped" | "armed";
+}): string {
+  const mode = options.mode ?? (options.active ? "running" : "ready");
+  const droppedLine = `Dropped ${options.droppedCount}`;
+  switch (mode) {
+    case "armed":
+      return `ARM\n${options.delayMs} ms\nUse graph Play / Step`;
+    case "fired":
+      return `FIRED\n${options.delayMs} ms\n${droppedLine}`;
+    case "dropped":
+      return `DROPPED\n${options.delayMs} ms\n${droppedLine}`;
+    case "running":
+      return `RUNNING\n${options.active?.delayMs ?? options.delayMs} ms\n${droppedLine}`;
+    default:
+      return `READY\n${options.delayMs} ms\n${droppedLine}`;
+  }
+}
+
+/**
+ * 解析 Queue 容量。
+ *
+ * @param ctx - `ctx`。
+ * @returns 处理后的结果。
+ */
+function resolveQueueCapacity(
+  ctx: Parameters<QueueEventNode["onExecute"]>[0]
+): number {
+  const inputValue = ctx.getInput("capacity");
+  if (typeof inputValue === "number" && Number.isFinite(inputValue)) {
+    const nextValue = Math.max(1, Math.floor(inputValue));
+    ctx.setProp("capacity", nextValue);
+    return nextValue;
   }
 
-  return `QUEUED\n${delayMs} ms\n${pending.length} waiting`;
+  const widgetValue = Math.max(
+    1,
+    Math.floor(readWidgetNumber(ctx, "capacity", QUEUE_DEFAULT_CAPACITY))
+  );
+  ctx.setProp("capacity", widgetValue);
+  return widgetValue;
+}
+
+/**
+ * 格式化 Queue 状态。
+ *
+ * @param options - 当前状态快照。
+ * @returns 处理后的结果。
+ */
+function formatQueueStatus(options: {
+  capacity: number;
+  queuedCount: number;
+  awaitingRelease: boolean;
+  droppedCount: number;
+  mode?: "ready" | "active" | "queued" | "overflow";
+}): string {
+  const mode =
+    options.mode ??
+    (options.awaitingRelease
+      ? options.queuedCount > 0
+        ? "queued"
+        : "active"
+      : "ready");
+  const queueLine = `${options.queuedCount}/${options.capacity} queued`;
+  switch (mode) {
+    case "active":
+      return `ACTIVE\n${queueLine}\nDropped ${options.droppedCount}`;
+    case "queued":
+      return `QUEUED\n${queueLine}\nDropped ${options.droppedCount}`;
+    case "overflow":
+      return `OVERFLOW\n${queueLine}\nDropped ${options.droppedCount}`;
+    default:
+      return `READY\n${queueLine}\nDropped ${options.droppedCount}`;
+  }
+}
+
+/**
+ * 对齐 Delay 节点在新 run 下的内部状态。
+ *
+ * @param ctx - `ctx`。
+ * @param runId - 当前 runId。
+ * @returns 是否发生了 reset。
+ */
+function syncDelayRunState(
+  ctx: Parameters<DelayEventNode["onAction"]>[3],
+  runId: string | undefined
+): boolean {
+  if (!runId) {
+    return false;
+  }
+
+  const activeRunId = ctx.state.active?.runId;
+  if (!activeRunId || activeRunId === runId) {
+    return false;
+  }
+
+  ctx.state.active = null;
+  return true;
+}
+
+/**
+ * 对齐 Queue 节点在新 run 下的内部状态。
+ *
+ * @param ctx - `ctx`。
+ * @param runId - 当前 runId。
+ * @returns 是否发生了 reset。
+ */
+function syncQueueRunState(
+  ctx: Parameters<QueueEventNode["onAction"]>[3],
+  runId: string | undefined
+): boolean {
+  if (!runId) {
+    return false;
+  }
+
+  if (!ctx.state.activeRunId || ctx.state.activeRunId === runId) {
+    ctx.state.activeRunId = runId;
+    return false;
+  }
+
+  ctx.state.activeRunId = runId;
+  ctx.state.awaitingRelease = false;
+  ctx.state.queue = [];
+  ctx.state.releasing = null;
+  return true;
+}
+
+/**
+ * 请求本轮执行结束后继续保持 running 状态。
+ *
+ * @param ctx - `ctx`。
+ * @returns 无返回值。
+ */
+function preserveRunningExecutionState(
+  ctx: Parameters<DelayEventNode["onAction"]>[3]
+): void {
+  if (!ctx.node.data || typeof ctx.node.data !== "object") {
+    ctx.node.data = {};
+  }
+
+  (ctx.node.data as Record<string, unknown>)[INTERNAL_EXECUTION_STATE_OVERRIDE_KEY] = {
+    status: "running"
+  };
 }
 
 /**
@@ -118,6 +293,9 @@ export class DelayEventNode extends BaseNode {
     type: AUTHORING_BASIC_NODE_TYPES.eventDelay,
     title: "Delay",
     category: "Events/Timing",
+    shell: {
+      longTask: true
+    },
     inputs: [
       { name: "event", type: "event" },
       { name: "time_in_ms", type: "number", optional: true }
@@ -149,7 +327,8 @@ export class DelayEventNode extends BaseNode {
   createState() {
     return {
       deliveredCount: 0,
-      pending: [] as DelayTicket[]
+      droppedCount: 0,
+      active: null as DelayTicket | null
     };
   }
 
@@ -164,24 +343,34 @@ export class DelayEventNode extends BaseNode {
     const execution = getExecutionContext(ctx);
     if (isTimerTickExecution(execution, ctx.node.id)) {
       const ticketId = getTimerTickId(execution);
-      if (ticketId) {
-        const ticketIndex = ctx.state.pending.findIndex((ticket) => ticket.id === ticketId);
-        if (ticketIndex >= 0) {
-          const [ticket] = ctx.state.pending.splice(ticketIndex, 1);
-          ctx.state.deliveredCount += 1;
-          ctx.setOutput("on_time", ticket.payload);
-          updateStatus(
-            ctx,
-            `FIRED\n${ticket.delayMs} ms\n${ctx.state.pending.length} waiting`
-          );
-          setNodeTitle(ctx.node, `Delay ${delayMs}ms`);
-          return;
-        }
+      if (ticketId && ctx.state.active?.id === ticketId) {
+        const ticket = ctx.state.active;
+        ctx.state.active = null;
+        ctx.state.deliveredCount += 1;
+        ctx.setOutput("on_time", ticket.payload);
+        updateStatus(
+          ctx,
+          formatSingleDelayStatus({
+            delayMs: ticket.delayMs,
+            active: null,
+            droppedCount: ctx.state.droppedCount,
+            mode: "fired"
+          })
+        );
+        setNodeTitle(ctx.node, `Delay ${delayMs}ms`);
+        return;
       }
     }
 
     setNodeTitle(ctx.node, `Delay ${delayMs}ms`);
-    updateStatus(ctx, formatDelayStatus(ctx.state.pending, delayMs));
+    updateStatus(
+      ctx,
+      formatSingleDelayStatus({
+        delayMs,
+        active: ctx.state.active,
+        droppedCount: ctx.state.droppedCount
+      })
+    );
   }
 
   /**
@@ -194,41 +383,70 @@ export class DelayEventNode extends BaseNode {
    * @returns 无返回值。
    */
   onAction(action, param, options, ctx) {
-    // 先整理当前阶段需要的输入、状态与依赖。
     if (action !== "event") {
       return;
     }
 
     const delayMs = resolveDelayMs(ctx);
-    if (delayMs <= 0) {
-      ctx.state.deliveredCount += 1;
-      ctx.setOutput("on_time", param);
-      updateStatus(ctx, "FIRED\n0 ms\nImmediate");
+    const execution = getExecutionContext(ctx, options);
+    syncDelayRunState(ctx, execution?.runId);
+    setNodeTitle(ctx.node, `Delay ${delayMs}ms`);
+
+    if (ctx.state.active) {
+      preserveRunningExecutionState(ctx);
+      ctx.state.droppedCount += 1;
+      updateStatus(
+        ctx,
+        formatSingleDelayStatus({
+          delayMs,
+          active: ctx.state.active,
+          droppedCount: ctx.state.droppedCount,
+          mode: "dropped"
+        })
+      );
       return;
     }
 
-    const execution = getExecutionContext(ctx, options);
-    // 再执行核心逻辑，并把结果或副作用统一收口。
+    if (delayMs <= 0) {
+      ctx.state.deliveredCount += 1;
+      ctx.setOutput("on_time", param);
+      updateStatus(
+        ctx,
+        formatSingleDelayStatus({
+          delayMs: 0,
+          active: null,
+          droppedCount: ctx.state.droppedCount,
+          mode: "fired"
+        })
+      );
+      return;
+    }
+
     const runtimePayload = getTimerRuntimePayload(execution);
     if (
       !isGraphExecution(execution) ||
       !execution.runId ||
       !runtimePayload?.registerGraphTimer
     ) {
-      updateStatus(ctx, `ARM\n${delayMs} ms\nUse graph Play / Step`);
+      updateStatus(
+        ctx,
+        formatSingleDelayStatus({
+          delayMs,
+          active: null,
+          droppedCount: ctx.state.droppedCount,
+          mode: "armed"
+        })
+      );
       return;
     }
 
-    ctx.state.pending = ctx.state.pending.filter(
-      (ticket) => ticket.runId === undefined || ticket.runId === execution.runId
-    );
     const ticketId = createDelayTicketId(ctx.node.id);
-    ctx.state.pending.push({
+    ctx.state.active = {
       id: ticketId,
       payload: param,
       delayMs,
       runId: execution.runId
-    });
+    };
     runtimePayload.registerGraphTimer({
       nodeId: ctx.node.id,
       runId: execution.runId,
@@ -237,9 +455,283 @@ export class DelayEventNode extends BaseNode {
       intervalMs: delayMs,
       immediate: false,
       timerId: ticketId,
-      mode: "timeout"
+      mode: "timeout",
+      trackProgress: true
     });
-    updateStatus(ctx, formatDelayStatus(ctx.state.pending, delayMs));
+    updateStatus(
+      ctx,
+      formatSingleDelayStatus({
+        delayMs,
+        active: ctx.state.active,
+        droppedCount: ctx.state.droppedCount,
+        mode: "running"
+      })
+    );
+  }
+}
+
+/**
+ * 封装 QueueEventNode 的节点行为。
+ */
+export class QueueEventNode extends BaseNode {
+  static meta = {
+    type: AUTHORING_BASIC_NODE_TYPES.eventQueue,
+    title: "Queue",
+    category: "Events/Flow",
+    inputs: [
+      { name: "push", type: "event", optional: true },
+      { name: "release", type: "event", optional: true },
+      { name: "capacity", type: "number", optional: true }
+    ],
+    outputs: [
+      { name: "next", type: "event" },
+      { name: "overflow", type: "event" }
+    ],
+    properties: [{ name: "capacity", type: "number", default: QUEUE_DEFAULT_CAPACITY }],
+    widgets: [
+      {
+        type: "input",
+        name: "capacity",
+        value: String(QUEUE_DEFAULT_CAPACITY),
+        options: {
+          label: "Capacity",
+          placeholder: String(QUEUE_DEFAULT_CAPACITY)
+        }
+      },
+      createStatusWidgetSpec({
+        label: "Queue",
+        description: "FIFO event gate that releases the next item after an explicit ack"
+      })
+    ]
+  };
+
+  /**
+   * 创建状态。
+   *
+   * @returns 创建后的结果对象。
+   */
+  createState() {
+    return {
+      activeRunId: "",
+      awaitingRelease: false,
+      queue: [] as QueueEntry[],
+      releasing: null as QueueDispatchTicket | null,
+      droppedCount: 0,
+      releasedCount: 0
+    };
+  }
+
+  /**
+   * 处理 `onExecute` 相关逻辑。
+   *
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
+  onExecute(ctx) {
+    const capacity = resolveQueueCapacity(ctx);
+    const execution = getExecutionContext(ctx);
+    if (isTimerTickExecution(execution, ctx.node.id)) {
+      const ticketId = getTimerTickId(execution);
+      if (ticketId && ctx.state.releasing?.id === ticketId) {
+        const dispatchTicket = ctx.state.releasing;
+        ctx.state.releasing = null;
+        ctx.state.awaitingRelease = true;
+        ctx.state.releasedCount += 1;
+        ctx.setOutput("next", dispatchTicket.entry.payload);
+        setNodeTitle(ctx.node, `Queue ${ctx.state.queue.length}/${capacity}`);
+        updateStatus(
+          ctx,
+          formatQueueStatus({
+            capacity,
+            queuedCount: ctx.state.queue.length,
+            awaitingRelease: true,
+            droppedCount: ctx.state.droppedCount,
+            mode: ctx.state.queue.length ? "queued" : "active"
+          })
+        );
+        return;
+      }
+    }
+
+    setNodeTitle(ctx.node, `Queue ${ctx.state.queue.length}/${capacity}`);
+    updateStatus(
+      ctx,
+      formatQueueStatus({
+        capacity,
+        queuedCount: ctx.state.queue.length,
+        awaitingRelease: ctx.state.awaitingRelease,
+        droppedCount: ctx.state.droppedCount
+      })
+    );
+  }
+
+  /**
+   * 处理 `onAction` 相关逻辑。
+   *
+   * @param action - 动作。
+   * @param param - 参数。
+   * @param options - 可选配置项。
+   * @param ctx - `ctx`。
+   * @returns 无返回值。
+   */
+  onAction(action, param, options, ctx) {
+    if (action !== "push" && action !== "release") {
+      return;
+    }
+
+    const capacity = resolveQueueCapacity(ctx);
+    const execution = getExecutionContext(ctx, options);
+    syncQueueRunState(ctx, execution?.runId);
+    setNodeTitle(ctx.node, `Queue ${ctx.state.queue.length}/${capacity}`);
+
+    if (action === "release") {
+      if (ctx.state.releasing) {
+        updateStatus(
+          ctx,
+          formatQueueStatus({
+            capacity,
+            queuedCount: ctx.state.queue.length,
+            awaitingRelease: true,
+            droppedCount: ctx.state.droppedCount,
+            mode: ctx.state.queue.length ? "queued" : "active"
+          })
+        );
+        return;
+      }
+
+      if (!ctx.state.queue.length) {
+        ctx.state.awaitingRelease = false;
+        ctx.state.releasing = null;
+        updateStatus(
+          ctx,
+          formatQueueStatus({
+            capacity,
+            queuedCount: 0,
+            awaitingRelease: false,
+            droppedCount: ctx.state.droppedCount,
+            mode: "ready"
+          })
+        );
+        return;
+      }
+
+      const nextEntry = ctx.state.queue.shift();
+      if (!nextEntry) {
+        ctx.state.awaitingRelease = false;
+        updateStatus(
+          ctx,
+          formatQueueStatus({
+            capacity,
+            queuedCount: 0,
+            awaitingRelease: false,
+            droppedCount: ctx.state.droppedCount,
+            mode: "ready"
+          })
+        );
+        return;
+      }
+
+      ctx.state.awaitingRelease = true;
+      const runtimePayload = getTimerRuntimePayload(execution);
+      if (
+        isGraphExecution(execution) &&
+        execution.runId &&
+        runtimePayload?.registerGraphTimer
+      ) {
+        const ticketId = createQueueDispatchTicketId(nextEntry.id);
+        ctx.state.releasing = {
+          id: ticketId,
+          entry: nextEntry,
+          runId: execution.runId
+        };
+        runtimePayload.registerGraphTimer({
+          nodeId: ctx.node.id,
+          runId: execution.runId,
+          source: execution.source,
+          startedAt: execution.startedAt,
+          intervalMs: 0,
+          immediate: false,
+          timerId: ticketId,
+          mode: "timeout"
+        });
+        updateStatus(
+          ctx,
+          formatQueueStatus({
+            capacity,
+            queuedCount: ctx.state.queue.length,
+            awaitingRelease: true,
+            droppedCount: ctx.state.droppedCount,
+            mode: ctx.state.queue.length ? "queued" : "active"
+          })
+        );
+        setNodeTitle(ctx.node, `Queue ${ctx.state.queue.length}/${capacity}`);
+        return;
+      }
+
+      ctx.state.releasedCount += 1;
+      ctx.setOutput("next", nextEntry.payload);
+      updateStatus(
+        ctx,
+        formatQueueStatus({
+          capacity,
+          queuedCount: ctx.state.queue.length,
+          awaitingRelease: true,
+          droppedCount: ctx.state.droppedCount,
+          mode: ctx.state.queue.length ? "queued" : "active"
+        })
+      );
+      setNodeTitle(ctx.node, `Queue ${ctx.state.queue.length}/${capacity}`);
+      return;
+    }
+
+    if (!ctx.state.awaitingRelease && ctx.state.queue.length === 0) {
+      ctx.state.awaitingRelease = true;
+      ctx.state.releasedCount += 1;
+      ctx.setOutput("next", param);
+      updateStatus(
+        ctx,
+        formatQueueStatus({
+          capacity,
+          queuedCount: 0,
+          awaitingRelease: true,
+          droppedCount: ctx.state.droppedCount,
+          mode: "active"
+        })
+      );
+      return;
+    }
+
+    if (ctx.state.queue.length >= capacity) {
+      ctx.state.droppedCount += 1;
+      ctx.setOutput("overflow", param);
+      updateStatus(
+        ctx,
+        formatQueueStatus({
+          capacity,
+          queuedCount: ctx.state.queue.length,
+          awaitingRelease: ctx.state.awaitingRelease,
+          droppedCount: ctx.state.droppedCount,
+          mode: "overflow"
+        })
+      );
+      return;
+    }
+
+    ctx.state.queue.push({
+      id: createQueueEntryId(ctx.node.id),
+      payload: param
+    });
+    setNodeTitle(ctx.node, `Queue ${ctx.state.queue.length}/${capacity}`);
+    updateStatus(
+      ctx,
+      formatQueueStatus({
+        capacity,
+        queuedCount: ctx.state.queue.length,
+        awaitingRelease: ctx.state.awaitingRelease,
+        droppedCount: ctx.state.droppedCount,
+        mode: "queued"
+      })
+    );
   }
 }
 
@@ -251,6 +743,9 @@ export class TimerEventNode extends BaseNode {
     type: AUTHORING_BASIC_NODE_TYPES.eventTimer,
     title: "Timer",
     category: "Events/Timing",
+    shell: {
+      longTask: true
+    },
     inputs: [
       { name: "start", type: "event", optional: true },
       { name: "interval", type: "number", optional: true }
@@ -452,5 +947,6 @@ export class TimerEventNode extends BaseNode {
 
 export const authoringBasicEventTimingNodeClasses = [
   DelayEventNode,
+  QueueEventNode,
   TimerEventNode
 ] as const;
