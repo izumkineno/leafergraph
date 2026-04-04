@@ -1,4 +1,4 @@
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument, NodeFlags } from "@leafergraph/node";
 import type { GraphOperation } from "@leafergraph/contracts";
 
 /**
@@ -76,7 +76,7 @@ export interface GraphDocumentNodeFlagSetChange
   /** 字段变更类型。 */
   type: "node.flag.set";
   /** 目标 flag key。 */
-  key: string;
+  key: keyof NodeFlags;
   /** 待写入的布尔值。 */
   value: boolean;
 }

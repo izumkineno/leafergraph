@@ -27,9 +27,26 @@ export type RuntimeBridgeControlCommand =
       nodeId: string;
     };
 
+export type RuntimeBridgeDiffMode = "diff" | "legacy";
+
+export type RuntimeBridgeDiffCommand =
+  | {
+      type: "diff.mode.get";
+    }
+  | {
+      type: "diff.mode.set";
+      mode: RuntimeBridgeDiffMode;
+    };
+
+export type RuntimeBridgeDiffCommandResult = {
+  type: "diff.mode.result";
+  mode: RuntimeBridgeDiffMode;
+};
+
 /** transport 默认命令通道支持的正式命令集合。 */
 export type RuntimeBridgeCommand =
   | RuntimeBridgeControlCommand
+  | RuntimeBridgeDiffCommand
   | RuntimeBridgeCatalogCommand;
 
 /** transport 默认命令通道可能返回的结果集合。 */
@@ -37,6 +54,7 @@ export type RuntimeBridgeCommandResult =
   | {
       type: "control.ok";
     }
+  | RuntimeBridgeDiffCommandResult
   | RuntimeBridgeCatalogCommandResult;
 
 export type RuntimeBridgeInboundEvent =

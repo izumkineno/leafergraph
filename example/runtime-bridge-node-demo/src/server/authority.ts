@@ -2,6 +2,11 @@ import type {
   GraphOperation,
   GraphOperationApplyResult
 } from "@leafergraph/contracts";
+import {
+  applyGraphDocumentDiffToDocument,
+  type GraphDocumentDiff
+} from "@leafergraph/contracts/graph-document-diff";
+import { DiffEngine } from "@leafergraph/diff";
 import type { LeaferGraph } from "leafergraph";
 import type { GraphDocument } from "@leafergraph/runtime-bridge/portable";
 import type {
@@ -13,6 +18,7 @@ import type {
   RuntimeBridgeCommand,
   RuntimeBridgeCommandResult,
   RuntimeBridgeControlCommand,
+  RuntimeBridgeDiffMode,
   RuntimeBridgeInboundEvent
 } from "@leafergraph/runtime-bridge/transport";
 import type {
@@ -59,6 +65,7 @@ export interface RuntimeBridgeNodeAuthorityOptions {
   sessionStore?: DemoInMemorySessionExtensionStore;
   sessionId?: string;
   seedCatalog?: boolean;
+  diffMode?: RuntimeBridgeDiffMode;
 }
 
 /**
@@ -77,6 +84,8 @@ export class RuntimeBridgeNodeAuthority {
   private readonly disposeExtensionsSync: () => void;
   private readonly extensionManager: RuntimeBridgeAuthorityExtensionManager;
   private readonly streamHub: RuntimeBridgeNodeDemoStreamHub;
+  private readonly diffEngine = new DiffEngine();
+  private diffMode: RuntimeBridgeDiffMode;
   private diagnosticLogsMuted = false;
   readonly artifactStore: DemoFileSystemArtifactStore;
 
@@ -85,13 +94,15 @@ export class RuntimeBridgeNodeAuthority {
     container: HTMLDivElement,
     extensionManager: RuntimeBridgeAuthorityExtensionManager,
     artifactStore: DemoFileSystemArtifactStore,
-    streamHub: RuntimeBridgeNodeDemoStreamHub
+    streamHub: RuntimeBridgeNodeDemoStreamHub,
+    diffMode: RuntimeBridgeDiffMode
   ) {
     this.graph = graph;
     this.container = container;
     this.extensionManager = extensionManager;
     this.artifactStore = artifactStore;
     this.streamHub = streamHub;
+    this.diffMode = diffMode;
     this.disposeRuntimeFeedback = this.graph.subscribeRuntimeFeedback(
       (feedback: RuntimeFeedbackEvent) => {
         if (this.diagnosticLogsMuted) {
@@ -196,7 +207,8 @@ export class RuntimeBridgeNodeAuthority {
       container,
       extensionManager,
       artifactStore,
-      streamHub
+      streamHub,
+      options.diffMode ?? "diff"
     );
   }
 
@@ -226,6 +238,7 @@ export class RuntimeBridgeNodeAuthority {
   ): readonly GraphOperationApplyResult[] {
     const beforeDocument = this.graph.getGraphDocument();
     const results: GraphOperationApplyResult[] = [];
+    let changedCount = 0;
     const changedOperations: GraphOperation[] = [];
 
     logRuntimeBridgeServer(
@@ -249,28 +262,80 @@ export class RuntimeBridgeNodeAuthority {
       );
 
       if (result.accepted && result.changed) {
+        changedCount += 1;
         changedOperations.push(structuredClone(result.operation));
       }
     }
 
-    if (changedOperations.length > 0) {
+    if (changedCount > 0) {
       const afterDocument = this.graph.getGraphDocument();
       logRuntimeBridgeServer(
         "authority",
         "operations.changed",
-        `${String(beforeDocument.revision)} -> ${String(afterDocument.revision)} changed=${changedOperations.length}`
+        `${String(beforeDocument.revision)} -> ${String(afterDocument.revision)} changed=${changedCount}`
       );
-      this.emit({
-        type: "document.diff",
-        diff: {
-          documentId: afterDocument.documentId,
-          baseRevision: beforeDocument.revision,
-          revision: afterDocument.revision,
-          emittedAt: Date.now(),
-          operations: changedOperations,
-          fieldChanges: []
-        }
-      });
+
+      if (this.diffMode === "legacy") {
+        this.emit({
+          type: "document.diff",
+          diff: {
+            documentId: afterDocument.documentId,
+            baseRevision: beforeDocument.revision,
+            revision: afterDocument.revision,
+            emittedAt: Date.now(),
+            operations: changedOperations,
+            fieldChanges: []
+          }
+        });
+        return results;
+      }
+
+      const computedDiff = this.diffEngine.computeDiff(beforeDocument, afterDocument);
+      const normalizedDiff = normalizeAuthorityDocumentDiff(computedDiff);
+      const replayResult = applyGraphDocumentDiffToDocument(
+        beforeDocument,
+        normalizedDiff
+      );
+      const replayDriftDiff =
+        replayResult.success && !replayResult.requiresFullReplace
+          ? this.diffEngine.computeDiff(replayResult.document, afterDocument)
+          : null;
+      const replayMatchesTarget =
+        replayDriftDiff !== null && isGraphDocumentDiffEmpty(replayDriftDiff);
+
+      if (!replayMatchesTarget) {
+        const replayReason =
+          replayResult.reason ??
+          (replayDriftDiff
+            ? `replay drift operations=${replayDriftDiff.operations.length} fieldChanges=${replayDriftDiff.fieldChanges.length}`
+            : "replay result mismatch");
+        logRuntimeBridgeServerError(
+          "authority",
+          "document.diff.validation-failed",
+          replayReason
+        );
+        this.emit({
+          type: "document.snapshot",
+          document: structuredClone(afterDocument)
+        });
+        throw new Error(`authority.diff.validation.failed: ${replayReason}`);
+      }
+
+      if (
+        normalizedDiff.operations.length > 0 ||
+        normalizedDiff.fieldChanges.length > 0
+      ) {
+        this.emit({
+          type: "document.diff",
+          diff: normalizedDiff
+        });
+      } else {
+        logRuntimeBridgeServer(
+          "authority",
+          "document.diff.empty",
+          "Diff 引擎未产出增量，跳过 document.diff 广播"
+        );
+      }
     } else {
       logRuntimeBridgeServer(
         "authority",
@@ -294,6 +359,28 @@ export class RuntimeBridgeNodeAuthority {
     if (isControlCommand(command)) {
       this.sendControl(command);
       return { type: "control.ok" };
+    }
+
+    if (isDiffModeCommand(command)) {
+      if (command.type === "diff.mode.set") {
+        this.diffMode = command.mode;
+        logRuntimeBridgeServer(
+          "authority",
+          "diff.mode.set",
+          `mode=${this.diffMode}`
+        );
+      } else {
+        logRuntimeBridgeServer(
+          "authority",
+          "diff.mode.get",
+          `mode=${this.diffMode}`
+        );
+      }
+
+      return {
+        type: "diff.mode.result",
+        mode: this.diffMode
+      };
     }
 
     const result = await this.extensionManager.executeCommand(
@@ -460,6 +547,26 @@ function cloneBridgeEventForDelivery(
   }
 }
 
+function normalizeAuthorityDocumentDiff(diff: GraphDocumentDiff): GraphDocumentDiff {
+  const emittedAt = Number.isFinite(diff.emittedAt) ? diff.emittedAt : Date.now();
+  const operationIdPrefix = `authority.diff:${String(diff.baseRevision)}:${String(diff.revision)}`;
+  return {
+    ...diff,
+    emittedAt,
+    operations: diff.operations.map((operation, index) => ({
+      ...structuredClone(operation),
+      source: "authority.documentDiff",
+      timestamp: emittedAt,
+      operationId: `${operationIdPrefix}:${index}`
+    })),
+    fieldChanges: structuredClone(diff.fieldChanges)
+  };
+}
+
+function isGraphDocumentDiffEmpty(diff: GraphDocumentDiff): boolean {
+  return diff.operations.length === 0 && diff.fieldChanges.length === 0;
+}
+
 function isControlCommand(command: RuntimeBridgeCommand): command is RuntimeBridgeControlCommand {
   return (
     command.type === "play" ||
@@ -467,6 +574,19 @@ function isControlCommand(command: RuntimeBridgeCommand): command is RuntimeBrid
     command.type === "stop" ||
     command.type === "play-from-node"
   );
+}
+
+function isDiffModeCommand(
+  command: RuntimeBridgeCommand
+): command is
+  | {
+      type: "diff.mode.get";
+    }
+  | {
+      type: "diff.mode.set";
+      mode: RuntimeBridgeDiffMode;
+    } {
+  return command.type === "diff.mode.get" || command.type === "diff.mode.set";
 }
 
 function formatCatalogCommandResultBehavior(

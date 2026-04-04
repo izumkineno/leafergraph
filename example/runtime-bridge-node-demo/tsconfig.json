@@ -23,6 +23,7 @@
       "@leafergraph/contracts/graph-document-diff": [
         "../../packages/contracts/src/graph_document_diff.ts"
       ],
+      "@leafergraph/diff": ["../../packages/diff/src/index.ts"],
       "@leafergraph/execution": ["../../packages/execution/src/index.ts"],
       "@leafergraph/node": ["../../packages/node/src/index.ts"],
       "@leafergraph/runtime-bridge": ["../../packages/runtime-bridge/src/index.ts"],

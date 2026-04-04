@@ -338,6 +338,10 @@ function formatCommandBehavior(command: RuntimeBridgeCommand): string {
   }
 
   switch (command.type) {
+    case "diff.mode.get":
+      return "读取 diff 同步模式";
+    case "diff.mode.set":
+      return `切换 diff 同步模式 mode=${command.mode}`;
     case "catalog.list":
       return "读取扩展目录";
     case "entry.register":
@@ -361,6 +365,8 @@ function formatCommandResultBehavior(result: RuntimeBridgeCommandResult): string
   switch (result.type) {
     case "control.ok":
       return "control.ok";
+    case "diff.mode.result":
+      return `diff.mode=${result.mode}`;
     case "catalog.list.result":
       return `entries=${result.sync.entries.length}`;
     case "entry.register.result":

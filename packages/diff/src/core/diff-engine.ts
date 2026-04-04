@@ -1,4 +1,4 @@
-import type { GraphDocument, NodeSerializeResult } from "@leafergraph/node";
+import type { GraphDocument, NodeFlags, NodeSerializeResult } from "@leafergraph/node";
 import type { GraphOperation } from "@leafergraph/contracts";
 import type { GraphDocumentDiff, ApplyGraphDocumentDiffResult, GraphDocumentFieldChange } from "../types";
 
@@ -311,10 +311,10 @@ export class DiffEngine {
     this.computeDataChanges(oldNode, newNode, fieldChanges);
     
     // 检查标志变更
-    this.computeFlagChanges(oldNode, newNode, fieldChanges);
+    this.computeFlagChanges(oldNode, newNode, operations, fieldChanges);
     
     // 检查 Widget 变更
-    this.computeWidgetChanges(oldNode, newNode, fieldChanges);
+    this.computeWidgetChanges(oldNode, newNode, operations, fieldChanges);
   }
   
   /**
@@ -393,18 +393,35 @@ export class DiffEngine {
   private computeFlagChanges(
     oldNode: NodeSerializeResult,
     newNode: NodeSerializeResult,
+    operations: GraphOperation[],
     fieldChanges: GraphDocumentFieldChange[]
   ): void {
     const oldFlags = oldNode.flags || {};
     const newFlags = newNode.flags || {};
+    const oldCollapsed = Boolean((oldFlags as Record<string, unknown>).collapsed);
+    const nextCollapsed = Boolean((newFlags as Record<string, unknown>).collapsed);
+
+    if (oldCollapsed !== nextCollapsed) {
+      operations.push({
+        operationId: `node.collapse:${oldNode.id}:${Date.now()}`,
+        timestamp: Date.now(),
+        source: "diff.engine",
+        type: "node.collapse",
+        nodeId: oldNode.id,
+        collapsed: nextCollapsed
+      });
+    }
     
     // 检查新增和更新的标志
     for (const [key, value] of Object.entries(newFlags)) {
+      if (key === "collapsed") {
+        continue;
+      }
       if ((oldFlags as any)[key] !== value) {
         fieldChanges.push({
           type: "node.flag.set",
           nodeId: oldNode.id,
-          key,
+          key: key as keyof NodeFlags,
           value: Boolean(value)
         });
       }
@@ -417,6 +434,7 @@ export class DiffEngine {
   private computeWidgetChanges(
     oldNode: NodeSerializeResult,
     newNode: NodeSerializeResult,
+    operations: GraphOperation[],
     fieldChanges: GraphDocumentFieldChange[]
   ): void {
     const oldWidgets = oldNode.widgets || [];
@@ -439,16 +457,27 @@ export class DiffEngine {
       } else if (oldWidget && newWidget) {
         // 更新 Widget 值
         if (oldWidget.value !== newWidget.value) {
-          fieldChanges.push({
+          operations.push({
+            operationId: `node.widget.value.set:${oldNode.id}:${i}:${Date.now()}`,
+            timestamp: Date.now(),
+            source: "diff.engine",
             type: "node.widget.value.set",
             nodeId: oldNode.id,
             widgetIndex: i,
             value: newWidget.value
           });
         }
-        
-        // 检查 Widget 其他属性变更
-        if (JSON.stringify(oldWidget) !== JSON.stringify(newWidget)) {
+
+        const oldWidgetWithoutValue = { ...oldWidget };
+        const newWidgetWithoutValue = { ...newWidget };
+        delete (oldWidgetWithoutValue as Record<string, unknown>).value;
+        delete (newWidgetWithoutValue as Record<string, unknown>).value;
+
+        // 检查 Widget 其他属性变更（value 已由正式操作表达）
+        if (
+          JSON.stringify(oldWidgetWithoutValue) !==
+          JSON.stringify(newWidgetWithoutValue)
+        ) {
           fieldChanges.push({
             type: "node.widget.replace",
             nodeId: oldNode.id,

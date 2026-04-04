@@ -171,6 +171,105 @@ describe('DiffEngine', () => {
     expect(result.success).toBe(false);
     expect(result.requiresFullReplace).toBe(true);
   });
+
+  it('should generate node.collapse operation when collapsed flag changes', () => {
+    const before: GraphDocument = {
+      documentId: 'test-doc',
+      revision: 1,
+      nodes: [
+        {
+          id: 'node1',
+          type: 'basic',
+          title: 'Node 1',
+          layout: { x: 100, y: 100, width: 200, height: 100 },
+          flags: { collapsed: false }
+        }
+      ],
+      links: []
+    };
+    const after: GraphDocument = {
+      documentId: 'test-doc',
+      revision: 2,
+      nodes: [
+        {
+          id: 'node1',
+          type: 'basic',
+          title: 'Node 1',
+          layout: { x: 100, y: 100, width: 200, height: 100 },
+          flags: { collapsed: true }
+        }
+      ],
+      links: []
+    };
+
+    const diff = engine.computeDiff(before, after);
+    const collapseOperation = diff.operations.find(
+      (operation) => operation.type === 'node.collapse'
+    );
+
+    expect(collapseOperation).toBeDefined();
+    expect(collapseOperation).toMatchObject({
+      type: 'node.collapse',
+      nodeId: 'node1',
+      collapsed: true
+    });
+    expect(
+      diff.fieldChanges.some(
+        (change) =>
+          change.type === 'node.flag.set' &&
+          (change as { key?: string }).key === 'collapsed'
+      )
+    ).toBe(false);
+  });
+
+  it('should generate node.widget.value.set operation for value-only widget changes', () => {
+    const before: GraphDocument = {
+      documentId: 'test-doc',
+      revision: 1,
+      nodes: [
+        {
+          id: 'node1',
+          type: 'basic',
+          title: 'Node 1',
+          layout: { x: 100, y: 100, width: 200, height: 100 },
+          widgets: [{ type: 'number', name: 'value', value: 1 }]
+        }
+      ],
+      links: []
+    };
+    const after: GraphDocument = {
+      documentId: 'test-doc',
+      revision: 2,
+      nodes: [
+        {
+          id: 'node1',
+          type: 'basic',
+          title: 'Node 1',
+          layout: { x: 100, y: 100, width: 200, height: 100 },
+          widgets: [{ type: 'number', name: 'value', value: 2 }]
+        }
+      ],
+      links: []
+    };
+
+    const diff = engine.computeDiff(before, after);
+
+    expect(
+      diff.operations.some(
+        (operation) =>
+          operation.type === 'node.widget.value.set' &&
+          operation.nodeId === 'node1' &&
+          operation.widgetIndex === 0 &&
+          operation.value === 2
+      )
+    ).toBe(true);
+    expect(diff.fieldChanges.some((change) => change.type === 'node.widget.value.set')).toBe(
+      false
+    );
+    expect(diff.fieldChanges.some((change) => change.type === 'node.widget.replace')).toBe(
+      false
+    );
+  });
 });
 
 describe('FindUpdater', () => {

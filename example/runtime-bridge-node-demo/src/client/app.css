@@ -70,6 +70,31 @@
   justify-content: flex-end;
 }
 
+.demo-mode-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(9, 13, 19, 0.72);
+  font-size: 0.66rem;
+  color: rgba(249, 243, 234, 0.8);
+}
+
+.demo-mode-field select {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  background: rgba(18, 24, 33, 0.9);
+  color: #f9f3ea;
+  font-size: 0.68rem;
+}
+
+.demo-mode-field select:disabled {
+  opacity: 0.45;
+}
+
 .demo-actions button {
   border: 0;
   border-radius: 999px;
@@ -615,33 +640,6 @@
   .demo-debug-field {
     grid-template-columns: 3rem minmax(0, 1fr);
   }
-}
-
-/* Diff 功能样式 */
-.demo-diff-result {
-  margin-top: 16px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.demo-diff-title {
-  font-size: 0.72rem;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: rgba(255, 255, 255, 0.8);
-  letter-spacing: 0.08em;
-}
-
-.demo-diff-details {
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.68);
-  overflow-x: auto;
-  max-height: 200px;
-  overflow-y: auto;
-  font-family: "JetBrains Mono", "Consolas", monospace;
 }
 
 .demo-debug-button {

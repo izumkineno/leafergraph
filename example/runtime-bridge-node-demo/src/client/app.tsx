@@ -13,6 +13,7 @@ import {
   type RuntimeBridgeNodeCatalogEntry
 } from "@leafergraph/runtime-bridge";
 import { LeaferGraphRuntimeBridgeClient } from "@leafergraph/runtime-bridge/client";
+import type { RuntimeBridgeDiffMode } from "@leafergraph/runtime-bridge/transport";
 import {
   createGraphOperationsFromInteractionCommit,
   type GraphOperationApplyResult,
@@ -336,6 +337,7 @@ export function App() {
   const [lastDiffResult, setLastDiffResult] = useState<any>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [showLogDialog, setShowLogDialog] = useState(false);
+  const [bridgeDiffMode, setBridgeDiffMode] = useState<RuntimeBridgeDiffMode>("diff");
 
   const applyStressLogMute = (currentBlueprintId: string | null): void => {
     const shouldMute = isStressBlueprintEntryId(currentBlueprintId);
@@ -558,10 +560,26 @@ export function App() {
                 appendLog("transport", "operations.submitted", results);
                 syncRevisionSoon();
               })
-              .catch((error: unknown) => {
+              .catch(async (error: unknown) => {
                 const message = toErrorMessage(error);
                 setLastError(message);
-                appendLog("transport", "operations.error", message);
+                if (message.includes("authority.diff.validation.failed")) {
+                  appendLog("transport", "operations.diff.error", message);
+                } else {
+                  appendLog("transport", "operations.error", message);
+                }
+
+                try {
+                  await bridgeClient.requestSnapshot();
+                  appendLog("transport", "operations.snapshot.recovered", "已自动拉取 snapshot 对齐。");
+                  syncRevisionSoon();
+                } catch (snapshotError) {
+                  appendLog(
+                    "transport",
+                    "operations.snapshot.error",
+                    toErrorMessage(snapshotError)
+                  );
+                }
               });
           })
         );
@@ -651,6 +669,13 @@ export function App() {
 
     void runAction("连接", async () => {
       await runtime.bridgeClient.connect();
+      const modeResult = await runtime.bridgeClient.requestCommand({
+        type: "diff.mode.get"
+      });
+      if (modeResult.type !== "diff.mode.result") {
+        throw new Error(`Unexpected result: ${modeResult.type}`);
+      }
+      setBridgeDiffMode(modeResult.mode);
       setCurrentRevision(runtime.graph.getGraphDocument().revision);
     });
   };
@@ -789,6 +814,21 @@ export function App() {
       });
       await runtime.bridgeClient.play();
       setCurrentRevision(runtime.graph.getGraphDocument().revision);
+    });
+  };
+
+  const changeBridgeDiffMode = (mode: RuntimeBridgeDiffMode) => {
+    void runAction(`切换同步模式 ${mode}`, async () => {
+      const runtime = await ensureConnectedRuntime();
+      const result = await runtime.bridgeClient.requestCommand({
+        type: "diff.mode.set",
+        mode
+      });
+      if (result.type !== "diff.mode.result") {
+        throw new Error(`Unexpected result: ${result.type}`);
+      }
+      setBridgeDiffMode(result.mode);
+      appendLog("system", "diff.mode", `当前模式：${result.mode}`);
     });
   };
 
@@ -956,6 +996,24 @@ export function App() {
         </div>
         <div className="demo-toolbar-side">
           <div className="demo-actions">
+            <label className="demo-mode-field">
+              <span>同步模式</span>
+              <select
+                value={bridgeDiffMode}
+                disabled={
+                  !ready || transportStatus.state !== "connected" || busyAction !== null
+                }
+                onInput={(event) => {
+                  const mode = event.currentTarget.value as RuntimeBridgeDiffMode;
+                  if (mode !== bridgeDiffMode) {
+                    changeBridgeDiffMode(mode);
+                  }
+                }}
+              >
+                <option value="diff">diff</option>
+                <option value="legacy">legacy</option>
+              </select>
+            </label>
             <button disabled={!ready || busyAction !== null} onClick={connect}>
               连接
             </button>
@@ -1019,6 +1077,10 @@ export function App() {
         <article className="status-card">
           <span className="status-label">文档版本</span>
           <strong className="status-value">{String(currentRevision)}</strong>
+        </article>
+        <article className="status-card">
+          <span className="status-label">同步模式</span>
+          <strong className="status-value">{bridgeDiffMode}</strong>
         </article>
         <article className="status-card">
           <span className="status-label">目录条目</span>
@@ -1248,44 +1310,6 @@ export function App() {
                       </select>
                     </label>
                   </div>
-                </div>
-
-                <div className="demo-debug-panel">
-                  <p className="demo-debug-title">Diff 功能</p>
-                  <div className="demo-debug-grid">
-                    <label className="demo-debug-field">
-                      <span className="demo-debug-label">启用</span>
-                      <select
-                        className="demo-debug-select"
-                        disabled={!ready || busyAction !== null}
-                        value={resolveBooleanSelectValue(diffEnabled)}
-                        onInput={(event) => {
-                          setDiffEnabled(event.currentTarget.value === "on");
-                        }}
-                      >
-                        <option value="off">关</option>
-                        <option value="on">开</option>
-                      </select>
-                    </label>
-                    <label className="demo-debug-field">
-                      <span className="demo-debug-label">操作</span>
-                      <button
-                        className="demo-debug-button"
-                        disabled={!ready || !diffEnabled || busyAction !== null}
-                        onClick={computeDiff}
-                      >
-                        计算差异
-                      </button>
-                    </label>
-                  </div>
-                  {lastDiffResult && (
-                    <div className="demo-diff-result">
-                      <p className="demo-diff-title">差异结果</p>
-                      <pre className="demo-diff-details">
-                        {JSON.stringify(lastDiffResult, null, 2)}
-                      </pre>
-                    </div>
-                  )}
                 </div>
 
                 <RuntimeBridgeCatalogPanel

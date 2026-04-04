@@ -113,7 +113,155 @@ describe("RuntimeBridgeNodeAuthority", () => {
     ) as Extract<RuntimeBridgeInboundEvent, { type: "document.diff" }> | undefined;
     expect(diffEvent).toBeDefined();
     expect(diffEvent?.diff.operations).toHaveLength(1);
+    expect(diffEvent?.diff.operations[0]).toMatchObject({
+      type: "node.collapse",
+      nodeId: RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer,
+      source: "authority.documentDiff"
+    });
+    expect(diffEvent?.diff.operations[0]?.operationId).toContain("authority.diff:");
     expect(events.some((event) => event.type === "history.event")).toBe(true);
+  });
+
+  test("submitOperations 的 widget 变更应通过 diff 生成 node.widget.value.set", async () => {
+    const nodeAuthority = await createAuthority();
+    const events: RuntimeBridgeInboundEvent[] = [];
+    const unsubscribe = nodeAuthority.subscribe((event) => {
+      events.push(event);
+    });
+
+    nodeAuthority.submitOperations([
+      {
+        type: "node.widget.value.set",
+        nodeId: RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer,
+        widgetIndex: 0,
+        value: 900,
+        operationId: "authority-test-widget",
+        timestamp: Date.now(),
+        source: "authority.test"
+      }
+    ]);
+
+    unsubscribe();
+
+    const diffEvent = events.find(
+      (event) => event.type === "document.diff"
+    ) as Extract<RuntimeBridgeInboundEvent, { type: "document.diff" }> | undefined;
+    expect(diffEvent).toBeDefined();
+    expect(
+      diffEvent?.diff.operations.some(
+        (operation) =>
+          operation.type === "node.widget.value.set" &&
+          operation.nodeId === RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer &&
+          operation.widgetIndex === 0 &&
+          operation.value === 900
+      )
+    ).toBe(true);
+  });
+
+  test("diff replay 校验失败时应广播 snapshot 并抛错", async () => {
+    const nodeAuthority = await createAuthority();
+    const events: RuntimeBridgeInboundEvent[] = [];
+    const unsubscribe = nodeAuthority.subscribe((event) => {
+      events.push(event);
+    });
+
+    (nodeAuthority as unknown as {
+      diffEngine: {
+        computeDiff: (
+          beforeDocument: { documentId: string; revision: string | number },
+          afterDocument: { revision: string | number }
+        ) => {
+          documentId: string;
+          baseRevision: string | number;
+          revision: string | number;
+          emittedAt: number;
+          operations: Array<Record<string, unknown>>;
+          fieldChanges: Array<Record<string, unknown>>;
+        };
+      };
+    }).diffEngine = {
+      computeDiff(beforeDocument, afterDocument) {
+        return {
+          documentId: beforeDocument.documentId,
+          baseRevision: beforeDocument.revision,
+          revision: afterDocument.revision,
+          emittedAt: Date.now(),
+          operations: [
+            {
+              type: "node.collapse",
+              nodeId: "missing-node",
+              collapsed: true,
+              operationId: "forced-invalid-op",
+              timestamp: Date.now(),
+              source: "authority.test"
+            }
+          ],
+          fieldChanges: []
+        };
+      }
+    };
+
+    expect(() =>
+      nodeAuthority.submitOperations([
+        {
+          type: "node.collapse",
+          nodeId: RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer,
+          collapsed: true,
+          operationId: "authority-test-collapse-replay-fail",
+          timestamp: Date.now(),
+          source: "authority.test"
+        }
+      ])
+    ).toThrow("authority.diff.validation.failed");
+
+    unsubscribe();
+    expect(events.some((event) => event.type === "document.snapshot")).toBe(true);
+    expect(events.some((event) => event.type === "document.diff")).toBe(false);
+  });
+
+  test("diff 同步模式可在 diff 与 legacy 间切换", async () => {
+    const nodeAuthority = await createAuthority();
+    const getDefaultMode = await nodeAuthority.requestCommand({
+      type: "diff.mode.get"
+    });
+    expect(getDefaultMode).toMatchObject({
+      type: "diff.mode.result",
+      mode: "diff"
+    });
+
+    const setLegacyMode = await nodeAuthority.requestCommand({
+      type: "diff.mode.set",
+      mode: "legacy"
+    });
+    expect(setLegacyMode).toMatchObject({
+      type: "diff.mode.result",
+      mode: "legacy"
+    });
+
+    const events: RuntimeBridgeInboundEvent[] = [];
+    const unsubscribe = nodeAuthority.subscribe((event) => {
+      events.push(event);
+    });
+    nodeAuthority.submitOperations([
+      {
+        type: "node.collapse",
+        nodeId: RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer,
+        collapsed: true,
+        operationId: "authority-test-legacy-mode",
+        timestamp: Date.now(),
+        source: "authority.test"
+      }
+    ]);
+    unsubscribe();
+
+    const diffEvent = events.find(
+      (event) => event.type === "document.diff"
+    ) as Extract<RuntimeBridgeInboundEvent, { type: "document.diff" }> | undefined;
+    expect(diffEvent).toBeDefined();
+    expect(diffEvent?.diff.operations[0]).toMatchObject({
+      type: "node.collapse",
+      source: "authority.test"
+    });
   });
 
   test("play / stop / play-from-node 应进入 authority 控制链", async () => {
