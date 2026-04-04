@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:client": "vite",
     "dev:server": "bun run ./src/server/dev.ts",
+    "bench:diff-modes": "bun run ./src/server/bench_diff_modes.ts",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && bun run build:client && bun run build:server",

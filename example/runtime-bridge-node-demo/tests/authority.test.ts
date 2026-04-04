@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { RuntimeBridgeInboundEvent } from "@leafergraph/runtime-bridge/transport";
 import {
   DEMO_FFT_ANALYZER_NODE_ENTRY_ID,
+  DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID,
   DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID,
   DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID,
   DEMO_PERF_METER_NODE_ENTRY_ID,
@@ -154,6 +155,125 @@ describe("RuntimeBridgeNodeAuthority", () => {
           operation.nodeId === RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer &&
           operation.widgetIndex === 0 &&
           operation.value === 900
+      )
+    ).toBe(true);
+  });
+
+  test("fast-path 应合并同目标高频操作并只广播最终值", async () => {
+    const nodeAuthority = await createAuthority();
+    const events: RuntimeBridgeInboundEvent[] = [];
+    const unsubscribe = nodeAuthority.subscribe((event) => {
+      events.push(event);
+    });
+
+    nodeAuthority.submitOperations([
+      {
+        type: "node.widget.value.set",
+        nodeId: RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer,
+        widgetIndex: 0,
+        value: 701,
+        operationId: "authority-test-widget-fast-1",
+        timestamp: Date.now(),
+        source: "authority.test"
+      },
+      {
+        type: "node.widget.value.set",
+        nodeId: RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer,
+        widgetIndex: 0,
+        value: 702,
+        operationId: "authority-test-widget-fast-2",
+        timestamp: Date.now(),
+        source: "authority.test"
+      }
+    ]);
+
+    unsubscribe();
+
+    const diffEvent = events.find(
+      (event) => event.type === "document.diff"
+    ) as Extract<RuntimeBridgeInboundEvent, { type: "document.diff" }> | undefined;
+    expect(diffEvent).toBeDefined();
+    expect(diffEvent?.diff.operations).toHaveLength(1);
+    expect(diffEvent?.diff.operations[0]).toMatchObject({
+      type: "node.widget.value.set",
+      nodeId: RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.heartbeatTimer,
+      widgetIndex: 0,
+      value: 702
+    });
+  });
+
+  test("非 fast-path 变更应走局部 diff 计算范围", async () => {
+    const nodeAuthority = await createAuthority();
+    const snapshot = nodeAuthority.requestSnapshot();
+    const fullNodes = snapshot.nodes.length;
+    const fullLinks = snapshot.links.length;
+    const slowTimerNode = snapshot.nodes.find(
+      (node) => node.id === RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS.slowTimer
+    );
+    expect(slowTimerNode).toBeDefined();
+    if (!slowTimerNode) {
+      throw new Error("slow timer node not found");
+    }
+
+    const authorityWithInternals = nodeAuthority as unknown as {
+      diffEngine: {
+        computeDiff: (before: {
+          nodes: unknown[];
+          links: unknown[];
+        }, after: {
+          nodes: unknown[];
+          links: unknown[];
+        }) => unknown;
+      };
+    };
+    const originalComputeDiff = authorityWithInternals.diffEngine.computeDiff.bind(
+      authorityWithInternals.diffEngine
+    );
+    const observedScopes: Array<{
+      oldNodes: number;
+      newNodes: number;
+      oldLinks: number;
+      newLinks: number;
+    }> = [];
+
+    authorityWithInternals.diffEngine.computeDiff = ((before, after) => {
+      observedScopes.push({
+        oldNodes: before.nodes.length,
+        newNodes: after.nodes.length,
+        oldLinks: before.links.length,
+        newLinks: after.links.length
+      });
+      return originalComputeDiff(before, after);
+    }) as typeof authorityWithInternals.diffEngine.computeDiff;
+
+    try {
+      const results = nodeAuthority.submitOperations([
+        {
+          type: "node.rename",
+          nodeId: slowTimerNode.id,
+          title: `${slowTimerNode.title ?? "Timer"} (patched)`,
+          beforeTitle: slowTimerNode.title ?? "",
+          operationId: "authority-test-rename-partial",
+          timestamp: Date.now(),
+          source: "authority.test"
+        }
+      ]);
+      expect(results[0]).toMatchObject({
+        accepted: true,
+        changed: true
+      });
+    } finally {
+      authorityWithInternals.diffEngine.computeDiff = originalComputeDiff;
+    }
+
+    expect(observedScopes.length).toBeGreaterThan(0);
+    expect(
+      observedScopes.some(
+        (scope) =>
+          scope.oldNodes < fullNodes ||
+          scope.newNodes < fullNodes ||
+          scope.oldLinks < fullLinks ||
+          scope.newLinks < fullLinks
       )
     ).toBe(true);
   });
@@ -384,5 +504,38 @@ describe("RuntimeBridgeNodeAuthority", () => {
       }
     });
     expect(spectrumFrame.kind).toBe("spectrum");
+  });
+
+  test("frequency-extreme 蓝图提供更高压链路并产出扩展节点流帧", async () => {
+    const nodeAuthority = await createAuthority();
+    const frames: DemoStreamFrame[] = [];
+    const unsubscribe = nodeAuthority.subscribeStream((frame) => {
+      frames.push(frame);
+    });
+
+    const result = await nodeAuthority.requestCommand({
+      type: "blueprint.load",
+      entryId: DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID
+    });
+    if (result.type !== "blueprint.load.result") {
+      throw new Error(`Unexpected result: ${result.type}`);
+    }
+
+    expect(result.document.documentId).toBe("runtime-bridge-frequency-extreme");
+    expect(result.document.nodes.length).toBeGreaterThan(7);
+    expect(result.document.links.length).toBeGreaterThan(7);
+    const timerNode = result.document.nodes.find((node) => node.id === "frequency-timer");
+    expect(timerNode?.properties?.intervalMs).toBe(8);
+
+    nodeAuthority.sendControl({ type: "play" });
+    const perfBFrame = await waitForStreamFrame(
+      frames,
+      (frame) => frame.kind === "perf" && frame.nodeId === "frequency-perf-b",
+      4000
+    );
+    nodeAuthority.sendControl({ type: "stop" });
+    unsubscribe();
+
+    expect(perfBFrame.kind).toBe("perf");
   });
 });

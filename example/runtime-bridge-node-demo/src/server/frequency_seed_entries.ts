@@ -6,6 +6,7 @@ import type {
 } from "@leafergraph/runtime-bridge";
 import type { NodeDefinition } from "@leafergraph/node";
 import {
+  DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID,
   DEMO_FFT_ANALYZER_NODE_ENTRY_ID,
   DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID,
   DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID,
@@ -138,6 +139,13 @@ export async function createFrequencyCatalogEntries(
     contentType: "application/json",
     suggestedName: "demo-frequency-stress.blueprint.json"
   });
+  const frequencyExtremeArtifactRef = await artifactStore.writeArtifact({
+    bytes: new TextEncoder().encode(
+      JSON.stringify(createFrequencyExtremeBlueprintDocument(), null, 2)
+    ),
+    contentType: "application/json",
+    suggestedName: "demo-frequency-extreme.blueprint.json"
+  });
 
   const componentEntries: RuntimeBridgeComponentCatalogEntry[] = [
     {
@@ -257,6 +265,25 @@ export async function createFrequencyCatalogEntries(
         DEMO_PERF_READOUT_COMPONENT_ENTRY_ID
       ],
       documentArtifactRef: frequencyStressArtifactRef
+    },
+    {
+      entryId: DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID,
+      entryKind: "blueprint-entry",
+      name: "频谱极限压测",
+      description: "8ms 定时 + 双分析链路的极限压力实验图。",
+      nodeEntryIds: [
+        DEMO_SIGNAL_GENERATOR_NODE_ENTRY_ID,
+        DEMO_FFT_ANALYZER_NODE_ENTRY_ID,
+        DEMO_SCOPE_VIEW_NODE_ENTRY_ID,
+        DEMO_SPECTRUM_VIEW_NODE_ENTRY_ID,
+        DEMO_PERF_METER_NODE_ENTRY_ID
+      ],
+      componentEntryIds: [
+        DEMO_SCOPE_PLOT_COMPONENT_ENTRY_ID,
+        DEMO_SPECTRUM_BARS_COMPONENT_ENTRY_ID,
+        DEMO_PERF_READOUT_COMPONENT_ENTRY_ID
+      ],
+      documentArtifactRef: frequencyExtremeArtifactRef
     }
   ];
 
@@ -584,6 +611,135 @@ function createFrequencyStressBlueprintDocument() {
       }
     ];
   }
+
+  return document;
+}
+
+function createFrequencyExtremeBlueprintDocument() {
+  const document = createFrequencyStressBlueprintDocument();
+  document.documentId = "runtime-bridge-frequency-extreme";
+  document.revision = 1;
+
+  const timerNode = document.nodes.find(
+    (node) => node.id === DEMO_FREQUENCY_BLUEPRINT_NODE_IDS.timer
+  );
+  if (timerNode) {
+    timerNode.title = "Extreme Clock";
+    timerNode.properties = { intervalMs: 8, immediate: true, runCount: 0, status: "READY" };
+    timerNode.widgets = [
+      {
+        type: "input",
+        name: "intervalMs",
+        value: 8,
+        options: { label: "Interval (ms)", placeholder: "8" }
+      },
+      {
+        type: "toggle",
+        name: "immediate",
+        value: true,
+        options: { label: "Immediate", onText: "ON", offText: "WAIT" }
+      }
+    ];
+  }
+
+  const generatorNode = document.nodes.find(
+    (node) => node.id === DEMO_FREQUENCY_BLUEPRINT_NODE_IDS.generator
+  );
+  if (generatorNode) {
+    generatorNode.title = "Signal Generator Extreme";
+    generatorNode.properties = {
+      sampleRate: 16000,
+      frameSize: 2048,
+      frequency: 880,
+      harmonics: 7,
+      noise: 0.08,
+      amplitude: 1
+    };
+    generatorNode.widgets = [
+      { type: "select", name: "sampleRate", value: "16000", options: { label: "Sample Rate", items: ["4000", "8000", "16000"] } },
+      { type: "select", name: "frameSize", value: "2048", options: { label: "Frame Size", items: ["256", "512", "1024", "2048"] } },
+      { type: "input", name: "frequency", value: "880", options: { label: "Frequency", placeholder: "880" } },
+      { type: "select", name: "harmonics", value: "7", options: { label: "Harmonics", items: ["1", "3", "5", "7"] } },
+      { type: "slider", name: "amplitude", value: 1, options: { label: "Amplitude", min: 0.1, max: 1, step: 0.05 } },
+      { type: "slider", name: "noise", value: 0.08, options: { label: "Noise", min: 0, max: 0.2, step: 0.01 } }
+    ];
+  }
+
+  const analyzerNode = document.nodes.find(
+    (node) => node.id === DEMO_FREQUENCY_BLUEPRINT_NODE_IDS.analyzer
+  );
+  if (analyzerNode) {
+    analyzerNode.title = "FFT Analyzer Extreme";
+    analyzerNode.properties = { binCount: 128 };
+    analyzerNode.widgets = [
+      {
+        type: "select",
+        name: "binCount",
+        value: "128",
+        options: { label: "Bin Count", items: ["96", "128"] }
+      }
+    ];
+  }
+
+  document.nodes.push(
+    {
+      id: "frequency-scope-b",
+      type: "demo/scope-view",
+      title: "Scope View B",
+      layout: { x: 966, y: 648, width: 380, height: 264 },
+      widgets: createScopeViewBrowserDefinition().widgets
+    },
+    {
+      id: "frequency-analyzer-b",
+      type: "demo/fft-analyzer",
+      title: "FFT Analyzer B",
+      layout: { x: 1368, y: 648, width: 260, height: 160 },
+      widgets: createFftAnalyzerBrowserDefinition().widgets,
+      properties: { binCount: 128 }
+    },
+    {
+      id: "frequency-spectrum-b",
+      type: "demo/spectrum-view",
+      title: "Spectrum View B",
+      layout: { x: 1688, y: 632, width: 380, height: 264 },
+      widgets: createSpectrumViewBrowserDefinition().widgets
+    },
+    {
+      id: "frequency-perf-b",
+      type: "demo/perf-meter",
+      title: "Perf Meter B",
+      layout: { x: 1728, y: 320, width: 336, height: 220 },
+      widgets: createPerfMeterBrowserDefinition().widgets
+    }
+  );
+
+  document.links.push(
+    {
+      id: "frequency-extreme:generator->scope-b",
+      source: { nodeId: DEMO_FREQUENCY_BLUEPRINT_NODE_IDS.generator, slot: 0 },
+      target: { nodeId: "frequency-scope-b", slot: 0 }
+    },
+    {
+      id: "frequency-extreme:generator->analyzer-b",
+      source: { nodeId: DEMO_FREQUENCY_BLUEPRINT_NODE_IDS.generator, slot: 0 },
+      target: { nodeId: "frequency-analyzer-b", slot: 0 }
+    },
+    {
+      id: "frequency-extreme:generator->perf-b",
+      source: { nodeId: DEMO_FREQUENCY_BLUEPRINT_NODE_IDS.generator, slot: 0 },
+      target: { nodeId: "frequency-perf-b", slot: 0 }
+    },
+    {
+      id: "frequency-extreme:analyzer-b->spectrum-b",
+      source: { nodeId: "frequency-analyzer-b", slot: 0 },
+      target: { nodeId: "frequency-spectrum-b", slot: 0 }
+    },
+    {
+      id: "frequency-extreme:analyzer-b->perf-b",
+      source: { nodeId: "frequency-analyzer-b", slot: 0 },
+      target: { nodeId: "frequency-perf-b", slot: 1 }
+    }
+  );
 
   return document;
 }

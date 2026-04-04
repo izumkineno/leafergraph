@@ -93,6 +93,27 @@ bun run preview:runtime-bridge-node-demo
 
 预览时仍然需要单独启动 Node authority。
 
+## diff/legacy 压测
+
+可以直接运行内置 benchmark，对比 `diff` 与 `legacy` 两种同步模式在高频 `operations.submit` 下的表现：
+
+```bash
+bun run --filter leafergraph-runtime-bridge-node-demo bench:diff-modes
+```
+
+脚本会输出 JSON 报告，包含：
+
+- 吞吐（`throughputOpsPerSec`）
+- 提交延迟（`avg/p50/p95SubmitMs`）
+- `document.diff` 事件体和 wire 大小（`avgDiffEventBytes/avgDiffWireBytes`）
+- 操作来源集合（`sourceSet`，可用于确认是否由 authority 归一）
+
+可通过环境变量调参：
+
+```bash
+BENCH_BATCH_COUNT=200 BENCH_BATCH_SIZE=12 BENCH_WARMUP_BATCHES=20 bun run --filter leafergraph-runtime-bridge-node-demo bench:diff-modes
+```
+
 ## 说明
 
 - 这是一个单 authority、单文档、内存态 session 的示例

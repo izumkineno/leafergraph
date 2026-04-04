@@ -19,4 +19,5 @@ export const DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID =
   "demo/blueprint/frequency-lab";
 export const DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID =
   "demo/blueprint/frequency-stress";
-
+export const DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID =
+  "demo/blueprint/frequency-extreme";

@@ -26,6 +26,7 @@ import {
   RUNTIME_BRIDGE_NODE_DEMO_NODE_IDS
 } from "../shared/document";
 import {
+  DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID,
   DEMO_FREQUENCY_LAB_BLUEPRINT_ENTRY_ID,
   DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID
 } from "../shared/catalog";
@@ -157,7 +158,10 @@ const EMPTY_STREAM_STATS: DemoBrowserStreamStats = {
 let logEntrySeed = 1;
 
 function isStressBlueprintEntryId(entryId: string | null | undefined): boolean {
-  return entryId === DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID;
+  return (
+    entryId === DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID ||
+    entryId === DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID
+  );
 }
 
 function toErrorMessage(error: unknown): string {
@@ -1182,6 +1186,19 @@ export function App() {
                       }
                     >
                       压力运行
+                    </button>
+                    <button
+                      disabled={
+                        !ready || transportStatus.state !== "connected" || busyAction !== null
+                      }
+                      onClick={() =>
+                        launchExperiment(
+                          DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID,
+                          "启动频谱极限压测"
+                        )
+                      }
+                    >
+                      极限压测
                     </button>
                   </div>
                   <p className="demo-quick-hint">

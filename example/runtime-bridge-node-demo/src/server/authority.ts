@@ -26,7 +26,10 @@ import type {
   RuntimeFeedbackEvent
 } from "@leafergraph/runtime-bridge/portable";
 import { createRuntimeBridgeNodeDemoDocument } from "../shared/document";
-import { DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID } from "../shared/catalog";
+import {
+  DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID,
+  DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID
+} from "../shared/catalog";
 import {
   createRuntimeBridgeDemoContainer,
   ensureRuntimeBridgeDemoHeadlessDom
@@ -66,6 +69,19 @@ export interface RuntimeBridgeNodeAuthorityOptions {
   sessionId?: string;
   seedCatalog?: boolean;
   diffMode?: RuntimeBridgeDiffMode;
+}
+
+type DiffComputationStrategy = "fast-path" | "partial" | "full";
+
+interface DiffComputationScope {
+  nodeIds: Set<string>;
+  linkIds: Set<string>;
+}
+
+interface DiffComputationPlan {
+  strategy: DiffComputationStrategy;
+  diff: GraphDocumentDiff;
+  scope: DiffComputationScope | null;
 }
 
 /**
@@ -240,6 +256,8 @@ export class RuntimeBridgeNodeAuthority {
     const results: GraphOperationApplyResult[] = [];
     let changedCount = 0;
     const changedOperations: GraphOperation[] = [];
+    const affectedNodeIds = new Set<string>();
+    const affectedLinkIds = new Set<string>();
 
     logRuntimeBridgeServer(
       "authority",
@@ -264,6 +282,12 @@ export class RuntimeBridgeNodeAuthority {
       if (result.accepted && result.changed) {
         changedCount += 1;
         changedOperations.push(structuredClone(result.operation));
+        for (const nodeId of result.affectedNodeIds) {
+          affectedNodeIds.add(nodeId);
+        }
+        for (const linkId of result.affectedLinkIds) {
+          affectedLinkIds.add(linkId);
+        }
       }
     }
 
@@ -290,15 +314,32 @@ export class RuntimeBridgeNodeAuthority {
         return results;
       }
 
-      const computedDiff = this.diffEngine.computeDiff(beforeDocument, afterDocument);
-      const normalizedDiff = normalizeAuthorityDocumentDiff(computedDiff);
+      const diffPlan = computeAuthorityDiffPlan({
+        diffEngine: this.diffEngine,
+        beforeDocument,
+        afterDocument,
+        changedOperations,
+        affectedNodeIds,
+        affectedLinkIds
+      });
+      const normalizedDiff = normalizeAuthorityDocumentDiff(diffPlan.diff);
+      logRuntimeBridgeServer(
+        "authority",
+        "document.diff.plan",
+        `strategy=${diffPlan.strategy} ops=${normalizedDiff.operations.length} fieldChanges=${normalizedDiff.fieldChanges.length}`
+      );
       const replayResult = applyGraphDocumentDiffToDocument(
         beforeDocument,
         normalizedDiff
       );
       const replayDriftDiff =
         replayResult.success && !replayResult.requiresFullReplace
-          ? this.diffEngine.computeDiff(replayResult.document, afterDocument)
+          ? computeReplayDriftDiff(
+              this.diffEngine,
+              replayResult.document,
+              afterDocument,
+              diffPlan.scope
+            )
           : null;
       const replayMatchesTarget =
         replayDriftDiff !== null && isGraphDocumentDiffEmpty(replayDriftDiff);
@@ -503,7 +544,8 @@ export class RuntimeBridgeNodeAuthority {
 
   private applyStressLoggingMode(currentBlueprintId: string | null): void {
     const shouldMute =
-      currentBlueprintId === DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID;
+      currentBlueprintId === DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID ||
+      currentBlueprintId === DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID;
     this.diagnosticLogsMuted = shouldMute;
     setRuntimeBridgeNodeDemoLoggingMuted(shouldMute);
   }
@@ -565,6 +607,178 @@ function normalizeAuthorityDocumentDiff(diff: GraphDocumentDiff): GraphDocumentD
 
 function isGraphDocumentDiffEmpty(diff: GraphDocumentDiff): boolean {
   return diff.operations.length === 0 && diff.fieldChanges.length === 0;
+}
+
+function computeAuthorityDiffPlan(params: {
+  diffEngine: DiffEngine;
+  beforeDocument: GraphDocument;
+  afterDocument: GraphDocument;
+  changedOperations: readonly GraphOperation[];
+  affectedNodeIds: ReadonlySet<string>;
+  affectedLinkIds: ReadonlySet<string>;
+}): DiffComputationPlan {
+  const fastPathOperations = buildFastPathOperations(params.changedOperations);
+  if (fastPathOperations) {
+    return {
+      strategy: "fast-path",
+      diff: createDiffFromOperations(
+        params.beforeDocument,
+        params.afterDocument,
+        fastPathOperations
+      ),
+      scope: createDiffComputationScope(
+        params.affectedNodeIds,
+        params.affectedLinkIds
+      )
+    };
+  }
+
+  const scope = createDiffComputationScope(
+    params.affectedNodeIds,
+    params.affectedLinkIds
+  );
+  if (
+    scope &&
+    canUseScopedDiffComputation(params.changedOperations, scope)
+  ) {
+    const scopedBeforeDocument = createScopedDocumentForDiff(
+      params.beforeDocument,
+      scope
+    );
+    const scopedAfterDocument = createScopedDocumentForDiff(
+      params.afterDocument,
+      scope
+    );
+    return {
+      strategy: "partial",
+      diff: params.diffEngine.computeDiff(scopedBeforeDocument, scopedAfterDocument),
+      scope
+    };
+  }
+
+  return {
+    strategy: "full",
+    diff: params.diffEngine.computeDiff(
+      params.beforeDocument,
+      params.afterDocument
+    ),
+    scope: null
+  };
+}
+
+function createDiffFromOperations(
+  beforeDocument: GraphDocument,
+  afterDocument: GraphDocument,
+  operations: readonly GraphOperation[]
+): GraphDocumentDiff {
+  return {
+    documentId: afterDocument.documentId,
+    baseRevision: beforeDocument.revision,
+    revision: afterDocument.revision,
+    emittedAt: Date.now(),
+    operations: operations.map((operation) => structuredClone(operation)),
+    fieldChanges: []
+  };
+}
+
+function buildFastPathOperations(
+  operations: readonly GraphOperation[]
+): GraphOperation[] | null {
+  if (!operations.length) {
+    return null;
+  }
+  if (!operations.every(isFastPathOperation)) {
+    return null;
+  }
+
+  const mergedOperations = new Map<string, GraphOperation>();
+  for (const operation of operations) {
+    mergedOperations.set(getFastPathOperationKey(operation), structuredClone(operation));
+  }
+  return [...mergedOperations.values()];
+}
+
+function isFastPathOperation(operation: GraphOperation): boolean {
+  return (
+    operation.type === "node.move" ||
+    operation.type === "node.resize" ||
+    operation.type === "node.collapse" ||
+    operation.type === "node.widget.value.set"
+  );
+}
+
+function getFastPathOperationKey(operation: GraphOperation): string {
+  switch (operation.type) {
+    case "node.move":
+    case "node.resize":
+    case "node.collapse":
+      return `${operation.type}:${operation.nodeId}`;
+    case "node.widget.value.set":
+      return `${operation.type}:${operation.nodeId}:${String(operation.widgetIndex)}`;
+    default:
+      return `${operation.type}:${operation.operationId}`;
+  }
+}
+
+function createDiffComputationScope(
+  affectedNodeIds: ReadonlySet<string>,
+  affectedLinkIds: ReadonlySet<string>
+): DiffComputationScope | null {
+  if (affectedNodeIds.size === 0 && affectedLinkIds.size === 0) {
+    return null;
+  }
+  return {
+    nodeIds: new Set(affectedNodeIds),
+    linkIds: new Set(affectedLinkIds)
+  };
+}
+
+function canUseScopedDiffComputation(
+  operations: readonly GraphOperation[],
+  scope: DiffComputationScope
+): boolean {
+  if (scope.nodeIds.size === 0 && scope.linkIds.size === 0) {
+    return false;
+  }
+  return !operations.some((operation) => operation.type === "document.update");
+}
+
+function createScopedDocumentForDiff(
+  document: GraphDocument,
+  scope: DiffComputationScope
+): GraphDocument {
+  const scopedLinks = document.links.filter(
+    (link) =>
+      scope.linkIds.has(link.id) ||
+      scope.nodeIds.has(link.source.nodeId) ||
+      scope.nodeIds.has(link.target.nodeId)
+  );
+  const scopedNodeIds = new Set(scope.nodeIds);
+  for (const link of scopedLinks) {
+    scopedNodeIds.add(link.source.nodeId);
+    scopedNodeIds.add(link.target.nodeId);
+  }
+  const scopedNodes = document.nodes.filter((node) => scopedNodeIds.has(node.id));
+
+  return {
+    ...document,
+    nodes: structuredClone(scopedNodes),
+    links: structuredClone(scopedLinks)
+  };
+}
+
+function computeReplayDriftDiff(
+  diffEngine: DiffEngine,
+  replayedDocument: GraphDocument,
+  afterDocument: GraphDocument,
+  scope: DiffComputationScope | null
+): GraphDocumentDiff {
+  if (!scope) {
+    return diffEngine.computeDiff(replayedDocument, afterDocument);
+  }
+  const replayScopedDocument = createScopedDocumentForDiff(replayedDocument, scope);
+  const afterScopedDocument = createScopedDocumentForDiff(afterDocument, scope);
+  return diffEngine.computeDiff(replayScopedDocument, afterScopedDocument);
 }
 
 function isControlCommand(command: RuntimeBridgeCommand): command is RuntimeBridgeControlCommand {
