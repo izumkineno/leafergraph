@@ -298,6 +298,12 @@ export class LeaferGraphNodeExecutionHost<
           : definition.onExecute?.(node, executionContext, nodeApi);
 
       if (isPromiseLike(executionResult)) {
+        this.emitNodeExecutionEvent(
+          task,
+          sequence,
+          executionContext,
+          cloneExecutionState(this.executionStateByNodeId.get(task.nodeId))
+        );
         return executionResult.then(
           () => completeSuccess(),
           (error) => completeFailure(error)

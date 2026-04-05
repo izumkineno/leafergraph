@@ -200,4 +200,80 @@ describe("LeaferGraphNodeExecutionHost", () => {
       runCount: 1
     });
   });
+
+  test("emits a running execution event as soon as async onExecute starts", async () => {
+    const node = createLinkedRuntimeNode({
+      id: "crawler-1",
+      type: "demo/request-html",
+      title: "Crawler"
+    });
+    let resolveExecution: (() => void) | null = null;
+    const events: Array<{
+      status: string;
+      runCount: number;
+    }> = [];
+    const host = new LeaferGraphNodeExecutionHost({
+      nodeRegistry: {
+        getNode(type: string) {
+          if (type !== "demo/request-html") {
+            return undefined;
+          }
+
+          return {
+            onExecute: () =>
+              new Promise<void>((resolve) => {
+                resolveExecution = resolve;
+              })
+          };
+        }
+      } as never,
+      widgetRegistry: {} as never,
+      graphNodes: new Map([[node.id, node]]),
+      graphLinks: new Map()
+    });
+    host.subscribeNodeExecution((event) => {
+      events.push({
+        status: event.state.status,
+        runCount: event.state.runCount
+      });
+    });
+
+    const task = host.createEntryExecutionTask(node.id, {
+      source: "node-play",
+      startedAt: 1
+    });
+    if (!task) {
+      throw new Error("expected async execution task");
+    }
+
+    const result = host.executeExecutionTask(task, 0);
+    if (!result || typeof result.then !== "function") {
+      throw new Error("expected async execution result");
+    }
+
+    expect(events).toEqual([
+      {
+        status: "running",
+        runCount: 0
+      }
+    ]);
+    expect(host.getNodeExecutionState(node.id)).toMatchObject({
+      status: "running",
+      runCount: 0
+    });
+
+    resolveExecution?.();
+    await result;
+
+    expect(events).toEqual([
+      {
+        status: "running",
+        runCount: 0
+      },
+      {
+        status: "success",
+        runCount: 1
+      }
+    ]);
+  });
 });

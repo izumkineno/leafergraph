@@ -210,6 +210,46 @@ describe("node_shell_host", () => {
     expect(internals.frameId).not.toBeNull();
   });
 
+  test("indeterminate progress ring 每次进入 running 都从固定起点开始", () => {
+    window.matchMedia = createMatchMedia(false);
+    installRequestAnimationFrameStub();
+
+    const { host, mountNode, executionStates } = createHarness();
+    const node = createNodeState("fixed-start", "demo/task");
+    const state = mountNode(node);
+    const internals = host as unknown as {
+      now(): number;
+    };
+
+    internals.now = () => 1000;
+    executionStates.set(node.id, {
+      status: "running",
+      runCount: 1,
+      lastExecutedAt: 10
+    });
+    host.applyNodeShellStatusStyles(state);
+    const firstPath = state.shellView.progressRing?.path ?? "";
+
+    executionStates.set(node.id, {
+      status: "success",
+      runCount: 1,
+      lastSucceededAt: 20
+    });
+    host.applyNodeShellStatusStyles(state);
+
+    internals.now = () => 4500;
+    executionStates.set(node.id, {
+      status: "running",
+      runCount: 2,
+      lastExecutedAt: 30
+    });
+    host.applyNodeShellStatusStyles(state);
+    const secondPath = state.shellView.progressRing?.path ?? "";
+
+    expect(firstPath).not.toBe("");
+    expect(secondPath).toBe(firstPath);
+  });
+
   test("running + longTask + progress=0.5 会显示 determinate 50% 进度", () => {
     window.matchMedia = createMatchMedia(false);
 

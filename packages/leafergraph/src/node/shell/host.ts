@@ -84,6 +84,7 @@ export class LeaferGraphNodeShellHost<
   private readonly options: LeaferGraphNodeShellHostOptions;
   private readonly ownerWindow: Window | null;
   private readonly activeIndeterminateNodeIds = new Set<string>();
+  private readonly indeterminateProgressStartedAtByNodeId = new Map<string, number>();
   private frameId: LeaferGraphAnimationFrameHandle | null = null;
 
   /**
@@ -106,6 +107,7 @@ export class LeaferGraphNodeShellHost<
   destroy(): void {
     this.stopIndeterminateProgressLoop();
     this.activeIndeterminateNodeIds.clear();
+    this.indeterminateProgressStartedAtByNodeId.clear();
   }
 
   /**
@@ -575,8 +577,9 @@ export class LeaferGraphNodeShellHost<
       return;
     }
 
-    this.registerIndeterminateProgressNode(state.state.id);
-    this.updateIndeterminateProgressPath(state, this.now());
+    const timestamp = this.now();
+    this.registerIndeterminateProgressNode(state.state.id, timestamp);
+    this.updateIndeterminateProgressPath(state, timestamp);
   }
 
   /**
@@ -616,8 +619,11 @@ export class LeaferGraphNodeShellHost<
    * @param nodeId - 目标节点 ID。
    * @returns 无返回值。
    */
-  private registerIndeterminateProgressNode(nodeId: string): void {
+  private registerIndeterminateProgressNode(nodeId: string, timestamp: number): void {
     this.activeIndeterminateNodeIds.add(nodeId);
+    if (!this.indeterminateProgressStartedAtByNodeId.has(nodeId)) {
+      this.indeterminateProgressStartedAtByNodeId.set(nodeId, timestamp);
+    }
     this.ensureIndeterminateProgressLoop();
   }
 
@@ -629,6 +635,7 @@ export class LeaferGraphNodeShellHost<
    */
   private unregisterIndeterminateProgressNode(nodeId: string): void {
     this.activeIndeterminateNodeIds.delete(nodeId);
+    this.indeterminateProgressStartedAtByNodeId.delete(nodeId);
     if (!this.activeIndeterminateNodeIds.size) {
       this.stopIndeterminateProgressLoop();
     }
@@ -747,9 +754,13 @@ export class LeaferGraphNodeShellHost<
       return false;
     }
 
+    const startedAt =
+      this.indeterminateProgressStartedAtByNodeId.get(state.state.id) ?? timestamp;
+    const elapsedMs = Math.max(0, timestamp - startedAt);
+
     const nextPath = buildNodeShellProgressSegmentPath(
       progressGeometry,
-      (timestamp * NODE_SHELL_INDETERMINATE_PROGRESS_SPEED) % 1,
+      (elapsedMs * NODE_SHELL_INDETERMINATE_PROGRESS_SPEED) % 1,
       NODE_SHELL_INDETERMINATE_PROGRESS_SEGMENT_RATIO
     );
     if (progressRing.path === nextPath) {
