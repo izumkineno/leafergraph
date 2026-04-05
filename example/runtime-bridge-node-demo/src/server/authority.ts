@@ -6,7 +6,6 @@ import {
   applyGraphDocumentDiffToDocument,
   type GraphDocumentDiff
 } from "@leafergraph/contracts/graph-document-diff";
-import { DiffEngine } from "@leafergraph/diff";
 import type { LeaferGraph } from "leafergraph";
 import type { GraphDocument } from "@leafergraph/runtime-bridge/portable";
 import type {
@@ -30,6 +29,7 @@ import {
   DEMO_FREQUENCY_EXTREME_BLUEPRINT_ENTRY_ID,
   DEMO_FREQUENCY_STRESS_BLUEPRINT_ENTRY_ID
 } from "../shared/catalog";
+import { DiffEngine } from "../shared/diff";
 import {
   createRuntimeBridgeDemoContainer,
   ensureRuntimeBridgeDemoHeadlessDom

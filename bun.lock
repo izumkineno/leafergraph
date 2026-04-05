@@ -27,28 +27,6 @@
         "leafergraph": "^0.1.0",
       },
     },
-    "example/crawler-demo": {
-      "name": "@example/crawler-demo",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
-        "@leafergraph/runtime-bridge": "workspace:*",
-        "@leafergraph/widget-runtime": "workspace:*",
-        "leafer-ui": "^2.0.3",
-        "leafergraph": "workspace:*",
-        "typescript": "~5.9.3",
-        "vite": "^8.0.1",
-      },
-      "peerDependencies": {
-        "@leafergraph/authoring": "^0.1.0",
-        "@leafergraph/execution": "^0.1.0",
-        "@leafergraph/node": "^0.1.0",
-        "leafergraph": "^0.1.0",
-      },
-    },
     "example/mini-graph": {
       "name": "leafergraph-minimal-graph-example",
       "version": "0.0.0",
@@ -85,7 +63,6 @@
         "@leafergraph/context-menu": "workspace:*",
         "@leafergraph/context-menu-builtins": "workspace:*",
         "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/diff": "workspace:*",
         "@leafergraph/execution": "workspace:*",
         "@leafergraph/node": "workspace:*",
         "@leafergraph/runtime-bridge": "workspace:*",
@@ -172,18 +149,6 @@
         "@leafergraph/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
         "leafer-ui": "^2.0.3",
-      },
-    },
-    "packages/diff": {
-      "name": "@leafergraph/diff",
-      "version": "1.0.0",
-      "dependencies": {
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "^1.0.0",
-        "typescript": "^5.0.0",
       },
     },
     "packages/execution": {
@@ -402,8 +367,6 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
-    "@example/crawler-demo": ["@example/crawler-demo@workspace:example/crawler-demo"],
-
     "@happy-dom/global-registrator": ["@happy-dom/global-registrator@20.8.9", "", { "dependencies": { "@types/node": ">=20.0.0", "happy-dom": "^20.8.9" } }, "sha512-DtZeRRHY9A/bisTJziUBBPrdnPui7+R185G/hzi6/Boymhqh7/wi53AY+IvQHS1+7OPaqfO/1XNpngNwthLz+A=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
@@ -540,8 +503,6 @@
 
     "@leafergraph/contracts": ["@leafergraph/contracts@workspace:packages/contracts"],
 
-    "@leafergraph/diff": ["@leafergraph/diff@workspace:packages/diff"],
-
     "@leafergraph/execution": ["@leafergraph/execution@workspace:packages/execution"],
 
     "@leafergraph/node": ["@leafergraph/node@workspace:packages/node"],
@@ -662,8 +623,6 @@
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg=="],
 
-    "@types/bun": ["@types/bun@1.3.11", "", { "dependencies": { "bun-types": "1.3.11" } }, "sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg=="],
-
     "@types/estree": ["@types/estree@1.0.8", "", {}, "sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w=="],
 
     "@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
@@ -679,8 +638,6 @@
     "boolbase": ["boolbase@1.0.0", "", {}, "sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww=="],
 
     "browserslist": ["browserslist@4.28.1", "", { "dependencies": { "baseline-browser-mapping": "^2.9.0", "caniuse-lite": "^1.0.30001759", "electron-to-chromium": "^1.5.263", "node-releases": "^2.0.27", "update-browserslist-db": "^1.2.0" }, "bin": { "browserslist": "cli.js" } }, "sha512-ZC5Bd0LgJXgwGqUknZY/vkUQ04r8NXnJZ3yYi4vDmSiZmC/pdSN0NbNRPxZpbtO4uAfDUAFffO8IZoM3Gj8IkA=="],
-
-    "bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 
     "caniuse-lite": ["caniuse-lite@1.0.30001778", "", {}, "sha512-PN7uxFL+ExFJO61aVmP1aIEG4i9whQd4eoSCebav62UwDyp5OHh06zN4jqKSMePVgxHifCw1QJxdRkA1Pisekg=="],
 

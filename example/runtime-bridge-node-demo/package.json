@@ -22,7 +22,6 @@
     "@leafergraph/context-menu": "workspace:*",
     "@leafergraph/context-menu-builtins": "workspace:*",
     "@leafergraph/contracts": "workspace:*",
-    "@leafergraph/diff": "workspace:*",
     "@leafergraph/execution": "workspace:*",
     "@leafergraph/node": "workspace:*",
     "@leafergraph/runtime-bridge": "workspace:*",

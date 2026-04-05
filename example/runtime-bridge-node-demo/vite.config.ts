@@ -26,10 +26,6 @@ export default defineConfig({
         )
       },
       {
-        find: /^@leafergraph\/diff$/,
-        replacement: resolve(__dirname, "../../packages/diff/src/index.ts")
-      },
-      {
         find: /^@leafergraph\/runtime-bridge$/,
         replacement: resolve(__dirname, "../../packages/runtime-bridge/src/index.ts")
       },
