@@ -53,46 +53,24 @@
         "vite": "^8.0.1",
       },
     },
-    "example/runtime-bridge-node-demo": {
-      "name": "leafergraph-runtime-bridge-node-demo",
-      "version": "0.1.0",
-      "dependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
-        "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/basic-kit": "workspace:*",
-        "@leafergraph/context-menu": "workspace:*",
-        "@leafergraph/context-menu-builtins": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
-        "@leafergraph/runtime-bridge": "workspace:*",
-        "@leafergraph/shortcuts": "workspace:*",
-        "@leafergraph/undo-redo": "workspace:*",
-        "@leafergraph/widget-runtime": "workspace:*",
-        "leafer-ui": "^2.0.3",
-        "leafergraph": "workspace:*",
-        "preact": "^10.29.0",
-        "ws": "^8.20.0",
-      },
-      "devDependencies": {
-        "@preact/preset-vite": "^2.10.4",
-        "@types/node": "^25.4.0",
-        "@types/ws": "^8.18.1",
-        "typescript": "~5.9.3",
-        "vite": "^8.0.1",
-      },
-    },
     "example/web-crawler-nodes": {
       "name": "@leafergraph/web-crawler-nodes",
       "version": "0.1.0",
+      "dependencies": {
+        "node-html-parser": "^6.1.13",
+      },
       "devDependencies": {
+        "@leafergraph/authoring": "workspace:*",
+        "@leafergraph/contracts": "workspace:*",
+        "@leafergraph/execution": "workspace:*",
+        "@leafergraph/node": "workspace:*",
         "typescript": "~5.9.3",
         "vite": "^5.0.0",
       },
       "peerDependencies": {
-        "@leafergraph/authoring": "^0.1.0",
-        "@leafergraph/contracts": "^0.1.0",
-        "@leafergraph/node": "^0.1.0",
+        "@leafergraph/authoring": "workspace:*",
+        "@leafergraph/contracts": "workspace:*",
+        "@leafergraph/node": "workspace:*",
         "leafer-ui": "^2.0.3",
       },
     },
@@ -196,16 +174,6 @@
     "packages/node": {
       "name": "@leafergraph/node",
       "version": "0.1.0",
-    },
-    "packages/runtime-bridge": {
-      "name": "@leafergraph/runtime-bridge",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
-        "leafergraph": "workspace:*",
-      },
     },
     "packages/shortcuts": {
       "name": "@leafergraph/shortcuts",
@@ -521,8 +489,6 @@
 
     "@leafergraph/node": ["@leafergraph/node@workspace:packages/node"],
 
-    "@leafergraph/runtime-bridge": ["@leafergraph/runtime-bridge@workspace:packages/runtime-bridge"],
-
     "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:packages/shortcuts"],
 
     "@leafergraph/theme": ["@leafergraph/theme@workspace:packages/theme"],
@@ -708,8 +674,6 @@
     "leafergraph": ["leafergraph@workspace:packages/leafergraph"],
 
     "leafergraph-minimal-graph-example": ["leafergraph-minimal-graph-example@workspace:example/mini-graph"],
-
-    "leafergraph-runtime-bridge-node-demo": ["leafergraph-runtime-bridge-node-demo@workspace:example/runtime-bridge-node-demo"],
 
     "lightningcss": ["lightningcss@1.32.0", "", { "dependencies": { "detect-libc": "^2.0.3" }, "optionalDependencies": { "lightningcss-android-arm64": "1.32.0", "lightningcss-darwin-arm64": "1.32.0", "lightningcss-darwin-x64": "1.32.0", "lightningcss-freebsd-x64": "1.32.0", "lightningcss-linux-arm-gnueabihf": "1.32.0", "lightningcss-linux-arm64-gnu": "1.32.0", "lightningcss-linux-arm64-musl": "1.32.0", "lightningcss-linux-x64-gnu": "1.32.0", "lightningcss-linux-x64-musl": "1.32.0", "lightningcss-win32-arm64-msvc": "1.32.0", "lightningcss-win32-x64-msvc": "1.32.0" } }, "sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ=="],
 

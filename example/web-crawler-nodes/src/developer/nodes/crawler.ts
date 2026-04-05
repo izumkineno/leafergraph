@@ -1,5 +1,12 @@
-import { BaseNode, type DevNodeContext, type NodeProps, type NodeInputs, type NodeOutputs } from "@leafergraph/authoring";
 import {
+  BaseNode,
+  type DevNodeContext,
+  type NodeInputs,
+  type NodeOutputs,
+  type NodeProps
+} from "@leafergraph/authoring";
+import {
+  createCrawlerTicketId,
   getExecutionContext,
   getTimerRuntimePayload,
   getTimerTickId,
@@ -7,15 +14,13 @@ import {
   isTimerTickExecution,
   preserveRunningExecutionState,
   readWidgetString,
-  updateStatus,
-  setNodeTitle
+  setNodeTitle,
+  updateStatus
 } from "../shared";
 import {
-  createCrawlerTicketId,
-  WEB_CRAWLER_CRAWLER_TYPE,
-  WEB_CRAWLER_NODES_DEFAULT_WIDTH,
-  WEB_CRAWLER_NODES_DEFAULT_MIN_HEIGHT
-} from "../shared";
+  WEB_CRAWLER_CRAWLER_DEFAULT_URL,
+  WEB_CRAWLER_CRAWLER_META
+} from "../../shared/node_meta";
 
 interface CrawlerTicket {
   id: string;
@@ -37,9 +42,6 @@ interface CrawlerNodeState extends Record<string, unknown> {
 const CRAWLER_POLL_INTERVAL_MS = 120;
 const CRAWLER_MIN_RING_VISIBLE_MS = 320;
 
-/**
- * 格式化爬虫节点状态。
- */
 function formatCrawlerStatus(options: {
   url: string;
   active: CrawlerTicket | null;
@@ -62,9 +64,6 @@ function formatCrawlerStatus(options: {
   }
 }
 
-/**
- * 对齐爬虫节点在新 run 下的内部状态。
- */
 function syncCrawlerRunState(
   ctx: DevNodeContext<NodeProps, NodeInputs, NodeOutputs, CrawlerNodeState>,
   runId: string | undefined
@@ -82,66 +81,14 @@ function syncCrawlerRunState(
   return true;
 }
 
-/**
- * 爬虫节点：获取指定网址的HTML内容
- * 输入: 开始事件
- * 输出: 成功后的DOM字符串
- * Widget: URL输入框、状态栏
- */
 export class CrawlerNode extends BaseNode<
   { url: string },
   { start: unknown },
   { dom: string },
   CrawlerNodeState
 > {
-  static defaultUrl = "https://httpbin.org/html";
-  static meta = {
-    type: WEB_CRAWLER_CRAWLER_TYPE,
-    title: "Crawler",
-    category: "Web Crawler",
-    description: "Fetch HTML content from given URL",
-    shell: {
-      longTask: true
-    },
-    inputs: [
-      { name: "start", type: "event", optional: true }
-    ],
-    outputs: [
-      { name: "dom", type: "string" }
-    ],
-    properties: [
-      { name: "url", type: "string", default: CrawlerNode.defaultUrl }
-    ],
-    widgets: [
-      {
-        type: "input",
-        name: "url",
-        value: CrawlerNode.defaultUrl,
-        options: {
-          label: "URL",
-          placeholder: "Enter URL to crawl"
-        }
-      },
-      {
-        type: "textarea",
-        name: "status",
-        value: "Idle",
-        options: {
-          label: "Status",
-          rows: 3,
-          readonly: true
-        }
-      }
-    ],
-    size: [
-      WEB_CRAWLER_NODES_DEFAULT_WIDTH,
-      WEB_CRAWLER_NODES_DEFAULT_MIN_HEIGHT
-    ] as [number, number],
-    resize: {
-      minWidth: WEB_CRAWLER_NODES_DEFAULT_WIDTH,
-      minHeight: WEB_CRAWLER_NODES_DEFAULT_MIN_HEIGHT
-    }
-  };
+  static defaultUrl = WEB_CRAWLER_CRAWLER_DEFAULT_URL;
+  static meta = WEB_CRAWLER_CRAWLER_META;
 
   createState(): CrawlerNodeState {
     return {
@@ -153,12 +100,14 @@ export class CrawlerNode extends BaseNode<
     };
   }
 
-  onExecute(ctx: DevNodeContext<
-    { url: string },
-    { start: unknown },
-    { dom: string },
-    CrawlerNodeState
-  >) {
+  onExecute(
+    ctx: DevNodeContext<
+      { url: string },
+      { start: unknown },
+      { dom: string },
+      CrawlerNodeState
+    >
+  ) {
     const url = readWidgetString(ctx, "url", CrawlerNode.defaultUrl);
     ctx.setProp("url", url);
     setNodeTitle(ctx.node, `Crawler ${url}`);
@@ -239,7 +188,7 @@ export class CrawlerNode extends BaseNode<
       const message = error instanceof Error ? error.message : String(error);
       updateStatus(
         ctx,
-        `❌ Fetch error\n${message}\nHint: use a CORS-enabled URL or proxy`
+        `❌ Fetch error\n${message}`
       );
       setNodeTitle(ctx.node, "Crawler error");
       throw error;
@@ -293,7 +242,7 @@ export class CrawlerNode extends BaseNode<
       ctx.state.active = null;
       updateStatus(
         ctx,
-        `❌ Fetch error\n${ticket.failedMessage}\nHint: use a CORS-enabled URL or proxy`
+        `❌ Fetch error\n${ticket.failedMessage}`
       );
       setNodeTitle(ctx.node, "Crawler error");
       throw new Error(ticket.failedMessage);
@@ -351,9 +300,6 @@ export class CrawlerNode extends BaseNode<
     );
   }
 
-  /**
-   * 启动异步获取流程。
-   */
   private startFetch(
     url: string,
     ctx: DevNodeContext<

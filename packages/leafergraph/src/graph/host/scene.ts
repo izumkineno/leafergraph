@@ -228,7 +228,6 @@ export class LeaferGraphSceneHost<
    * @remarks
    * 这条路径用于 widget 完成编辑后提交最终值，
    * 会触发 `node.widget.commit` 交互提交事件，
-   * 由外部订阅者处理（如 runtime-bridge 提交到服务器）。
    *
    * @param nodeId - 目标节点 ID。
    * @param widgetIndex - 节点内部 Widget 索引。

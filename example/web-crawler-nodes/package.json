@@ -20,7 +20,11 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "build:esm": "node ./scripts/prepare_dist.mjs && tsc -p tsconfig.build.json && vite build",
     "build:browser": "vite build --config vite.browser.config.ts",
-    "build": "bun run build:esm && bun run build:browser"
+    "build": "bun run build:esm && bun run build:browser",
+    "test": "bun test --preload ../../packages/leafergraph/tests/setup.ts ./tests"
+  },
+  "dependencies": {
+    "node-html-parser": "^6.1.13"
   },
   "peerDependencies": {
     "@leafergraph/authoring": "workspace:*",
@@ -29,6 +33,10 @@
     "leafer-ui": "^2.0.3"
   },
   "devDependencies": {
+    "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/contracts": "workspace:*",
+    "@leafergraph/execution": "workspace:*",
+    "@leafergraph/node": "workspace:*",
     "typescript": "~5.9.3",
     "vite": "^5.0.0"
   }

@@ -19,7 +19,6 @@ export const WEB_CRAWLER_NODES_DEFAULT_MIN_HEIGHT = 184;
 export const WEB_CRAWLER_CRAWLER_LOCAL_TYPE = "crawler";
 export const WEB_CRAWLER_PARSER_LOCAL_TYPE = "parser";
 export const WEB_CRAWLER_ARRAY_LIST_LOCAL_TYPE = "array-list";
-export const WEB_CRAWLER_PROGRESS_RING_WIDGET_TYPE = "progress-ring";
 
 export const WEB_CRAWLER_NODES_BUNDLE_ID =
   `${WEB_CRAWLER_NODES_PACKAGE_NAME}/nodes`;

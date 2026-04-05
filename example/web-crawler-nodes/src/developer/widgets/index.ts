@@ -1,4 +1,3 @@
 /**
- * 所有自定义 Widget 导出
+ * web-crawler-nodes 当前不再提供自定义 Widget。
  */
-export * from "./progress-ring";
