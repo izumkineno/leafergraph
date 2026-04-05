@@ -176,6 +176,10 @@ export class RuntimeBridgeNodeAuthority {
   ): Promise<RuntimeBridgeNodeAuthority> {
     setRuntimeBridgeNodeDemoLoggingMuted(false);
     ensureRuntimeBridgeDemoHeadlessDom();
+    const bootstrapModule = await import(
+      "../shared/runtime_bridge_dependency_bootstrap"
+    );
+    bootstrapModule.bootstrapRuntimeBridgeDemoModuleDependencies();
     const [{ createLeaferGraph, RuntimeBridgeAuthorityExtensionManager }, { leaferGraphBasicKitPlugin }] = await Promise.all([
       import("@leafergraph/runtime-bridge"),
       import("@leafergraph/basic-kit")

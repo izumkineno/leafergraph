@@ -101,6 +101,16 @@ export function createGraphOperationsFromInteractionCommit(
           value: structuredClone(event.afterValue)
         }
       ];
+    case "node.rename.commit":
+      return [
+        {
+          ...createBase(0),
+          type: "node.rename",
+          nodeId: event.nodeId,
+          title: event.afterTitle,
+          beforeTitle: event.beforeTitle
+        }
+      ];
     default:
       return [];
   }

@@ -38,22 +38,22 @@ export function registerLeaferGraphShortcutFunctions(
       id: "graph.delete-selection",
       when: ({ data }) => canRunSelectionShortcut(data.host),
       enabled: ({ data }) => data.host.listSelectedNodeIds().length > 0,
-      run: ({ data }) => {
+      run: async ({ data }) => {
         const selectedNodeIds = [...data.host.listSelectedNodeIds()];
         if (!selectedNodeIds.length) {
           return;
         }
 
         for (const nodeId of selectedNodeIds) {
-          data.host.removeNode(nodeId);
+          await data.host.removeNode(nodeId);
         }
         data.host.clearSelectedNodes();
       }
     }),
     registry.register({
       id: "graph.fit-view",
-      run: ({ data }) => {
-        data.host.fitView();
+      run: async ({ data }) => {
+        await data.host.fitView();
       }
     })
   ];
@@ -64,32 +64,32 @@ export function registerLeaferGraphShortcutFunctions(
         id: "graph.copy",
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canCopySelection?.() ?? true,
-        run: ({ data }) => {
-          data.clipboard?.copySelection();
+        run: async ({ data }) => {
+          await data.clipboard?.copySelection();
         }
       }),
       registry.register({
         id: "graph.cut",
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canCutSelection?.() ?? true,
-        run: ({ data }) => {
-          data.clipboard?.cutSelection();
+        run: async ({ data }) => {
+          await data.clipboard?.cutSelection();
         }
       }),
       registry.register({
         id: "graph.paste",
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canPasteClipboard?.() ?? true,
-        run: ({ data }) => {
-          data.clipboard?.pasteClipboard();
+        run: async ({ data }) => {
+          await data.clipboard?.pasteClipboard();
         }
       }),
       registry.register({
         id: "graph.duplicate",
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canDuplicateSelection?.() ?? true,
-        run: ({ data }) => {
-          data.clipboard?.duplicateSelection();
+        run: async ({ data }) => {
+          await data.clipboard?.duplicateSelection();
         }
       })
     );
@@ -120,20 +120,20 @@ export function registerLeaferGraphShortcutFunctions(
   cleanups.push(
     registry.register({
       id: "graph.play",
-      run: ({ data }) => {
-        data.host.play();
+      run: async ({ data }) => {
+        await data.host.play();
       }
     }),
     registry.register({
       id: "graph.step",
-      run: ({ data }) => {
-        data.host.step();
+      run: async ({ data }) => {
+        await data.host.step();
       }
     }),
     registry.register({
       id: "graph.stop",
-      run: ({ data }) => {
-        data.host.stop();
+      run: async ({ data }) => {
+        await data.host.stop();
       }
     })
   );

@@ -17,6 +17,7 @@
     "jsxImportSource": "preact",
     "types": ["vite/client"],
     "paths": {
+      "@leafergraph/authoring": ["../../packages/authoring/src/index.ts"],
       "@leafergraph/basic-kit": ["../../packages/basic-kit/src/index.ts"],
       "@leafergraph/config": ["../../packages/config/src/index.ts"],
       "@leafergraph/contracts": ["../../packages/contracts/src/index.ts"],

@@ -24,6 +24,13 @@ export {
 export {
   createGraphOperationsFromInteractionCommit
 } from "./interaction_commit_operations.js";
+export { createGraphOperationsFromClipboardFragment } from "./clipboard_fragment_operations.js";
+export type {
+  CreateGraphOperationsFromClipboardFragmentContext,
+  CreateGraphOperationsFromClipboardFragmentOptions,
+  GraphOperationsFromClipboardFragmentResult,
+  RuntimeBridgeClipboardFragment
+} from "./clipboard_fragment_operations.js";
 export type {
   CreateGraphOperationsFromInteractionCommitContext,
   CreateGraphOperationsFromInteractionCommitOptions

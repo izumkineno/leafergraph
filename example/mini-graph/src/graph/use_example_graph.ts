@@ -785,16 +785,20 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     const timestamp = Date.now();
+    const nodeTitle =
+      typeof snapshot.title === "string" && snapshot.title.trim().length > 0
+        ? snapshot.title
+        : snapshot.type;
     graph.projectRuntimeFeedback({
       type: "node.execution",
       event: {
         chainId: input.chainId,
         rootNodeId: snapshot.id,
         rootNodeType: snapshot.type,
-        rootNodeTitle: snapshot.title,
+        rootNodeTitle: nodeTitle,
         nodeId: snapshot.id,
         nodeType: snapshot.type,
-        nodeTitle: snapshot.title,
+        nodeTitle,
         depth: 0,
         sequence: input.sequence,
         source: "node-play",

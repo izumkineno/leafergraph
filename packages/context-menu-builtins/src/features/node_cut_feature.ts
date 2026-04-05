@@ -29,7 +29,7 @@ export const nodeCutFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
           order: 21,
           danger: true,
           disabled: !host.getNodeSnapshot(nodeId),
-          onSelect() {
+          async onSelect() {
             const nextSelectedNodeIds = resolveEditingNodeIds(host, nodeId);
             const fragment = writeClipboardFragment({
               clipboard,
@@ -41,9 +41,9 @@ export const nodeCutFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
             }
 
             if (nextSelectedNodeIds.length > 1) {
-              removeNodes(nextSelectedNodeIds, context);
+              await removeNodes(nextSelectedNodeIds, context);
             } else {
-              removeNode(nextSelectedNodeIds[0], context);
+              await removeNode(nextSelectedNodeIds[0], context);
             }
 
             host.setSelectedNodeIds([], "replace");

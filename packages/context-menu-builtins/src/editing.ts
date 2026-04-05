@@ -107,7 +107,7 @@ export function writeClipboardFragment(input: {
  * @param input - 输入参数。
  * @returns 粘贴剪贴板片段的结果。
  */
-export function pasteClipboardFragment(input: {
+export async function pasteClipboardFragment(input: {
   fragment: LeaferGraphContextMenuClipboardFragment;
   host: Pick<LeaferGraphContextMenuBuiltinsHost, "setSelectedNodeIds">;
   createNode: LeaferGraphContextMenuBuiltinFeatureRegistrationContext["createNode"];
@@ -118,7 +118,7 @@ export function pasteClipboardFragment(input: {
     y: number;
   };
   anchorToContextWorldPoint?: boolean;
-}): string[] {
+}): Promise<string[]> {
   // 先整理当前阶段需要的输入、状态与依赖。
   const offset = input.offset ?? DEFAULT_PASTE_OFFSET;
   const origin = resolveFragmentOrigin(input.fragment);
@@ -146,7 +146,7 @@ export function pasteClipboardFragment(input: {
 
   for (const snapshot of input.fragment.nodes) {
     const nextNodeInput = createCreateNodeInputFromNodeSnapshot(snapshot);
-    const createdNode = input.createNode(
+    const createdNode = await input.createNode(
       {
         ...nextNodeInput,
         id: undefined,
@@ -156,8 +156,8 @@ export function pasteClipboardFragment(input: {
       input.context as LeaferContextMenuContext
     );
     // 再执行核心逻辑，并把结果或副作用统一收口。
-    nodeIdMap.set(snapshot.id, createdNode.id);
-    createdNodeIds.push(createdNode.id);
+    nodeIdMap.set(snapshot.id, createdNode.nodeId);
+    createdNodeIds.push(createdNode.nodeId);
   }
 
   for (const link of input.fragment.links) {
@@ -167,7 +167,7 @@ export function pasteClipboardFragment(input: {
       continue;
     }
 
-    input.createLink(
+    await input.createLink(
       {
         source: {
           nodeId: sourceNodeId,

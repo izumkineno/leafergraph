@@ -17,13 +17,13 @@ export const canvasDeleteSelectionFeature: LeaferGraphContextMenuBuiltinFeatureD
           order: 90,
           danger: true,
           disabled: !selectedNodeIds.length,
-          onSelect() {
+          async onSelect() {
             const nextSelectedNodeIds = host.listSelectedNodeIds();
             if (!nextSelectedNodeIds.length) {
               return;
             }
 
-            removeNodes(nextSelectedNodeIds, context);
+            await removeNodes(nextSelectedNodeIds, context);
             host.setSelectedNodeIds([], "replace");
           }
         }

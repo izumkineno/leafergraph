@@ -3,11 +3,16 @@ import type { LeaferGraphWidgetEntry } from "@leafergraph/contracts";
 import type { LeaferGraph } from "leafergraph";
 import type { RuntimeBridgeArtifactReader } from "./artifact.js";
 import {
+  collectGraphDocumentUsedTypes,
+  collectNodeWidgetTypesExport,
   importModuleNamespaceFromArtifact,
   readGraphDocumentFromArtifact,
-  resolveNodeModuleExport
+  resolveNodeModuleExport,
+  resolveNodeTypesExport,
+  resolveWidgetTypesExport
 } from "./loader.js";
 import type {
+  RuntimeBridgeBlueprintCatalogEntry,
   RuntimeBridgeCatalogCommand,
   RuntimeBridgeCatalogCommandResult,
   RuntimeBridgeCatalogEntry,
@@ -58,6 +63,7 @@ export class RuntimeBridgeAuthorityExtensionManager {
     (sync: RuntimeBridgeExtensionsSync) => void
   >();
   private readonly loadedNodeEntryIds = new Set<string>();
+  private readonly loadedNodeTypesByEntryId = new Map<string, string[]>();
   private readonly loadedComponentEntryIds = new Set<string>();
   private readonly loadedComponentWidgetTypesByEntryId = new Map<string, string[]>();
 
@@ -221,6 +227,7 @@ export class RuntimeBridgeAuthorityExtensionManager {
         this.graph.unregisterNode(nodeType);
       }
       this.loadedNodeEntryIds.delete(entryId);
+      this.loadedNodeTypesByEntryId.delete(entryId);
       sessionState.activeNodeEntryIds = sessionState.activeNodeEntryIds.filter(
         (id) => id !== entryId
       );
@@ -333,6 +340,7 @@ export class RuntimeBridgeAuthorityExtensionManager {
         }
       }
 
+      await this.validateNodeEntryArtifacts(entry, entries);
       return;
     }
 
@@ -349,6 +357,7 @@ export class RuntimeBridgeAuthorityExtensionManager {
         }
       }
 
+      await this.validateComponentEntryArtifact(entry);
       return;
     }
 
@@ -365,6 +374,8 @@ export class RuntimeBridgeAuthorityExtensionManager {
         throw new Error(`缺少蓝图节点依赖条目: ${nodeEntryId}`);
       }
     }
+
+    await this.validateBlueprintEntryDocument(entry, entries);
   }
 
   private async installNodeEntry(entry: RuntimeBridgeNodeCatalogEntry): Promise<void> {
@@ -382,6 +393,7 @@ export class RuntimeBridgeAuthorityExtensionManager {
     }
 
     this.loadedNodeEntryIds.add(entry.entryId);
+    this.loadedNodeTypesByEntryId.set(entry.entryId, [...entry.nodeTypes]);
   }
 
   private async activateComponentEntry(
@@ -493,6 +505,125 @@ export class RuntimeBridgeAuthorityExtensionManager {
     }
   }
 
+  private async validateNodeEntryArtifacts(
+    entry: RuntimeBridgeNodeCatalogEntry,
+    entries: readonly RuntimeBridgeCatalogEntry[]
+  ): Promise<void> {
+    const authorityArtifact = await this.artifactReader.readArtifact(
+      entry.authorityArtifactRef
+    );
+    const authorityNamespace = await importModuleNamespaceFromArtifact(authorityArtifact);
+    const authorityNodeTypes = resolveNodeTypesExport(authorityNamespace);
+
+    const browserArtifact = await this.artifactReader.readArtifact(
+      entry.browserArtifactRef
+    );
+    const browserNamespace = await importModuleNamespaceFromArtifact(browserArtifact);
+    const browserNodeTypes = resolveNodeTypesExport(browserNamespace);
+    const browserWidgetTypes = collectNodeWidgetTypesExport(browserNamespace);
+
+    assertExactTypeList(
+      `节点条目 ${entry.entryId} 的 authority artifact`,
+      entry.nodeTypes,
+      authorityNodeTypes
+    );
+    assertExactTypeList(
+      `节点条目 ${entry.entryId} 的 browser artifact`,
+      entry.nodeTypes,
+      browserNodeTypes
+    );
+
+    const declaredWidgetTypes = new Set<string>();
+    const hostWidgetTypes = this.collectHostWidgetTypes();
+    for (const componentEntryId of entry.componentEntryIds) {
+      const dependency = entries.find((item) => item.entryId === componentEntryId);
+      if (dependency?.entryKind !== "component-entry") {
+        continue;
+      }
+
+      for (const widgetType of dependency.widgetTypes) {
+        declaredWidgetTypes.add(widgetType);
+      }
+    }
+
+    for (const widgetType of browserWidgetTypes) {
+      if (!declaredWidgetTypes.has(widgetType) && !hostWidgetTypes.has(widgetType)) {
+        throw new Error(
+          `节点条目 ${entry.entryId} 缺少组件类型依赖: ${widgetType}`
+        );
+      }
+    }
+  }
+
+  private async validateComponentEntryArtifact(
+    entry: RuntimeBridgeComponentCatalogEntry
+  ): Promise<void> {
+    const browserArtifact = await this.artifactReader.readArtifact(
+      entry.browserArtifactRef
+    );
+    const browserNamespace = await importModuleNamespaceFromArtifact(browserArtifact);
+    const widgetTypes = resolveWidgetTypesExport(browserNamespace);
+
+    assertExactTypeList(
+      `组件条目 ${entry.entryId} 的 browser artifact`,
+      entry.widgetTypes,
+      widgetTypes
+    );
+  }
+
+  private async validateBlueprintEntryDocument(
+    entry: RuntimeBridgeBlueprintCatalogEntry,
+    entries: readonly RuntimeBridgeCatalogEntry[]
+  ): Promise<void> {
+    const blueprintArtifact = await this.artifactReader.readArtifact(
+      entry.documentArtifactRef
+    );
+    const document = await readGraphDocumentFromArtifact(blueprintArtifact);
+    const usedTypes = collectGraphDocumentUsedTypes(document);
+    const allowedNodeTypes = new Set<string>();
+    const allowedWidgetTypes = new Set<string>();
+    const hostNodeTypes = this.collectHostNodeTypes();
+    const hostWidgetTypes = this.collectHostWidgetTypes();
+
+    for (const dependencyEntryId of entry.nodeEntryIds) {
+      const dependency = entries.find((item) => item.entryId === dependencyEntryId);
+      if (dependency?.entryKind !== "node-entry") {
+        continue;
+      }
+
+      for (const nodeType of dependency.nodeTypes) {
+        allowedNodeTypes.add(nodeType);
+      }
+    }
+
+    for (const dependencyEntryId of entry.componentEntryIds) {
+      const dependency = entries.find((item) => item.entryId === dependencyEntryId);
+      if (dependency?.entryKind !== "component-entry") {
+        continue;
+      }
+
+      for (const widgetType of dependency.widgetTypes) {
+        allowedWidgetTypes.add(widgetType);
+      }
+    }
+
+    for (const nodeType of usedTypes.nodeTypes) {
+      if (!allowedNodeTypes.has(nodeType) && !hostNodeTypes.has(nodeType)) {
+        throw new Error(
+          `蓝图条目 ${entry.entryId} 缺少节点类型依赖: ${nodeType}`
+        );
+      }
+    }
+
+    for (const widgetType of usedTypes.widgetTypes) {
+      if (!allowedWidgetTypes.has(widgetType) && !hostWidgetTypes.has(widgetType)) {
+        throw new Error(
+          `蓝图条目 ${entry.entryId} 缺少组件类型依赖: ${widgetType}`
+        );
+      }
+    }
+  }
+
   private async requireEntry(entryId: string): Promise<RuntimeBridgeCatalogEntry> {
     const entry = await this.catalogStore.getEntry(entryId);
     if (!entry) {
@@ -524,6 +655,40 @@ export class RuntimeBridgeAuthorityExtensionManager {
 
     return ownerMap;
   }
+
+  private collectHostWidgetTypes(): Set<string> {
+    const ownedWidgetTypes = new Set<string>();
+
+    for (const widgetTypes of this.loadedComponentWidgetTypesByEntryId.values()) {
+      for (const widgetType of widgetTypes) {
+        ownedWidgetTypes.add(widgetType);
+      }
+    }
+
+    return new Set(
+      this.graph
+        .listWidgets()
+        .map((widget) => widget.type)
+        .filter((widgetType) => !ownedWidgetTypes.has(widgetType))
+    );
+  }
+
+  private collectHostNodeTypes(): Set<string> {
+    const ownedNodeTypes = new Set<string>();
+
+    for (const nodeTypes of this.loadedNodeTypesByEntryId.values()) {
+      for (const nodeType of nodeTypes) {
+        ownedNodeTypes.add(nodeType);
+      }
+    }
+
+    return new Set(
+      this.graph
+        .listNodes()
+        .map((node) => node.type)
+        .filter((nodeType) => !ownedNodeTypes.has(nodeType))
+    );
+  }
 }
 
 function addUnique(list: string[], value: string): string[] {
@@ -543,6 +708,33 @@ function validateEntryId(entryId: string): void {
   if (!normalized) {
     throw new Error("目录条目 ID 不能为空");
   }
+}
+
+function assertExactTypeList(
+  label: string,
+  expectedTypes: readonly string[],
+  actualTypes: readonly string[]
+): void {
+  const expected = normalizeTypeList(expectedTypes);
+  const actual = normalizeTypeList(actualTypes);
+
+  if (expected.length === 0) {
+    throw new Error(`${label} 缺少类型声明。`);
+  }
+
+  if (actual.length === 0) {
+    throw new Error(`${label} 未导出任何类型。`);
+  }
+
+  if (expected.length !== actual.length || expected.some((type, index) => type !== actual[index])) {
+    throw new Error(
+      `${label} 的 metadata 与 artifact 导出不一致。metadata=${expected.join(", ")} actual=${actual.join(", ")}`
+    );
+  }
+}
+
+function normalizeTypeList(types: readonly string[]): string[] {
+  return [...new Set(types.map((type) => type.trim()).filter(Boolean))].sort();
 }
 
 function isNodeModule(value: NodeModule | NodeDefinition[]): value is NodeModule {

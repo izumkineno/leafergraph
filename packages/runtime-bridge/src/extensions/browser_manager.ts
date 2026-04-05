@@ -4,7 +4,9 @@ import type { RuntimeBridgeArtifactReader } from "./artifact.js";
 import {
   importModuleNamespaceFromArtifact,
   resolveNodeModuleExport,
-  resolveWidgetEntriesExport
+  resolveNodeTypesExport,
+  resolveWidgetEntriesExport,
+  resolveWidgetTypesExport
 } from "./loader.js";
 import type {
   RuntimeBridgeComponentCatalogEntry,
@@ -162,6 +164,13 @@ export class RuntimeBridgeBrowserExtensionManager {
     const artifact = await this.artifactReader.readArtifact(entry.browserArtifactRef);
     const namespace = await importModuleNamespaceFromArtifact(artifact);
     const widgetEntries = resolveWidgetEntriesExport(namespace);
+    const widgetTypes = resolveWidgetTypesExport(namespace);
+
+    assertExactTypeList(
+      `组件条目 ${entry.entryId} 的 browser artifact`,
+      entry.widgetTypes,
+      widgetTypes
+    );
 
     for (const widgetEntry of widgetEntries) {
       this.graph.registerWidget(widgetEntry);
@@ -169,7 +178,7 @@ export class RuntimeBridgeBrowserExtensionManager {
 
     this.ownedTypesByEntryId.set(entry.entryId, {
       nodeTypes: [],
-      widgetTypes: [...entry.widgetTypes]
+      widgetTypes
     });
   }
 
@@ -178,6 +187,13 @@ export class RuntimeBridgeBrowserExtensionManager {
     const artifact = await this.artifactReader.readArtifact(entry.browserArtifactRef);
     const namespace = await importModuleNamespaceFromArtifact(artifact);
     const resolved = resolveNodeModuleExport(namespace);
+    const nodeTypes = resolveNodeTypesExport(namespace);
+
+    assertExactTypeList(
+      `节点条目 ${entry.entryId} 的 browser artifact`,
+      entry.nodeTypes,
+      nodeTypes
+    );
 
     if (isNodeModule(resolved)) {
       this.graph.installModule(resolved);
@@ -188,7 +204,7 @@ export class RuntimeBridgeBrowserExtensionManager {
     }
 
     this.ownedTypesByEntryId.set(entry.entryId, {
-      nodeTypes: [...entry.nodeTypes],
+      nodeTypes,
       widgetTypes: []
     });
   }
@@ -278,4 +294,23 @@ export class RuntimeBridgeBrowserExtensionManager {
 
 function isNodeModule(value: NodeModule | NodeDefinition[]): value is NodeModule {
   return !Array.isArray(value);
+}
+
+function assertExactTypeList(
+  label: string,
+  expectedTypes: readonly string[],
+  actualTypes: readonly string[]
+): void {
+  const expected = normalizeTypeList(expectedTypes);
+  const actual = normalizeTypeList(actualTypes);
+
+  if (expected.length !== actual.length || expected.some((type, index) => type !== actual[index])) {
+    throw new Error(
+      `${label} 的 metadata 与 artifact 导出不一致。metadata=${expected.join(", ")} actual=${actual.join(", ")}`
+    );
+  }
+}
+
+function normalizeTypeList(types: readonly string[]): string[] {
+  return [...new Set(types.map((type) => type.trim()).filter(Boolean))].sort();
 }

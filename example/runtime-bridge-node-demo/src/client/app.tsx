@@ -3,7 +3,15 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { Debug } from "leafergraph";
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import {
+  createLeaferGraphContextMenuClipboardStore
+} from "@leafergraph/context-menu-builtins";
+import {
+  bindLeaferGraphShortcuts,
+  type BoundLeaferGraphShortcuts
+} from "@leafergraph/shortcuts/graph";
+import {
   createLeaferGraph,
+  createLeaferGraphRuntimeBridgeEditingAdapter,
   RuntimeBridgeBrowserExtensionManager,
   type LeaferGraph,
   type RuntimeBridgeBlueprintCatalogEntry,
@@ -12,11 +20,17 @@ import {
   type RuntimeBridgeExtensionsSync,
   type RuntimeBridgeNodeCatalogEntry
 } from "@leafergraph/runtime-bridge";
-import { LeaferGraphRuntimeBridgeClient } from "@leafergraph/runtime-bridge/client";
+import {
+  createDemoContextMenu,
+  type DemoContextMenuHandle,
+  type DemoTrackedLinkEntry
+} from "./demo_context_menu";
+import {
+  LeaferGraphRuntimeBridgeClient,
+  type LeaferGraphRuntimeBridgeEditingAdapter
+} from "@leafergraph/runtime-bridge/client";
 import type { RuntimeBridgeDiffMode } from "@leafergraph/runtime-bridge/transport";
 import {
-  createGraphOperationsFromInteractionCommit,
-  type GraphOperationApplyResult,
   type LeaferGraphHistoryEvent,
   type LeaferGraphInteractionCommitEvent,
   type RuntimeFeedbackEvent
@@ -47,6 +61,11 @@ import {
   type DemoNodeEntryForm
 } from "./catalog_panel";
 import {
+  analyzeLocalBlueprintDocumentFile,
+  analyzeLocalComponentArtifactFile,
+  analyzeLocalNodeArtifactFile
+} from "./registration_analysis";
+import {
   createRuntimeBridgeNodeDemoStreamStore,
   installRuntimeBridgeNodeDemoBrowserStreamStore
 } from "./stream_store";
@@ -55,7 +74,10 @@ import {
   WebSocketRuntimeBridgeTransport,
   type WebSocketRuntimeBridgeTransportStatus
 } from "./websocket_transport";
-import { DiffEngine, deepClone } from "../shared/diff";
+import { DiffEngine } from "../shared/diff";
+import {
+  bootstrapRuntimeBridgeDemoModuleDependencies
+} from "../shared/runtime_bridge_dependency_bootstrap";
 import "./app.css";
 
 type DemoLogEntry = {
@@ -72,13 +94,21 @@ type DemoLogEntry = {
   detail: string;
 };
 
+/** fitView 默认留白。 */
+const DEFAULT_FIT_VIEW_PADDING = 120;
+
 type DemoClientRuntime = {
   graph: LeaferGraph;
   bridgeClient: LeaferGraphRuntimeBridgeClient;
+  editingAdapter: LeaferGraphRuntimeBridgeEditingAdapter;
   transport: WebSocketRuntimeBridgeTransport;
   artifactClient: DemoHttpArtifactClient;
   extensionManager: RuntimeBridgeBrowserExtensionManager;
   streamStore: ReturnType<typeof createRuntimeBridgeNodeDemoStreamStore>;
+  contextMenu?: DemoContextMenuHandle;
+  shortcuts?: BoundLeaferGraphShortcuts;
+  trackedLinks: Map<string, DemoTrackedLinkEntry>;
+  nodeIds: Set<string>;
   cleanup: Array<() => void>;
 };
 
@@ -126,25 +156,33 @@ const DEMO_DEFAULT_LEAFER_DEBUG_CONFIG: DemoLeaferDebugConfig = {
 const INITIAL_COMPONENT_FORM: DemoComponentEntryForm = {
   entryId: "custom/component/demo-widget",
   name: "自定义组件",
-  widgetTypes: "custom/demo-widget",
-  browserFile: null
+  detectedWidgetTypes: [],
+  browserFile: null,
+  analysisError: null
 };
 
 const INITIAL_NODE_FORM: DemoNodeEntryForm = {
   entryId: "custom/node/demo-node",
   name: "自定义节点",
-  nodeTypes: "custom/demo-node",
-  componentEntryIds: "",
+  detectedAuthorityNodeTypes: [],
+  detectedBrowserNodeTypes: [],
+  requiredWidgetTypes: [],
+  exportedWidgetTypes: [],
+  selectedComponentEntryIds: [],
   authorityFile: null,
-  browserFile: null
+  browserFile: null,
+  analysisError: null
 };
 
 const INITIAL_BLUEPRINT_FORM: DemoBlueprintEntryForm = {
   entryId: "custom/blueprint/demo-scene",
   name: "自定义蓝图",
-  nodeEntryIds: "",
-  componentEntryIds: "",
-  documentFile: null
+  detectedNodeTypes: [],
+  detectedWidgetTypes: [],
+  selectedNodeEntryIds: [],
+  selectedComponentEntryIds: [],
+  documentFile: null,
+  analysisError: null
 };
 
 const EMPTY_STREAM_STATS: DemoBrowserStreamStats = {
@@ -170,6 +208,67 @@ function toErrorMessage(error: unknown): string {
   }
 
   return String(error);
+}
+
+function createTrackedLinkEntry(link: {
+  id: string;
+  source: {
+    nodeId: string;
+    slot?: string | number | null;
+  };
+  target: {
+    nodeId: string;
+    slot?: string | number | null;
+  };
+}): DemoTrackedLinkEntry {
+  return {
+    id: link.id,
+    sourceNodeId: link.source.nodeId,
+    sourceSlot: String(link.source.slot ?? ""),
+    targetNodeId: link.target.nodeId,
+    targetSlot: String(link.target.slot ?? "")
+  };
+}
+
+function syncContextMenuTargets(
+  graph: LeaferGraph,
+  contextMenu: DemoContextMenuHandle | null,
+  nodeIds: Set<string>,
+  trackedLinks: Map<string, DemoTrackedLinkEntry>
+): void {
+  if (!contextMenu) {
+    return;
+  }
+
+  const document = graph.getGraphDocument();
+  const nextNodeIds = new Set(document.nodes.map((node) => node.id));
+  const nextTrackedLinks = new Map(
+    document.links.map((link) => [link.id, createTrackedLinkEntry(link)])
+  );
+
+  for (const nodeId of [...nodeIds]) {
+    if (!nextNodeIds.has(nodeId)) {
+      nodeIds.delete(nodeId);
+      contextMenu.unbindNodeTarget(nodeId);
+    }
+  }
+
+  for (const linkId of [...trackedLinks.keys()]) {
+    if (!nextTrackedLinks.has(linkId)) {
+      trackedLinks.delete(linkId);
+      contextMenu.unbindLinkTarget(linkId);
+    }
+  }
+
+  for (const nodeId of nextNodeIds) {
+    nodeIds.add(nodeId);
+    contextMenu.bindNodeTarget(nodeId);
+  }
+
+  for (const trackedLink of nextTrackedLinks.values()) {
+    trackedLinks.set(trackedLink.id, trackedLink);
+    contextMenu.bindLinkTarget(trackedLink);
+  }
 }
 
 function cloneDemoLeaferDebugList(
@@ -279,15 +378,151 @@ function applyDemoLeaferDebugConfig(config: DemoLeaferDebugConfig): void {
   Debug.showBounds = config.showBounds;
 }
 
-function parseListInput(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 async function readFileBytes(file: File): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());
+}
+
+function normalizeTypeList(types: readonly string[]): string[] {
+  return [...new Set(types.map((type) => type.trim()).filter(Boolean))].sort();
+}
+
+function resolveMatchingComponentEntryIds(
+  componentEntries: readonly RuntimeBridgeComponentCatalogEntry[],
+  widgetTypes: readonly string[]
+): string[] {
+  const remaining = new Set(normalizeTypeList(widgetTypes));
+  const selected: string[] = [];
+
+  if (remaining.size === 0) {
+    return selected;
+  }
+
+  for (const entry of componentEntries) {
+    const covered = entry.widgetTypes.filter((type) => remaining.has(type));
+    if (covered.length === 0) {
+      continue;
+    }
+
+    selected.push(entry.entryId);
+    for (const widgetType of covered) {
+      remaining.delete(widgetType);
+    }
+
+    if (remaining.size === 0) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function resolveMatchingNodeEntryIds(
+  nodeEntries: readonly RuntimeBridgeNodeCatalogEntry[],
+  nodeTypes: readonly string[]
+): string[] {
+  const remaining = new Set(normalizeTypeList(nodeTypes));
+  const selected: string[] = [];
+
+  if (remaining.size === 0) {
+    return selected;
+  }
+
+  for (const entry of nodeEntries) {
+    const covered = entry.nodeTypes.filter((type) => remaining.has(type));
+    if (covered.length === 0) {
+      continue;
+    }
+
+    selected.push(entry.entryId);
+    for (const nodeType of covered) {
+      remaining.delete(nodeType);
+    }
+
+    if (remaining.size === 0) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function ensureSelectedComponentsCoverWidgetTypes(
+  componentEntries: readonly RuntimeBridgeComponentCatalogEntry[],
+  selectedEntryIds: readonly string[],
+  requiredWidgetTypes: readonly string[],
+  label: string,
+  hostWidgetTypes: readonly string[] = []
+): void {
+  const selectedIds = new Set(selectedEntryIds);
+  const coveredTypes = new Set<string>();
+
+  for (const entry of componentEntries) {
+    if (!selectedIds.has(entry.entryId)) {
+      continue;
+    }
+
+    for (const widgetType of entry.widgetTypes) {
+      coveredTypes.add(widgetType);
+    }
+  }
+
+  for (const widgetType of hostWidgetTypes) {
+    coveredTypes.add(widgetType);
+  }
+
+  const missing = normalizeTypeList(requiredWidgetTypes).filter(
+    (widgetType) => !coveredTypes.has(widgetType)
+  );
+  if (missing.length > 0) {
+    throw new Error(`${label} 缺少组件依赖: ${missing.join(", ")}`);
+  }
+}
+
+function ensureSelectedNodesCoverNodeTypes(
+  nodeEntries: readonly RuntimeBridgeNodeCatalogEntry[],
+  selectedEntryIds: readonly string[],
+  requiredNodeTypes: readonly string[],
+  label: string,
+  hostNodeTypes: readonly string[] = []
+): void {
+  const selectedIds = new Set(selectedEntryIds);
+  const coveredTypes = new Set<string>();
+
+  for (const entry of nodeEntries) {
+    if (!selectedIds.has(entry.entryId)) {
+      continue;
+    }
+
+    for (const nodeType of entry.nodeTypes) {
+      coveredTypes.add(nodeType);
+    }
+  }
+
+  for (const nodeType of hostNodeTypes) {
+    coveredTypes.add(nodeType);
+  }
+
+  const missing = normalizeTypeList(requiredNodeTypes).filter(
+    (nodeType) => !coveredTypes.has(nodeType)
+  );
+  if (missing.length > 0) {
+    throw new Error(`${label} 缺少节点依赖: ${missing.join(", ")}`);
+  }
+}
+
+function assertExactTypeList(
+  label: string,
+  expectedTypes: readonly string[],
+  actualTypes: readonly string[]
+): void {
+  const expected = normalizeTypeList(expectedTypes);
+  const actual = normalizeTypeList(actualTypes);
+
+  if (expected.length !== actual.length || expected.some((type, index) => type !== actual[index])) {
+    throw new Error(
+      `${label} 的导出类型不一致。expected=${expected.join(", ")} actual=${actual.join(", ")}`
+    );
+  }
 }
 
 function isNodeEntry(
@@ -337,11 +572,12 @@ export function App() {
     cloneDemoLeaferDebugConfig(DEMO_DEFAULT_LEAFER_DEBUG_CONFIG)
   );
   const [diffEnabled, setDiffEnabled] = useState(false);
-  const [diffEngine, setDiffEngine] = useState<DiffEngine | null>(null);
-  const [lastDiffResult, setLastDiffResult] = useState<any>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [bridgeDiffMode, setBridgeDiffMode] = useState<RuntimeBridgeDiffMode>("diff");
+  const nodeEntries = extensionsSync.entries.filter(isNodeEntry);
+  const componentEntries = extensionsSync.entries.filter(isComponentEntry);
+  const blueprintEntries = extensionsSync.entries.filter(isBlueprintEntry);
 
   const applyStressLogMute = (currentBlueprintId: string | null): void => {
     const shouldMute = isStressBlueprintEntryId(currentBlueprintId);
@@ -379,6 +615,7 @@ export function App() {
   };
 
   useEffect(() => {
+    bootstrapRuntimeBridgeDemoModuleDependencies();
     initialDebugConfigRef.current = captureDemoLeaferDebugConfig();
     applyDemoLeaferDebugConfig(DEMO_DEFAULT_LEAFER_DEBUG_CONFIG);
     setLeaferDebugConfig(cloneDemoLeaferDebugConfig(DEMO_DEFAULT_LEAFER_DEBUG_CONFIG));
@@ -430,6 +667,13 @@ export function App() {
           transport,
           extensionManager
         });
+        const editingAdapter = createLeaferGraphRuntimeBridgeEditingAdapter({
+          graph,
+          bridgeClient
+        });
+        const trackedLinks = new Map<string, DemoTrackedLinkEntry>();
+        const nodeIds = new Set<string>();
+        let contextMenu: DemoContextMenuHandle | null = null;
 
         const syncRevision = () => {
           if (!disposed) {
@@ -506,6 +750,14 @@ export function App() {
             if (event.type === "document.snapshot") {
               streamStore.clear();
             }
+
+            if (event.type === "document.snapshot" || event.type === "document.diff") {
+              void bridgeClient.waitForIdle().then(() => {
+                if (!disposed) {
+                  syncContextMenuTargets(graph, contextMenu, nodeIds, trackedLinks);
+                }
+              });
+            }
           })
         );
         cleanup.push(
@@ -525,6 +777,14 @@ export function App() {
               activeComponentEntryIds: sync.activeComponentEntryIds,
               currentBlueprintId: sync.currentBlueprintId
             });
+            if (contextMenu) {
+              (
+                contextMenu as DemoContextMenuHandle & {
+                  refresh?: () => void;
+                }
+              ).refresh?.();
+              syncContextMenuTargets(graph, contextMenu, nodeIds, trackedLinks);
+            }
           })
         );
         cleanup.push(
@@ -542,25 +802,9 @@ export function App() {
           graph.subscribeInteractionCommit((event: LeaferGraphInteractionCommitEvent) => {
             appendLog("interaction", event.type, event);
 
-            if (!bridgeClient.isConnected()) {
-              appendLog(
-                "transport",
-                "interaction.skipped",
-                "桥接未连接，本次只修改了本地图。"
-              );
-              return;
-            }
-
-            const operations = createGraphOperationsFromInteractionCommit(event, {
-              source: "bridge.interaction"
-            });
-            if (operations.length === 0) {
-              return;
-            }
-
-            void bridgeClient
-              .submitOperations(operations)
-              .then((results: readonly GraphOperationApplyResult[]) => {
+            void editingAdapter
+              .submitInteractionCommit(event)
+              .then((results) => {
                 appendLog("transport", "operations.submitted", results);
                 syncRevisionSoon();
               })
@@ -572,29 +816,150 @@ export function App() {
                 } else {
                   appendLog("transport", "operations.error", message);
                 }
-
-                try {
-                  await bridgeClient.requestSnapshot();
-                  appendLog("transport", "operations.snapshot.recovered", "已自动拉取 snapshot 对齐。");
-                  syncRevisionSoon();
-                } catch (snapshotError) {
-                  appendLog(
-                    "transport",
-                    "operations.snapshot.error",
-                    toErrorMessage(snapshotError)
-                  );
-                }
               });
           })
         );
 
+        // ========== 右键菜单集成 ==========
+        const clipboardStore = createLeaferGraphContextMenuClipboardStore();
+        contextMenu = createDemoContextMenu({
+          graph,
+          bridgeClient,
+          editingAdapter,
+          container,
+          fit: () => {
+            requestAnimationFrame(() => {
+              graph.fitView(DEFAULT_FIT_VIEW_PADDING);
+            });
+          },
+          resolveThemeMode: () => "light",
+          appendLog: (msg) => appendLog("system", "context-menu", msg),
+          clipboard: clipboardStore,
+          listNodeIds: () => Array.from(nodeIds),
+        });
+        syncContextMenuTargets(graph, contextMenu, nodeIds, trackedLinks);
+
+        // ========== 快捷键集成 ==========
+        const shortcuts = bindLeaferGraphShortcuts({
+          target: document,
+          scopeElement: container,
+          host: {
+            listNodeIds: () => Array.from(nodeIds),
+            listSelectedNodeIds: () => graph.listSelectedNodeIds(),
+            setSelectedNodeIds: (ids) => graph.setSelectedNodeIds(ids, "replace"),
+            clearSelectedNodes: () => graph.clearSelectedNodes(),
+            removeNode: (nodeId) => editingAdapter.removeNode(nodeId),
+            fitView: () => {
+              requestAnimationFrame(() => {
+                graph.fitView(DEFAULT_FIT_VIEW_PADDING);
+                appendLog("system", "shortcut", "已执行适配视图 (F)");
+              });
+            },
+            play: async () => {
+              if (bridgeClient.isConnected()) {
+                await bridgeClient.play();
+                appendLog("system", "shortcut", "已触发运行");
+              }
+            },
+            step: async () => {
+              if (bridgeClient.isConnected()) {
+                await bridgeClient.step();
+                appendLog("system", "shortcut", "已触发单步");
+              }
+            },
+            stop: async () => {
+              if (bridgeClient.isConnected()) {
+                await bridgeClient.stop();
+                appendLog("system", "shortcut", "已触发停止");
+              }
+            },
+            isContextMenuOpen: () => contextMenu.isOpen()
+          },
+          clipboard: {
+            copySelection: () => {
+              const fragment = editingAdapter.copySelection();
+              if (!fragment) {
+                return false;
+              }
+
+              clipboardStore.setFragment({
+                nodes: [...fragment.nodes],
+                links: [...fragment.links]
+              });
+              appendLog(
+                "system",
+                "shortcut",
+                fragment.nodes.length > 1
+                  ? `已复制 ${fragment.nodes.length} 个节点到剪贴板`
+                  : `已复制节点：${fragment.nodes[0]?.title?.trim() || fragment.nodes[0]?.id}`
+              );
+              return true;
+            },
+            cutSelection: async () => {
+              const fragment = await editingAdapter.cutSelection();
+              if (!fragment) {
+                return false;
+              }
+
+              clipboardStore.setFragment({
+                nodes: [...fragment.nodes],
+                links: [...fragment.links]
+              });
+              appendLog(
+                "system",
+                "shortcut",
+                fragment.nodes.length > 1
+                  ? `已剪切 ${fragment.nodes.length} 个节点`
+                  : `已剪切节点：${fragment.nodes[0]?.title?.trim() || fragment.nodes[0]?.id}`
+              );
+              return true;
+            },
+            pasteClipboard: async () => {
+              const fragment = clipboardStore.getFragment();
+              if (!fragment?.nodes.length) {
+                return false;
+              }
+
+              const createdNodeIds = await editingAdapter.pasteFragment(fragment);
+              appendLog(
+                "system",
+                "shortcut",
+                createdNodeIds.length > 1
+                  ? `已粘贴 ${createdNodeIds.length} 个节点`
+                  : "已粘贴节点"
+              );
+              return Boolean(createdNodeIds.length);
+            },
+            duplicateSelection: async () => {
+              const createdNodeIds = await editingAdapter.duplicateSelection();
+              appendLog(
+                "system",
+                "shortcut",
+                createdNodeIds.length > 1
+                  ? `已创建 ${createdNodeIds.length} 个节点副本`
+                  : "已创建节点副本"
+              );
+              return Boolean(createdNodeIds.length);
+            },
+            canPasteClipboard: () => clipboardStore.hasFragment()
+          }
+        });
+
+        cleanup.push(() => shortcuts.destroy());
+        cleanup.push(() => contextMenu.destroy());
+
         runtimeRef.current = {
           graph,
           bridgeClient,
+          editingAdapter,
           transport,
           artifactClient,
           extensionManager,
           streamStore,
+          contextMenu,
+          shortcuts,
+          trackedLinks,
+          nodeIds,
           cleanup
         };
         setReady(true);
@@ -638,6 +1003,266 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const file = componentForm.browserFile;
+    let cancelled = false;
+
+    if (!file) {
+      setComponentForm((current) => ({
+        ...current,
+        detectedWidgetTypes: [],
+        analysisError: null
+      }));
+      return;
+    }
+
+    void analyzeLocalComponentArtifactFile(file)
+      .then((analysis) => {
+        if (cancelled) {
+          return;
+        }
+
+        setComponentForm((current) =>
+          current.browserFile === file
+            ? {
+                ...current,
+                detectedWidgetTypes: normalizeTypeList(analysis.widgetTypes),
+                analysisError: null
+              }
+            : current
+        );
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        void analyzeLocalNodeArtifactFile(file)
+          .then((nodeAnalysis) => {
+            if (cancelled) {
+              return;
+            }
+
+            const detectedNodeTypes = normalizeTypeList(nodeAnalysis.nodeTypes);
+            if (detectedNodeTypes.length === 0) {
+              throw error;
+            }
+
+            const requiredWidgetTypes = normalizeTypeList(nodeAnalysis.widgetTypes);
+            const exportedWidgetTypes = normalizeTypeList(
+              nodeAnalysis.exportedWidgetTypes
+            );
+
+            setNodeForm((current) => ({
+              ...current,
+              authorityFile: current.authorityFile ?? file,
+              browserFile: current.browserFile ?? file,
+              detectedAuthorityNodeTypes:
+                current.detectedAuthorityNodeTypes.length > 0
+                  ? current.detectedAuthorityNodeTypes
+                  : detectedNodeTypes,
+              detectedBrowserNodeTypes:
+                current.detectedBrowserNodeTypes.length > 0
+                  ? current.detectedBrowserNodeTypes
+                  : detectedNodeTypes,
+              requiredWidgetTypes:
+                current.requiredWidgetTypes.length > 0
+                  ? current.requiredWidgetTypes
+                  : requiredWidgetTypes,
+              exportedWidgetTypes:
+                current.exportedWidgetTypes.length > 0
+                  ? current.exportedWidgetTypes
+                  : exportedWidgetTypes,
+              selectedComponentEntryIds:
+                current.selectedComponentEntryIds.length > 0
+                  ? current.selectedComponentEntryIds
+                  : resolveMatchingComponentEntryIds(
+                      componentEntries,
+                      requiredWidgetTypes
+                    ),
+              analysisError: null
+            }));
+
+            setComponentForm((current) =>
+              current.browserFile === file
+                ? {
+                    ...current,
+                    detectedWidgetTypes: [],
+                    analysisError:
+                      "这份 JS 更像节点 artifact，不是独立 widget bundle。已自动同步到“注册节点”表单。",
+                    browserFile: null
+                  }
+                : current
+            );
+          })
+          .catch(() => {
+            setComponentForm((current) =>
+              current.browserFile === file
+                ? {
+                    ...current,
+                    detectedWidgetTypes: [],
+                    analysisError: `组件 artifact 解析失败：${toErrorMessage(error)}`
+                  }
+                : current
+            );
+          });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [componentForm.browserFile, componentEntries]);
+
+  useEffect(() => {
+    const authorityFile = nodeForm.authorityFile;
+    const browserFile = nodeForm.browserFile;
+    let cancelled = false;
+
+    if (!authorityFile && !browserFile) {
+      setNodeForm((current) => ({
+        ...current,
+        detectedAuthorityNodeTypes: [],
+        detectedBrowserNodeTypes: [],
+        requiredWidgetTypes: [],
+        exportedWidgetTypes: [],
+        selectedComponentEntryIds: [],
+        analysisError: null
+      }));
+      return;
+    }
+
+    void Promise.all([
+      authorityFile
+        ? analyzeLocalNodeArtifactFile(authorityFile)
+        : Promise.resolve({ nodeTypes: [], widgetTypes: [], exportedWidgetTypes: [] }),
+      browserFile
+        ? analyzeLocalNodeArtifactFile(browserFile)
+        : Promise.resolve({ nodeTypes: [], widgetTypes: [], exportedWidgetTypes: [] })
+    ])
+      .then(([authorityAnalysis, browserAnalysis]) => {
+        if (cancelled) {
+          return;
+        }
+
+        const authorityNodeTypes = normalizeTypeList(authorityAnalysis.nodeTypes);
+        const browserNodeTypes = normalizeTypeList(browserAnalysis.nodeTypes);
+        const requiredWidgetTypes = normalizeTypeList(browserAnalysis.widgetTypes);
+        const exportedWidgetTypes = normalizeTypeList(browserAnalysis.exportedWidgetTypes);
+
+        if (authorityNodeTypes.length > 0 && browserNodeTypes.length > 0) {
+          assertExactTypeList(
+            "节点 authority/browser artifact",
+            authorityNodeTypes,
+            browserNodeTypes
+          );
+        }
+
+        setNodeForm((current) =>
+          current.authorityFile === authorityFile && current.browserFile === browserFile
+            ? {
+                ...current,
+                detectedAuthorityNodeTypes: authorityNodeTypes,
+                detectedBrowserNodeTypes: browserNodeTypes,
+                requiredWidgetTypes,
+                exportedWidgetTypes,
+                selectedComponentEntryIds: resolveMatchingComponentEntryIds(
+                  componentEntries,
+                  requiredWidgetTypes
+                ),
+                analysisError: null
+              }
+            : current
+        );
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        setNodeForm((current) =>
+          current.authorityFile === authorityFile && current.browserFile === browserFile
+            ? {
+                ...current,
+                detectedAuthorityNodeTypes: [],
+                detectedBrowserNodeTypes: [],
+                requiredWidgetTypes: [],
+                exportedWidgetTypes: [],
+                selectedComponentEntryIds: [],
+                analysisError: `节点 artifact 解析失败：${toErrorMessage(error)}`
+              }
+            : current
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeForm.authorityFile, nodeForm.browserFile, componentEntries]);
+
+  useEffect(() => {
+    const file = blueprintForm.documentFile;
+    let cancelled = false;
+
+    if (!file) {
+      setBlueprintForm((current) => ({
+        ...current,
+        detectedNodeTypes: [],
+        detectedWidgetTypes: [],
+        selectedNodeEntryIds: [],
+        selectedComponentEntryIds: [],
+        analysisError: null
+      }));
+      return;
+    }
+
+    void analyzeLocalBlueprintDocumentFile(file)
+      .then((analysis) => {
+        if (cancelled) {
+          return;
+        }
+
+        const nodeTypes = normalizeTypeList(analysis.nodeTypes);
+        const widgetTypes = normalizeTypeList(analysis.widgetTypes);
+
+        setBlueprintForm((current) =>
+          current.documentFile === file
+            ? {
+                ...current,
+                detectedNodeTypes: nodeTypes,
+                detectedWidgetTypes: widgetTypes,
+                selectedNodeEntryIds: resolveMatchingNodeEntryIds(nodeEntries, nodeTypes),
+                selectedComponentEntryIds: resolveMatchingComponentEntryIds(
+                  componentEntries,
+                  widgetTypes
+                ),
+                analysisError: null
+              }
+            : current
+        );
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
+        setBlueprintForm((current) =>
+          current.documentFile === file
+            ? {
+                ...current,
+                detectedNodeTypes: [],
+                detectedWidgetTypes: [],
+                selectedNodeEntryIds: [],
+                selectedComponentEntryIds: [],
+                analysisError: `蓝图解析失败：${toErrorMessage(error)}`
+              }
+            : current
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [blueprintForm.documentFile, nodeEntries, componentEntries]);
+
   const runAction = async (label: string, action: () => Promise<void>) => {
     setBusyAction(label);
     try {
@@ -673,6 +1298,12 @@ export function App() {
 
     void runAction("连接", async () => {
       await runtime.bridgeClient.connect();
+      syncContextMenuTargets(
+        runtime.graph,
+        runtime.contextMenu ?? null,
+        runtime.nodeIds,
+        runtime.trackedLinks
+      );
       const modeResult = await runtime.bridgeClient.requestCommand({
         type: "diff.mode.get"
       });
@@ -738,6 +1369,12 @@ export function App() {
     void runAction("重拉快照", async () => {
       runtime.streamStore.clear();
       await runtime.bridgeClient.requestSnapshot();
+      syncContextMenuTargets(
+        runtime.graph,
+        runtime.contextMenu ?? null,
+        runtime.nodeIds,
+        runtime.trackedLinks
+      );
       setCurrentRevision(runtime.graph.getGraphDocument().revision);
     });
   };
@@ -842,6 +1479,12 @@ export function App() {
       if (!componentForm.browserFile) {
         throw new Error("请先选择组件 browser artifact。");
       }
+      if (componentForm.analysisError) {
+        throw new Error(componentForm.analysisError);
+      }
+      if (componentForm.detectedWidgetTypes.length === 0) {
+        throw new Error("组件 artifact 未解析出任何 widget types。");
+      }
 
       const browserArtifactRef = await runtime.artifactClient.writeArtifact({
         bytes: await readFileBytes(componentForm.browserFile),
@@ -855,10 +1498,15 @@ export function App() {
           entryId: componentForm.entryId.trim(),
           entryKind: "component-entry",
           name: componentForm.name.trim(),
-          widgetTypes: parseListInput(componentForm.widgetTypes),
+          widgetTypes: [...componentForm.detectedWidgetTypes],
           browserArtifactRef
         }
       });
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.load",
+        entryId: componentForm.entryId.trim()
+      });
+      await runtime.bridgeClient.waitForIdle();
 
       setComponentForm(INITIAL_COMPONENT_FORM);
     });
@@ -867,20 +1515,121 @@ export function App() {
   const registerNodeEntry = () => {
     void runAction("注册节点条目", async () => {
       const runtime = await ensureConnectedRuntime();
-      if (!nodeForm.authorityFile || !nodeForm.browserFile) {
-        throw new Error("请同时选择 authority 与 browser artifact。");
+      const authorityFile = nodeForm.authorityFile ?? nodeForm.browserFile;
+      const browserFile = nodeForm.browserFile ?? nodeForm.authorityFile;
+
+      if (!authorityFile || !browserFile) {
+        throw new Error("请至少选择一份节点 JS artifact。");
+      }
+      if (nodeForm.analysisError) {
+        throw new Error(nodeForm.analysisError);
       }
 
+      const nodeTypes =
+        nodeForm.detectedAuthorityNodeTypes.length > 0
+          ? nodeForm.detectedAuthorityNodeTypes
+          : nodeForm.detectedBrowserNodeTypes;
+      const pureWidgetTypes = normalizeTypeList(nodeForm.exportedWidgetTypes);
+      const componentEntryIds = [...nodeForm.selectedComponentEntryIds];
+      const autoExportedWidgetTypes = normalizeTypeList(
+        nodeForm.exportedWidgetTypes.filter((widgetType) =>
+          nodeForm.requiredWidgetTypes.includes(widgetType)
+        )
+      );
+
       const authorityArtifactRef = await runtime.artifactClient.writeArtifact({
-        bytes: await readFileBytes(nodeForm.authorityFile),
-        contentType: nodeForm.authorityFile.type || "text/javascript",
-        suggestedName: nodeForm.authorityFile.name
+        bytes: await readFileBytes(authorityFile),
+        contentType: authorityFile.type || "text/javascript",
+        suggestedName: authorityFile.name
       });
       const browserArtifactRef = await runtime.artifactClient.writeArtifact({
-        bytes: await readFileBytes(nodeForm.browserFile),
-        contentType: nodeForm.browserFile.type || "text/javascript",
-        suggestedName: nodeForm.browserFile.name
+        bytes: await readFileBytes(browserFile),
+        contentType: browserFile.type || "text/javascript",
+        suggestedName: browserFile.name
       });
+
+      if (nodeTypes.length === 0) {
+        if (pureWidgetTypes.length === 0) {
+          throw new Error("扩展 artifact 未解析出任何 node types 或 widget entries。");
+        }
+
+        await runtime.bridgeClient.requestCommand({
+          type: "entry.register",
+          entry: {
+            entryId: nodeForm.entryId.trim(),
+            entryKind: "component-entry",
+            name: nodeForm.name.trim(),
+            widgetTypes: pureWidgetTypes,
+            browserArtifactRef
+          }
+        });
+        await runtime.bridgeClient.requestCommand({
+          type: "entry.load",
+          entryId: nodeForm.entryId.trim()
+        });
+        await runtime.bridgeClient.waitForIdle();
+
+        setNodeForm(INITIAL_NODE_FORM);
+        return;
+      }
+
+      const coveredWidgetTypes = new Set<string>();
+      const hostWidgetTypes = runtime.graph.listWidgets().map((widget) => widget.type);
+      for (const entry of componentEntries) {
+        if (!componentEntryIds.includes(entry.entryId)) {
+          continue;
+        }
+
+        for (const widgetType of entry.widgetTypes) {
+          coveredWidgetTypes.add(widgetType);
+        }
+      }
+
+      const missingWidgetTypes = normalizeTypeList(nodeForm.requiredWidgetTypes).filter(
+        (widgetType) => !coveredWidgetTypes.has(widgetType)
+      );
+
+      if (missingWidgetTypes.length > 0) {
+        const exportedCoverage = missingWidgetTypes.filter((widgetType) =>
+          autoExportedWidgetTypes.includes(widgetType)
+        );
+
+        if (exportedCoverage.length > 0) {
+          const componentEntryId = `${nodeForm.entryId.trim()}/components`;
+          await runtime.bridgeClient.requestCommand({
+            type: "entry.register",
+            entry: {
+              entryId: componentEntryId,
+              entryKind: "component-entry",
+              name: `${nodeForm.name.trim() || nodeTypes[0] || "Node"} Components`,
+              widgetTypes: [...autoExportedWidgetTypes],
+              browserArtifactRef
+            }
+          });
+          componentEntryIds.push(componentEntryId);
+        }
+      }
+
+      ensureSelectedComponentsCoverWidgetTypes(
+        [
+          ...componentEntries,
+          ...(componentEntryIds.includes(`${nodeForm.entryId.trim()}/components`)
+            ? [
+                {
+                  entryId: `${nodeForm.entryId.trim()}/components`,
+                  entryKind: "component-entry" as const,
+                  name: `${nodeForm.name.trim() || nodeTypes[0] || "Node"} Components`,
+                  widgetTypes: [...autoExportedWidgetTypes],
+                  browserArtifactRef
+                }
+              ]
+            : [])
+        ],
+        componentEntryIds,
+        nodeForm.requiredWidgetTypes,
+        "节点条目",
+        hostWidgetTypes
+      );
 
       await runtime.bridgeClient.requestCommand({
         type: "entry.register",
@@ -888,12 +1637,17 @@ export function App() {
           entryId: nodeForm.entryId.trim(),
           entryKind: "node-entry",
           name: nodeForm.name.trim(),
-          nodeTypes: parseListInput(nodeForm.nodeTypes),
-          componentEntryIds: parseListInput(nodeForm.componentEntryIds),
+          nodeTypes: [...nodeTypes],
+          componentEntryIds: [...componentEntryIds],
           authorityArtifactRef,
           browserArtifactRef
         }
       });
+      await runtime.bridgeClient.requestCommand({
+        type: "entry.load",
+        entryId: nodeForm.entryId.trim()
+      });
+      await runtime.bridgeClient.waitForIdle();
 
       setNodeForm(INITIAL_NODE_FORM);
     });
@@ -905,6 +1659,23 @@ export function App() {
       if (!blueprintForm.documentFile) {
         throw new Error("请先选择 blueprint JSON 文件。");
       }
+      if (blueprintForm.analysisError) {
+        throw new Error(blueprintForm.analysisError);
+      }
+      ensureSelectedNodesCoverNodeTypes(
+        nodeEntries,
+        blueprintForm.selectedNodeEntryIds,
+        blueprintForm.detectedNodeTypes,
+        "蓝图条目",
+        runtime.graph.listNodes().map((node) => node.type)
+      );
+      ensureSelectedComponentsCoverWidgetTypes(
+        componentEntries,
+        blueprintForm.selectedComponentEntryIds,
+        blueprintForm.detectedWidgetTypes,
+        "蓝图条目",
+        runtime.graph.listWidgets().map((widget) => widget.type)
+      );
 
       const documentArtifactRef = await runtime.artifactClient.writeArtifact({
         bytes: await readFileBytes(blueprintForm.documentFile),
@@ -918,8 +1689,8 @@ export function App() {
           entryId: blueprintForm.entryId.trim(),
           entryKind: "blueprint-entry",
           name: blueprintForm.name.trim(),
-          nodeEntryIds: parseListInput(blueprintForm.nodeEntryIds),
-          componentEntryIds: parseListInput(blueprintForm.componentEntryIds),
+          nodeEntryIds: [...blueprintForm.selectedNodeEntryIds],
+          componentEntryIds: [...blueprintForm.selectedComponentEntryIds],
           documentArtifactRef
         }
       });
@@ -943,12 +1714,9 @@ export function App() {
   useEffect(() => {
     if (diffEnabled) {
       try {
-        const engine = new DiffEngine();
-        setDiffEngine(engine);
+        new DiffEngine();
         appendLog("system", "diff.enabled", "Diff功能已启用");
         return () => {
-          // 清理资源
-          setDiffEngine(null);
           appendLog("system", "diff.disabled", "Diff功能已禁用");
         };
       } catch (error) {
@@ -957,36 +1725,8 @@ export function App() {
         appendLog("system", "diff.init.error", message);
         setDiffEnabled(false);
       }
-    } else {
-      setDiffEngine(null);
     }
   }, [diffEnabled]);
-
-  const computeDiff = () => {
-    if (!diffEngine || !runtimeRef.current) return;
-    
-    try {
-      const currentDoc = runtimeRef.current.graph.getGraphDocument();
-      const clonedDoc = deepClone(currentDoc);
-      
-      // 模拟文档变更
-      if (clonedDoc.nodes.length > 0) {
-        clonedDoc.nodes[0].title = `Updated ${Date.now()}`;
-      }
-      
-      const diff = diffEngine.computeDiff(currentDoc, clonedDoc);
-      setLastDiffResult(diff);
-      appendLog("system", "diff.computed", diff);
-    } catch (error) {
-      const message = toErrorMessage(error);
-      setLastError(message);
-      appendLog("system", "diff.compute.error", message);
-    }
-  };
-
-  const nodeEntries = extensionsSync.entries.filter(isNodeEntry);
-  const componentEntries = extensionsSync.entries.filter(isComponentEntry);
-  const blueprintEntries = extensionsSync.entries.filter(isBlueprintEntry);
 
   return (
     <div className="demo-shell">

@@ -7,10 +7,17 @@
  */
 
 export { LeaferGraph, createLeaferGraph } from "leafergraph";
-export { LeaferGraphRuntimeBridgeClient } from "./client/index.js";
+export {
+  LeaferGraphRuntimeBridgeClient,
+  createLeaferGraphRuntimeBridgeEditingAdapter
+} from "./client/index.js";
 export type {
+  LeaferGraphRuntimeBridgeEditingAdapter,
+  LeaferGraphRuntimeBridgeEditingAdapterGraphLike,
+  LeaferGraphRuntimeBridgeEditingAdapterOptions,
   LeaferGraphRuntimeBridgeClientGraphLike,
-  LeaferGraphRuntimeBridgeClientOptions
+  LeaferGraphRuntimeBridgeClientOptions,
+  RuntimeBridgeClipboardPlacementOptions
 } from "./client/index.js";
 export * from "./portable/index.js";
 export * from "./execution/index.js";

@@ -18,7 +18,10 @@ import type {
   RuntimeBridgeControlCommand,
   RuntimeBridgeInboundEvent
 } from "../src/transport/index.js";
-import { LeaferGraphRuntimeBridgeClient } from "../src/client/index.js";
+import {
+  createLeaferGraphRuntimeBridgeEditingAdapter,
+  LeaferGraphRuntimeBridgeClient
+} from "../src/client/index.js";
 import { RuntimeBridgeBrowserExtensionManager } from "../src/extensions/index.js";
 
 function createDocument(revision: string): GraphDocument {
@@ -190,6 +193,57 @@ function createFakeGraph(document: GraphDocument) {
   };
 
   return { graph, state };
+}
+
+function createEditingGraph(document: GraphDocument) {
+  const { graph, state } = createFakeGraph(document);
+  let selectedNodeIds = document.nodes.map((node) => node.id);
+
+  const editingGraph = {
+    ...graph,
+    listNodes() {
+      return [
+        {
+          type: "demo/node",
+          title: "Demo Node",
+          category: "Demo"
+        }
+      ];
+    },
+    getNodeSnapshot(nodeId: string) {
+      const node = state.document.nodes.find((entry) => entry.id === nodeId);
+      return node ? structuredClone(node) : undefined;
+    },
+    findLinksByNode(nodeId: string) {
+      return state.document.links.filter(
+        (link) => link.source.nodeId === nodeId || link.target.nodeId === nodeId
+      );
+    },
+    isNodeSelected(nodeId: string) {
+      return selectedNodeIds.includes(nodeId);
+    },
+    listSelectedNodeIds() {
+      return [...selectedNodeIds];
+    },
+    setSelectedNodeIds(nodeIds: readonly string[]) {
+      selectedNodeIds = [...nodeIds];
+      return [...selectedNodeIds];
+    },
+    clearSelectedNodes() {
+      selectedNodeIds = [];
+      return [];
+    }
+  };
+
+  return {
+    graph: editingGraph,
+    state: {
+      ...state,
+      get selectedNodeIds() {
+        return [...selectedNodeIds];
+      }
+    }
+  };
 }
 
 describe("runtime bridge client", () => {
@@ -373,5 +427,135 @@ describe("runtime bridge client", () => {
     expect(transport.snapshotRequests).toBe(1);
     expect(extensionSyncs).toEqual(["entries:0"]);
     expect(state.replacedDocuments).toEqual([createDocument("1")]);
+  });
+
+  test("editing adapter 应把 create / cut / paste 收口为 authority 操作", async () => {
+    const transport = new MockTransport();
+    const document: GraphDocument = {
+      documentId: "bridge-doc",
+      revision: "1",
+      appKind: "bridge-test",
+      nodes: [
+        {
+          id: "node-1",
+          type: "demo/node",
+          title: "Node 1",
+          layout: {
+            x: 0,
+            y: 0,
+            width: 120,
+            height: 80
+          },
+          widgets: [],
+          properties: {},
+          inputs: [],
+          outputs: [],
+          flags: {}
+        },
+        {
+          id: "node-2",
+          type: "demo/node",
+          title: "Node 2",
+          layout: {
+            x: 120,
+            y: 24,
+            width: 120,
+            height: 80
+          },
+          widgets: [],
+          properties: {},
+          inputs: [],
+          outputs: [],
+          flags: {}
+        }
+      ],
+      links: [
+        {
+          id: "link-1",
+          source: {
+            nodeId: "node-1",
+            slot: "out"
+          },
+          target: {
+            nodeId: "node-2",
+            slot: "in"
+          }
+        }
+      ]
+    };
+    const { graph, state } = createEditingGraph(document);
+    transport.snapshot = structuredClone(document);
+    const client = new LeaferGraphRuntimeBridgeClient({
+      graph,
+      transport
+    });
+    const adapter = createLeaferGraphRuntimeBridgeEditingAdapter({
+      graph,
+      bridgeClient: client,
+      createNodeId: (_snapshot, index) => `copied-node-${index + 1}`,
+      createLinkId: (_link, index) => `copied-link-${index + 1}`
+    });
+
+    await client.connect();
+
+    const createdNode = await adapter.createNode({
+      type: "demo/new-node",
+      x: 12,
+      y: 24
+    });
+    expect(createdNode.nodeId).toContain("node:");
+    expect(transport.submittedOperations[0]).toMatchObject({
+      type: "node.create",
+      input: {
+        id: createdNode.nodeId,
+        type: "demo/new-node",
+        x: 12,
+        y: 24
+      }
+    });
+
+    const cutFragment = await adapter.cutSelection();
+    expect(cutFragment?.nodes).toHaveLength(2);
+    expect(transport.submittedOperations).toEqual([
+      expect.objectContaining({
+        type: "node.remove",
+        nodeId: "node-1"
+      }),
+      expect.objectContaining({
+        type: "node.remove",
+        nodeId: "node-2"
+      })
+    ]);
+    expect(state.selectedNodeIds).toEqual([]);
+
+    const createdNodeIds = await adapter.pasteFragment(cutFragment!, {
+      anchorToPoint: false,
+      offset: {
+        x: 10,
+        y: 20
+      }
+    });
+    expect(createdNodeIds).toEqual(["copied-node-1", "copied-node-2"]);
+    expect(transport.submittedOperations).toEqual([
+      expect.objectContaining({
+        type: "node.create",
+        input: expect.objectContaining({
+          id: "copied-node-1"
+        })
+      }),
+      expect.objectContaining({
+        type: "node.create",
+        input: expect.objectContaining({
+          id: "copied-node-2"
+        })
+      }),
+      expect.objectContaining({
+        type: "link.create",
+        input: expect.objectContaining({
+          id: "copied-link-1"
+        })
+      })
+    ]);
+    expect(state.selectedNodeIds).toEqual(["copied-node-1", "copied-node-2"]);
   });
 });

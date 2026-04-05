@@ -15,8 +15,8 @@ export const linkDeleteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition =
           label: "删除连线",
           order: 90,
           danger: true,
-          onSelect() {
-            removeLink(linkId, context);
+          async onSelect() {
+            await removeLink(linkId, context);
           }
         }
       ];

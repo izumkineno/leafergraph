@@ -87,37 +87,23 @@ export function registerLeaferGraphContextMenuBuiltins(
           menu.registerResolver(`builtin:${definition.id}:${key}`, resolver),
         createNode: (input, context) => host.createNode(input, context),
         createLink: (input, context) => host.createLink(input, context),
-        play: (context) => {
-          host.play(context);
-        },
-        step: (context) => {
-          host.step(context);
-        },
-        stop: (context) => {
-          host.stop(context);
-        },
-        fitView: (context) => {
-          host.fitView(context);
-        },
-        playFromNode: (nodeId, context) => {
-          host.playFromNode(nodeId, context);
-        },
-        removeNode: (nodeId, context) => {
-          host.removeNode(nodeId, context);
-        },
-        removeNodes: (nodeIds, context) => {
+        play: (context) => host.play(context),
+        step: (context) => host.step(context),
+        stop: (context) => host.stop(context),
+        fitView: (context) => host.fitView(context),
+        playFromNode: (nodeId, context) => host.playFromNode(nodeId, context),
+        removeNode: (nodeId, context) => host.removeNode(nodeId, context),
+        removeNodes: async (nodeIds, context) => {
           if (host.removeNodes) {
-            host.removeNodes(nodeIds, context);
+            await host.removeNodes(nodeIds, context);
             return;
           }
 
           for (const nodeId of nodeIds) {
-            host.removeNode(nodeId, context);
+            await host.removeNode(nodeId, context);
           }
         },
-        removeLink: (linkId, context) => {
-          host.removeLink(linkId, context);
-        }
+        removeLink: (linkId, context) => host.removeLink(linkId, context)
       })
     );
   }

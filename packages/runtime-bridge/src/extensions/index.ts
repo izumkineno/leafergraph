@@ -16,12 +16,20 @@ export type {
   RuntimeBridgeAuthorityExtensionManagerOptions
 } from "./authority_manager.js";
 export {
+  collectGraphDocumentUsedTypes,
+  collectNodeWidgetTypesExport,
   createModuleSpecifierFromArtifact,
   importModuleNamespaceFromArtifact,
+  listRuntimeBridgeModuleDependencies,
   readGraphDocumentFromArtifact,
+  registerRuntimeBridgeModuleDependencies,
+  registerRuntimeBridgeModuleDependency,
   resolveNodeModuleExport,
-  resolveWidgetEntriesExport
+  resolveNodeTypesExport,
+  resolveWidgetEntriesExport,
+  resolveWidgetTypesExport
 } from "./loader.js";
+export type { RuntimeBridgeModuleDependencyNamespace } from "./loader.js";
 export type {
   RuntimeBridgeBlueprintCatalogEntry,
   RuntimeBridgeCatalogCommand,

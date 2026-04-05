@@ -3,6 +3,9 @@ import { describe, expect, test } from "bun:test";
 import type { GraphDocument, NodeDefinition } from "@leafergraph/node";
 import type { LeaferGraphWidgetEntry } from "@leafergraph/contracts";
 import {
+  createModuleSpecifierFromArtifact,
+  importModuleNamespaceFromArtifact,
+  registerRuntimeBridgeModuleDependency,
   RuntimeBridgeAuthorityExtensionManager,
   RuntimeBridgeBrowserExtensionManager
 } from "../src/extensions/index.js";
@@ -364,4 +367,405 @@ export default [
       "unregisterWidget:demo/widget"
     ]);
   });
+
+  test("authority manager 应拒绝 metadata 与组件 artifact 导出不一致的条目", async () => {
+    const artifactReader = new MemoryArtifactReader();
+    artifactReader.set(
+      COMPONENT_ENTRY.browserArtifactRef,
+      `
+export default [
+  {
+    type: "demo/other-widget",
+    renderer() {
+      return {};
+    }
+  }
+];
+`.trim()
+    );
+
+    const manager = new RuntimeBridgeAuthorityExtensionManager({
+      graph: createFakeAuthorityGraph().graph,
+      artifactReader,
+      catalogStore: new MemoryCatalogStore(),
+      sessionStore: new MemorySessionStore(),
+      sessionId: "session-b"
+    });
+
+    await expect(
+      manager.executeCommand({ type: "entry.register", entry: COMPONENT_ENTRY })
+    ).rejects.toThrow("metadata 与 artifact 导出不一致");
+  });
+
+  test("authority manager 应拒绝节点 artifact 使用了未声明组件依赖的 widget type", async () => {
+    const artifactReader = new MemoryArtifactReader();
+    artifactReader.set(
+      COMPONENT_ENTRY.browserArtifactRef,
+      `
+export default [
+  {
+    type: "demo/widget",
+    renderer() {
+      return {};
+    }
+  }
+];
+`.trim()
+    );
+    artifactReader.set(
+      NODE_ENTRY.authorityArtifactRef,
+      `
+export default [
+  {
+    type: "demo/node-type",
+    title: "Demo"
+  }
+];
+`.trim()
+    );
+    artifactReader.set(
+      NODE_ENTRY.browserArtifactRef,
+      `
+export default [
+  {
+    type: "demo/node-type",
+    title: "Demo",
+    widgets: [
+      {
+        type: "demo/missing-widget",
+        name: "missing"
+      }
+    ]
+  }
+];
+`.trim()
+    );
+
+    const catalogStore = new MemoryCatalogStore();
+    const sessionStore = new MemorySessionStore();
+    const manager = new RuntimeBridgeAuthorityExtensionManager({
+      graph: createFakeAuthorityGraph().graph,
+      artifactReader,
+      catalogStore,
+      sessionStore,
+      sessionId: "session-c"
+    });
+
+    await manager.executeCommand({ type: "entry.register", entry: COMPONENT_ENTRY });
+    await expect(
+      manager.executeCommand({ type: "entry.register", entry: NODE_ENTRY })
+    ).rejects.toThrow("缺少组件类型依赖");
+  });
+
+  test("authority manager 应允许节点 artifact 使用宿主内建 widget type", async () => {
+    const artifactReader = new MemoryArtifactReader();
+    artifactReader.set(
+      NODE_ENTRY.authorityArtifactRef,
+      `
+export default [
+  {
+    type: "demo/node-type",
+    title: "Demo"
+  }
+];
+`.trim()
+    );
+    artifactReader.set(
+      NODE_ENTRY.browserArtifactRef,
+      `
+export default [
+  {
+    type: "demo/node-type",
+    title: "Demo",
+    widgets: [
+      {
+        type: "select",
+        name: "mode"
+      }
+    ]
+  }
+];
+`.trim()
+    );
+
+    const { graph } = createFakeAuthorityGraph();
+    graph.registerWidget({
+      type: "select",
+      renderer() {
+        return {};
+      }
+    });
+
+    const manager = new RuntimeBridgeAuthorityExtensionManager({
+      graph,
+      artifactReader,
+      catalogStore: new MemoryCatalogStore(),
+      sessionStore: new MemorySessionStore(),
+      sessionId: "session-host-widget"
+    });
+
+    const result = await manager.executeCommand({
+      type: "entry.register",
+      entry: {
+        ...NODE_ENTRY,
+        componentEntryIds: []
+      }
+    });
+    expect(result.type).toBe("entry.register.result");
+  });
+
+  test("extension managers 应支持 authoring-like module 自动解析 nodes/widgets", async () => {
+    const artifactReader = new MemoryArtifactReader();
+    const authoringLikeSource = `
+const DemoNode = class DemoNode {};
+DemoNode.meta = {
+  type: "demo/authoring-node",
+  title: "Authoring Node",
+  widgets: [
+    {
+      type: "demo/authoring-widget",
+      name: "status"
+    }
+  ]
+};
+
+const DemoWidget = {
+  type: "demo/authoring-widget",
+  renderer() {
+    return {};
+  }
+};
+
+export const authoringModule = {
+  nodes: [DemoNode],
+  widgets: [DemoWidget]
+};
+
+export default authoringModule;
+`.trim();
+
+    artifactReader.set(COMPONENT_ENTRY.browserArtifactRef, authoringLikeSource);
+    artifactReader.set(NODE_ENTRY.authorityArtifactRef, authoringLikeSource);
+    artifactReader.set(NODE_ENTRY.browserArtifactRef, authoringLikeSource);
+
+    const componentEntry = {
+      ...COMPONENT_ENTRY,
+      widgetTypes: ["demo/authoring-widget"]
+    };
+    const nodeEntry = {
+      ...NODE_ENTRY,
+      nodeTypes: ["demo/authoring-node"],
+      componentEntryIds: [componentEntry.entryId]
+    };
+
+    const catalogStore = new MemoryCatalogStore();
+    const sessionStore = new MemorySessionStore();
+    const { graph: authorityGraph } = createFakeAuthorityGraph();
+    const authorityManager = new RuntimeBridgeAuthorityExtensionManager({
+      graph: authorityGraph,
+      artifactReader,
+      catalogStore,
+      sessionStore,
+      sessionId: "session-authoring-like"
+    });
+
+    await authorityManager.executeCommand({
+      type: "entry.register",
+      entry: componentEntry
+    });
+    await authorityManager.executeCommand({
+      type: "entry.register",
+      entry: nodeEntry
+    });
+    const loadResult = await authorityManager.executeCommand({
+      type: "entry.load",
+      entryId: nodeEntry.entryId
+    });
+    expect(loadResult.type).toBe("entry.load.result");
+
+    const { graph: browserGraph, actions } = createFakeBrowserGraph();
+    const browserManager = new RuntimeBridgeBrowserExtensionManager({
+      graph: browserGraph,
+      artifactReader
+    });
+    await browserManager.sync({
+      entries: [componentEntry, nodeEntry],
+      activeNodeEntryIds: [nodeEntry.entryId],
+      activeComponentEntryIds: [componentEntry.entryId],
+      currentBlueprintId: null,
+      emittedAt: Date.now()
+    });
+    expect(actions).toEqual([
+      "registerWidget:demo/authoring-widget",
+      "registerNode:demo/authoring-node"
+    ]);
+  });
+
+  test("authority manager 应拒绝蓝图文档使用未声明依赖的 type", async () => {
+    const artifactReader = new MemoryArtifactReader();
+    artifactReader.set(
+      COMPONENT_ENTRY.browserArtifactRef,
+      `
+export default [
+  {
+    type: "demo/widget",
+    renderer() {
+      return {};
+    }
+  }
+];
+`.trim()
+    );
+    artifactReader.set(
+      NODE_ENTRY.authorityArtifactRef,
+      `
+export default [
+  {
+    type: "demo/node-type",
+    title: "Demo"
+  }
+];
+`.trim()
+    );
+    artifactReader.set(
+      NODE_ENTRY.browserArtifactRef,
+      `
+export default [
+  {
+    type: "demo/node-type",
+    title: "Demo"
+  }
+];
+`.trim()
+    );
+    artifactReader.set(
+      BLUEPRINT_ENTRY.documentArtifactRef,
+      JSON.stringify({
+        ...createGraphDocument("demo/unknown-node"),
+        nodes: [
+          {
+            id: "node-1",
+            type: "demo/unknown-node",
+            layout: {
+              x: 0,
+              y: 0
+            },
+            widgets: [
+              {
+                type: "demo/unknown-widget",
+                name: "status"
+              }
+            ]
+          }
+        ]
+      }),
+      "application/json"
+    );
+
+    const catalogStore = new MemoryCatalogStore();
+    const sessionStore = new MemorySessionStore();
+    const manager = new RuntimeBridgeAuthorityExtensionManager({
+      graph: createFakeAuthorityGraph().graph,
+      artifactReader,
+      catalogStore,
+      sessionStore,
+      sessionId: "session-d"
+    });
+
+    await manager.executeCommand({ type: "entry.register", entry: COMPONENT_ENTRY });
+    await manager.executeCommand({
+      type: "entry.register",
+      entry: {
+        ...NODE_ENTRY,
+        componentEntryIds: []
+      }
+    });
+    await expect(
+      manager.executeCommand({ type: "entry.register", entry: BLUEPRINT_ENTRY })
+    ).rejects.toThrow(/缺少(节点|组件)类型依赖/);
+  });
+});
+
+test("loader 应聚合同一 artifact 里的多个节点导出", async () => {
+  const artifactReader = new MemoryArtifactReader();
+  const multiNodeSource = `
+const AlertNode = class AlertNode {};
+AlertNode.meta = {
+  type: "base/io/alert",
+  title: "Alert"
+};
+
+const ConfirmNode = class ConfirmNode {};
+ConfirmNode.meta = {
+  type: "base/io/confirm",
+  title: "Confirm"
+};
+
+export { AlertNode, ConfirmNode };
+export default {
+  nodes: [AlertNode, ConfirmNode]
+};
+`.trim();
+
+  artifactReader.set(NODE_ENTRY.authorityArtifactRef, multiNodeSource);
+  artifactReader.set(NODE_ENTRY.browserArtifactRef, multiNodeSource);
+
+  const manager = new RuntimeBridgeAuthorityExtensionManager({
+    graph: createFakeAuthorityGraph().graph,
+    artifactReader,
+    catalogStore: new MemoryCatalogStore(),
+    sessionStore: new MemorySessionStore(),
+    sessionId: "session-multi-node"
+  });
+
+  const result = await manager.executeCommand({
+    type: "entry.register",
+    entry: {
+      ...NODE_ENTRY,
+      nodeTypes: ["base/io/alert", "base/io/confirm"],
+      componentEntryIds: []
+    }
+  });
+
+  expect(result.type).toBe("entry.register.result");
+});
+
+test("loader 应在服务端环境生成可导入的 module specifier", async () => {
+  const specifier = await createModuleSpecifierFromArtifact({
+    kind: "bytes",
+    bytes: new TextEncoder().encode(`export const answer = 42;`),
+    contentType: "text/javascript"
+  });
+
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    expect(specifier.startsWith("file:")).toBe(true);
+    return;
+  }
+
+  expect(specifier.startsWith("data:text/javascript;base64,")).toBe(true);
+});
+
+test("loader 应能在服务端通过临时模块导入重写后的依赖", async () => {
+  const dependencySpecifier = `@demo/runtime/${Date.now()}`;
+  registerRuntimeBridgeModuleDependency(dependencySpecifier, {
+    demoValue: "from-runtime-dependency"
+  });
+
+  const namespace = await importModuleNamespaceFromArtifact({
+    kind: "bytes",
+    bytes: new TextEncoder().encode(`
+import { demoValue } from "${dependencySpecifier}";
+
+export const resolvedValue = demoValue;
+export default [
+  {
+    type: "demo/rewrite-node",
+    title: demoValue
+  }
+];
+`.trim()),
+    contentType: "text/javascript"
+  });
+
+  expect(namespace.resolvedValue).toBe("from-runtime-dependency");
 });

@@ -14,7 +14,6 @@ import type {
 import type {
   GraphLink,
   NodeDefinition,
-  NodeRuntimeState,
   NodeSerializeResult
 } from "@leafergraph/node";
 import type {
@@ -141,31 +140,40 @@ export interface LeaferGraphContextMenuBuiltinsHost {
   createNode(
     input: LeaferGraphCreateNodeInput,
     context: LeaferContextMenuContext
-  ): NodeRuntimeState;
+  ): Promise<{ nodeId: string }> | { nodeId: string };
   /** 在图中创建连线。 */
   createLink(
     input: LeaferGraphCreateLinkInput,
     context: LeaferContextMenuContext
-  ): GraphLink;
+  ): Promise<{ linkId: string }> | { linkId: string };
   /** 启动图执行。 */
-  play(context: LeaferContextMenuContext): void;
+  play(context: LeaferContextMenuContext): Promise<void> | void;
   /** 单步执行。 */
-  step(context: LeaferContextMenuContext): void;
+  step(context: LeaferContextMenuContext): Promise<void> | void;
   /** 停止执行。 */
-  stop(context: LeaferContextMenuContext): void;
+  stop(context: LeaferContextMenuContext): Promise<void> | void;
   /** 适配当前视图。 */
-  fitView(context: LeaferContextMenuContext): void;
+  fitView(context: LeaferContextMenuContext): Promise<void> | void;
   /** 从指定节点开始执行。 */
-  playFromNode(nodeId: string, context: LeaferContextMenuContext): void;
+  playFromNode(
+    nodeId: string,
+    context: LeaferContextMenuContext
+  ): Promise<void> | void;
   /** 删除指定节点。 */
-  removeNode(nodeId: string, context: LeaferContextMenuContext): void;
+  removeNode(
+    nodeId: string,
+    context: LeaferContextMenuContext
+  ): Promise<void> | void;
   /** 批量删除节点。 */
   removeNodes?(
     nodeIds: readonly string[],
     context: LeaferContextMenuContext
-  ): void;
+  ): Promise<void> | void;
   /** 删除指定连线。 */
-  removeLink(linkId: string, context: LeaferContextMenuContext): void;
+  removeLink(
+    linkId: string,
+    context: LeaferContextMenuContext
+  ): Promise<void> | void;
 }
 
 /**
@@ -220,28 +228,40 @@ export interface LeaferGraphContextMenuBuiltinFeatureRegistrationContext {
   createNode(
     input: LeaferGraphCreateNodeInput,
     context: LeaferContextMenuContext
-  ): NodeRuntimeState;
+  ): Promise<{ nodeId: string }> | { nodeId: string };
   /** 在图中创建连线。 */
   createLink(
     input: LeaferGraphCreateLinkInput,
     context: LeaferContextMenuContext
-  ): GraphLink;
+  ): Promise<{ linkId: string }> | { linkId: string };
   /** 启动图执行。 */
-  play(context: LeaferContextMenuContext): void;
+  play(context: LeaferContextMenuContext): Promise<void> | void;
   /** 单步执行。 */
-  step(context: LeaferContextMenuContext): void;
+  step(context: LeaferContextMenuContext): Promise<void> | void;
   /** 停止执行。 */
-  stop(context: LeaferContextMenuContext): void;
+  stop(context: LeaferContextMenuContext): Promise<void> | void;
   /** 适配视图。 */
-  fitView(context: LeaferContextMenuContext): void;
+  fitView(context: LeaferContextMenuContext): Promise<void> | void;
   /** 从指定节点开始执行。 */
-  playFromNode(nodeId: string, context: LeaferContextMenuContext): void;
+  playFromNode(
+    nodeId: string,
+    context: LeaferContextMenuContext
+  ): Promise<void> | void;
   /** 删除指定节点。 */
-  removeNode(nodeId: string, context: LeaferContextMenuContext): void;
+  removeNode(
+    nodeId: string,
+    context: LeaferContextMenuContext
+  ): Promise<void> | void;
   /** 批量删除节点。 */
-  removeNodes(nodeIds: readonly string[], context: LeaferContextMenuContext): void;
+  removeNodes(
+    nodeIds: readonly string[],
+    context: LeaferContextMenuContext
+  ): Promise<void> | void;
   /** 删除指定连线。 */
-  removeLink(linkId: string, context: LeaferContextMenuContext): void;
+  removeLink(
+    linkId: string,
+    context: LeaferContextMenuContext
+  ): Promise<void> | void;
 }
 
 /**

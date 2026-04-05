@@ -44,7 +44,7 @@ export class DemoHttpArtifactClient
             }
           : {})
       },
-      body: input.bytes
+      body: new Uint8Array(input.bytes).buffer
     });
 
     if (!response.ok) {

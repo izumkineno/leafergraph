@@ -23,9 +23,9 @@ export const canvasAddNodeFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
           key: "builtin-canvas-add-node",
           label: "从注册表添加节点",
           order: 30,
-          children: createCategoryItems(host.listNodes(), (type) => {
+          children: createCategoryItems(host.listNodes(), async (type) => {
             const position = resolveCanvasCreatePosition(context);
-            createNode(
+            await createNode(
               {
                 type,
                 x: position.x,
@@ -49,7 +49,7 @@ export const canvasAddNodeFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
  */
 function createCategoryItems(
   definitions: readonly NodeDefinition[],
-  onSelect: (type: string) => void
+  onSelect: (type: string) => Promise<void> | void
 ): LeaferContextMenuItem[] {
   const registeredNodes = definitions
     .map((definition) => projectRegisteredNode(definition))
@@ -83,8 +83,8 @@ function createCategoryItems(
       key: `builtin-canvas-add-node:${entry.type}`,
       label: entry.title,
       description: entry.description,
-      onSelect() {
-        onSelect(entry.type);
+      async onSelect() {
+        await onSelect(entry.type);
       }
     }))
   }));

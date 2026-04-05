@@ -124,6 +124,15 @@ export class LeaferGraphRuntimeBridgeClient {
   }
 
   /**
+   * 等待当前已入队的 inbound 事件全部投影完成。
+   *
+   * @returns 无返回值。
+   */
+  async waitForIdle(): Promise<void> {
+    await this.inboundQueue.catch(() => undefined);
+  }
+
+  /**
    * 订阅 bridge 层转发的 history event。
    *
    * @param listener - 监听器。

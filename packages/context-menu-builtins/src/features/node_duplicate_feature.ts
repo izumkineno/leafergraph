@@ -29,7 +29,7 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
           shortcut: resolveShortcutLabel("graph.duplicate"),
           order: 22,
           disabled: !host.getNodeSnapshot(nodeId),
-          onSelect() {
+          async onSelect() {
             const fragment = createClipboardFragment({
               host,
               nodeIds: resolveEditingNodeIds(host, nodeId)
@@ -38,7 +38,7 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
               return;
             }
 
-            pasteClipboardFragment({
+            await pasteClipboardFragment({
               fragment,
               host,
               createLink,

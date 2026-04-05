@@ -49,13 +49,13 @@ export interface LeaferGraphShortcutHistoryHost {
  */
 export interface LeaferGraphShortcutClipboardHost {
   /** 复制当前选区。 */
-  copySelection(): boolean;
+  copySelection(): boolean | Promise<boolean>;
   /** 剪切当前选区。 */
-  cutSelection(): boolean;
+  cutSelection(): boolean | Promise<boolean>;
   /** 粘贴当前剪贴板内容。 */
-  pasteClipboard(): boolean;
+  pasteClipboard(): boolean | Promise<boolean>;
   /** 复制并创建当前选区副本。 */
-  duplicateSelection(): boolean;
+  duplicateSelection(): boolean | Promise<boolean>;
   /** 当前是否允许复制。 */
   canCopySelection?(): boolean;
   /** 当前是否允许剪切。 */
@@ -79,15 +79,15 @@ export interface LeaferGraphShortcutHost {
   /** 清空当前选区。 */
   clearSelectedNodes(): readonly string[];
   /** 删除指定节点。 */
-  removeNode(nodeId: string): void;
+  removeNode(nodeId: string): Promise<void> | void;
   /** 执行视图适配。 */
-  fitView(): void;
+  fitView(): Promise<void> | void;
   /** 启动图级执行。 */
-  play(): void;
+  play(): Promise<void> | void;
   /** 推进一步执行。 */
-  step(): void;
+  step(): Promise<void> | void;
   /** 停止图级执行。 */
-  stop(): void;
+  stop(): Promise<void> | void;
   /** 当前是否存在文本编辑态。 */
   isTextEditingActive?(): boolean;
   /** 当前是否已有上下文菜单处于打开状态。 */
