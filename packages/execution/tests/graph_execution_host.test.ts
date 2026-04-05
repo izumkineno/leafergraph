@@ -127,6 +127,66 @@ describe("@leafergraph/execution LeaferGraphGraphExecutionHost", () => {
     expect(events).toEqual(["started", "advanced", "advanced", "drained"]);
   });
 
+  it("stepping 状态下切回 play 不应在 drain 后访问空 activeRun", () => {
+    const executionCalls: string[] = [];
+    const host = new LeaferGraphGraphExecutionHost({
+      nodeExecutionHost: {
+        listNodeIdsByType(type) {
+          return type === LEAFER_GRAPH_ON_PLAY_NODE_TYPE ? ["entry-play-resume"] : [];
+        },
+        createEntryExecutionTask(nodeId, options) {
+          return createExecutionTask(nodeId, options);
+        },
+        executeExecutionTask(task, stepIndex): LeaferGraphNodeExecutionTaskResult {
+          executionCalls.push(`${task.nodeId}:${stepIndex}`);
+          if (task.nodeId === "entry-play-resume") {
+            return {
+              handled: true,
+              nextTasks: [
+                {
+                  ...createExecutionTask("next-play-resume", {
+                    source: task.chain.source,
+                    runId: task.chain.runId,
+                    startedAt: task.chain.startedAt,
+                    payload: task.chain.payload
+                  }),
+                  trigger: "propagated",
+                  depth: 1,
+                  chain: task.chain
+                }
+              ]
+            };
+          }
+
+          return {
+            handled: true,
+            nextTasks: []
+          };
+        }
+      }
+    });
+
+    expect(host.step()).toBe(true);
+    expect(host.getGraphExecutionState()).toMatchObject({
+      status: "stepping",
+      queueSize: 1,
+      stepCount: 1,
+      lastSource: "graph-step"
+    });
+
+    expect(() => host.play()).not.toThrow();
+    expect(host.getGraphExecutionState()).toMatchObject({
+      status: "idle",
+      queueSize: 0,
+      stepCount: 2,
+      lastSource: "graph-step"
+    });
+    expect(executionCalls).toEqual([
+      "entry-play-resume:0",
+      "next-play-resume:1"
+    ]);
+  });
+
   it("stop 会中断一个仍在运行中的定时执行", () => {
     const timers = new ManualTimerScheduler();
     globalThis.setTimeout = timers.setTimeout;
@@ -442,5 +502,67 @@ describe("@leafergraph/execution LeaferGraphGraphExecutionHost", () => {
       stepCount: 1,
       lastSource: "graph-step"
     });
+  });
+
+  it("play 遇到 async 节点时，会在 Promise 完成后继续推进下游任务", async () => {
+    const executionCalls: string[] = [];
+    const events: string[] = [];
+    const host = new LeaferGraphGraphExecutionHost({
+      nodeExecutionHost: {
+        listNodeIdsByType(type) {
+          return type === LEAFER_GRAPH_ON_PLAY_NODE_TYPE ? ["entry-async"] : [];
+        },
+        createEntryExecutionTask(nodeId, options) {
+          return createExecutionTask(nodeId, options);
+        },
+        executeExecutionTask(task, stepIndex) {
+          executionCalls.push(`${task.nodeId}:${stepIndex}`);
+
+          if (task.nodeId === "entry-async") {
+            return Promise.resolve({
+              handled: true,
+              nextTasks: [
+                {
+                  ...createExecutionTask("next-async", {
+                    source: task.chain.source,
+                    runId: task.chain.runId,
+                    startedAt: task.chain.startedAt,
+                    payload: task.chain.payload
+                  }),
+                  trigger: "propagated",
+                  depth: 1,
+                  chain: task.chain
+                }
+              ]
+            });
+          }
+
+          return {
+            handled: true,
+            nextTasks: []
+          };
+        }
+      }
+    });
+    host.subscribeGraphExecution((event) => events.push(event.type));
+
+    expect(host.play()).toBe(true);
+    expect(host.getGraphExecutionState()).toMatchObject({
+      status: "running",
+      stepCount: 1,
+      lastSource: "graph-play"
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(executionCalls).toEqual(["entry-async:0", "next-async:1"]);
+    expect(host.getGraphExecutionState()).toMatchObject({
+      status: "idle",
+      queueSize: 0,
+      stepCount: 2,
+      lastSource: "graph-play"
+    });
+    expect(events).toEqual(["started", "advanced", "advanced", "drained"]);
   });
 });

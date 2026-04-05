@@ -123,22 +123,12 @@ export function playLeaferGraphFromNode<
   }
 
   const queue: LeaferGraphNodeExecutionTask[] = [entryTask];
-  let stepIndex = 0;
-  let handled = false;
-
-  while (queue.length) {
-    const task = queue.shift();
-    if (!task) {
-      break;
-    }
-
-    const result = executeLeaferGraphExecutionTask(context, task, stepIndex);
-    stepIndex += 1;
-    handled = handled || result.handled;
-    queue.push(...result.nextTasks);
-  }
-
-  return handled;
+  const executionState = {
+    stepIndex: 0,
+    handled: false
+  };
+  drainLeaferGraphLocalExecutionQueue(context, queue, executionState);
+  return true;
 }
 
 /**
@@ -175,7 +165,7 @@ export function executeLeaferGraphExecutionTask<
   context: LeaferGraphNodeRuntimeContext<TNodeState, TNodeViewState>,
   task: LeaferGraphNodeExecutionTask,
   stepIndex: number
-): LeaferGraphNodeExecutionTaskResult {
+): LeaferGraphNodeExecutionTaskResult | Promise<LeaferGraphNodeExecutionTaskResult> {
   return context.nodeExecutionHost.executeExecutionTask(task, stepIndex);
 }
 
@@ -309,20 +299,64 @@ export function emitLeaferGraphNodeWidgetAction<
     return false;
   }
 
-  let stepIndex = 0;
   const queue = [...result.nextTasks];
+  drainLeaferGraphLocalExecutionQueue(context, queue, {
+    stepIndex: 0,
+    handled: true
+  });
+
+  context.options.sceneRuntime.requestRender();
+  context.notifyNodeStateChanged(nodeId, "widget-action");
+  return true;
+}
+
+function drainLeaferGraphLocalExecutionQueue<
+  TNodeState extends LeaferGraphRenderableNodeState,
+  TNodeViewState extends LeaferGraphRuntimeNodeViewState<TNodeState>
+>(
+  context: LeaferGraphNodeRuntimeContext<TNodeState, TNodeViewState>,
+  queue: LeaferGraphNodeExecutionTask[],
+  executionState: {
+    stepIndex: number;
+    handled: boolean;
+  }
+): void {
   while (queue.length) {
     const task = queue.shift();
     if (!task) {
       break;
     }
 
-    const taskResult = executeLeaferGraphExecutionTask(context, task, stepIndex);
-    stepIndex += 1;
-    queue.push(...taskResult.nextTasks);
-  }
+    const result = executeLeaferGraphExecutionTask(
+      context,
+      task,
+      executionState.stepIndex
+    );
+    executionState.stepIndex += 1;
 
-  context.options.sceneRuntime.requestRender();
-  context.notifyNodeStateChanged(nodeId, "widget-action");
-  return true;
+    if (isPromiseLike(result)) {
+      void result.then(
+        (resolvedResult) => {
+          executionState.handled = executionState.handled || resolvedResult.handled;
+          queue.push(...resolvedResult.nextTasks);
+          drainLeaferGraphLocalExecutionQueue(context, queue, executionState);
+        },
+        (error) => {
+          console.error("[leafergraph] 节点本地执行队列等待异步结果失败", error);
+        }
+      );
+      return;
+    }
+
+    executionState.handled = executionState.handled || result.handled;
+    queue.push(...result.nextTasks);
+  }
+}
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return (
+    (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
 }

@@ -166,7 +166,7 @@ export abstract class BaseNode<
    * @param ctx - `ctx`。
    * @returns 无返回值。
    */
-  onExecute?(ctx: DevNodeContext<P, I, O, S>): void;
+  onExecute?(ctx: DevNodeContext<P, I, O, S>): void | Promise<void>;
   /**
    *  节点属性变化后触发。
    *
@@ -227,7 +227,7 @@ export abstract class BaseNode<
     param: unknown,
     options: Record<string, unknown> | undefined,
     ctx: DevNodeContext<P, I, O, S>
-  ): void;
+  ): void | Promise<void>;
   /**
    *  宿主发送触发型消息时触发。
    *
@@ -242,7 +242,7 @@ export abstract class BaseNode<
     param: unknown,
     options: Record<string, unknown> | undefined,
     ctx: DevNodeContext<P, I, O, S>
-  ): void;
+  ): void | Promise<void>;
 }
 
 /**
@@ -453,7 +453,7 @@ export function defineAuthoringNode<
         safeApi,
         context as LeaferGraphExecutionContext | undefined
       );
-      getRuntime(node).instance.onExecute?.(safeContext);
+      return getRuntime(node).instance.onExecute?.(safeContext);
     },
     onPropertyChanged(node, name, value, prevValue, api) {
       const context = createContext(node, api);
@@ -483,7 +483,7 @@ export function defineAuthoringNode<
         safeApi,
         resolveExecutionContextFromActionOptions(options)
       );
-      getRuntime(node).instance.onAction?.(action, param, options, context);
+      return getRuntime(node).instance.onAction?.(action, param, options, context);
     },
     onTrigger(node, action, param, options, api) {
       const safeApi = ensureApi(node, api);
@@ -492,7 +492,7 @@ export function defineAuthoringNode<
         safeApi,
         resolveExecutionContextFromActionOptions(options)
       );
-      getRuntime(node).instance.onTrigger?.(action, param, options, context);
+      return getRuntime(node).instance.onTrigger?.(action, param, options, context);
     }
   };
 }

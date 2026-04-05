@@ -54,7 +54,7 @@ export interface NodeLifecycle {
   /** 节点序列化前触发，可覆写最终输出内容。 */
   onSerialize?(node: NodeRuntimeState, data: NodeSerializeResult, api: NodeApi): void;
   /** 节点执行阶段钩子。 */
-  onExecute?(node: NodeRuntimeState, context?: unknown, api?: NodeApi): void;
+  onExecute?(node: NodeRuntimeState, context?: unknown, api?: NodeApi): void | Promise<void>;
   /** 节点属性变化后触发，可返回 `false` 拦截后续宿主默认行为。 */
   onPropertyChanged?(
     node: NodeRuntimeState,
@@ -88,7 +88,7 @@ export interface NodeLifecycle {
     param: unknown,
     options: Record<string, unknown> | undefined,
     api: NodeApi
-  ): void;
+  ): void | Promise<void>;
   /** 触发型消息入口，语义上更偏事件广播。 */
   onTrigger?(
     node: NodeRuntimeState,
@@ -96,5 +96,5 @@ export interface NodeLifecycle {
     param: unknown,
     options: Record<string, unknown> | undefined,
     api: NodeApi
-  ): void;
+  ): void | Promise<void>;
 }

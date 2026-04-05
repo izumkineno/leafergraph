@@ -269,7 +269,7 @@ export class LeaferGraphNodeRuntimeHost<
   executeExecutionTask(
     task: LeaferGraphNodeExecutionTask,
     stepIndex: number
-  ): LeaferGraphNodeExecutionTaskResult {
+  ): LeaferGraphNodeExecutionTaskResult | Promise<LeaferGraphNodeExecutionTaskResult> {
     return executeLeaferGraphExecutionTask(this.context, task, stepIndex);
   }
 

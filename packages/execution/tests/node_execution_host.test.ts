@@ -23,6 +23,30 @@ function createRuntimeNode() {
   };
 }
 
+function createLinkedRuntimeNode(input: {
+  id: string;
+  type: string;
+  title: string;
+  inputs?: Array<{ name: string; type?: string }>;
+  outputs?: Array<{ name: string; type?: string }>;
+}) {
+  return {
+    id: input.id,
+    type: input.type,
+    title: input.title,
+    layout: { x: 0, y: 0 },
+    properties: {},
+    propertySpecs: [],
+    inputs: input.inputs ?? [],
+    outputs: input.outputs ?? [],
+    widgets: [],
+    flags: {},
+    inputValues: [],
+    outputValues: [],
+    data: {} as Record<string, unknown>
+  };
+}
+
 describe("LeaferGraphNodeExecutionHost", () => {
   test("preserves running progress when a node requests an internal running override", () => {
     const node = createRuntimeNode();
@@ -100,6 +124,80 @@ describe("LeaferGraphNodeExecutionHost", () => {
     expect(host.getNodeExecutionState(node.id)).toMatchObject({
       status: "running",
       progress: 0.42
+    });
+  });
+
+  test("awaits async onExecute before collecting propagated tasks", async () => {
+    const sourceNode = createLinkedRuntimeNode({
+      id: "request-html-1",
+      type: "demo/request-html",
+      title: "Request HTML",
+      outputs: [{ name: "html", type: "string" }]
+    });
+    const targetNode = createLinkedRuntimeNode({
+      id: "select-dom-1",
+      type: "demo/select-html-fragments",
+      title: "Select DOM Fragments",
+      inputs: [{ name: "html", type: "string" }]
+    });
+    const host = new LeaferGraphNodeExecutionHost({
+      nodeRegistry: {
+        getNode(type: string) {
+          if (type !== "demo/request-html") {
+            return undefined;
+          }
+
+          return {
+            onExecute: async (_runtimeNode: typeof sourceNode, _context: unknown, api: {
+              setOutputData(slot: number, data: unknown): void;
+            }) => {
+              await Promise.resolve();
+              api.setOutputData(0, "<main>async html</main>");
+            }
+          };
+        }
+      } as never,
+      widgetRegistry: {} as never,
+      graphNodes: new Map([
+        [sourceNode.id, sourceNode],
+        [targetNode.id, targetNode]
+      ]),
+      graphLinks: new Map([
+        [
+          "link:request->select",
+          {
+            id: "link:request->select",
+            source: {
+              nodeId: sourceNode.id,
+              slot: 0
+            },
+            target: {
+              nodeId: targetNode.id,
+              slot: 0
+            }
+          }
+        ]
+      ])
+    });
+
+    const task = host.createEntryExecutionTask(sourceNode.id, {
+      source: "graph-play",
+      runId: "run-async-1",
+      startedAt: 1
+    });
+    if (!task) {
+      throw new Error("expected async execution task");
+    }
+
+    const result = await host.executeExecutionTask(task, 0);
+
+    expect(sourceNode.outputValues[0]).toBe("<main>async html</main>");
+    expect(targetNode.inputValues[0]).toBe("<main>async html</main>");
+    expect(result.nextTasks).toHaveLength(1);
+    expect(result.nextTasks[0]?.nodeId).toBe(targetNode.id);
+    expect(host.getNodeExecutionState(sourceNode.id)).toMatchObject({
+      status: "success",
+      runCount: 1
     });
   });
 });

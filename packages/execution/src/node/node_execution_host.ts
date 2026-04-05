@@ -44,6 +44,8 @@ export interface LeaferGraphNodeExecutionTaskResult {
   nextTasks: LeaferGraphNodeExecutionTask[];
 }
 
+type Awaitable<T> = T | Promise<T>;
+
 export interface LeaferGraphDispatchNodeActionResult {
   handled: boolean;
   nextTasks: LeaferGraphNodeExecutionTask[];
@@ -176,7 +178,7 @@ export class LeaferGraphNodeExecutionHost<
   executeExecutionTask(
     task: LeaferGraphNodeExecutionTask,
     stepIndex: number
-  ): LeaferGraphNodeExecutionTaskResult {
+  ): Awaitable<LeaferGraphNodeExecutionTaskResult> {
     // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const node = this.options.graphNodes.get(task.nodeId);
     if (!node || task.activeNodeIds.has(task.nodeId)) {
@@ -212,28 +214,16 @@ export class LeaferGraphNodeExecutionHost<
       lastExecutedAt: startedAt
     });
 
-    try {
-      const nodeApi = createNodeApi(node, {
-        definition,
-        widgetDefinitions: this.options.widgetRegistry,
-        onSetOutputData: (slot, data) => {
-          nextTasks.push(
-            ...this.collectPropagatedTasks(task, activeNodeIds, slot, data)
-          );
-        }
-      });
-
-      if (shouldDispatchAction && task.propagated) {
-        definition.onAction?.(
-          node,
-          propagatedMetadata?.targetSlotName ?? "",
-          task.propagated.payload,
-          createActionExecutionOptions(task, executionContext),
-          nodeApi
+    const nodeApi = createNodeApi(node, {
+      definition,
+      widgetDefinitions: this.options.widgetRegistry,
+      onSetOutputData: (slot, data) => {
+        nextTasks.push(
+          ...this.collectPropagatedTasks(task, activeNodeIds, slot, data)
         );
-      } else {
-        definition.onExecute?.(node, executionContext, nodeApi);
       }
+    });
+    const completeSuccess = (): LeaferGraphNodeExecutionTaskResult => {
       handled = true;
       const finishedAt = Date.now();
       const executionStateOverride =
@@ -259,7 +249,12 @@ export class LeaferGraphNodeExecutionHost<
         executionContext,
         cloneExecutionState(this.executionStateByNodeId.get(task.nodeId))
       );
-    } catch (error) {
+      return {
+        handled,
+        nextTasks
+      };
+    };
+    const completeFailure = (error: unknown): LeaferGraphNodeExecutionTaskResult => {
       handled = true;
       const finishedAt = Date.now();
       const errorMessage = toExecutionErrorMessage(error);
@@ -284,12 +279,35 @@ export class LeaferGraphNodeExecutionHost<
         },
         error
       );
-    }
-
-    return {
-      handled,
-      nextTasks
+      return {
+        handled,
+        nextTasks
+      };
     };
+
+    try {
+      const executionResult =
+        shouldDispatchAction && task.propagated
+          ? definition.onAction?.(
+              node,
+              propagatedMetadata?.targetSlotName ?? "",
+              task.propagated.payload,
+              createActionExecutionOptions(task, executionContext),
+              nodeApi
+            )
+          : definition.onExecute?.(node, executionContext, nodeApi);
+
+      if (isPromiseLike(executionResult)) {
+        return executionResult.then(
+          () => completeSuccess(),
+          (error) => completeFailure(error)
+        );
+      }
+
+      return completeSuccess();
+    } catch (error) {
+      return completeFailure(error);
+    }
   }
 
   /**
@@ -914,4 +932,8 @@ function toExecutionErrorMessage(error: unknown): string {
   }
 
   return "节点执行失败";
+}
+
+function isPromiseLike<T>(value: Awaitable<T> | undefined): value is Promise<T> {
+  return Boolean(value) && typeof (value as Promise<T>).then === "function";
 }

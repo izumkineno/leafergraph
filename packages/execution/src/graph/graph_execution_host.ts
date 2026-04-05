@@ -10,7 +10,8 @@ import type {
 } from "../types.js";
 import type {
   LeaferGraphNodeExecutionHost,
-  LeaferGraphNodeExecutionTask
+  LeaferGraphNodeExecutionTask,
+  LeaferGraphNodeExecutionTaskResult
 } from "../node/node_execution_host.js";
 
 type LeaferGraphGraphExecutionSource = Extract<
@@ -23,6 +24,8 @@ interface LeaferGraphActiveRun {
   source: LeaferGraphGraphExecutionSource;
   startedAt: number;
   stepCount: number;
+  mode: "drain" | "step";
+  pendingAsyncTaskCount: number;
   queue: LeaferGraphNodeExecutionTask[];
 }
 
@@ -46,7 +49,7 @@ interface LeaferGraphActiveTimer {
 interface LeaferGraphTimerProgressNodeSnapshot {
   id: string;
   type: string;
-  title: string;
+  title?: string;
 }
 
 interface LeaferGraphGraphExecutionHostOptions<
@@ -162,23 +165,37 @@ export class LeaferGraphGraphExecutionHost<
    * @returns 对应的判断结果。
    */
   play(): boolean {
+    const activeRun = this.activeRun;
     if (this.state.status === "running") {
+      if (activeRun?.mode === "step") {
+        activeRun.mode = "drain";
+        this.state = {
+          ...this.state,
+          status: "running",
+          runId: activeRun.runId,
+          stoppedAt: undefined
+        };
+        return true;
+      }
       return false;
     }
 
     if (this.state.status === "stepping") {
-      if (!this.activeRun) {
+      if (!activeRun) {
         return false;
       }
 
+      activeRun.mode = "drain";
       this.state = {
         ...this.state,
         status: "running",
-        runId: this.activeRun.runId,
+        runId: activeRun.runId,
         stoppedAt: undefined
       };
       this.drainActiveRun();
-      this.finalizeRunIfCompleted(this.activeRun);
+      if (this.activeRun) {
+        this.finalizeRunIfCompleted(this.activeRun);
+      }
       return true;
     }
 
@@ -286,6 +303,8 @@ export class LeaferGraphGraphExecutionHost<
       source,
       startedAt,
       stepCount: 0,
+      mode,
+      pendingAsyncTaskCount: 0,
       queue
     };
     this.state = {
@@ -358,7 +377,7 @@ export class LeaferGraphGraphExecutionHost<
   private advanceActiveRun(): boolean {
     // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const activeRun = this.activeRun;
-    if (!activeRun) {
+    if (!activeRun || activeRun.pendingAsyncTaskCount > 0) {
       return false;
     }
 
@@ -374,45 +393,12 @@ export class LeaferGraphGraphExecutionHost<
       activeRun.stepCount
     );
     activeRun.stepCount += 1;
-    // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
-    activeRun.queue.push(...result.nextTasks);
-
-    if (this.timerActivatedDuringAdvance) {
-      this.state = {
-        status: "running",
-        runId: activeRun.runId,
-        queueSize: activeRun.queue.length,
-        stepCount: activeRun.stepCount,
-        startedAt: activeRun.startedAt,
-        stoppedAt: undefined,
-        lastSource: activeRun.source
-      };
-    } else {
-      const hasMoreTasks = activeRun.queue.length > 0;
-      this.state = {
-        status: hasMoreTasks ? "stepping" : "idle",
-        runId: hasMoreTasks ? activeRun.runId : undefined,
-        queueSize: activeRun.queue.length,
-        stepCount: activeRun.stepCount,
-        startedAt: activeRun.startedAt,
-        stoppedAt: hasMoreTasks ? undefined : Date.now(),
-        lastSource: activeRun.source
-      };
-    }
-    this.emitGraphExecutionEvent("advanced", {
-      runId: activeRun.runId,
-      source: activeRun.source,
-      nodeId: task.nodeId,
-      timestamp: Date.now()
-    });
-
-    if (this.state.status === "running") {
-      this.drainActiveRun();
+    if (isPromiseLike(result)) {
+      this.handlePendingAsyncTask(activeRun, task, result);
+      return true;
     }
 
-    if (this.activeRun) {
-      this.finalizeRunIfCompleted(this.activeRun);
-    }
+    this.handleCompletedTaskResult(activeRun, task, result);
     return true;
   }
 
@@ -424,7 +410,7 @@ export class LeaferGraphGraphExecutionHost<
   private drainActiveRun(): boolean {
     let advanced = false;
 
-    while (this.activeRun?.queue.length) {
+    while (this.activeRun?.queue.length && !this.activeRun.pendingAsyncTaskCount) {
       advanced = this.advanceOneNodeWhileRunning() || advanced;
     }
 
@@ -439,7 +425,7 @@ export class LeaferGraphGraphExecutionHost<
   private advanceOneNodeWhileRunning(): boolean {
     // 先整理本轮执行所需的输入、上下文和前置约束，避免后续阶段重复分散取值。
     const activeRun = this.activeRun;
-    if (!activeRun) {
+    if (!activeRun || activeRun.pendingAsyncTaskCount > 0) {
       return false;
     }
 
@@ -456,28 +442,12 @@ export class LeaferGraphGraphExecutionHost<
       activeRun.stepCount
     );
     activeRun.stepCount += 1;
-    activeRun.queue.push(...result.nextTasks);
-    const hasMoreWork =
-      activeRun.queue.length > 0 || this.hasActiveTimersForRun(activeRun.runId);
-    this.state = {
-      status: hasMoreWork ? "running" : "idle",
-      runId: hasMoreWork ? activeRun.runId : undefined,
-      queueSize: activeRun.queue.length,
-      stepCount: activeRun.stepCount,
-      startedAt: activeRun.startedAt,
-      stoppedAt: hasMoreWork ? undefined : Date.now(),
-      lastSource: activeRun.source
-    };
-    this.emitGraphExecutionEvent("advanced", {
-      runId: activeRun.runId,
-      source: activeRun.source,
-      nodeId: task.nodeId,
-      timestamp: Date.now()
-    });
-
-    if (!hasMoreWork) {
-      this.finalizeRunIfCompleted(activeRun);
+    if (isPromiseLike(result)) {
+      this.handlePendingAsyncTask(activeRun, task, result);
+      return true;
     }
+
+    this.handleCompletedTaskResult(activeRun, task, result);
 
     return true;
   }
@@ -494,6 +464,10 @@ export class LeaferGraphGraphExecutionHost<
     }
 
     if (activeRun.queue.length > 0) {
+      return;
+    }
+
+    if (activeRun.pendingAsyncTaskCount > 0) {
       return;
     }
 
@@ -684,7 +658,7 @@ export class LeaferGraphGraphExecutionHost<
 
     const activeRun = this.activeRun;
     if (!activeRun || activeRun.runId !== runId) {
-      this.clearGraphTimerByKey(timerKey);
+      this.clearGraphTimerByKey(timerKey, false);
       return;
     }
 
@@ -730,6 +704,112 @@ export class LeaferGraphGraphExecutionHost<
     };
 
     this.drainActiveRun();
+    if (this.activeRun) {
+      this.finalizeRunIfCompleted(this.activeRun);
+    }
+  }
+
+  private handlePendingAsyncTask(
+    activeRun: LeaferGraphActiveRun,
+    task: LeaferGraphNodeExecutionTask,
+    result: PromiseLike<LeaferGraphNodeExecutionTaskResult>
+  ): void {
+    activeRun.pendingAsyncTaskCount += 1;
+    this.state = {
+      status: "running",
+      runId: activeRun.runId,
+      queueSize: activeRun.queue.length,
+      stepCount: activeRun.stepCount,
+      startedAt: activeRun.startedAt,
+      stoppedAt: undefined,
+      lastSource: activeRun.source
+    };
+
+    void result.then(
+      (resolvedResult) => {
+        this.resumeAsyncTask(activeRun.runId, task, resolvedResult);
+      },
+      (error) => {
+        console.error("[leafergraph] 图执行宿主等待异步节点结果失败", error);
+        this.resumeAsyncTask(activeRun.runId, task, {
+          handled: true,
+          nextTasks: []
+        });
+      }
+    );
+  }
+
+  private resumeAsyncTask(
+    runId: string,
+    task: LeaferGraphNodeExecutionTask,
+    result: LeaferGraphNodeExecutionTaskResult
+  ): void {
+    const activeRun = this.activeRun;
+    if (!activeRun || activeRun.runId !== runId) {
+      return;
+    }
+
+    activeRun.pendingAsyncTaskCount = Math.max(0, activeRun.pendingAsyncTaskCount - 1);
+    this.handleCompletedTaskResult(activeRun, task, result);
+  }
+
+  private handleCompletedTaskResult(
+    activeRun: LeaferGraphActiveRun,
+    task: LeaferGraphNodeExecutionTask,
+    result: LeaferGraphNodeExecutionTaskResult
+  ): void {
+    activeRun.queue.push(...result.nextTasks);
+    const hasActiveTimers = this.hasActiveTimersForRun(activeRun.runId);
+    const hasPendingAsync = activeRun.pendingAsyncTaskCount > 0;
+    const hasMoreTasks = activeRun.queue.length > 0;
+    const waitingForMoreWork =
+      hasMoreTasks || hasActiveTimers || hasPendingAsync || this.timerActivatedDuringAdvance;
+
+    if (activeRun.mode === "drain") {
+      this.state = {
+        status: waitingForMoreWork ? "running" : "idle",
+        runId: waitingForMoreWork ? activeRun.runId : undefined,
+        queueSize: activeRun.queue.length,
+        stepCount: activeRun.stepCount,
+        startedAt: activeRun.startedAt,
+        stoppedAt: waitingForMoreWork ? undefined : Date.now(),
+        lastSource: activeRun.source
+      };
+    } else if (waitingForMoreWork) {
+      this.state = {
+        status:
+          hasPendingAsync || hasActiveTimers || this.timerActivatedDuringAdvance
+            ? "running"
+            : "stepping",
+        runId: activeRun.runId,
+        queueSize: activeRun.queue.length,
+        stepCount: activeRun.stepCount,
+        startedAt: activeRun.startedAt,
+        stoppedAt: undefined,
+        lastSource: activeRun.source
+      };
+    } else {
+      this.state = {
+        status: "idle",
+        queueSize: 0,
+        stepCount: activeRun.stepCount,
+        startedAt: activeRun.startedAt,
+        stoppedAt: Date.now(),
+        lastSource: activeRun.source
+      };
+    }
+
+    this.emitGraphExecutionEvent("advanced", {
+      runId: activeRun.runId,
+      source: activeRun.source,
+      nodeId: task.nodeId,
+      timestamp: Date.now()
+    });
+
+    if (activeRun.mode === "drain" && !activeRun.pendingAsyncTaskCount) {
+      this.drainActiveRun();
+    }
+
     if (this.activeRun) {
       this.finalizeRunIfCompleted(this.activeRun);
     }
@@ -808,6 +888,10 @@ export class LeaferGraphGraphExecutionHost<
     if (!snapshot) {
       return;
     }
+    const nodeTitle =
+      typeof snapshot.title === "string" && snapshot.title.trim().length > 0
+        ? snapshot.title
+        : snapshot.type;
 
     const previousState =
       this.options.nodeExecutionHost.getNodeExecutionState?.(timer.nodeId);
@@ -818,10 +902,10 @@ export class LeaferGraphGraphExecutionHost<
       chainId: timer.progressChainId,
       rootNodeId: snapshot.id,
       rootNodeType: snapshot.type,
-      rootNodeTitle: snapshot.title,
+      rootNodeTitle: nodeTitle,
       nodeId: snapshot.id,
       nodeType: snapshot.type,
-      nodeTitle: snapshot.title,
+      nodeTitle,
       depth: 0,
       sequence: timer.nextProgressSequence++,
       source: timer.source,
@@ -1097,4 +1181,12 @@ function normalizeGraphTimerProgress(progress: number | undefined): number | und
   }
 
   return Math.max(0, Math.min(1, progress));
+}
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return (
+    (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
 }
