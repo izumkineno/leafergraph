@@ -9,6 +9,8 @@ export type {
   LeaferGraphActionExecutionOptions,
   LeaferGraphExecutionContext,
   LeaferGraphExecutionSource,
+  LeaferGraphLongTaskController,
+  LeaferGraphNodeLongTaskMode,
   LeaferGraphGraphExecutionEvent,
   LeaferGraphGraphExecutionEventType,
   LeaferGraphGraphExecutionState,

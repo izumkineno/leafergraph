@@ -183,6 +183,11 @@ export const leaferGraphTimerNodeDefinition: NodeDefinition = {
       default: true
     },
     {
+      name: "progressMode",
+      type: "string",
+      default: "indeterminate"
+    },
+    {
       name: "runCount",
       type: "number",
       default: 0
@@ -238,7 +243,6 @@ export const leaferGraphTimerNodeDefinition: NodeDefinition = {
       : undefined;
     const isGraphSource = isGraphExecutionSource(source);
     const isPeriodicTick = runtimePayload?.timerTickNodeId === node.id;
-
     if (isGraphSource && runId && runtimePayload?.registerGraphTimer) {
       runtimePayload.registerGraphTimer({
         nodeId: node.id,
@@ -259,6 +263,7 @@ export const leaferGraphTimerNodeDefinition: NodeDefinition = {
       !runtimePayload?.registerGraphTimer;
 
     if (!shouldEmitTick) {
+      executionContext?.startLongTask?.();
       node.properties.intervalMs = intervalMs;
       node.properties.immediate = immediate;
       node.properties.status = `WAIT ${intervalMs}ms`;
@@ -295,5 +300,10 @@ export const leaferGraphTimerNodeDefinition: NodeDefinition = {
       source: source ?? "node-play",
       runId
     });
+
+    // 周期型 timer 在输出后继续保持运行态，让黄灯在等待下一次 tick 时持续可见。
+    if (isGraphSource && isPeriodicTick) {
+      executionContext?.startLongTask?.();
+    }
   }
 };

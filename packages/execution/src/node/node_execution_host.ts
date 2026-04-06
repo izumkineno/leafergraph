@@ -9,6 +9,8 @@ import type {
   LeaferGraphActionExecutionOptions,
   LeaferGraphExecutionContext,
   LeaferGraphExecutionSource,
+  LeaferGraphLongTaskController,
+  LeaferGraphNodeLongTaskMode,
   LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeExecutionState,
@@ -25,6 +27,16 @@ type LeaferGraphExecutionChainState = {
   startedAt: number;
   payload?: unknown;
   nextSequence: number;
+};
+
+type LeaferGraphNodeExecutionPhase = "sync" | "deferred";
+
+type LeaferGraphLongTaskState = {
+  task: LeaferGraphNodeExecutionTask;
+  sequence: number;
+  executionContext: LeaferGraphExecutionContext;
+  controller: LeaferGraphLongTaskController;
+  finished: boolean;
 };
 
 export interface LeaferGraphNodeExecutionTask {
@@ -85,6 +97,8 @@ export class LeaferGraphNodeExecutionHost<
     string,
     LeaferGraphNodeExecutionState
   >();
+
+  private readonly longTaskStateByNodeId = new Map<string, LeaferGraphLongTaskState>();
 
   private readonly options: LeaferGraphNodeExecutionHostOptions<TNodeState>;
 
@@ -195,9 +209,36 @@ export class LeaferGraphNodeExecutionHost<
       };
     }
 
+    if (this.shouldSuppressNodeExecution(node, task)) {
+      return {
+        handled: false,
+        nextTasks: []
+      };
+    }
+
     const sequence = task.chain.nextSequence;
     task.chain.nextSequence += 1;
-    const executionContext = createExecutionContext(task.chain, stepIndex);
+    let executionContext!: LeaferGraphExecutionContext;
+    let longTaskState: LeaferGraphLongTaskState | undefined;
+    const executionPhase: { value: LeaferGraphNodeExecutionPhase } = {
+      value: "sync"
+    };
+    const startLongTask = (): LeaferGraphLongTaskController => {
+      if (!longTaskState) {
+        longTaskState = this.beginLongTaskExecution(
+          task,
+          sequence,
+          executionContext
+        );
+      }
+
+      return longTaskState.controller;
+    };
+    executionContext = createExecutionContext(
+      task.chain,
+      stepIndex,
+      startLongTask
+    );
     const activeNodeIds = new Set(task.activeNodeIds);
     activeNodeIds.add(task.nodeId);
     const nextTasks: LeaferGraphNodeExecutionTask[] = [];
@@ -207,17 +248,39 @@ export class LeaferGraphNodeExecutionHost<
     // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
     this.updateExecutionState(task.nodeId, {
       status: "running",
-      lastExecutedAt: startedAt
+      runCountDelta: 1,
+      lastExecutedAt: startedAt,
+      progress: 0
     });
+    this.emitNodeExecutionEvent(
+      task,
+      sequence,
+      executionContext,
+      cloneExecutionState(this.executionStateByNodeId.get(task.nodeId))
+    );
 
     try {
       const nodeApi = createNodeApi(node, {
         definition,
         widgetDefinitions: this.options.widgetRegistry,
         onSetOutputData: (slot, data) => {
-          nextTasks.push(
-            ...this.collectPropagatedTasks(task, activeNodeIds, slot, data)
+          const propagatedTasks = this.collectPropagatedTasks(
+            task,
+            activeNodeIds,
+            slot,
+            data
           );
+
+          if (!propagatedTasks.length) {
+            return;
+          }
+
+          if (executionPhase.value === "sync") {
+            nextTasks.push(...propagatedTasks);
+            return;
+          }
+
+          this.runTaskQueue(propagatedTasks);
         }
       });
 
@@ -233,28 +296,30 @@ export class LeaferGraphNodeExecutionHost<
         definition.onExecute?.(node, executionContext, nodeApi);
       }
       handled = true;
-      const finishedAt = Date.now();
-      this.updateExecutionState(task.nodeId, {
-        status: "success",
-        runCountDelta: 1,
-        lastSucceededAt: finishedAt,
-        clearLastErrorMessage: true
-      });
-      this.emitNodeExecutionEvent(
-        task,
-        sequence,
-        executionContext,
-        cloneExecutionState(this.executionStateByNodeId.get(task.nodeId))
-      );
+      if (!longTaskState) {
+        const finishedAt = Date.now();
+        this.updateExecutionState(task.nodeId, {
+          status: "success",
+          lastSucceededAt: finishedAt,
+          clearLastErrorMessage: true,
+          progress: undefined
+        });
+        this.emitNodeExecutionEvent(
+          task,
+          sequence,
+          executionContext,
+          cloneExecutionState(this.executionStateByNodeId.get(task.nodeId))
+        );
+      }
     } catch (error) {
       handled = true;
       const finishedAt = Date.now();
       const errorMessage = toExecutionErrorMessage(error);
       this.updateExecutionState(task.nodeId, {
         status: "error",
-        runCountDelta: 1,
         lastFailedAt: finishedAt,
-        lastErrorMessage: errorMessage
+        lastErrorMessage: errorMessage,
+        progress: undefined
       });
       this.emitNodeExecutionEvent(
         task,
@@ -271,6 +336,14 @@ export class LeaferGraphNodeExecutionHost<
         },
         error
       );
+      if (longTaskState && !longTaskState.finished) {
+        longTaskState.finished = true;
+        this.longTaskStateByNodeId.delete(task.nodeId);
+      }
+    }
+
+    if (longTaskState && !longTaskState.finished) {
+      executionPhase.value = "deferred";
     }
 
     return {
@@ -320,6 +393,13 @@ export class LeaferGraphNodeExecutionHost<
       };
     }
 
+    if (this.shouldSuppressNodeExecution(node)) {
+      return {
+        handled: false,
+        nextTasks: []
+      };
+    }
+
     const widgetActionTask: LeaferGraphNodeExecutionTask = {
       nodeId,
       trigger: "direct",
@@ -337,27 +417,116 @@ export class LeaferGraphNodeExecutionHost<
     };
     const activeNodeIds = new Set<string>([nodeId]);
     const nextTasks: LeaferGraphNodeExecutionTask[] = [];
+    const executionPhase: { value: LeaferGraphNodeExecutionPhase } = {
+      value: "sync"
+    };
+    let executionContext!: LeaferGraphExecutionContext;
+    let longTaskState: LeaferGraphLongTaskState | undefined;
+    const startLongTask = (): LeaferGraphLongTaskController => {
+      if (!longTaskState) {
+        longTaskState = this.beginLongTaskExecution(
+          widgetActionTask,
+          0,
+          executionContext
+        );
+      }
 
-    definition.onAction(
-      node,
-      safeAction,
-      param,
-      options,
-      createNodeApi(node, {
-        definition,
-        widgetDefinitions: this.options.widgetRegistry,
-        onSetOutputData: (slot, data) => {
-          nextTasks.push(
-            ...this.collectPropagatedTasks(
+      return longTaskState.controller;
+    };
+    executionContext = createExecutionContext(
+      widgetActionTask.chain,
+      0,
+      startLongTask
+    );
+
+    this.updateExecutionState(nodeId, {
+      status: "running",
+      runCountDelta: 1,
+      lastExecutedAt: widgetActionTask.chain.startedAt,
+      progress: 0
+    });
+    this.emitNodeExecutionEvent(
+      widgetActionTask,
+      0,
+      executionContext,
+      cloneExecutionState(this.executionStateByNodeId.get(nodeId))
+    );
+
+    try {
+      definition.onAction(
+        node,
+        safeAction,
+        param,
+        createActionExecutionOptions(widgetActionTask, executionContext, options),
+        createNodeApi(node, {
+          definition,
+          widgetDefinitions: this.options.widgetRegistry,
+          onSetOutputData: (slot, data) => {
+            const propagatedTasks = this.collectPropagatedTasks(
               widgetActionTask,
               activeNodeIds,
               slot,
               data
-            )
-          );
-        }
-      })
-    );
+            );
+
+            if (!propagatedTasks.length) {
+              return;
+            }
+
+            if (executionPhase.value === "sync") {
+              nextTasks.push(...propagatedTasks);
+              return;
+            }
+
+            this.runTaskQueue(propagatedTasks);
+          }
+        })
+      );
+      if (!longTaskState) {
+        const finishedAt = Date.now();
+        this.updateExecutionState(nodeId, {
+          status: "success",
+          lastSucceededAt: finishedAt,
+          clearLastErrorMessage: true,
+          progress: undefined
+        });
+        this.emitNodeExecutionEvent(
+          widgetActionTask,
+          0,
+          executionContext,
+          cloneExecutionState(this.executionStateByNodeId.get(nodeId))
+        );
+      } else if (!longTaskState.finished) {
+        executionPhase.value = "deferred";
+      }
+    } catch (error) {
+      const finishedAt = Date.now();
+      const errorMessage = toExecutionErrorMessage(error);
+      this.updateExecutionState(nodeId, {
+        status: "error",
+        lastFailedAt: finishedAt,
+        lastErrorMessage: errorMessage,
+        progress: undefined
+      });
+      this.emitNodeExecutionEvent(
+        widgetActionTask,
+        0,
+        executionContext,
+        cloneExecutionState(this.executionStateByNodeId.get(nodeId))
+      );
+      console.error(
+        `[leafergraph] 节点 onAction 执行失败: ${node.type}#${node.id}`,
+        {
+          context: executionContext,
+          action: safeAction
+        },
+        error
+      );
+      if (longTaskState && !longTaskState.finished) {
+        longTaskState.finished = true;
+        this.longTaskStateByNodeId.delete(nodeId);
+      }
+    }
 
     return {
       handled: true,
@@ -394,6 +563,9 @@ export class LeaferGraphNodeExecutionHost<
         event.nodeId,
         cloneExecutionState(event.state)
       );
+      if (event.state.status !== "running") {
+        this.longTaskStateByNodeId.delete(event.nodeId);
+      }
 
       if (
         typeof event.nodeTitle === "string" &&
@@ -450,6 +622,10 @@ export class LeaferGraphNodeExecutionHost<
     }
 
     if (targetNode) {
+      if (this.shouldSuppressNodeInput(targetNode.id)) {
+        return;
+      }
+
       writeRuntimeValue(
         targetNode.inputValues,
         safeTargetSlot,
@@ -475,6 +651,7 @@ export class LeaferGraphNodeExecutionHost<
    */
   clearNodeExecutionState(nodeId: string): void {
     this.executionStateByNodeId.delete(nodeId);
+    this.longTaskStateByNodeId.delete(nodeId);
   }
 
   /**
@@ -484,6 +661,216 @@ export class LeaferGraphNodeExecutionHost<
    */
   clearAllExecutionStates(): void {
     this.executionStateByNodeId.clear();
+    this.longTaskStateByNodeId.clear();
+  }
+
+  /**
+   * 运行延迟任务队列。
+   *
+   * @param tasks - 待执行任务。
+   * @returns 无返回值。
+   */
+  private runTaskQueue(tasks: LeaferGraphNodeExecutionTask[]): void {
+    const queue = [...tasks];
+    let stepIndex = 0;
+
+    while (queue.length) {
+      const task = queue.shift();
+      if (!task) {
+        break;
+      }
+
+      const result = this.executeExecutionTask(task, stepIndex);
+      stepIndex += 1;
+      queue.push(...result.nextTasks);
+    }
+  }
+
+  /**
+   * 启动长任务。
+   *
+   * @param task - 当前任务。
+   * @param sequence - 当前序号。
+   * @param executionContext - 当前执行上下文。
+   * @returns 长任务状态。
+   */
+  private beginLongTaskExecution(
+    task: LeaferGraphNodeExecutionTask,
+    sequence: number,
+    executionContext: LeaferGraphExecutionContext
+  ): LeaferGraphLongTaskState {
+    const existingState = this.longTaskStateByNodeId.get(task.nodeId);
+    if (existingState && !existingState.finished) {
+      existingState.task = task;
+      existingState.sequence = sequence;
+      existingState.executionContext = executionContext;
+      return existingState;
+    }
+
+    const state = {
+      task,
+      sequence,
+      executionContext,
+      finished: false,
+      controller: undefined as unknown as LeaferGraphLongTaskController
+    };
+    state.controller = {
+      setProgress: (progress) => {
+        this.updateLongTaskProgress(state, progress);
+      },
+      complete: () => {
+        this.finishLongTaskExecution(state, "success");
+      },
+      fail: (error) => {
+        this.finishLongTaskExecution(state, "error", error);
+      }
+    };
+    this.longTaskStateByNodeId.set(task.nodeId, state);
+    return state;
+  }
+
+  /**
+   * 更新长任务进度。
+   *
+   * @param nodeId - 节点 ID。
+   * @param sequence - 序号。
+   * @param executionContext - 当前执行上下文。
+   * @param progress - 当前进度。
+   * @returns 无返回值。
+   */
+  private updateLongTaskProgress(
+    state: LeaferGraphLongTaskState,
+    progress: number
+  ): void {
+    const currentState = this.longTaskStateByNodeId.get(state.task.nodeId);
+    if (!currentState || currentState.finished) {
+      return;
+    }
+
+    this.updateExecutionState(state.task.nodeId, {
+      status: "running",
+      progress: clampProgress(progress)
+    });
+    this.emitNodeExecutionEvent(
+      state.task,
+      state.sequence,
+      state.executionContext,
+      cloneExecutionState(this.executionStateByNodeId.get(state.task.nodeId))
+    );
+  }
+
+  /**
+   * 结束长任务。
+   *
+   * @param nodeId - 节点 ID。
+   * @param sequence - 序号。
+   * @param executionContext - 当前执行上下文。
+   * @param status - 最终状态。
+   * @param error - 失败时错误。
+   * @returns 无返回值。
+   */
+  private finishLongTaskExecution(
+    state: LeaferGraphLongTaskState,
+    status: "success" | "error",
+    error?: unknown
+  ): void {
+    const currentState = this.longTaskStateByNodeId.get(state.task.nodeId);
+    if (!currentState || currentState.finished) {
+      return;
+    }
+
+    currentState.finished = true;
+    const finishedAt = Date.now();
+    if (status === "success") {
+      this.updateExecutionState(state.task.nodeId, {
+        status,
+        lastSucceededAt: finishedAt,
+        clearLastErrorMessage: true,
+        progress: undefined
+      });
+    } else {
+      this.updateExecutionState(state.task.nodeId, {
+        status,
+        lastFailedAt: finishedAt,
+        lastErrorMessage: toExecutionErrorMessage(error),
+        progress: undefined
+      });
+    }
+
+    this.longTaskStateByNodeId.delete(state.task.nodeId);
+    this.emitNodeExecutionEvent(
+      state.task,
+      state.sequence,
+      state.executionContext,
+      cloneExecutionState(this.executionStateByNodeId.get(state.task.nodeId))
+    );
+  }
+
+  /**
+   * 判断是否需要阻断当前节点执行。
+   *
+   * @param node - 节点。
+   * @returns 无返回值。
+   */
+  private shouldSuppressNodeExecution(
+    node: NodeRuntimeState,
+    task?: LeaferGraphNodeExecutionTask
+  ): boolean {
+    if (this.isTimerTickTask(node.id, task)) {
+      return false;
+    }
+
+    return this.shouldSuppressNodeInput(node.id);
+  }
+
+  /**
+   * 判断是否需要阻断节点输入写入。
+   *
+   * @param nodeId - 节点 ID。
+   * @returns 无返回值。
+   */
+  private shouldSuppressNodeInput(nodeId: string): boolean {
+    const state = this.executionStateByNodeId.get(nodeId);
+    if (state?.status !== "running") {
+      return false;
+    }
+
+    const node = this.options.graphNodes.get(nodeId);
+    return this.resolveNodeLongTaskMode(node) !== undefined;
+  }
+
+  /**
+   * 判断当前任务是否为定时器回调。
+   *
+   * @param nodeId - 节点 ID。
+   * @param task - 当前任务。
+   * @returns 是否为定时器 tick。
+   */
+  private isTimerTickTask(
+    nodeId: string,
+    task: LeaferGraphNodeExecutionTask | undefined
+  ): boolean {
+    const payload = task?.chain.payload;
+    if (!payload || typeof payload !== "object") {
+      return false;
+    }
+
+    return (payload as { timerTickNodeId?: string }).timerTickNodeId === nodeId;
+  }
+
+  /**
+   * 解析节点长任务显示模式。
+   *
+   * @param node - 节点。
+   * @returns 当前模式。
+   */
+  private resolveNodeLongTaskMode(
+    node: NodeRuntimeState | undefined
+  ): LeaferGraphNodeLongTaskMode | undefined {
+    const progressMode = node?.properties?.progressMode;
+    return progressMode === "determinate" || progressMode === "indeterminate"
+      ? progressMode
+      : undefined;
   }
 
   /**
@@ -498,6 +885,7 @@ export class LeaferGraphNodeExecutionHost<
     input: {
       status: LeaferGraphNodeExecutionState["status"];
       runCountDelta?: number;
+      progress?: number;
       lastExecutedAt?: number;
       lastSucceededAt?: number;
       lastFailedAt?: number;
@@ -510,6 +898,14 @@ export class LeaferGraphNodeExecutionHost<
     this.executionStateByNodeId.set(nodeId, {
       status: input.status,
       runCount: prevState.runCount + (input.runCountDelta ?? 0),
+      progress:
+        input.progress !== undefined
+          ? input.progress
+          : input.status === "idle" ||
+              input.status === "success" ||
+              input.status === "error"
+            ? undefined
+            : prevState.progress,
       lastExecutedAt: input.lastExecutedAt ?? prevState.lastExecutedAt,
       lastSucceededAt: input.lastSucceededAt ?? prevState.lastSucceededAt,
       lastFailedAt: input.lastFailedAt ?? prevState.lastFailedAt,
@@ -545,9 +941,11 @@ export class LeaferGraphNodeExecutionHost<
     }
 
     const timestamp =
-      state.status === "error"
-        ? state.lastFailedAt ?? state.lastExecutedAt ?? Date.now()
-        : state.lastSucceededAt ?? state.lastExecutedAt ?? Date.now();
+      state.status === "running"
+        ? state.lastExecutedAt ?? Date.now()
+        : state.status === "error"
+          ? state.lastFailedAt ?? state.lastExecutedAt ?? Date.now()
+          : state.lastSucceededAt ?? state.lastExecutedAt ?? Date.now();
     const event: LeaferGraphNodeExecutionEvent = {
       chainId: task.chain.chainId,
       rootNodeId: task.chain.rootNodeId,
@@ -624,6 +1022,9 @@ export class LeaferGraphNodeExecutionHost<
       }
 
       const targetSlot = normalizeConnectionSlot(link.target.slot);
+      if (this.shouldSuppressNodeInput(targetNode.id)) {
+        continue;
+      }
       // 再推进核心执行或传播流程，并把结果、事件和运行态统一收口。
       const targetInput = targetNode.inputs[targetSlot];
       writeRuntimeValue(targetNode.inputValues, targetSlot, data);
@@ -710,7 +1111,8 @@ function createExecutionChainId(nodeId: string): string {
  */
 function createExecutionContext(
   chain: LeaferGraphExecutionChainState,
-  stepIndex: number
+  stepIndex: number,
+  startLongTask: () => LeaferGraphLongTaskController
 ): LeaferGraphExecutionContext {
   return {
     source: chain.source,
@@ -718,7 +1120,8 @@ function createExecutionContext(
     entryNodeId: chain.entryNodeId,
     stepIndex,
     startedAt: chain.startedAt,
-    payload: chain.payload
+    payload: chain.payload,
+    startLongTask
   };
 }
 
@@ -731,9 +1134,11 @@ function createExecutionContext(
  */
 function createActionExecutionOptions(
   task: LeaferGraphNodeExecutionTask,
-  executionContext: LeaferGraphExecutionContext
+  executionContext: LeaferGraphExecutionContext,
+  options?: Record<string, unknown>
 ): LeaferGraphActionExecutionOptions {
   return {
+    ...(options ?? {}),
     trigger: task.trigger,
     executionContext,
     propagation: task.propagated?.metadata
@@ -752,6 +1157,20 @@ function normalizeConnectionSlot(slot: number | undefined): number {
   }
 
   return Math.max(0, Math.floor(slot));
+}
+
+/**
+ * 规范化进度值。
+ *
+ * @param progress - 进度。
+ * @returns 处理后的结果。
+ */
+function clampProgress(progress: number): number {
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, progress));
 }
 
 /**

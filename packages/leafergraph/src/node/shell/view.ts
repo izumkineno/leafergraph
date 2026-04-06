@@ -10,6 +10,7 @@ import { Box, Group, Path, Rect, Text } from "leafer-ui";
 import { setLeaferGraphTextEditMeta } from "@leafergraph/widget-runtime";
 export type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
 import type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
+import type { LeaferGraphNodeLongTaskMode } from "@leafergraph/execution";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./layout";
 import {
   resolveNodePortHitAreaBounds,
@@ -28,10 +29,21 @@ export interface CreateNodeShellOptions {
   title: string;
   signalColor: string;
   errorMessage?: string;
+  progressRingState?: NodeShellProgressRingState | null;
   selectedStroke: string;
   shellLayout: NodeShellLayout;
   categoryLayout: NodeShellCategoryLayout;
   theme: NodeShellRenderTheme;
+}
+
+/**
+ * 节点进度环显示状态。
+ */
+export interface NodeShellProgressRingState {
+  visible: boolean;
+  mode: LeaferGraphNodeLongTaskMode;
+  progress?: number;
+  dashOffset?: number;
 }
 
 /**
@@ -52,6 +64,8 @@ export interface NodeShellPortView {
 export interface NodeShellView {
   view: Group;
   card: Rect;
+  progressTrack: Rect;
+  progressRing: Rect;
   selectedRing: Rect;
   header: Rect;
   headerDivider: Rect;
@@ -83,12 +97,16 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     title,
     signalColor,
     errorMessage,
+    progressRingState,
     selectedStroke,
     shellLayout,
     categoryLayout,
     theme
   } = options;
   const normalizedErrorMessage = normalizeNodeErrorMessage(errorMessage);
+  const normalizedProgressRingState = normalizeNodeProgressRingState(
+    progressRingState
+  );
 
   const group = new Group({
     x,
@@ -112,6 +130,47 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       opacity: theme.selectedRingOpacity
     },
     hittable: false
+  });
+
+  const progressRingGeometry = resolveProgressRingGeometry(
+    shellLayout,
+    theme.selectedRingOutset + 4,
+    theme.nodeRadius
+  );
+  const progressTrack = new Rect({
+    x: progressRingGeometry.x,
+    y: progressRingGeometry.y,
+    width: progressRingGeometry.width,
+    height: progressRingGeometry.height,
+    fill: "transparent",
+    stroke: selectedStroke,
+    strokeWidth: theme.selectedRingStrokeWidth,
+    opacity: normalizedProgressRingState?.visible ? 0.16 : 0,
+    cornerRadius: progressRingGeometry.cornerRadius,
+    hittable: false,
+    visible: Boolean(normalizedProgressRingState?.visible)
+  });
+  const progressRing = new Rect({
+    x: progressRingGeometry.x,
+    y: progressRingGeometry.y,
+    width: progressRingGeometry.width,
+    height: progressRingGeometry.height,
+    fill: "transparent",
+    stroke: selectedStroke,
+    strokeWidth: theme.selectedRingStrokeWidth,
+    strokeCap: "round",
+    opacity: normalizedProgressRingState?.visible ? 0.94 : 0,
+    cornerRadius: progressRingGeometry.cornerRadius,
+    dashPattern: normalizedProgressRingState
+      ? resolveProgressRingDashPattern(
+          normalizedProgressRingState,
+          progressRingGeometry.perimeter,
+          theme.selectedRingStrokeWidth
+        )
+      : undefined,
+    dashOffset: normalizedProgressRingState?.dashOffset ?? 0,
+    hittable: false,
+    visible: Boolean(normalizedProgressRingState?.visible)
   });
 
   const card = new Rect({
@@ -226,6 +285,8 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
 
   const parts = [
     card,
+    progressTrack,
+    progressRing,
     header,
     headerDivider,
     titleHitArea,
@@ -415,6 +476,8 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   return {
     view: group,
     card,
+    progressTrack,
+    progressRing,
     selectedRing,
     header,
     headerDivider,
@@ -429,6 +492,112 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     portViews,
     widgetLayer
   };
+}
+
+/**
+ * 归一化进度环状态。
+ *
+ * @param progressRingState - 进度环状态。
+ * @returns 处理后的结果。
+ */
+function normalizeNodeProgressRingState(
+  progressRingState: NodeShellProgressRingState | null | undefined
+): NodeShellProgressRingState | null {
+  if (!progressRingState?.visible) {
+    return null;
+  }
+
+  return {
+    visible: true,
+    mode: progressRingState.mode,
+    progress:
+      typeof progressRingState.progress === "number" &&
+      Number.isFinite(progressRingState.progress)
+        ? Math.min(1, Math.max(0, progressRingState.progress))
+        : undefined,
+    dashOffset:
+      typeof progressRingState.dashOffset === "number" &&
+      Number.isFinite(progressRingState.dashOffset)
+        ? progressRingState.dashOffset
+        : 0
+  };
+}
+
+/**
+ * 解析进度环几何。
+ *
+ * @param shellLayout - 节点壳布局。
+ * @param outset - 外扩距离。
+ * @param nodeRadius - 节点圆角。
+ * @returns 处理后的几何。
+ */
+function resolveProgressRingGeometry(
+  shellLayout: NodeShellLayout,
+  outset: number,
+  nodeRadius: number
+): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  cornerRadius: number;
+  perimeter: number;
+} {
+  const width = shellLayout.width + outset * 2;
+  const height = shellLayout.height + outset * 2;
+  const cornerRadius = nodeRadius + outset;
+
+  return {
+    x: -outset,
+    y: -outset,
+    width,
+    height,
+    cornerRadius,
+    perimeter: resolveRoundedRectPerimeter(width, height, cornerRadius)
+  };
+}
+
+/**
+ * 解析进度环 dash 模式。
+ *
+ * @param state - 进度环状态。
+ * @param perimeter - 路径周长。
+ * @param strokeWidth - 描边宽度。
+ * @returns `dashPattern`。
+ */
+function resolveProgressRingDashPattern(
+  state: NodeShellProgressRingState,
+  perimeter: number,
+  strokeWidth: number
+): number[] {
+  if (state.mode === "indeterminate") {
+    const segmentLength = Math.max(perimeter * 0.22, strokeWidth * 7);
+    const gapLength = Math.max(perimeter - segmentLength, segmentLength);
+    return [segmentLength, gapLength];
+  }
+
+  const progress = state.progress ?? 0;
+  const visibleLength = Math.max(0, Math.min(perimeter, perimeter * progress));
+  const hiddenLength = Math.max(perimeter - visibleLength, 0.001);
+
+  return [visibleLength, hiddenLength];
+}
+
+/**
+ * 计算圆角矩形的近似周长。
+ *
+ * @param width - 宽度。
+ * @param height - 高度。
+ * @param cornerRadius - 圆角。
+ * @returns 近似周长。
+ */
+function resolveRoundedRectPerimeter(
+  width: number,
+  height: number,
+  cornerRadius: number
+): number {
+  const radius = Math.max(0, Math.min(cornerRadius, Math.min(width, height) / 2));
+  return 2 * (width + height - 4 * radius) + 2 * Math.PI * radius;
 }
 
 /**

@@ -49,7 +49,14 @@ describe("@leafergraph/execution LeaferGraphLocalExecutionFeedbackAdapter", () =
         source: "graph-play",
         entryNodeId: "node-1",
         stepIndex: 0,
-        startedAt: 1
+        startedAt: 1,
+        startLongTask() {
+          return {
+            setProgress() {},
+            complete() {},
+            fail() {}
+          };
+        }
       },
       state: {
         status: "success",

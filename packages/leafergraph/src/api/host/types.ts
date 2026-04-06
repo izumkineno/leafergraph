@@ -227,6 +227,8 @@ export interface LeaferGraphApiRuntime<
     projectExternalLinkPropagation(
       event: LeaferGraphLinkPropagationEvent
     ): void;
+    /** 销毁节点运行时宿主。 */
+    destroy(): void;
   };
   /** 图级执行宿主壳面。 */
   graphExecutionHost: {

@@ -603,6 +603,9 @@ export class LeaferGraphMutationHost<
     if (input.status !== undefined) {
       properties.status = input.status;
     }
+    if (input.progressMode !== undefined) {
+      properties.progressMode = input.progressMode;
+    }
 
     return properties;
   }
@@ -659,6 +662,9 @@ export class LeaferGraphMutationHost<
     }
     if (node.status !== undefined) {
       properties.status = node.status;
+    }
+    if (node.progressMode !== undefined) {
+      properties.progressMode = node.progressMode;
     }
 
     return createNodeState(this.options.nodeRegistry, {

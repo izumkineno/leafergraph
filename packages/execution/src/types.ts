@@ -22,6 +22,11 @@ export type LeaferGraphNodeExecutionStatus =
   | "error";
 
 /**
+ * 长任务的显示模式。
+ */
+export type LeaferGraphNodeLongTaskMode = "determinate" | "indeterminate";
+
+/**
  * 单个节点的执行状态快照。
  */
 export interface LeaferGraphNodeExecutionState {
@@ -29,6 +34,8 @@ export interface LeaferGraphNodeExecutionState {
   status: LeaferGraphNodeExecutionStatus;
   /** 当前节点在本次运行生命周期中的累计执行次数。 */
   runCount: number;
+  /** 当前长任务进度，范围为 `0..1`。 */
+  progress?: number;
   /** 最近一次进入执行的时间戳。 */
   lastExecutedAt?: number;
   /** 最近一次成功完成执行的时间戳。 */
@@ -70,6 +77,20 @@ export interface LeaferGraphExecutionContext {
   startedAt: number;
   /** 调用方附带的原始 payload。 */
   payload?: unknown;
+  /** 启动一个长任务控制器。 */
+  startLongTask(): LeaferGraphLongTaskController;
+}
+
+/**
+ * 长任务控制器。
+ */
+export interface LeaferGraphLongTaskController {
+  /** 更新当前进度。 */
+  setProgress(progress: number): void;
+  /** 标记长任务成功结束。 */
+  complete(): void;
+  /** 标记长任务失败结束。 */
+  fail(error?: unknown): void;
 }
 
 /**

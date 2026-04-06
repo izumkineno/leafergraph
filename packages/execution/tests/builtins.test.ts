@@ -77,6 +77,8 @@ describe("@leafergraph/execution builtins", () => {
     });
     const registrations: unknown[] = [];
     let emitted: unknown;
+    let longTaskStarts = 0;
+    let longTaskCompletes = 0;
 
     node.properties.intervalMs = -10;
     node.properties.immediate = "nope";
@@ -95,6 +97,16 @@ describe("@leafergraph/execution builtins", () => {
           registerGraphTimer(input: unknown) {
             registrations.push(input);
           }
+        },
+        startLongTask() {
+          longTaskStarts += 1;
+          return {
+            setProgress() {},
+            complete() {
+              longTaskCompletes += 1;
+            },
+            fail() {}
+          };
         }
       },
       {
@@ -139,9 +151,12 @@ describe("@leafergraph/execution builtins", () => {
     expect(node.properties.status).toBe(
       `WAIT ${LEAFER_GRAPH_TIMER_DEFAULT_INTERVAL_MS}ms`
     );
+    expect(node.properties.progressMode).toBe("indeterminate");
     expect(node.title).toBe("Timer");
     expect(node.widgets[0]?.value).toBe(LEAFER_GRAPH_TIMER_DEFAULT_INTERVAL_MS);
     expect(node.widgets[1]?.value).toBe(false);
+    expect(longTaskStarts).toBe(1);
+    expect(longTaskCompletes).toBe(0);
   });
 
   it("system/timer 在 node-play 或定时回调里会输出 Tick 并累计 runCount", () => {
@@ -151,6 +166,8 @@ describe("@leafergraph/execution builtins", () => {
       type: LEAFER_GRAPH_TIMER_NODE_TYPE
     });
     const emissions: unknown[] = [];
+    let longTaskStarts = 0;
+    let longTaskCompletes = 0;
 
     leaferGraphTimerNodeDefinition.onExecute?.(
       node,
@@ -198,6 +215,16 @@ describe("@leafergraph/execution builtins", () => {
           timerTickNodeId: node.id,
           timerTickTimerId: "default",
           timerTickMode: "interval"
+        },
+        startLongTask() {
+          longTaskStarts += 1;
+          return {
+            setProgress() {},
+            complete() {
+              longTaskCompletes += 1;
+            },
+            fail() {}
+          };
         }
       },
       {
@@ -230,5 +257,7 @@ describe("@leafergraph/execution builtins", () => {
     expect(node.properties.runCount).toBe(2);
     expect(node.properties.status).toBe("TICK 2");
     expect(node.title).toBe("Timer 2");
+    expect(longTaskStarts).toBe(1);
+    expect(longTaskCompletes).toBe(0);
   });
 });

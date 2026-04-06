@@ -73,6 +73,7 @@ export class LeaferGraphNodeRuntimeHost<
   private readonly stateListeners = new Set<
     (event: LeaferGraphNodeStateChangeEvent) => void
   >();
+  private progressRingAnimationHandle: ReturnType<typeof setTimeout> | null = null;
   private readonly options: LeaferGraphNodeRuntimeHostOptions<
     TNodeState,
     TNodeViewState
@@ -105,7 +106,9 @@ export class LeaferGraphNodeRuntimeHost<
       stateListeners: this.stateListeners,
       refreshExecutedNode: (nodeId) => this.refreshExecutedNode(nodeId),
       notifyNodeStateChanged: (nodeId, reason) =>
-        notifyLeaferGraphNodeStateChanged(context, nodeId, reason)
+        notifyLeaferGraphNodeStateChanged(context, nodeId, reason),
+      syncLongTaskProgressAnimation: () =>
+        this.syncLongTaskProgressAnimation()
     };
     this.context = context;
 
@@ -361,6 +364,7 @@ export class LeaferGraphNodeRuntimeHost<
    */
   clearNodeExecutionState(nodeId: string): void {
     clearLeaferGraphNodeExecutionState(this.context, nodeId);
+    this.syncLongTaskProgressAnimation();
   }
 
   /**
@@ -370,6 +374,31 @@ export class LeaferGraphNodeRuntimeHost<
    */
   clearAllExecutionStates(): void {
     clearAllLeaferGraphNodeExecutionStates(this.context);
+    this.syncLongTaskProgressAnimation();
+  }
+
+  /**
+   * 同步长任务进度环动画状态。
+   *
+   * @returns 无返回值。
+   */
+  syncLongTaskProgressAnimation(): void {
+    const hasActiveRing = this.updateLongTaskProgressRings();
+    this.options.sceneRuntime.requestRender();
+    if (hasActiveRing) {
+      this.ensureProgressRingAnimation();
+    } else {
+      this.stopProgressRingAnimation();
+    }
+  }
+
+  /**
+   * 销毁节点运行时宿主。
+   *
+   * @returns 无返回值。
+   */
+  destroy(): void {
+    this.stopProgressRingAnimation();
   }
 
   /**
@@ -431,4 +460,171 @@ export class LeaferGraphNodeRuntimeHost<
     this.options.sceneRuntime.updateConnectedLinks(nodeId);
     this.options.sceneRuntime.requestRender();
   }
+
+  /**
+   * 更新当前长任务进度环。
+   *
+   * @returns 当前是否存在活跃的不确定进度长任务。
+   */
+  private updateLongTaskProgressRings(): boolean {
+    let hasActiveRing = false;
+    const now = Date.now();
+
+    for (const [nodeId, state] of this.options.nodeViews.entries()) {
+      const executionState = this.nodeExecutionHost.getNodeExecutionState(nodeId);
+      const node = this.options.graphNodes.get(nodeId);
+      const progressRing = state.shellView?.progressRing;
+      const progressTrack = state.shellView?.progressTrack;
+      const progressMode = node?.properties.progressMode;
+
+      if (!progressRing || !progressTrack) {
+        continue;
+      }
+
+      const isRunning = executionState?.status === "running";
+      const isDeterminate = progressMode === "determinate" && isRunning;
+
+      if (!isRunning || (progressMode !== "determinate" && progressMode !== "indeterminate")) {
+        progressTrack.visible = false;
+        progressRing.visible = false;
+        continue;
+      }
+
+      if (
+        typeof progressRing.width !== "number" ||
+        typeof progressRing.height !== "number"
+      ) {
+        progressTrack.visible = false;
+        progressRing.visible = false;
+        continue;
+      }
+
+      const ringWidth = progressRing.width;
+      const ringHeight = progressRing.height;
+      const ringCornerRadius = progressRing.cornerRadius;
+
+      progressTrack.visible = true;
+      progressRing.visible = true;
+      progressTrack.opacity = 0.16;
+      progressRing.opacity = 0.94;
+
+      if (isDeterminate) {
+        progressRing.dashOffset = 0;
+        progressRing.dashPattern = resolveProgressRingDashPattern(
+          ringWidth,
+          ringHeight,
+          ringCornerRadius,
+          executionState?.progress ?? 0
+        );
+        continue;
+      }
+
+      hasActiveRing = true;
+      progressRing.dashOffset = resolveIndeterminateDashOffset(
+        ringWidth,
+        ringHeight,
+        ringCornerRadius,
+        executionState?.lastExecutedAt ?? now,
+        now
+      );
+    }
+
+    return hasActiveRing;
+  }
+
+  /**
+   * 确保长任务进度环动画已经启动。
+   *
+   * @returns 无返回值。
+   */
+  private ensureProgressRingAnimation(): void {
+    if (this.progressRingAnimationHandle !== null) {
+      return;
+    }
+
+    const tick = (): void => {
+      this.progressRingAnimationHandle = null;
+      const hasActiveRing = this.updateLongTaskProgressRings();
+      this.options.sceneRuntime.requestRender();
+
+      if (hasActiveRing) {
+        this.progressRingAnimationHandle = setTimeout(tick, 48);
+      }
+    };
+
+    this.progressRingAnimationHandle = setTimeout(tick, 48);
+  }
+
+  /**
+   * 停止长任务进度环动画。
+   *
+   * @returns 无返回值。
+   */
+  private stopProgressRingAnimation(): void {
+    if (this.progressRingAnimationHandle === null) {
+      return;
+    }
+
+    clearTimeout(this.progressRingAnimationHandle);
+    this.progressRingAnimationHandle = null;
+  }
+}
+
+/**
+ * 解析确定进度的 dash 模式。
+ *
+ * @param ring - 进度环。
+ * @param progress - 进度值。
+ * @returns `dashPattern`。
+ */
+function resolveProgressRingDashPattern(
+  width: number,
+  height: number,
+  cornerRadius: unknown,
+  progress: number
+): number[] {
+  const perimeter = resolveRoundedRectPerimeter(width, height, cornerRadius);
+  const clampedProgress = Math.min(1, Math.max(0, progress));
+  const visibleLength = Math.max(0, perimeter * clampedProgress);
+  const hiddenLength = Math.max(perimeter - visibleLength, 0.001);
+
+  return [visibleLength, hiddenLength];
+}
+
+/**
+ * 解析不确定进度的 dash 偏移。
+ *
+ * @param ring - 进度环。
+ * @param startedAt - 开始时间戳。
+ * @param now - 当前时间戳。
+ * @returns `dashOffset`。
+ */
+function resolveIndeterminateDashOffset(
+  width: number,
+  height: number,
+  cornerRadius: unknown,
+  startedAt: number,
+  now: number
+): number {
+  const perimeter = resolveRoundedRectPerimeter(width, height, cornerRadius);
+  const elapsed = Math.max(0, now - startedAt);
+  return (elapsed * 0.18) % Math.max(perimeter, 1);
+}
+
+/**
+ * 计算圆角矩形的近似周长。
+ *
+ * @param width - 宽度。
+ * @param height - 高度。
+ * @param cornerRadius - 圆角。
+ * @returns 近似周长。
+ */
+function resolveRoundedRectPerimeter(
+  width: number,
+  height: number,
+  cornerRadius: unknown
+): number {
+  const radiusValue = typeof cornerRadius === "number" ? cornerRadius : 0;
+  const radius = Math.max(0, Math.min(radiusValue, Math.min(width, height) / 2));
+  return 2 * (width + height - 4 * radius) + 2 * Math.PI * radius;
 }

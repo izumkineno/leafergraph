@@ -35,6 +35,7 @@ export function initializeLeaferGraphNodeRuntimeExecutionSubscriptions<
   context.nodeExecutionHost.subscribeNodeExecution((event) => {
     context.refreshExecutedNode(event.nodeId);
     context.notifyNodeStateChanged(event.nodeId, "execution");
+    context.syncLongTaskProgressAnimation();
   });
   context.nodeExecutionHost.subscribeLinkPropagation((event) => {
     context.options.sceneRuntime.requestRender();

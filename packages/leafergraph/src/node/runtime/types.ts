@@ -24,6 +24,25 @@ export type LeaferGraphRuntimeNodeViewState<
 > = {
   /** 节点运行时状态。 */
   state: TNodeState;
+  /** 节点壳的最小可用快照。 */
+  shellView?: {
+    progressTrack?: {
+      width?: number;
+      height?: number;
+      cornerRadius?: unknown;
+      visible?: boolean | 0;
+      opacity?: number;
+    };
+    progressRing?: {
+      width?: number;
+      height?: number;
+      cornerRadius?: unknown;
+      visible?: boolean | 0;
+      opacity?: number;
+      dashOffset?: number;
+      dashPattern?: unknown;
+    };
+  };
 };
 
 /**
@@ -72,4 +91,6 @@ export interface LeaferGraphNodeRuntimeContext<
     nodeId: string,
     reason: LeaferGraphNodeStateChangeReason
   ): void;
+  /** 同步长任务进度环动画状态。 */
+  syncLongTaskProgressAnimation(): void;
 }

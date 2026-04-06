@@ -150,7 +150,7 @@ export function resolveNodeTitleEditFrame(options: {
     offsetX: frameOffsetX,
     offsetY: -Math.max(titleY - 6, 0),
     width: Math.max((options.titleTarget.width ?? 0) + 20 - frameOffsetX, 72),
-    height: Math.max((options.titleHitArea.height ?? 1) / 2, 14),
+    height: Math.max((options.titleHitArea.height ?? 1) - 12, 14),
     paddingTop: 4,
     paddingRight: 10,
     paddingBottom: 4,

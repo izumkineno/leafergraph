@@ -61,6 +61,7 @@ export interface GraphNodeDisplayProperties {
   accent?: string;
   category?: string;
   status?: string;
+  progressMode?: "determinate" | "indeterminate";
 }
 
 /**

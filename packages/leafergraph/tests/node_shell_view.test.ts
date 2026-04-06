@@ -57,4 +57,39 @@ describe("createNodeShell", () => {
     expect(shell.titleLabel.textWrap).toBe("none");
     expect(shell.titleLabel.textOverflow).toBe("...");
   });
+
+  test("长任务进度环会在选中环外侧展开，并按进度显示 dash", () => {
+    const theme = resolveDefaultNodeShellRenderTheme("light");
+    const shellLayout = createShellLayout(288, 184);
+    const categoryLayout = resolveNodeCategoryBadgeLayout(
+      "source",
+      shellLayout.width,
+      NODE_SHELL_LAYOUT_METRICS
+    );
+
+    const shell = createNodeShell({
+      nodeId: "node-2",
+      x: 0,
+      y: 0,
+      title: "Long task",
+      signalColor: "#f59e0b",
+      selectedStroke: "#2563eb",
+      progressRingState: {
+        visible: true,
+        mode: "determinate",
+        progress: 0.4
+      },
+      shellLayout,
+      categoryLayout,
+      theme
+    });
+
+    expect(shell.progressTrack.visible).toBe(true);
+    expect(shell.progressRing.visible).toBe(true);
+    expect(shell.progressRing.x).toBeLessThan(shell.selectedRing.x);
+    expect(shell.progressRing.width).toBeGreaterThan(shell.selectedRing.width);
+    expect(shell.progressRing.dashPattern).toEqual(
+      expect.arrayContaining([expect.any(Number), expect.any(Number)])
+    );
+  });
 });

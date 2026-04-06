@@ -502,7 +502,12 @@ export class LeaferGraphApiHostController<
    * @returns 是否成功停止运行。
    */
   stop(): boolean {
-    return stopLeaferGraphApiGraph(this.context);
+    const stopped = stopLeaferGraphApiGraph(this.context);
+    const nodeRuntimeHost = this.context.options.runtime.nodeRuntimeHost as {
+      clearAllExecutionStates?: () => void;
+    };
+    nodeRuntimeHost.clearAllExecutionStates?.();
+    return stopped;
   }
 
   /**

@@ -54,6 +54,7 @@ export function projectLeaferGraphExternalNodeState<
     context.nodeExecutionHost.clearNodeExecutionState(event.nodeId);
   } else if (event.reason === "execution") {
     context.refreshExecutedNode(event.nodeId);
+    context.syncLongTaskProgressAnimation();
   } else if (event.reason === "connections") {
     context.options.sceneRuntime.updateConnectedLinks(event.nodeId);
     context.options.sceneRuntime.requestRender();
@@ -115,4 +116,3 @@ export function cloneNodeStateEvent(
     ...event
   };
 }
-

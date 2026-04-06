@@ -25,6 +25,7 @@ import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type { NodeViewState } from "../node_host";
 import type {
   CreateNodeShellOptions,
+  NodeShellProgressRingState,
   NodeShellRenderTheme,
   NodeShellView
 } from "./view";
@@ -120,6 +121,7 @@ export class LeaferGraphNodeShellHost<
       title: node.title,
       signalColor: this.resolveSignalColor(node),
       errorMessage: this.resolveExecutionErrorMessage(node.id),
+      progressRingState: this.resolveProgressRingState(node),
       selectedStroke: this.resolveSelectedNodeStroke(),
       shellLayout: resolvedShellLayout,
       categoryLayout,
@@ -257,6 +259,34 @@ export class LeaferGraphNodeShellHost<
       },
       hittable: false
     });
+    const progressRing = new Rect({
+      x: -(this.options.style.selectedRingOutset + 4),
+      y: -(this.options.style.selectedRingOutset + 4),
+      width: shellLayout.width + (this.options.style.selectedRingOutset + 4) * 2,
+      height: shellLayout.height + (this.options.style.selectedRingOutset + 4) * 2,
+      fill: "transparent",
+      stroke: selectedStroke,
+      strokeWidth: this.options.style.selectedRingStrokeWidth,
+      opacity: 0,
+      cornerRadius:
+        this.options.style.nodeRadius + this.options.style.selectedRingOutset + 4,
+      dashPattern: [0, 1],
+      visible: false,
+      hittable: false
+    });
+    const progressTrack = new Rect({
+      x: progressRing.x,
+      y: progressRing.y,
+      width: progressRing.width,
+      height: progressRing.height,
+      fill: "transparent",
+      stroke: selectedStroke,
+      strokeWidth: this.options.style.selectedRingStrokeWidth,
+      opacity: 0,
+      cornerRadius: progressRing.cornerRadius,
+      visible: false,
+      hittable: false
+    });
     const card = new Rect({
       width: shellLayout.width,
       height: shellLayout.height,
@@ -353,6 +383,8 @@ export class LeaferGraphNodeShellHost<
 
     group.add([
       selectedRing,
+      progressTrack,
+      progressRing,
       card,
       label,
       hiddenTitleHitArea,
@@ -367,6 +399,8 @@ export class LeaferGraphNodeShellHost<
     return {
       view: group,
       card,
+      progressTrack,
+      progressRing,
       selectedRing,
       header: card,
       headerDivider: hiddenHeaderDivider,
@@ -474,6 +508,36 @@ export class LeaferGraphNodeShellHost<
   }
 
   /**
+   * 解析节点进度环状态。
+   *
+   * @param node - 节点。
+   * @returns 当前进度环状态。
+   */
+  private resolveProgressRingState(
+    node: TNodeState
+  ): NodeShellProgressRingState | null {
+    const executionState = this.options.resolveNodeExecutionState(node.id);
+    if (!executionState || executionState.status !== "running") {
+      return null;
+    }
+
+    const mode = node.properties.progressMode;
+    if (mode !== "determinate" && mode !== "indeterminate") {
+      return null;
+    }
+
+    return {
+      visible: true,
+      mode,
+      progress:
+        mode === "determinate"
+          ? clampProgress(executionState.progress ?? 0)
+          : undefined,
+      dashOffset: mode === "indeterminate" ? 0 : undefined
+    };
+  }
+
+  /**
    * 把类型名或分类名转换成更友好的首字母大写显示文本。
    *
    * @param value - 当前原始值。
@@ -484,5 +548,19 @@ export class LeaferGraphNodeShellHost<
       .replace(/[-_]/g, " ")
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
+}
+
+/**
+ * 规范化进度值。
+ *
+ * @param progress - 进度。
+ * @returns 处理后的结果。
+ */
+function clampProgress(progress: number): number {
+  if (!Number.isFinite(progress)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, progress));
 }
 
