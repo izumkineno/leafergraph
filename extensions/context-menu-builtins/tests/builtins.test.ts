@@ -16,8 +16,10 @@ import type {
 } from "@leafergraph/context-menu";
 import {
   registerLeaferGraphContextMenuBuiltins,
+  type LeaferGraphContextMenuClipboardFragment,
   type LeaferGraphContextMenuBuiltinsHost
 } from "../src/index";
+import type { LeaferGraphEditingController } from "../src/editing";
 
 describe("@leafergraph/context-menu-builtins", () => {
   it("默认会注册常用 builtins resolver", () => {
@@ -251,6 +253,154 @@ describe("@leafergraph/context-menu-builtins", () => {
     expect(host.stopCount).toBe(1);
     expect(host.fitCount).toBe(1);
     expect(host.playedFromNodeIds).toEqual(["node-1"]);
+  });
+
+  it("编辑相关 builtins 会优先转发给注入的 editingController", () => {
+    const menu = new FakeMenu();
+    const host = createFakeHost({
+      selectedNodeIds: ["node-1", "node-2"]
+    });
+    const calls = {
+      copyNodeIds: [] as string[][],
+      cutNodeIds: [] as Array<{
+        nodeIds: string[];
+        hasRemoveNode: boolean;
+        hasRemoveNodes: boolean;
+      }>,
+      duplicateNodeIds: [] as Array<{
+        nodeIds: string[];
+        anchorPoint?: {
+          x: number;
+          y: number;
+        };
+        anchorToPoint?: boolean;
+        hasCreateNode: boolean;
+        hasCreateLink: boolean;
+      }>,
+      pasteClipboard: [] as Array<{
+        anchorPoint?: {
+          x: number;
+          y: number;
+        };
+        anchorToPoint?: boolean;
+        hasCreateNode: boolean;
+        hasCreateLink: boolean;
+      }>
+    };
+    const fragment = createClipboardFragmentForController(host, ["node-1", "node-2"]);
+    const editingController: LeaferGraphEditingController = {
+      copyNodeIds(nodeIds) {
+        calls.copyNodeIds.push([...nodeIds]);
+        return fragment;
+      },
+      copySelection() {
+        return fragment;
+      },
+      cutNodeIds(nodeIds, options) {
+        calls.cutNodeIds.push({
+          nodeIds: [...nodeIds],
+          hasRemoveNode: typeof options?.mutationAdapters?.removeNode === "function",
+          hasRemoveNodes: typeof options?.mutationAdapters?.removeNodes === "function"
+        });
+        return fragment;
+      },
+      cutSelection() {
+        return fragment;
+      },
+      pasteClipboard(options) {
+        calls.pasteClipboard.push({
+          anchorPoint: options?.anchorPoint,
+          anchorToPoint: options?.anchorToPoint,
+          hasCreateNode: typeof options?.mutationAdapters?.createNode === "function",
+          hasCreateLink: typeof options?.mutationAdapters?.createLink === "function"
+        });
+        return [];
+      },
+      duplicateNodeIds(nodeIds, options) {
+        calls.duplicateNodeIds.push({
+          nodeIds: [...nodeIds],
+          anchorPoint: options?.anchorPoint,
+          anchorToPoint: options?.anchorToPoint,
+          hasCreateNode: typeof options?.mutationAdapters?.createNode === "function",
+          hasCreateLink: typeof options?.mutationAdapters?.createLink === "function"
+        });
+        return [];
+      },
+      duplicateSelection() {
+        return [];
+      },
+      canCopySelection() {
+        return true;
+      },
+      canCutSelection() {
+        return true;
+      },
+      canPasteClipboard() {
+        return true;
+      },
+      canDuplicateSelection() {
+        return true;
+      }
+    };
+
+    registerLeaferGraphContextMenuBuiltins(menu as never, {
+      host,
+      editingController
+    });
+
+    const nodeContext = createContext("node", "node-1", {
+      pagePoint: {
+        x: 320,
+        y: 220
+      }
+    });
+    const nodeItems = menu.resolve(nodeContext);
+    findActionItem(nodeItems, "builtin-node-copy")?.onSelect?.(nodeContext);
+    findActionItem(nodeItems, "builtin-node-cut")?.onSelect?.(nodeContext);
+    findActionItem(nodeItems, "builtin-node-duplicate")?.onSelect?.(nodeContext);
+
+    const canvasContext = createContext("canvas", undefined, {
+      pagePoint: {
+        x: 240,
+        y: 160
+      }
+    });
+    const canvasItems = menu.resolve(canvasContext);
+    const pasteItem = findActionItem(canvasItems, "builtin-canvas-paste");
+    expect(pasteItem?.disabled).toBe(false);
+    pasteItem?.onSelect?.(canvasContext);
+
+    expect(calls.copyNodeIds).toEqual([["node-1", "node-2"]]);
+    expect(calls.cutNodeIds).toEqual([
+      {
+        nodeIds: ["node-1", "node-2"],
+        hasRemoveNode: true,
+        hasRemoveNodes: true
+      }
+    ]);
+    expect(calls.duplicateNodeIds).toEqual([
+      {
+        nodeIds: ["node-1", "node-2"],
+        anchorPoint: {
+          x: 320,
+          y: 220
+        },
+        anchorToPoint: false,
+        hasCreateNode: true,
+        hasCreateLink: true
+      }
+    ]);
+    expect(calls.pasteClipboard).toEqual([
+      {
+        anchorPoint: {
+          x: 240,
+          y: 160
+        },
+        anchorToPoint: true,
+        hasCreateNode: true,
+        hasCreateLink: true
+      }
+    ]);
   });
 });
 
@@ -564,5 +714,32 @@ function createFakeHistory(options?: {
     canRedo() {
       return state.canRedo;
     }
+  };
+}
+
+function createClipboardFragmentForController(
+  host: Pick<LeaferGraphContextMenuBuiltinsHost, "getNodeSnapshot" | "findLinksByNode">,
+  nodeIds: readonly string[]
+): LeaferGraphContextMenuClipboardFragment {
+  const nodes = nodeIds
+    .map((nodeId) => host.getNodeSnapshot(nodeId))
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const copiedNodeIds = new Set(nodes.map((node) => node.id));
+  const linksById = new Map<string, GraphLink>();
+
+  for (const nodeId of copiedNodeIds) {
+    for (const link of host.findLinksByNode(nodeId)) {
+      if (
+        copiedNodeIds.has(link.source.nodeId) &&
+        copiedNodeIds.has(link.target.nodeId)
+      ) {
+        linksById.set(link.id, link);
+      }
+    }
+  }
+
+  return {
+    nodes,
+    links: [...linksById.values()]
   };
 }

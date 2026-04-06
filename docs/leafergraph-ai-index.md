@@ -30,7 +30,8 @@
 | 路径 | 定位 | 优先看什么 |
 | --- | --- | --- |
 | `README.md` | workspace 总入口 | 包分层、命令面、阅读导航 |
-| `packages/` | 正式包源码 | 各包 README 与真实导出 |
+| `packages/` | 核心正式包源码 | 真源、协议、运行时主包与作者层 README |
+| `extensions/` | 宿主扩展包源码 | 菜单、快捷键、历史栈等外围包 README |
 | `example/` | 维护中的示例工程 | `mini-graph` 与 `authoring-basic-nodes` |
 | `templates/` | 可复制模板工程 | 节点、Widget、browser bundle 模板 |
 | `docs/` | 专题和维护文档 | 事实型专题、AI 索引、提案总览 |
@@ -96,7 +97,7 @@
 | 主包内部装配链和 facade 边界在哪 | `packages/leafergraph/内部架构地图.md` |
 | 连线路径和动画应该怎么理解 | `docs/连线路由.md`、`packages/leafergraph/渲染刷新策略.md` |
 | 作者层怎么写、模板从哪里开始 | `packages/authoring/README.md`、`templates/README.md` |
-| 菜单、快捷键、历史栈在哪接 | `packages/context-menu/README.md`、`packages/shortcuts/README.md`、`packages/undo-redo/README.md` |
+| 菜单、快捷键、历史栈在哪接 | `extensions/context-menu/README.md`、`extensions/shortcuts/README.md`、`extensions/undo-redo/README.md` |
 
 ## 6. 维护约定
 

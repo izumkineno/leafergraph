@@ -114,5 +114,5 @@ bun run test:theme
 
 - [根 README](../../README.md)
 - [@leafergraph/config README](../config/README.md)
-- [@leafergraph/context-menu README](../context-menu/README.md)
+- [@leafergraph/context-menu README](../../extensions/context-menu/README.md)
 - [leafergraph README](../leafergraph/README.md)

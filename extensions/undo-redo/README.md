@@ -83,6 +83,6 @@ bun run test:undo-redo
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/config README](../config/README.md)
+- [@leafergraph/config README](../../packages/config/README.md)
 - [@leafergraph/shortcuts README](../shortcuts/README.md)
 - [mini-graph README](../../example/mini-graph/README.md)

@@ -2,13 +2,12 @@ import type {
   LeaferGraphContextMenuBuiltinFeatureDefinition
 } from "../types";
 import {
-  resolveEditingNodeIds,
-  writeClipboardFragment
+  resolveEditingNodeIds
 } from "../editing";
 
 export const nodeCopyFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "nodeCopy",
-  register({ clipboard, host, registerResolver, resolveShortcutLabel }) {
+  register({ editingController, host, registerResolver, resolveShortcutLabel }) {
     return registerResolver("node-copy", (context) => {
       const nodeId = context.target.kind === "node" ? context.target.id : undefined;
       if (!nodeId) {
@@ -25,11 +24,7 @@ export const nodeCopyFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
           order: 20,
           disabled: !hasSnapshot,
           onSelect() {
-            writeClipboardFragment({
-              clipboard,
-              host,
-              nodeIds: resolveEditingNodeIds(host, nodeId)
-            });
+            editingController.copyNodeIds(resolveEditingNodeIds(host, nodeId));
           }
         }
       ];

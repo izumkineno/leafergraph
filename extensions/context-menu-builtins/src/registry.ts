@@ -1,5 +1,6 @@
 import type { LeaferContextMenu } from "@leafergraph/context-menu";
 import { getSharedLeaferGraphContextMenuClipboardStore } from "./clipboard_store";
+import { createLeaferGraphEditingController } from "./editing";
 import { canvasAddNodeFeature } from "./features/canvas_add_node_feature";
 import { canvasControlsFeature } from "./features/canvas_controls_feature";
 import { canvasDeleteSelectionFeature } from "./features/canvas_delete_selection_feature";
@@ -67,6 +68,13 @@ export function registerLeaferGraphContextMenuBuiltins(
   const clipboard =
     options.clipboard ?? getSharedLeaferGraphContextMenuClipboardStore();
   const host = options.host;
+  const editingController =
+    options.editingController ??
+    createLeaferGraphEditingController({
+      host,
+      clipboard,
+      pasteOffset: options.pasteOffset
+    });
 
   for (const definition of BUILTIN_FEATURE_DEFINITIONS) {
     // 再建立绑定与同步关系，让运行期交互能够稳定生效。
@@ -79,6 +87,7 @@ export function registerLeaferGraphContextMenuBuiltins(
         menu,
         host,
         clipboard,
+        editingController,
         history: options.history,
         options,
         resolveShortcutLabel: (actionId) =>

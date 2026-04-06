@@ -1,14 +1,12 @@
 import type {
   LeaferGraphContextMenuBuiltinFeatureDefinition
 } from "../types";
-import { pasteClipboardFragment } from "../editing";
+import { resolveContextAnchorPoint } from "../editing";
 
 export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "canvasPaste",
   register({
-    clipboard,
-    host,
-    options,
+    editingController,
     registerResolver,
     createLink,
     createNode,
@@ -19,26 +17,25 @@ export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition 
         return [];
       }
 
-      const fragment = clipboard.getFragment();
       return [
         {
           key: "builtin-canvas-paste",
           label: "粘贴",
           shortcut: resolveShortcutLabel("graph.paste"),
           order: 40,
-          disabled: !fragment?.nodes.length,
+          disabled: !editingController.canPasteClipboard(),
           onSelect() {
-            if (!fragment?.nodes.length) {
+            if (!editingController.canPasteClipboard()) {
               return;
             }
 
-            pasteClipboardFragment({
-              fragment,
-              host,
-              createLink,
-              createNode,
-              context,
-              offset: options.pasteOffset
+            editingController.pasteClipboard({
+              anchorPoint: resolveContextAnchorPoint(context) ?? undefined,
+              anchorToPoint: true,
+              mutationAdapters: {
+                createNode: (input) => createNode(input, context),
+                createLink: (input) => createLink(input, context)
+              }
             });
           }
         }

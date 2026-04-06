@@ -1,13 +1,12 @@
 import type { LeaferGraphContextMenuBuiltinFeatureDefinition } from "../types";
 import {
-  resolveEditingNodeIds,
-  writeClipboardFragment
+  resolveEditingNodeIds
 } from "../editing";
 
 export const nodeCutFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "nodeCut",
   register({
-    clipboard,
+    editingController,
     host,
     registerResolver,
     removeNode,
@@ -31,22 +30,19 @@ export const nodeCutFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
           disabled: !host.getNodeSnapshot(nodeId),
           onSelect() {
             const nextSelectedNodeIds = resolveEditingNodeIds(host, nodeId);
-            const fragment = writeClipboardFragment({
-              clipboard,
-              host,
-              nodeIds: nextSelectedNodeIds
+            const fragment = editingController.cutNodeIds(nextSelectedNodeIds, {
+              mutationAdapters: {
+                removeNode: (editingNodeId) => {
+                  removeNode(editingNodeId, context);
+                },
+                removeNodes: (editingNodeIds) => {
+                  removeNodes(editingNodeIds, context);
+                }
+              }
             });
             if (!fragment) {
               return;
             }
-
-            if (nextSelectedNodeIds.length > 1) {
-              removeNodes(nextSelectedNodeIds, context);
-            } else {
-              removeNode(nextSelectedNodeIds[0], context);
-            }
-
-            host.setSelectedNodeIds([], "replace");
           }
         }
       ];

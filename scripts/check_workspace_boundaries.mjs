@@ -133,7 +133,7 @@ const packageRules = {
   }
 };
 
-const formalPackages = collectPackageInfos(path.join(repoRoot, "packages"));
+const formalPackages = collectFormalPackageInfos(["packages", "extensions"]);
 for (const packageInfo of formalPackages.values()) {
   checkPackageRule(packageInfo, formalPackages);
   checkSourceImports(packageInfo, formalPackages);
@@ -228,6 +228,23 @@ function checkRootScripts(workspacePackages) {
       }
     }
   }
+}
+
+function collectFormalPackageInfos(directoryNames) {
+  const packageInfos = new Map();
+
+  for (const directoryName of directoryNames) {
+    const directoryPath = path.join(repoRoot, directoryName);
+    if (!existsSync(directoryPath)) {
+      continue;
+    }
+
+    for (const [packageName, packageInfo] of collectPackageInfos(directoryPath)) {
+      packageInfos.set(packageName, packageInfo);
+    }
+  }
+
+  return packageInfos;
 }
 
 function collectPackageInfos(packagesRoot) {

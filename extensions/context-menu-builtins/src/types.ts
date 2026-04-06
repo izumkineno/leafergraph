@@ -22,6 +22,7 @@ import type {
   LeaferContextMenuContext,
   LeaferContextMenuResolver
 } from "@leafergraph/context-menu";
+import type { LeaferGraphEditingController } from "./editing";
 
 /**
  * 右键菜单剪贴板快照。
@@ -178,6 +179,8 @@ export interface LeaferGraphContextMenuBuiltinOptions {
   features?: LeaferGraphContextMenuBuiltinFeatureFlags;
   /** 剪贴板状态；未提供时通常由 builtins 自己创建默认实现。 */
   clipboard?: LeaferGraphContextMenuClipboardState;
+  /** 通用编辑控制器；未提供时 builtins 会根据 host 自动创建。 */
+  editingController?: LeaferGraphEditingController;
   /** 历史宿主能力。 */
   history?: LeaferGraphContextMenuBuiltinHistoryHost;
   /** 动作 ID 到快捷键标签的解析函数。 */
@@ -203,6 +206,8 @@ export interface LeaferGraphContextMenuBuiltinFeatureRegistrationContext {
   host: LeaferGraphContextMenuBuiltinsHost;
   /** 剪贴板状态。 */
   clipboard: LeaferGraphContextMenuClipboardState;
+  /** 通用编辑控制器。 */
+  editingController: LeaferGraphEditingController;
   /** 历史宿主能力。 */
   history?: LeaferGraphContextMenuBuiltinHistoryHost;
   /** 原始 builtins 装配选项。 */

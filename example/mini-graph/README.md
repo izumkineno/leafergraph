@@ -112,6 +112,6 @@ bun run build
 
 - [根 README](../../README.md)
 - [leafergraph README](../../packages/leafergraph/README.md)
-- [@leafergraph/context-menu-builtins README](../../packages/context-menu-builtins/README.md)
-- [@leafergraph/shortcuts README](../../packages/shortcuts/README.md)
-- [@leafergraph/undo-redo README](../../packages/undo-redo/README.md)
+- [@leafergraph/context-menu-builtins README](../../extensions/context-menu-builtins/README.md)
+- [@leafergraph/shortcuts README](../../extensions/shortcuts/README.md)
+- [@leafergraph/undo-redo README](../../extensions/undo-redo/README.md)

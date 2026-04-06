@@ -1,15 +1,14 @@
 import type { LeaferGraphContextMenuBuiltinFeatureDefinition } from "../types";
 import {
-  createClipboardFragment,
-  pasteClipboardFragment,
+  resolveContextAnchorPoint,
   resolveEditingNodeIds
 } from "../editing";
 
 export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
   id: "nodeDuplicate",
   register({
+    editingController,
     host,
-    options,
     registerResolver,
     createLink,
     createNode,
@@ -30,22 +29,13 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
           order: 22,
           disabled: !host.getNodeSnapshot(nodeId),
           onSelect() {
-            const fragment = createClipboardFragment({
-              host,
-              nodeIds: resolveEditingNodeIds(host, nodeId)
-            });
-            if (!fragment) {
-              return;
-            }
-
-            pasteClipboardFragment({
-              fragment,
-              host,
-              createLink,
-              createNode,
-              context,
-              offset: options.pasteOffset,
-              anchorToContextWorldPoint: false
+            editingController.duplicateNodeIds(resolveEditingNodeIds(host, nodeId), {
+              anchorPoint: resolveContextAnchorPoint(context) ?? undefined,
+              anchorToPoint: false,
+              mutationAdapters: {
+                createNode: (input) => createNode(input, context),
+                createLink: (input) => createLink(input, context)
+              }
             });
           }
         }

@@ -52,6 +52,46 @@
         "vite": "^8.0.1",
       },
     },
+    "extensions/context-menu": {
+      "name": "@leafergraph/context-menu",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/config": "workspace:*",
+        "@leafergraph/theme": "workspace:*",
+        "leafer-ui": "^2.0.3",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "extensions/context-menu-builtins": {
+      "name": "@leafergraph/context-menu-builtins",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/context-menu": "workspace:*",
+        "@leafergraph/contracts": "workspace:*",
+        "@leafergraph/node": "workspace:*",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "extensions/shortcuts": {
+      "name": "@leafergraph/shortcuts",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "extensions/undo-redo": {
+      "name": "@leafergraph/undo-redo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/config": "workspace:*",
+        "@leafergraph/contracts": "workspace:*",
+        "@leafergraph/node": "workspace:*",
+      },
+    },
     "packages/authoring": {
       "name": "@leafergraph/authoring",
       "version": "0.1.0",
@@ -84,30 +124,6 @@
       "version": "0.1.0",
       "dependencies": {
         "leafer-ui": "^2.0.3",
-      },
-    },
-    "packages/context-menu": {
-      "name": "@leafergraph/context-menu",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/config": "workspace:*",
-        "@leafergraph/theme": "workspace:*",
-        "leafer-ui": "^2.0.3",
-      },
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
-      },
-    },
-    "packages/context-menu-builtins": {
-      "name": "@leafergraph/context-menu-builtins",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/context-menu": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
-      },
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
       },
     },
     "packages/contracts": {
@@ -158,25 +174,9 @@
       "name": "@leafergraph/node",
       "version": "0.1.0",
     },
-    "packages/shortcuts": {
-      "name": "@leafergraph/shortcuts",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
-      },
-    },
     "packages/theme": {
       "name": "@leafergraph/theme",
       "version": "0.1.0",
-    },
-    "packages/undo-redo": {
-      "name": "@leafergraph/undo-redo",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/config": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
-      },
     },
     "packages/widget-runtime": {
       "name": "@leafergraph/widget-runtime",
@@ -478,9 +478,9 @@
 
     "@leafergraph/config": ["@leafergraph/config@workspace:packages/config"],
 
-    "@leafergraph/context-menu": ["@leafergraph/context-menu@workspace:packages/context-menu"],
+    "@leafergraph/context-menu": ["@leafergraph/context-menu@workspace:extensions/context-menu"],
 
-    "@leafergraph/context-menu-builtins": ["@leafergraph/context-menu-builtins@workspace:packages/context-menu-builtins"],
+    "@leafergraph/context-menu-builtins": ["@leafergraph/context-menu-builtins@workspace:extensions/context-menu-builtins"],
 
     "@leafergraph/contracts": ["@leafergraph/contracts@workspace:packages/contracts"],
 
@@ -488,11 +488,11 @@
 
     "@leafergraph/node": ["@leafergraph/node@workspace:packages/node"],
 
-    "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:packages/shortcuts"],
+    "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:extensions/shortcuts"],
 
     "@leafergraph/theme": ["@leafergraph/theme@workspace:packages/theme"],
 
-    "@leafergraph/undo-redo": ["@leafergraph/undo-redo@workspace:packages/undo-redo"],
+    "@leafergraph/undo-redo": ["@leafergraph/undo-redo@workspace:extensions/undo-redo"],
 
     "@leafergraph/widget-runtime": ["@leafergraph/widget-runtime@workspace:packages/widget-runtime"],
 

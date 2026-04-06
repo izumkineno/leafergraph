@@ -28,6 +28,11 @@
 - `LeaferGraphContextMenuBuiltinFeatureFlags`
 - `LeaferGraphContextMenuClipboardFragment`
 - `LeaferGraphContextMenuClipboardState`
+- `@leafergraph/context-menu-builtins/editing`
+  - `createLeaferGraphEditingController(...)`
+  - `LeaferGraphEditingController`
+  - `LeaferGraphEditingReadHost`
+  - `LeaferGraphEditingMutationAdapters`
 
 ## 最小使用方式
 

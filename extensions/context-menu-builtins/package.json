@@ -10,6 +10,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./editing": {
+      "types": "./src/editing.ts",
+      "import": "./src/editing.ts"
     }
   },
   "files": [

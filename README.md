@@ -129,10 +129,10 @@ flowchart LR
 
 1. [@leafergraph/theme README](./packages/theme/README.md)
 2. [@leafergraph/config README](./packages/config/README.md)
-3. [@leafergraph/context-menu README](./packages/context-menu/README.md)
-4. [@leafergraph/context-menu-builtins README](./packages/context-menu-builtins/README.md)
-5. [@leafergraph/shortcuts README](./packages/shortcuts/README.md)
-6. [@leafergraph/undo-redo README](./packages/undo-redo/README.md)
+3. [@leafergraph/context-menu README](./extensions/context-menu/README.md)
+4. [@leafergraph/context-menu-builtins README](./extensions/context-menu-builtins/README.md)
+5. [@leafergraph/shortcuts README](./extensions/shortcuts/README.md)
+6. [@leafergraph/undo-redo README](./extensions/undo-redo/README.md)
 
 ### 我在维护主包内部装配链
 
@@ -153,10 +153,10 @@ flowchart LR
 | [`packages/widget-runtime`](./packages/widget-runtime/README.md) | 需要 Widget runtime 真源时 | registry、renderer lifecycle、editing、interaction helper |
 | [`packages/basic-kit`](./packages/basic-kit/README.md) | 需要默认内容时 | 基础 widgets、系统节点和一键安装 plugin |
 | [`packages/leafergraph`](./packages/leafergraph/README.md) | 需要图运行时主包时 | `LeaferGraph`、`createLeaferGraph(...)` 和 runtime façade |
-| [`packages/context-menu`](./packages/context-menu/README.md) | 需要纯 Leafer 菜单 runtime 时 | DOM 菜单 overlay、target 绑定、resolver 链 |
-| [`packages/context-menu-builtins`](./packages/context-menu-builtins/README.md) | 需要节点图内建菜单动作时 | 复制、粘贴、删除、运行、历史和快捷键文案接线 |
-| [`packages/shortcuts`](./packages/shortcuts/README.md) | 需要宿主快捷键时 | 功能注册表、按键注册表、graph 快捷键预设 |
-| [`packages/undo-redo`](./packages/undo-redo/README.md) | 需要历史栈时 | undo/redo controller、graph history 绑定 |
+| [`extensions/context-menu`](./extensions/context-menu/README.md) | 需要纯 Leafer 菜单 runtime 时 | DOM 菜单 overlay、target 绑定、resolver 链 |
+| [`extensions/context-menu-builtins`](./extensions/context-menu-builtins/README.md) | 需要节点图内建菜单动作时 | 复制、粘贴、删除、运行、历史和快捷键文案接线 |
+| [`extensions/shortcuts`](./extensions/shortcuts/README.md) | 需要宿主快捷键时 | 功能注册表、按键注册表、graph 快捷键预设 |
+| [`extensions/undo-redo`](./extensions/undo-redo/README.md) | 需要历史栈时 | undo/redo controller、graph history 绑定 |
 | [`packages/authoring`](./packages/authoring/README.md) | 需要作者层 SDK 时 | `BaseNode`、`BaseWidget`、plugin / module 组装 |
 
 ## 深层文档

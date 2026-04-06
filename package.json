@@ -5,6 +5,7 @@
   "packageManager": "bun@1.2.21",
   "workspaces": [
     "packages/*",
+    "extensions/*",
     "example/*",
     "templates/node/authoring-node-template",
     "templates/widget/authoring-text-widget-template",
