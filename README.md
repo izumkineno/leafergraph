@@ -29,6 +29,7 @@
 
 - `leafergraph` 已经收口成 runtime-only 主包，不再聚合 re-export 其它真源包。
 - `@leafergraph/shortcuts`、`@leafergraph/undo-redo` 已进入默认 build/test 聚合，但文档定位仍然是“非核心维护包 / 宿主扩展层”。
+- `RuntimeFeedbackEvent` 类型真源在 `@leafergraph/contracts`，主包根入口不再 re-export 该类型。
 
 ## 包关系
 
@@ -149,10 +150,10 @@ flowchart LR
 | [`packages/theme`](./packages/theme/README.md) | 需要视觉主题时 | `themePreset`、`themeMode`、graph/widget/context-menu token |
 | [`packages/config`](./packages/config/README.md) | 需要行为配置时 | `graph`、`widget`、`context-menu`、`leafer` 配置和 normalize helper |
 | [`packages/execution`](./packages/execution/README.md) | 需要执行内核时 | 执行上下文、传播语义、图级状态机和本地反馈适配器 |
-| [`packages/contracts`](./packages/contracts/README.md) | 需要跨包共享协议时 | 插件协议、图 API 输入输出、Widget 契约、history/diff helper |
+| [`packages/contracts`](./packages/contracts/README.md) | 需要跨包共享协议时 | 插件协议、图 API 输入输出、Widget 契约、RuntimeFeedbackEvent、history/diff helper |
 | [`packages/widget-runtime`](./packages/widget-runtime/README.md) | 需要 Widget runtime 真源时 | registry、renderer lifecycle、editing、interaction helper |
 | [`packages/basic-kit`](./packages/basic-kit/README.md) | 需要默认内容时 | 基础 widgets、系统节点和一键安装 plugin |
-| [`packages/leafergraph`](./packages/leafergraph/README.md) | 需要图运行时主包时 | `LeaferGraph`、`createLeaferGraph(...)` 和 runtime façade |
+| [`packages/leafergraph`](./packages/leafergraph/README.md) | 需要图运行时主包时 | `LeaferGraph`、`createLeaferGraph(...)` 和 runtime façade（`public/facade`） |
 | [`extensions/context-menu`](./extensions/context-menu/README.md) | 需要纯 Leafer 菜单 runtime 时 | DOM 菜单 overlay、target 绑定、resolver 链 |
 | [`extensions/context-menu-builtins`](./extensions/context-menu-builtins/README.md) | 需要节点图内建菜单动作时 | 复制、粘贴、删除、运行、历史和快捷键文案接线 |
 | [`extensions/shortcuts`](./extensions/shortcuts/README.md) | 需要宿主快捷键时 | 功能注册表、按键注册表、graph 快捷键预设 |

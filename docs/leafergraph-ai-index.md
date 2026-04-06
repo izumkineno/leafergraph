@@ -3,7 +3,7 @@
 ## 文档信息
 
 - 当前状态：现状索引
-- 最近校对：2026-03-31
+- 最近校对：2026-04-06
 - 适用范围：整个 `leafergraph` workspace
 - 互补文档：
   - 根入口看 [`README.md`](../README.md)
@@ -95,6 +95,7 @@
 | `LeaferGraphOptions`、`RuntimeFeedbackEvent`、Widget 契约在哪 | `packages/contracts/README.md` |
 | 图实例如何创建、恢复、运行 | `packages/leafergraph/README.md` |
 | 主包内部装配链和 facade 边界在哪 | `packages/leafergraph/内部架构地图.md` |
+| public façade 具体方法在哪 | `packages/leafergraph/src/public/facade/*` |
 | 连线路径和动画应该怎么理解 | `docs/连线路由.md`、`packages/leafergraph/渲染刷新策略.md` |
 | 作者层怎么写、模板从哪里开始 | `packages/authoring/README.md`、`templates/README.md` |
 | 菜单、快捷键、历史栈在哪接 | `extensions/context-menu/README.md`、`extensions/shortcuts/README.md`、`extensions/undo-redo/README.md` |

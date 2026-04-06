@@ -3,7 +3,7 @@
 ## 文档信息
 
 - 当前状态：现状优先，保留设计约束
-- 最近校对：2026-03-31
+- 最近校对：2026-04-06
 - 适用范围：`packages/node`、`packages/leafergraph` 的节点模型与节点壳
 - 互补文档：
   - 包入口看 [`../packages/node/README.md`](../packages/node/README.md)
@@ -107,6 +107,8 @@
 - `setNodeCollapsed(...)`
 - `playFromNode(...)`
 
+这些方法在内部通过 `packages/leafergraph/src/public/facade/*` 分组挂载到实例原型，但对外使用就是 `graph.xxx()`。
+
 这层是宿主与场景层 API，不属于 `packages/node` 纯模型层。
 
 ### 3.2 节点快照是 editor 的正式观察入口
@@ -135,7 +137,7 @@
    - 图执行状态
    - 连线传播事件
 
-文档不应再把“本地执行函数能跑起来”写成唯一执行模型；当前已经有 `RuntimeFeedbackEvent` 作为更正式的反馈抽象。
+文档不应再把“本地执行函数能跑起来”写成唯一执行模型；当前已经有 `RuntimeFeedbackEvent` 作为更正式的反馈抽象（类型真源在 `@leafergraph/contracts`）。
 
 ## 5. 当前节点外壳设计约束
 
