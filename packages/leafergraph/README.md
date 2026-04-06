@@ -4,7 +4,7 @@
 
 它负责把 `GraphDocument` 恢复成 Leafer 场景，装配交互、刷新和宿主态投影，并通过 `LeaferGraph` / `createLeaferGraph(...)` 暴露稳定实例 API。
 
-执行链真源已经迁到 `@leafergraph/execution`。主包仍然负责把执行状态投影回节点壳、连线和运行反馈，因此 `RuntimeFeedbackEvent` 依旧从 `leafergraph` 暴露，作为 host-level superset 使用。
+执行链真源已经迁到 `@leafergraph/execution`。主包仍然负责把执行状态投影回节点壳、连线和运行反馈；`RuntimeFeedbackEvent` 作为 host-level superset 依旧被主包消费，但类型真源来自 `@leafergraph/contracts`（根入口不再 re-export 该类型）。
 
 ## 包定位
 
@@ -34,15 +34,19 @@
   - `@leafergraph/node`
 - `LeaferGraphExecutionContext`、`LeaferGraphActionExecutionOptions`、`ExecutionFeedbackEvent`
   - `@leafergraph/execution`
-- `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`
+- `LeaferGraphOptions`、`LeaferGraphNodePlugin`
   - `leafergraph`
+- `RuntimeFeedbackEvent`
+  - `@leafergraph/contracts`
 
 ## 内部结构
 
 当前源码目录已经按“薄入口 + 子能力目录”收口：
 
 - `src/public/`
-  - 根入口 facade 的实际实现
+  - 根入口类、factory 与 facade 安装器
+- `src/public/facade/`
+  - 按职责分组的实例方法集合（registry / view / selection / query / execution / subscriptions / document / connection / mutations）
 - `src/api/host/`
   - 公共 API 的内部能力层
 - `src/interaction/host/` 与 `src/interaction/runtime/`
