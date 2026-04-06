@@ -28,7 +28,7 @@ import {
   WIDGET_SLIDER_TRACK_INSET,
   WIDGET_SLIDER_VALUE_Y
 } from "./constants";
-import { BasicWidgetController, runtimeRequestRender } from "./template";
+import { BasicWidgetController } from "./template";
 import type {
   BasicWidgetLifecycleState,
   ResolvedLinearRange
@@ -202,17 +202,13 @@ export class SliderFieldController extends BasicWidgetController<
       }
     };
 
-    this.addCleanup(
-      state,
-      context.editing.registerFocusableWidget({
-        key: focusKey,
-        onFocusChange: (focused) => {
-          setWidgetFocusState(field, focusRing, focused);
-          runtimeRequestRender(context);
-        },
-        onKeyDown: (event) => this.handleSliderKeyDown(state, context, event)
-      })
-    );
+    this.bindFocusableWidget(state, context, {
+      key: focusKey,
+      onFocusChange: (focused) => {
+        setWidgetFocusState(field, focusRing, focused);
+      },
+      onKeyDown: (event) => this.handleSliderKeyDown(state, context, event)
+    });
     this.addCleanup(
       state,
       bindLinearWidgetDrag({

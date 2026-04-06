@@ -7,9 +7,8 @@
 
 import type { NodeBaseWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
-import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import { WidgetFieldView } from "./field_view";
-import { BasicWidgetController, runtimeRequestRender } from "./template";
+import { BasicWidgetController } from "./template";
 import type { BasicWidgetLifecycleState } from "./types";
 
 interface ReadonlyFieldState extends BasicWidgetLifecycleState {
@@ -54,29 +53,20 @@ export class ReadonlyFieldController extends BasicWidgetController<
       }
     };
 
-    // 再建立绑定与同步关系，让运行期交互能够稳定生效。
     const focusKey = this.resolveFocusKey(context);
-    this.addCleanup(
-      state,
-      context.editing.registerFocusableWidget({
-        key: focusKey,
-        onFocusChange: (focused) => {
-          view.setFocused(focused);
-          runtimeRequestRender(context);
-        },
-        onKeyDown: (event) => this.isReservedWidgetKey(event)
-      })
-    );
-    this.addCleanup(
-      state,
-      bindPressWidgetInteraction({
+    this.bindFocusableWidget(state, context, {
+      key: focusKey,
+      onFocusChange: (focused) => {
+        view.setFocused(focused);
+      }
+    });
+    this.bindPressWidget(state, {
         hitArea: view.hitArea,
         allowPointer: () => !disabled,
         onPress: () => {
           context.editing.focusWidget(focusKey);
         }
-      })
-    );
+    });
 
     return state;
   }

@@ -9,12 +9,11 @@ import type { Path } from "leafer-ui";
 import type { NodeOptionWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import {
-  bindPressWidgetInteraction,
   type LeaferGraphWidgetPointerEvent
 } from "@leafergraph/widget-runtime";
 import { WIDGET_FIELD_Y } from "./constants";
 import { WidgetFieldView } from "./field_view";
-import { BasicWidgetController, runtimeRequestRender } from "./template";
+import { BasicWidgetController } from "./template";
 import type { BasicWidgetLifecycleState } from "./types";
 
 interface SelectFieldState extends BasicWidgetLifecycleState {
@@ -89,28 +88,21 @@ export class SelectFieldController extends BasicWidgetController<
       }
     };
 
-    this.addCleanup(
-      state,
-      context.editing.registerFocusableWidget({
-        key: focusKey,
-        onFocusChange: (focused) => {
-          view.setFocused(focused);
-          runtimeRequestRender(context);
-        },
-        onKeyDown: (event) => this.handleKeyDown(state, context, event)
-      })
-    );
-    this.addCleanup(
-      state,
-      bindPressWidgetInteraction({
+    this.bindFocusableWidget(state, context, {
+      key: focusKey,
+      onFocusChange: (focused) => {
+        view.setFocused(focused);
+      },
+      onKeyDown: (event) => this.handleKeyDown(state, context, event)
+    });
+    this.bindPressWidget(state, {
         hitArea: view.hitArea,
         allowPointer: () => !disabled,
         onPress: (event) => {
           context.editing.focusWidget(focusKey);
           this.openMenu(state, context, event);
         }
-      })
-    );
+    });
 
     return state;
   }

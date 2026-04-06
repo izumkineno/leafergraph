@@ -13,14 +13,13 @@ import type {
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetTextEditRequest
 } from "@leafergraph/contracts";
-import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import {
   WIDGET_FIELD_FONT_SIZE,
   WIDGET_FIELD_MIN_HEIGHT,
   WIDGET_FIELD_Y
 } from "./constants";
 import { WidgetFieldView } from "./field_view";
-import { BasicWidgetController, runtimeRequestRender } from "./template";
+import { BasicWidgetController } from "./template";
 import type { BasicWidgetLifecycleState } from "./types";
 
 interface TextFieldState extends BasicWidgetLifecycleState {
@@ -95,20 +94,14 @@ export class TextFieldController extends BasicWidgetController<
       }
     };
 
-    this.addCleanup(
-      state,
-      context.editing.registerFocusableWidget({
-        key: focusKey,
-        onFocusChange: (focused) => {
-          view.setFocused(focused);
-          runtimeRequestRender(context);
-        },
-        onKeyDown: (event) => this.handleKeyDown(state, context, event)
-      })
-    );
-    this.addCleanup(
-      state,
-      bindPressWidgetInteraction({
+    this.bindFocusableWidget(state, context, {
+      key: focusKey,
+      onFocusChange: (focused) => {
+        view.setFocused(focused);
+      },
+      onKeyDown: (event) => this.handleKeyDown(state, context, event)
+    });
+    this.bindPressWidget(state, {
         hitArea: view.hitArea,
         allowPointer: () => !disabled,
         onPress: () => {
@@ -119,8 +112,7 @@ export class TextFieldController extends BasicWidgetController<
             this.beginEdit(state, context);
           }
         }
-      })
-    );
+    });
 
     return state;
   }
@@ -189,7 +181,7 @@ export class TextFieldController extends BasicWidgetController<
       },
       onCancel: () => {
         state.syncValue(context, context.value);
-        context.requestRender();
+        this.requestRender(context);
       }
     });
 

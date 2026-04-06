@@ -9,7 +9,6 @@ import type { Rect, Text, Path } from "leafer-ui";
 import type { NodeCheckboxWidgetOptions } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import {
-  bindPressWidgetInteraction,
   createWidgetSurface,
   createWidgetValueText
 } from "@leafergraph/widget-runtime";
@@ -20,7 +19,7 @@ import {
   WIDGET_FIELD_Y
 } from "./constants";
 import { WidgetFieldView } from "./field_view";
-import { BasicWidgetController, runtimeRequestRender } from "./template";
+import { BasicWidgetController } from "./template";
 import type { BasicWidgetLifecycleState } from "./types";
 
 interface CheckboxFieldState extends BasicWidgetLifecycleState {
@@ -120,35 +119,24 @@ export class CheckboxFieldController extends BasicWidgetController<
       }
     };
 
-    this.addCleanup(
-      state,
-      context.editing.registerFocusableWidget({
-        key: focusKey,
-        onFocusChange: (focused) => {
-          view.setFocused(focused);
-          runtimeRequestRender(context);
-        },
-        onKeyDown: (event) => {
-          if (event.key === " " || event.key === "Enter") {
-            this.toggleValue(context);
-            return true;
-          }
-
-          return this.isReservedWidgetKey(event);
-        }
-      })
-    );
-    this.addCleanup(
-      state,
-      bindPressWidgetInteraction({
+    this.bindFocusableWidget(state, context, {
+      key: focusKey,
+      onFocusChange: (focused) => {
+        view.setFocused(focused);
+      },
+      onKeyDown: (event) =>
+        this.handlePrimaryKeyActivation(event, () => {
+          this.toggleValue(context);
+        })
+    });
+    this.bindPressWidget(state, {
         hitArea: view.hitArea,
         allowPointer: () => !disabled,
         onPress: () => {
           context.editing.focusWidget(focusKey);
           this.toggleValue(context);
         }
-      })
-    );
+    });
 
     return state;
   }

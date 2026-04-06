@@ -8,7 +8,6 @@
 import type { Rect, Text } from "leafer-ui";
 import type { NodeOptionWidgetOptions, NodeWidgetOptionItem } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
-import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import {
   createWidgetFieldSurface,
   createWidgetFocusRing,
@@ -28,7 +27,7 @@ import {
   WIDGET_RADIO_ITEM_HEIGHT,
   WIDGET_RADIO_TOP_PADDING
 } from "./constants";
-import { BasicWidgetController, runtimeRequestRender } from "./template";
+import { BasicWidgetController } from "./template";
 import type {
   BasicWidgetLifecycleState,
   ChoiceItemView
@@ -122,7 +121,7 @@ export class RadioFieldController extends BasicWidgetController<
 
     items.forEach((itemView, index) => {
       const sourceItem = this.resolveOptionItems(options.items, context.value)[index];
-      const pointerBinding = bindPressWidgetInteraction({
+      this.bindPressWidget(state, {
         hitArea: itemView.hitArea,
         allowPointer: () => !disabled && !sourceItem.disabled,
         onPress: () => {
@@ -130,19 +129,14 @@ export class RadioFieldController extends BasicWidgetController<
           context.commitValue(sourceItem.value);
         }
       });
-      this.addCleanup(state, pointerBinding);
     });
-    this.addCleanup(
-      state,
-      context.editing.registerFocusableWidget({
-        key: focusKey,
-        onFocusChange: (focused) => {
-          setWidgetFocusState(field, focusRing, focused);
-          runtimeRequestRender(context);
-        },
-        onKeyDown: (event) => this.handleRadioKeyDown(state, context, event)
-      })
-    );
+    this.bindFocusableWidget(state, context, {
+      key: focusKey,
+      onFocusChange: (focused) => {
+        setWidgetFocusState(field, focusRing, focused);
+      },
+      onKeyDown: (event) => this.handleRadioKeyDown(state, context, event)
+    });
 
     return state;
   }

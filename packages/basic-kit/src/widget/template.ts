@@ -14,8 +14,10 @@ import type {
 } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import type {
+  LeaferGraphPressWidgetInteractionOptions,
   LeaferGraphWidgetInteractionBinding
 } from "@leafergraph/widget-runtime";
+import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import type {
   BasicWidgetLifecycle,
   BasicWidgetLifecycleState,
@@ -64,6 +66,83 @@ export abstract class BasicWidgetController<
         }
       }
     };
+  }
+
+  /**
+   * 绑定统一的焦点处理。
+   *
+   * @param state - 当前状态。
+   * @param context - 当前上下文。
+   * @param binding - 焦点绑定。
+   * @returns 无返回值。
+   */
+  protected bindFocusableWidget(
+    state: BasicWidgetLifecycleState,
+    context: LeaferGraphWidgetRendererContext,
+    binding: {
+      key: string;
+      onFocusChange?: (focused: boolean) => void;
+      onKeyDown?: (event: KeyboardEvent) => boolean;
+    }
+  ): void {
+    this.addCleanup(
+      state,
+      context.editing.registerFocusableWidget({
+        key: binding.key,
+        onFocusChange: (focused) => {
+          binding.onFocusChange?.(focused);
+          this.requestRender(context);
+        },
+        onKeyDown:
+          binding.onKeyDown ??
+          ((event) => this.isReservedWidgetKey(event))
+      })
+    );
+  }
+
+  /**
+   * 绑定统一的按压交互。
+   *
+   * @param state - 当前状态。
+   * @param options - 按压绑定配置。
+   * @returns 无返回值。
+   */
+  protected bindPressWidget(
+    state: BasicWidgetLifecycleState,
+    options: LeaferGraphPressWidgetInteractionOptions
+  ): void {
+    this.addCleanup(state, bindPressWidgetInteraction(options));
+  }
+
+  /**
+   * 请求宿主刷新当前 Widget。
+   *
+   * @param context - 当前上下文。
+   * @returns 无返回值。
+   */
+  protected requestRender(context: LeaferGraphWidgetRendererContext): void {
+    runtimeRequestRender(context);
+  }
+
+  /**
+   * 处理标准的 `Space` / `Enter` 激活键。
+   *
+   * @param event - 当前事件对象。
+   * @param onActivate - 激活回调。
+   * @param fallback - 非激活键时的回退判断。
+   * @returns 对应的判断结果。
+   */
+  protected handlePrimaryKeyActivation(
+    event: KeyboardEvent,
+    onActivate: () => void,
+    fallback?: (event: KeyboardEvent) => boolean
+  ): boolean {
+    if (event.key === " " || event.key === "Enter") {
+      onActivate();
+      return true;
+    }
+
+    return fallback?.(event) ?? this.isReservedWidgetKey(event);
   }
 
   /**

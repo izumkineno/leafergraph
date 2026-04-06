@@ -5,11 +5,10 @@
  * 负责内建按钮控件的渲染、状态同步和动作派发。
  */
 
-import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import type { NodeButtonWidgetOptions, NodeWidgetSpec } from "@leafergraph/node";
 import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
 import { WidgetFieldView } from "./field_view";
-import { BasicWidgetController, runtimeRequestRender } from "./template";
+import { BasicWidgetController } from "./template";
 import type { BasicWidgetLifecycleState } from "./types";
 
 interface ButtonFieldState extends BasicWidgetLifecycleState {
@@ -74,35 +73,25 @@ export class ButtonFieldController extends BasicWidgetController<
       }
     };
 
-    this.addCleanup(
-      state,
-      context.editing.registerFocusableWidget({
-        key: focusKey,
-        onFocusChange: (focused) => {
-          view.setFocused(focused);
-          this.applyButtonTheme(
-            context,
-            view,
-            options,
-            disabled,
-            state.hovered,
-            state.pressed
-          );
-          runtimeRequestRender(context);
-        },
-        onKeyDown: (event) => {
-          if (event.key === " " || event.key === "Enter") {
-            this.emitButtonAction(context, options);
-            return true;
-          }
-
-          return this.isReservedWidgetKey(event);
-        }
-      })
-    );
-    this.addCleanup(
-      state,
-      bindPressWidgetInteraction({
+    this.bindFocusableWidget(state, context, {
+      key: focusKey,
+      onFocusChange: (focused) => {
+        view.setFocused(focused);
+        this.applyButtonTheme(
+          context,
+          view,
+          options,
+          disabled,
+          state.hovered,
+          state.pressed
+        );
+      },
+      onKeyDown: (event) =>
+        this.handlePrimaryKeyActivation(event, () => {
+          this.emitButtonAction(context, options);
+        })
+    });
+    this.bindPressWidget(state, {
         hitArea: view.hitArea,
         allowPointer: () => !disabled,
         onHoverChange: (hovered) => {
@@ -115,7 +104,7 @@ export class ButtonFieldController extends BasicWidgetController<
             state.hovered,
             state.pressed
           );
-          runtimeRequestRender(context);
+          this.requestRender(context);
         },
         onPressChange: (pressed) => {
           state.pressed = pressed;
@@ -127,14 +116,13 @@ export class ButtonFieldController extends BasicWidgetController<
             state.hovered,
             state.pressed
           );
-          runtimeRequestRender(context);
+          this.requestRender(context);
         },
         onPress: () => {
           context.editing.focusWidget(focusKey);
           this.emitButtonAction(context, options);
         }
-      })
-    );
+    });
 
     return state;
   }
