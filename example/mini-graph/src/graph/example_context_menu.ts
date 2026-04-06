@@ -21,6 +21,7 @@ import {
   type LeaferGraphContextMenuClipboardState,
   type LeaferGraphContextMenuBuiltinsHost
 } from "@leafergraph/context-menu-builtins";
+import type { LeaferGraphEditingController } from "@leafergraph/context-menu-builtins/editing";
 import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
 import type {
   LeaferGraphCreateLinkInput,
@@ -54,6 +55,7 @@ export interface CreateExampleContextMenuOptions {
   removeLink(linkId: string): void;
   appendLog(message: string): void;
   clipboard: LeaferGraphContextMenuClipboardState;
+  editingController: LeaferGraphEditingController;
   history?: {
     undo(): boolean;
     redo(): boolean;
@@ -112,6 +114,7 @@ export function createExampleContextMenu(
   const disposeBuiltins = registerLeaferGraphContextMenuBuiltins(menu, {
     host: builtinsHost,
     clipboard: options.clipboard,
+    editingController: options.editingController,
     history: options.history,
     resolveShortcutLabel: options.resolveShortcutLabel
   });

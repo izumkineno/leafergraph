@@ -14,9 +14,12 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { Debug } from "leafer-ui";
 import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
 import {
-  createLeaferGraphContextMenuClipboardStore,
-  type LeaferGraphContextMenuClipboardFragment
+  createLeaferGraphContextMenuClipboardStore
 } from "@leafergraph/context-menu-builtins";
+import {
+  createLeaferGraphEditingController,
+  type LeaferGraphEditingController
+} from "@leafergraph/context-menu-builtins/editing";
 import {
   bindLeaferGraphUndoRedo,
   type BoundLeaferGraphUndoRedo
@@ -26,13 +29,12 @@ import {
   bindLeaferGraphShortcuts,
   type BoundLeaferGraphShortcuts
 } from "@leafergraph/shortcuts/graph";
-import type { GraphLink, NodeRuntimeState, NodeSerializeResult } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
 import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   RuntimeFeedbackEvent
 } from "@leafergraph/contracts";
-import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/contracts/graph-document-diff";
 import type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode
@@ -52,6 +54,13 @@ import {
   createExampleContextMenu,
   type ExampleContextMenuHandle
 } from "./example_context_menu";
+
+interface ExampleGraphCoordinateHost {
+  getPagePointByClient(
+    clientPoint: { clientX: number; clientY: number },
+    updateClient?: boolean
+  ): { x: number; y: number };
+}
 
 /** `fitView()` 的统一留白，避免节点紧贴画布边缘。 */
 const DEFAULT_FIT_VIEW_PADDING = 120;
@@ -119,7 +128,11 @@ const EXAMPLE_MINI_GRAPH_CONFIG = {
 /** Widget 文本编辑器当前会把 DOM 挂到 body，这里用 class 统一判断编辑态。 */
 const WIDGET_TEXT_EDITOR_SELECTOR = ".leafergraph-widget-text-editor";
 
-/** 键盘 paste / duplicate 没有画布点击点时，沿用和菜单 builtins 一致的偏移量。 */
+/**
+ * 键盘 paste 拿不到最近鼠标锚点时，沿用和菜单 builtins 一致的偏移量。
+ *
+ * 即便拿到了鼠标位置，仍保留一小段位移，让新节点不要完全压在指针热点下。
+ */
 const DEFAULT_CLIPBOARD_PASTE_OFFSET = {
   x: 24,
   y: 24
@@ -336,100 +349,59 @@ function projectTrackedLinkFromCreateInput(
 }
 
 /**
- * 根据节点 ID 列表创建剪贴板片段。
+ * 判断一个浏览器 client 点是否仍位于当前画布宿主范围内。
  *
- * @param graph - 当前图实例。
- * @param nodeIds - 节点 ID 列表。
- * @returns 创建后的结果对象。
+ * @param stageHost - 画布宿主元素。
+ * @param clientPoint - 最近一次记录到的鼠标 client 坐标。
+ * @returns 是否位于画布范围内。
  */
-function createClipboardFragmentFromNodeIds(
-  graph: LeaferGraph,
-  nodeIds: readonly string[]
-): LeaferGraphContextMenuClipboardFragment | null {
-  const snapshots = nodeIds
-    .map((nodeId) => graph.getNodeSnapshot(nodeId))
-    .filter((entry): entry is NodeSerializeResult => Boolean(entry));
-  if (!snapshots.length) {
-    return null;
-  }
-
-  const copiedNodeIds = new Set(snapshots.map((entry) => entry.id));
-  const linksById = new Map<string, GraphLink>();
-
-  for (const nodeId of copiedNodeIds) {
-    for (const link of graph.findLinksByNode(nodeId)) {
-      if (
-        copiedNodeIds.has(link.source.nodeId) &&
-        copiedNodeIds.has(link.target.nodeId)
-      ) {
-        linksById.set(link.id, link);
-      }
-    }
-  }
-
-  return {
-    nodes: snapshots,
-    links: [...linksById.values()]
-  };
+function isClientPointInsideStage(
+  stageHost: HTMLElement,
+  clientPoint: { x: number; y: number }
+): boolean {
+  const rect = stageHost.getBoundingClientRect();
+  return (
+    clientPoint.x >= rect.left &&
+    clientPoint.x <= rect.right &&
+    clientPoint.y >= rect.top &&
+    clientPoint.y <= rect.bottom
+  );
 }
 
 /**
- * 粘贴剪贴板片段到图。
+ * 把最近一次浏览器 client 坐标转换成图真正使用的 page 坐标。
  *
- * @param input - 输入参数。
- * @returns 处理后的结果。
+ * @param graph - 当前图实例。
+ * @param stageHost - 图宿主元素。
+ * @param clientPoint - 最近一次位于画布内的鼠标点。
+ * @returns 可用于节点布局写回的 page 坐标；拿不到时返回 `null`。
  */
-function pasteClipboardFragmentToGraph(input: {
+function resolveGraphPageAnchorPoint(input: {
   graph: LeaferGraph;
-  fragment: LeaferGraphContextMenuClipboardFragment;
-  offset?: {
-    x: number;
-    y: number;
-  };
-}): string[] {
-  // 先整理当前阶段需要的输入、状态与依赖。
-  const offset = input.offset ?? DEFAULT_CLIPBOARD_PASTE_OFFSET;
-  const delta = {
-    x: offset.x,
-    y: offset.y
-  };
-  const nodeIdMap = new Map<string, string>();
-  const createdNodeIds: string[] = [];
-
-  for (const snapshot of input.fragment.nodes) {
-    const nextNodeInput = createCreateNodeInputFromNodeSnapshot(snapshot);
-    const createdNode = input.graph.createNode({
-      ...nextNodeInput,
-      id: undefined,
-      x: snapshot.layout.x + delta.x,
-      y: snapshot.layout.y + delta.y
-    });
-    nodeIdMap.set(snapshot.id, createdNode.id);
-    // 再执行核心逻辑，并把结果或副作用统一收口。
-    createdNodeIds.push(createdNode.id);
+  stageHost: HTMLElement;
+  clientPoint: { x: number; y: number } | null;
+}): { x: number; y: number } | null {
+  if (!input.clientPoint || !isClientPointInsideStage(input.stageHost, input.clientPoint)) {
+    return null;
   }
 
-  for (const link of input.fragment.links) {
-    const sourceNodeId = nodeIdMap.get(link.source.nodeId);
-    const targetNodeId = nodeIdMap.get(link.target.nodeId);
-    if (!sourceNodeId || !targetNodeId) {
-      continue;
-    }
-
-    input.graph.createLink({
-      source: {
-        nodeId: sourceNodeId,
-        slot: link.source.slot
-      },
-      target: {
-        nodeId: targetNodeId,
-        slot: link.target.slot
-      }
-    });
+  const coordinateHost = input.graph.app as typeof input.graph.app &
+    Partial<ExampleGraphCoordinateHost>;
+  if (typeof coordinateHost.getPagePointByClient !== "function") {
+    return null;
   }
 
-  input.graph.setSelectedNodeIds(createdNodeIds, "replace");
-  return createdNodeIds;
+  const pagePoint = coordinateHost.getPagePointByClient(
+    {
+      clientX: input.clientPoint.x,
+      clientY: input.clientPoint.y
+    },
+    true
+  );
+
+  return Number.isFinite(pagePoint.x) && Number.isFinite(pagePoint.y)
+    ? pagePoint
+    : null;
 }
 
 /**
@@ -635,6 +607,8 @@ export function useExampleGraph(): UseExampleGraphResult {
   const shortcutsBindingRef = useRef<BoundLeaferGraphShortcuts | null>(null);
   const contextMenuRef = useRef<ExampleContextMenuHandle | null>(null);
   const clipboardStoreRef = useRef(createLeaferGraphContextMenuClipboardStore());
+  const editingControllerRef = useRef<LeaferGraphEditingController | null>(null);
+  const latestStagePointerClientPointRef = useRef<{ x: number; y: number } | null>(null);
   const themeModeRef = useRef<LeaferGraphThemeMode>(resolvePreferredThemeMode());
   const nodeIdsRef = useRef(new Set<string>());
   const registeredBundleFingerprintsRef = useRef(new Set<string>());
@@ -861,23 +835,16 @@ export function useExampleGraph(): UseExampleGraphResult {
    * @returns 对应的判断结果。
    */
   const copySelectedNodesToClipboard = (): boolean => {
-    const graph = graphRef.current;
-    if (!graph) {
+    const editingController = editingControllerRef.current;
+    if (!editingController) {
       return false;
     }
 
-    const selectedNodeIds = graph.listSelectedNodeIds();
-    if (!selectedNodeIds.length) {
-      return false;
-    }
-
-    const fragment = createClipboardFragmentFromNodeIds(graph, selectedNodeIds);
+    const fragment = editingController.copySelection();
     if (!fragment) {
-      clipboardStoreRef.current.clear();
       return false;
     }
 
-    clipboardStoreRef.current.setFragment(fragment);
     appendLog(
       fragment.nodes.length > 1
         ? `已复制 ${fragment.nodes.length} 个节点到剪贴板`
@@ -892,26 +859,12 @@ export function useExampleGraph(): UseExampleGraphResult {
    * @returns 对应的判断结果。
    */
   const cutSelectedNodesToClipboard = (): boolean => {
-    const graph = graphRef.current;
-    if (!graph) {
+    const editingController = editingControllerRef.current;
+    if (!editingController) {
       return false;
     }
 
-    const selectedNodeIds = graph.listSelectedNodeIds();
-    if (!selectedNodeIds.length) {
-      return false;
-    }
-
-    const fragment = createClipboardFragmentFromNodeIds(graph, selectedNodeIds);
-    if (!fragment) {
-      clipboardStoreRef.current.clear();
-      return false;
-    }
-
-    clipboardStoreRef.current.setFragment(fragment);
-    removeNodesWithLogging(selectedNodeIds);
-    graph.clearSelectedNodes();
-    return true;
+    return Boolean(editingController.cutSelection());
   };
 
   /**
@@ -920,22 +873,17 @@ export function useExampleGraph(): UseExampleGraphResult {
    * @returns 对应的判断结果。
    */
   const pasteNodesFromClipboard = (): boolean => {
-    const graph = graphRef.current;
-    if (!graph) {
+    const editingController = editingControllerRef.current;
+    if (!editingController) {
       return false;
     }
 
-    const fragment = clipboardStoreRef.current.getFragment();
-    if (!fragment?.nodes.length) {
-      return false;
-    }
-
-    const createdNodeIds = pasteClipboardFragmentToGraph({
-      graph,
-      fragment,
-      offset: DEFAULT_CLIPBOARD_PASTE_OFFSET
-    });
+    const createdNodeIds = editingController.pasteClipboard();
     syncTrackedLinksFromGraph();
+    if (!createdNodeIds.length) {
+      return false;
+    }
+
     appendLog(
       createdNodeIds.length > 1
         ? `已粘贴 ${createdNodeIds.length} 个节点`
@@ -950,27 +898,17 @@ export function useExampleGraph(): UseExampleGraphResult {
    * @returns 对应的判断结果。
    */
   const duplicateSelectedNodes = (): boolean => {
-    const graph = graphRef.current;
-    if (!graph) {
+    const editingController = editingControllerRef.current;
+    if (!editingController) {
       return false;
     }
 
-    const selectedNodeIds = graph.listSelectedNodeIds();
-    if (!selectedNodeIds.length) {
-      return false;
-    }
-
-    const fragment = createClipboardFragmentFromNodeIds(graph, selectedNodeIds);
-    if (!fragment) {
-      return false;
-    }
-
-    const createdNodeIds = pasteClipboardFragmentToGraph({
-      graph,
-      fragment,
-      offset: DEFAULT_CLIPBOARD_PASTE_OFFSET
-    });
+    const createdNodeIds = editingController.duplicateSelection();
     syncTrackedLinksFromGraph();
+    if (!createdNodeIds.length) {
+      return false;
+    }
+
     appendLog(
       createdNodeIds.length > 1
         ? `已创建 ${createdNodeIds.length} 个节点副本`
@@ -1628,6 +1566,63 @@ export function useExampleGraph(): UseExampleGraphResult {
       return;
     }
 
+    editingControllerRef.current = createLeaferGraphEditingController({
+      host: {
+        listSelectedNodeIds() {
+          return graph.listSelectedNodeIds();
+        },
+        setSelectedNodeIds(nodeIds, mode) {
+          return graph.setSelectedNodeIds(nodeIds, mode);
+        },
+        getNodeSnapshot(nodeId) {
+          return graph.getNodeSnapshot(nodeId);
+        },
+        findLinksByNode(nodeId) {
+          return graph.findLinksByNode(nodeId);
+        }
+      },
+      clipboard: clipboardStoreRef.current,
+      pasteOffset: DEFAULT_CLIPBOARD_PASTE_OFFSET,
+      resolveAnchorPoint() {
+        return resolveGraphPageAnchorPoint({
+          graph,
+          stageHost,
+          clientPoint: latestStagePointerClientPointRef.current
+        });
+      },
+      mutationAdapters: {
+        createNode(input) {
+          return graph.createNode(input);
+        },
+        createLink(input) {
+          return graph.createLink(input);
+        },
+        removeNode(nodeId) {
+          actions.removeNode(nodeId);
+        },
+        removeNodes(nodeIds) {
+          removeNodesWithLogging(nodeIds);
+        }
+      }
+    });
+
+    return () => {
+      editingControllerRef.current = null;
+    };
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "ready") {
+      return;
+    }
+
+    const graph = graphRef.current;
+    const stageHost = stageRef.current;
+    const editingController = editingControllerRef.current;
+    if (!graph || !stageHost || !editingController) {
+      return;
+    }
+
     contextMenuRef.current?.destroy();
     contextMenuRef.current = createExampleContextMenu({
       graph,
@@ -1648,6 +1643,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       removeLink: actions.removeLink,
       appendLog,
       clipboard: clipboardStoreRef.current,
+      editingController,
       history: {
         undo() {
           return runHistoryAction("undo");
@@ -1684,9 +1680,38 @@ export function useExampleGraph(): UseExampleGraphResult {
       return;
     }
 
+    const stageHost = stageRef.current;
+    if (!stageHost) {
+      return;
+    }
+
+    const updateLatestPointerPoint = (event: PointerEvent): void => {
+      latestStagePointerClientPointRef.current = {
+        x: event.clientX,
+        y: event.clientY
+      };
+    };
+
+    stageHost.addEventListener("pointermove", updateLatestPointerPoint);
+    stageHost.addEventListener("pointerdown", updateLatestPointerPoint);
+    stageHost.addEventListener("pointerenter", updateLatestPointerPoint);
+
+    return () => {
+      stageHost.removeEventListener("pointermove", updateLatestPointerPoint);
+      stageHost.removeEventListener("pointerdown", updateLatestPointerPoint);
+      stageHost.removeEventListener("pointerenter", updateLatestPointerPoint);
+    };
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "ready") {
+      return;
+    }
+
     const graph = graphRef.current;
     const stageHost = stageRef.current;
-    if (!graph || !stageHost) {
+    const editingController = editingControllerRef.current;
+    if (!graph || !stageHost || !editingController) {
       return;
     }
 
@@ -1747,16 +1772,16 @@ export function useExampleGraph(): UseExampleGraphResult {
           return duplicateSelectedNodes();
         },
         canCopySelection() {
-          return graph.listSelectedNodeIds().length > 0;
+          return editingController.canCopySelection();
         },
         canCutSelection() {
-          return graph.listSelectedNodeIds().length > 0;
+          return editingController.canCutSelection();
         },
         canPasteClipboard() {
-          return clipboardStoreRef.current.hasFragment();
+          return editingController.canPasteClipboard();
         },
         canDuplicateSelection() {
-          return graph.listSelectedNodeIds().length > 0;
+          return editingController.canDuplicateSelection();
         }
       },
       history: {
