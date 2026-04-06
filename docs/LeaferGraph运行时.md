@@ -2,6 +2,86 @@
 
 这份文档合并了旧 `packages/leafergraph` 的 README、内部架构地图、使用与扩展指南、渲染刷新策略和进度环说明。
 
+## 运行时装配链图
+
+```mermaid
+graph TB
+    A[src/public/leafer_graph.ts<br/>(对外入口)] --> B[src/graph/assembly/entry.ts<br/>(入口装配)]
+    B --> C[src/graph/assembly/runtime.ts<br/>(总装配器)]
+    C --> D[src/graph/host/canvas.ts<br/>(画布宿主)]
+    C --> E[src/graph/assembly/widget_environment.ts<br/>(Widget环境)]
+    C --> F[NodeRegistry<br/>(节点注册表)]
+    C --> G[src/graph/assembly/scene.ts<br/>(场景装配)]
+    C --> H[src/graph/host/bootstrap.ts<br/>(启动引导)]
+    C --> I[src/graph/feedback/local_runtime_adapter.ts<br/>(本地运行适配)]
+    C --> J[src/api/graph_api_host.ts<br/>(API宿主)]
+    
+    G --> K[src/graph/host/scene_runtime.ts<br/>(场景运行时)]
+    G --> L[src/node/runtime/controller.ts<br/>(节点控制器)]
+    G --> M[src/interaction/graph_interaction_runtime_host.ts<br/>(交互运行时)]
+    G --> N[LeaferGraphGraphExecutionHost<br/>(执行宿主)]
+    G --> O[src/graph/host/restore.ts<br/>(文档恢复)]
+    
+    classDef public fill:#e1f5ff,stroke:#007acc,stroke-width:2px;
+    classDef assembly fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef host fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
+    classDef api fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    
+    class A public;
+    class B,C,E,G assembly;
+    class D,H,I,K,L,M,N,O host;
+    class J api;
+```
+
+## 文档恢复流程图
+
+```mermaid
+sequenceDiagram
+    participant Api as graph_api_host
+    participant Bootstrap as bootstrap.ts
+    participant Restore as restore.ts
+    participant SceneRuntime as scene_runtime.ts
+    participant NodeHost as node_host.ts
+    participant LinkHost as link_host.ts
+    participant Mutation as mutation.ts
+    participant View as view.ts
+    
+    Api->>Bootstrap: replaceGraphDocument()
+    Bootstrap->>Restore: 恢复文档
+    Restore->>SceneRuntime: 清空当前场景
+    Restore->>NodeHost: 创建节点视图
+    Restore->>LinkHost: 创建连线视图
+    Restore->>Mutation: 提交变更
+    Mutation->>SceneRuntime: 更新场景
+    SceneRuntime->>View: 更新视口
+    View->>Api: 返回完成
+```
+
+## 场景刷新数据流图
+
+```mermaid
+graph LR
+    A[外部输入] --> B[graph_api_host]
+    B --> C[mutation.ts]
+    C --> D[scene_runtime.ts]
+    D --> E[node_host.ts]
+    D --> F[link_host.ts]
+    E --> G[Leafer Scene]
+    F --> G
+    G --> H[用户界面]
+    
+    I[execution host] --> J[local_runtime_adapter]
+    J --> D
+    
+    classDef input fill:#e1f5ff,stroke:#007acc,stroke-width:2px;
+    classDef core fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef output fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
+    
+    class A,I input;
+    class B,C,D,E,F,J core;
+    class G,H output;
+```
+
 `leafergraph` 是 Leafer host / graph facade 主包。它负责把 `GraphDocument` 恢复成 Leafer 场景，装配交互和刷新，并通过 `LeaferGraph` / `createLeaferGraph(...)` 暴露对外实例 API。
 
 ## 公开入口

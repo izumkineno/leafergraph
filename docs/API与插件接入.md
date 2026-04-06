@@ -1,5 +1,103 @@
 # 节点接入指南
 
+## 节点生命周期流程图
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created: 创建节点定义
+    Created --> Registered: 注册到NodeRegistry
+    Registered --> Instantiated: 创建运行时实例
+    Instantiated --> Initialized: 初始化
+    Initialized --> Ready: 就绪
+    
+    Ready --> Executing: 触发执行
+    Executing --> Completed: 执行完成
+    Executing --> Error: 执行出错
+    Completed --> Ready: 等待下次执行
+    Error --> Ready: 恢复后可重执行
+    
+    Ready --> Updated: 配置变更
+    Updated --> Ready: 更新完成
+    
+    Ready --> [*]: 销毁节点
+    
+    state Executing {
+        [*] --> Processing: 处理输入
+        Processing --> Outputting: 产生输出
+        Outputting --> Propagating: 传播数据
+        Propagating --> [*]: 执行结束
+    }
+```
+
+## 插件接入流程图
+
+```mermaid
+graph TB
+    A["Plugin Definition"] --> B["graph.use(plugin)"]
+    B --> C["install()"]
+    C --> D["LeaferGraphNodePluginContext"]
+    D --> E["installModule()"]
+    D --> F["registerNode()"]
+    D --> G["registerWidget()"]
+    D --> H["listNodes() / listWidgets()"]
+    D --> I["hasNode() / hasWidget()"]
+    
+    classDef plugin fill:#e1f5ff,stroke:#007acc,stroke-width:2px;
+    classDef registry fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    
+    class A,B,C,D plugin;
+    class E,F,G,H,I registry;
+```
+
+## 连线路由算法图示
+
+```mermaid
+graph LR
+    A[Start Port] -->|output| B[Control Point 1]
+    B --> C[Control Point 2]
+    C -->|input| D[End Port]
+    
+    style A fill:#4caf50,stroke:#2e7d32,stroke-width:2px
+    style D fill:#2196f3,stroke:#1976d2,stroke-width:2px
+    style B fill:#ff9800,stroke:#ef6c00,stroke-width:1px
+    style C fill:#ff9800,stroke:#ef6c00,stroke-width:1px
+```
+
+## 进度环和信号灯状态转换图
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: 初始状态
+    
+    Idle --> Queued: 进入执行队列
+    Queued --> Running: 开始执行
+    
+    Running --> Completed: 执行成功
+    Running --> Error: 执行出错
+    
+    Completed --> Idle: 重置状态
+    Error --> Idle: 重置状态
+    
+    Idle --> Running: 直接执行（跳过队列）
+    
+    state Running {
+        [*] --> Normal: 正常执行
+        Normal --> Progress: 显示进度
+        Progress --> Normal: 更新进度
+    }
+    
+    state with_progress_ring <<choice>>
+    Running --> with_progress_ring
+    with_progress_ring --> ShowProgress: 有进度信息
+    with_progress_ring --> HideProgress: 无进度信息
+    
+    style Idle fill:#9e9e9e
+    style Queued fill:#ffc107
+    style Running fill:#2196f3
+    style Completed fill:#4caf50
+    style Error fill:#f44336
+```
+
 这份文档统一收口了以下四个主题：
 
 - 节点 API 与节点外壳设计
@@ -272,14 +370,14 @@
 | :--- | :--- |
 | 模型层 | `NodeDefinition`、`NodeModule`、`installNodeModule(...)` |
 | widget 宿主层 | `registerWidget(entry)` |
-| bundle 宿主层 | `EditorBundleManifest`、`LeaferGraphEditorBundleBridge.registerBundle(...)` |
+| bundle 宿主层 | `LeaferGraphEditorBundleBridge.registerBundle(...)`、模板内的 `registerAuthoring...Bundle(...)` 入口 |
 
-当前 authority 可以同步：
+当前 authority 或外层宿主常见会传递：
 
 - 正式 `GraphDocument`
 - `GraphDocumentDiff`
-- `runtimeFeedback`
-- `frontendBundles.sync`
+- `RuntimeFeedbackEvent`
+- browser bundle manifest
 
 但这不改变插件接入的长期边界：
 
