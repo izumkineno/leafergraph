@@ -10,7 +10,7 @@
 
 如果你只想开始用，优先看各包 README。  
 如果你在维护主包内部装配链，再继续看 `packages/leafergraph` 里的深层文档。  
-如果你在整理未来演进路线，再看 `docs/架构演进与提案总览.md`。
+如果你在整理未来演进路线，再看 `docs/索引.md` 和 `docs/工程导航索引.md`。
 
 ## 项目分层
 
@@ -116,15 +116,15 @@ flowchart LR
 
 1. [@leafergraph/node README](./packages/node/README.md)
 2. [@leafergraph/contracts README](./packages/contracts/README.md)
-3. [节点 API 与节点壳专题](./docs/节点API方案.md)
-4. [外部节点包接入专题](./docs/节点插件接入方案.md)
+3. [节点接入指南](./docs/API与插件接入.md)
+4. [LeaferGraph 运行时](./docs/LeaferGraph运行时.md)
 
 ### 我想写节点类、Widget 类或对外模板
 
 1. [@leafergraph/authoring README](./packages/authoring/README.md)
 2. [authoring-basic-nodes README](./example/authoring-basic-nodes/README.md)
 3. [Templates 总览](./templates/README.md)
-4. [架构演进与提案总览](./docs/架构演进与提案总览.md)
+4. [文档索引](./docs/索引.md)
 
 ### 我想接主题、配置、菜单、快捷键或历史栈
 
@@ -164,10 +164,9 @@ flowchart LR
 
 ### 当前事实型专题
 
-- [节点 API 与节点壳设计](./docs/节点API方案.md)
-- [外部节点包接入方案](./docs/节点插件接入方案.md)
-- [连线路径实现说明](./docs/连线路由.md)
-- [AI / 工程导航索引](./docs/leafergraph-ai-index.md)
+- [节点接入指南](./docs/API与插件接入.md)
+- [LeaferGraph 运行时](./docs/LeaferGraph运行时.md)
+- [工程导航索引](./docs/工程导航索引.md)
 
 ### 主包维护文档
 
@@ -175,9 +174,9 @@ flowchart LR
 - [内部架构地图](./packages/leafergraph/内部架构地图.md)
 - [渲染刷新策略](./packages/leafergraph/渲染刷新策略.md)
 
-### 前瞻性提案
+### 文档索引
 
-- [架构演进与提案总览](./docs/架构演进与提案总览.md)
+- [文档索引](./docs/索引.md)
 
 这里的分工固定为：
 
@@ -185,8 +184,8 @@ flowchart LR
   - 优先服务使用者，讲“什么时候依赖它、怎么接入、和谁配合”
 - 深层维护文档
   - 优先服务维护者，讲“内部怎么装配、刷新链怎么走、边界怎么划”
-- 提案总览
-  - 只收口尚未完全定型或仍在演进中的规划，不和当前事实型专题混写
+- 文档索引
+  - 只负责统一入口和阅读顺序，不和深读专题混写
 
 ## 示例与模板
 

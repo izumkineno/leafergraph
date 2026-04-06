@@ -98,4 +98,4 @@ bun run test:smoke:templates
 - [Node Templates](./node/README.md)
 - [Widget Templates](./widget/README.md)
 - [@leafergraph/authoring README](../packages/authoring/README.md)
-- [外部节点包接入方案](../docs/节点插件接入方案.md)
+- [节点接入指南](../docs/API与插件接入.md)
