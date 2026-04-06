@@ -644,6 +644,18 @@ export interface NodeWidgetInteractionCommitEvent {
   afterWidgets: NodeRuntimeState["widgets"];
 }
 
+/** 节点标题提交事件。 */
+export interface NodeTitleInteractionCommitEvent {
+  /** 事件类型。 */
+  type: "node.title.commit";
+  /** 目标节点 ID。 */
+  nodeId: string;
+  /** 提交前标题。 */
+  beforeTitle: string;
+  /** 提交后标题。 */
+  afterTitle: string;
+}
+
 /** 连线创建提交事件。 */
 export interface LinkCreateInteractionCommitEvent {
   /** 事件类型。 */
@@ -663,6 +675,7 @@ export type LeaferGraphInteractionCommitEvent =
   | NodeMoveInteractionCommitEvent
   | NodeResizeInteractionCommitEvent
   | NodeCollapseInteractionCommitEvent
+  | NodeTitleInteractionCommitEvent
   | NodeWidgetInteractionCommitEvent
   | LinkCreateInteractionCommitEvent;
 

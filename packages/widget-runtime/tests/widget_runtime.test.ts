@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import {
   LeaferGraphWidgetRegistry,
+  getLeaferGraphTextEditMeta,
+  setLeaferGraphTextEditMeta,
   bindLinearWidgetDrag,
   bindPressWidgetInteraction,
   createDisabledWidgetEditingContext,
@@ -324,5 +326,21 @@ describe("widget_runtime", () => {
     expect(disabled.beginTextEdit({} as never)).toBe(false);
     expect(disabled.openOptionsMenu({} as never)).toBe(false);
     expect(disabled.isWidgetFocused("node-1:0")).toBe(false);
+  });
+
+  test("通用文本编辑元数据只会挂在显式标记的 Text 目标上", () => {
+    const textTarget = {};
+
+    expect(getLeaferGraphTextEditMeta(textTarget)).toBeNull();
+
+    setLeaferGraphTextEditMeta(textTarget, {
+      kind: "node-title",
+      nodeId: "node-1"
+    });
+
+    expect(getLeaferGraphTextEditMeta(textTarget)).toEqual({
+      kind: "node-title",
+      nodeId: "node-1"
+    });
   });
 });

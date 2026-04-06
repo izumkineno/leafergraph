@@ -331,4 +331,52 @@ describe("history_runtime_integration", () => {
       container.remove();
     }
   });
+
+  test("node.title.commit 会更新标题并发出 Rename Node 历史记录", async () => {
+    const { graph, container } = await createReadyGraph();
+    const historyEvents: LeaferGraphHistoryEvent[] = [];
+    const unsubscribe = graph.subscribeHistory((event) => {
+      historyEvents.push(event);
+    });
+
+    try {
+      graph.createNode({ id: "source-node", type: "test/source", x: 0, y: 0 });
+
+      const interactionCommitSource = (
+        graph as unknown as {
+          apiHost: {
+            options: {
+              runtime: {
+                interactionCommitSource: {
+                  emit(event: LeaferGraphInteractionCommitEvent): void;
+                };
+              };
+            };
+          };
+        }
+      ).apiHost.options.runtime.interactionCommitSource;
+
+      interactionCommitSource.emit({
+        type: "node.title.commit",
+        nodeId: "source-node",
+        beforeTitle: "source-node",
+        afterTitle: "Renamed Source"
+      } as LeaferGraphInteractionCommitEvent);
+
+      expect(graph.getNodeSnapshot("source-node")?.title).toBe("Renamed Source");
+      expect(
+        historyEvents.some(
+          (event) =>
+            event.type === "history.record" &&
+            event.record.kind === "snapshot" &&
+            event.record.source === "interaction.commit" &&
+            event.record.label === "Rename Node"
+        )
+      ).toBe(true);
+    } finally {
+      unsubscribe();
+      graph.destroy();
+      container.remove();
+    }
+  });
 });

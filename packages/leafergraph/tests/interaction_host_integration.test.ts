@@ -78,6 +78,7 @@ function createTestNodeViewState(options: {
   const signalButton = new FakeEventSource(`node-signal-button-${options.id}`);
   const inputHit = new FakeEventSource(`node-port-hit-${options.id}-input`);
   const outputHit = new FakeEventSource(`node-port-hit-${options.id}-output`);
+  const titleHitArea = new FakeEventSource(`node-title-hit-${options.id}`);
 
   return {
     state: {
@@ -102,6 +103,7 @@ function createTestNodeViewState(options: {
     resizeHandle,
     shellView: {
       signalButton,
+      titleHitArea,
       portViews: [
         {
           layout: {
@@ -128,7 +130,7 @@ function createTestNodeViewState(options: {
           hitArea: outputHit as any
         }
       ]
-    },
+    } as any,
     hovered: false
   };
 }
@@ -182,6 +184,7 @@ function createInteractionHarness() {
   const nodeSizes = new Map<string, { width: number; height: number }>();
   const nodeViews = new Map<string, TestNodeViewState>();
   const syncResizeCalls: string[] = [];
+  const titleEditRequests: string[] = [];
 
   const sourceNode = createTestNodeViewState({
     id: "source-node",
@@ -308,6 +311,10 @@ function createInteractionHarness() {
       node.state.flags.collapsed = collapsed;
       return true;
     },
+    beginNodeTitleEdit: (nodeId: string) => {
+      titleEditRequests.push(nodeId);
+      return true;
+    },
     canResizeNode: () => true,
     listSelectedNodeIds: () => [...selectedNodeIds],
     isNodeSelected: (nodeId: string) => selectedNodeIds.has(nodeId),
@@ -378,7 +385,8 @@ function createInteractionHarness() {
     selectedNodeIds,
     nodeSizes,
     nodeViews,
-    syncResizeCalls
+    syncResizeCalls,
+    titleEditRequests
   };
 }
 
@@ -519,6 +527,58 @@ describe("interaction_host_integration", () => {
           }
         }
       });
+    } finally {
+      host.destroy();
+      container.remove();
+    }
+  });
+
+  test("标题栏 double_tap 会请求标题重命名，并清掉标题拖拽态", () => {
+    const harness = createInteractionHarness();
+    const { host, container, nodeViews, titleEditRequests } = harness;
+
+    try {
+      const state = nodeViews.get("source-node")!;
+      host.bindNodeDragging(
+        "source-node",
+        nodeViews.get("source-node")!.view as unknown as Group
+      );
+      (host as any).bindNodeTitleEditing("source-node", state);
+
+      const view = state.view as unknown as FakeEventSource;
+      const titleHitArea = state.shellView.titleHitArea as unknown as FakeEventSource;
+
+      view.emit(
+        "pointer.down",
+        createGraphPointerEvent({
+          target: titleHitArea,
+          x: 48,
+          y: 44
+        })
+      );
+
+      expect((host as any).dragState).not.toBeNull();
+
+      (host as any).handleWindowPointerMove(createPointerEventLike(120, 100));
+      const draggedX = state.state.layout.x;
+      const draggedY = state.state.layout.y;
+
+      titleHitArea.emit(
+        "double_tap",
+        createGraphPointerEvent({
+          target: titleHitArea,
+          x: 48,
+          y: 44
+        })
+      );
+
+      expect(titleEditRequests).toEqual(["source-node"]);
+      expect((host as any).dragState).toBeNull();
+
+      (host as any).handleWindowPointerMove(createPointerEventLike(160, 140));
+
+      expect(state.state.layout.x).toBe(draggedX);
+      expect(state.state.layout.y).toBe(draggedY);
     } finally {
       host.destroy();
       container.remove();

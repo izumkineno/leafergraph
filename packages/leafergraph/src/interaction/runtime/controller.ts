@@ -178,6 +178,16 @@ export class LeaferGraphInteractionRuntimeHostController<
   }
 
   /**
+   * 请求开始节点标题编辑。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 是否成功进入标题编辑态。
+   */
+  beginNodeTitleEdit(nodeId: string): boolean {
+    return this.options.beginNodeTitleEdit(nodeId);
+  }
+
+  /**
    * 按节点、方向和槽位解析一个端口的完整几何信息。
    *
    * @param nodeId - 目标节点 ID。

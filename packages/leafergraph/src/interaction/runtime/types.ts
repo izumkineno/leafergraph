@@ -105,6 +105,8 @@ export interface LeaferGraphInteractionRuntimeLike<
   focusNode(nodeId: string): boolean;
   /** 同步节点 resize 句柄可见性。 */
   syncNodeResizeHandleVisibility(nodeId: string): void;
+  /** 请求开始节点标题编辑。 */
+  beginNodeTitleEdit(nodeId: string): boolean;
   /** 解析指定节点的端口。 */
   resolvePort(
     nodeId: string,
@@ -207,6 +209,8 @@ export interface LeaferGraphInteractionRuntimeHostOptions<
   bringNodeViewToFront(state: TNodeViewState): void;
   /** 同步节点 resize 句柄可见性。 */
   syncNodeResizeHandleVisibility(state: TNodeViewState): void;
+  /** 请求开始节点标题编辑。 */
+  beginNodeTitleEdit(nodeId: string): boolean;
   /** 请求宿主渲染一帧。 */
   requestRender(): void;
   /** 解析需要一起拖拽的节点 ID。 */

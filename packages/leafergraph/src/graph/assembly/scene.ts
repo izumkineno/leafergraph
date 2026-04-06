@@ -7,7 +7,10 @@
  */
 
 import { NodeRegistry } from "@leafergraph/node";
-import type { LeaferGraphWidgetEditingContext } from "@leafergraph/contracts";
+import type {
+  LeaferGraphWidgetEditingContext,
+  LeaferGraphWidgetTextEditFrame
+} from "@leafergraph/contracts";
 import type {
   LeaferGraphGraphThemeTokens,
   LeaferGraphThemeMode
@@ -45,6 +48,8 @@ import { LeaferGraphRestoreHost } from "../host/restore";
 import type { LeaferGraphThemeHost } from "../theme/host";
 import { LeaferGraphThemeRuntimeHost } from "../theme/runtime";
 import { LeaferGraphViewHost } from "../host/view";
+
+const NODE_TITLE_EDIT_SAFETY_GAP = 8;
 
 /**
  * 图场景运行时装配输入。
@@ -114,6 +119,43 @@ export interface LeaferGraphSceneRuntimeAssemblyResult<
     typeof createLeaferGraphInteractionCommitSource
   >;
   restoreHost: LeaferGraphRestoreHost<TNodeState, NodeViewState<TNodeState>>;
+}
+
+/**
+ * 计算标题编辑框几何。
+ *
+ * @remarks
+ * 编辑框左边界会主动避开左上角信号球，避免双击重命名时遮挡状态入口。
+ */
+export function resolveNodeTitleEditFrame(options: {
+  titleTarget: { x?: number; y?: number; width?: number };
+  titleHitArea: { height?: number };
+  signalButton?: { x?: number; width?: number } | null;
+}): LeaferGraphWidgetTextEditFrame {
+  const titleX = options.titleTarget.x ?? 0;
+  const titleY = options.titleTarget.y ?? 0;
+  const signalButtonRight =
+    options.signalButton &&
+    typeof options.signalButton.x === "number" &&
+    typeof options.signalButton.width === "number"
+      ? options.signalButton.x + options.signalButton.width
+      : null;
+  const frameStartX =
+    signalButtonRight === null
+      ? titleX
+      : Math.max(titleX, signalButtonRight + NODE_TITLE_EDIT_SAFETY_GAP);
+  const frameOffsetX = frameStartX - titleX;
+
+  return {
+    offsetX: frameOffsetX,
+    offsetY: -Math.max(titleY - 6, 0),
+    width: Math.max((options.titleTarget.width ?? 0) + 20 - frameOffsetX, 72),
+    height: Math.max((options.titleHitArea.height ?? 1) / 2, 14),
+    paddingTop: 4,
+    paddingRight: 10,
+    paddingBottom: 4,
+    paddingLeft: 10
+  };
 }
 
 /**
@@ -197,6 +239,50 @@ export function createLeaferGraphSceneRuntimeAssembly<
       nodeRuntimeHost.emitNodeWidgetAction(nodeId, action, param, extra)
   });
 
+  const beginNodeTitleEdit = (nodeId: string): boolean => {
+    const node = options.graphState.nodes.get(nodeId);
+    const state = options.nodeViews.get(nodeId);
+    const titleTarget = state?.shellView.titleLabel;
+  const titleHitArea = state?.shellView.titleHitArea;
+    const signalButton = state?.shellView.signalButton;
+    if (!node || !titleTarget || !titleHitArea) {
+      return false;
+    }
+
+    const frame = resolveNodeTitleEditFrame({
+      titleTarget,
+      titleHitArea,
+      signalButton
+    });
+
+    return options.widgetEditingManager.beginSceneTextEdit({
+      nodeId,
+      focusKey: `${nodeId}:title`,
+      target: titleTarget,
+      value: node.title,
+      multiline: false,
+      frame,
+      onCommit: (nextTitle) => {
+        const trimmedTitle = nextTitle.trim();
+        const finalTitle = trimmedTitle || nextTitle;
+        if (finalTitle === node.title) {
+          return;
+        }
+
+        interactionCommitSource.emit({
+          type: "node.title.commit",
+          nodeId,
+          beforeTitle: node.title,
+          afterTitle: finalTitle
+        });
+      },
+      onCancel: () => {
+        titleTarget.text = node.title;
+        options.requestRender();
+      }
+    });
+  };
+
   const nodeShellHost = new LeaferGraphNodeShellHost<TNodeState>({
     nodeRegistry: options.nodeRegistry,
     layoutMetrics: options.nodeShellLayoutMetrics,
@@ -238,11 +324,13 @@ export function createLeaferGraphSceneRuntimeAssembly<
       interactionHost.bindNodeDragging(nodeId, state.view);
       interactionHost.bindNodePorts(nodeId, state);
       interactionHost.bindNodeResize(nodeId, state);
+      interactionHost.bindNodeTitleEditing(nodeId, state);
       interactionHost.bindNodeCollapseToggle(nodeId, state);
     },
     onNodeRefreshed: (nodeId, state) => {
       interactionHost.bindNodePorts(nodeId, state);
       interactionHost.bindNodeResize(nodeId, state);
+      interactionHost.bindNodeTitleEditing(nodeId, state);
       interactionHost.bindNodeCollapseToggle(nodeId, state);
       nodeShellHost.applyNodeSelectionStyles(state);
     }
@@ -365,6 +453,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     bringNodeViewToFront: (state) => viewHost.bringNodeViewToFront(state),
     syncNodeResizeHandleVisibility: (state) =>
       nodeShellHost.syncNodeResizeHandleVisibility(state),
+    beginNodeTitleEdit,
     requestRender: options.requestRender,
     resolveDraggedNodeIds: (nodeId) => viewHost.resolveDraggedNodeIds(nodeId),
     listSelectedNodeIds: () => viewHost.listSelectedNodeIds(),

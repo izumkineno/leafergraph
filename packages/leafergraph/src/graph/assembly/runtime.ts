@@ -43,6 +43,7 @@ import {
   createNodeCollapseHistoryRecord,
   createNodeMoveCommitHistoryRecord,
   createNodeResizeHistoryRecord,
+  createNodeTitleHistoryRecord,
   createNodeWidgetHistoryRecord,
   serializeRuntimeGraphDocument
 } from "../history";
@@ -215,6 +216,26 @@ export function createLeaferGraphRuntimeAssembly<
         nodeId: event.nodeId,
         beforeCollapsed: event.beforeCollapsed,
         afterCollapsed: event.afterCollapsed,
+        source: "interaction.commit"
+      });
+      if (record) {
+        historySource.emit(createHistoryRecordEvent(record));
+      }
+    },
+    "node.title.commit": (event) => {
+      const updatedNode = sceneRuntime.sceneRuntimeHost.updateNode(event.nodeId, {
+        title: event.afterTitle
+      });
+      if (!updatedNode) {
+        return;
+      }
+
+      const afterDocument = getGraphDocument();
+      const record = createNodeTitleHistoryRecord({
+        afterDocument,
+        nodeId: event.nodeId,
+        beforeTitle: event.beforeTitle,
+        afterTitle: event.afterTitle,
         source: "interaction.commit"
       });
       if (record) {

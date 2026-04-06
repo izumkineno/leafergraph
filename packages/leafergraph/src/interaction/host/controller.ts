@@ -267,6 +267,44 @@ export class LeaferGraphInteractionHostController<
   }
 
   /**
+   * 绑定节点标题双击编辑入口。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @param state - 当前节点视图状态。
+   * @returns 无返回值。
+   */
+  bindNodeTitleEditing(nodeId: string, state: TNodeViewState): void {
+    state.shellView.titleHitArea.on("double_tap", (event) => {
+      if (!event.right && !event.middle) {
+        this.clearNodeMotionState();
+        if (!this.options.runtime.isNodeSelected(nodeId)) {
+          this.options.runtime.setSelectedNodeIds([nodeId], "replace");
+        }
+        this.options.runtime.focusNode(nodeId);
+        this.options.runtime.beginNodeTitleEdit(nodeId);
+      }
+      event.stopNow?.();
+      event.stop?.();
+    });
+  }
+
+  /**
+   * 清除当前节点移动相关状态，避免编辑态和拖拽态并存。
+   *
+   * @returns 无返回值。
+   */
+  private clearNodeMotionState(): void {
+    if (!this.dragState && !this.resizeState) {
+      return;
+    }
+
+    this.dragState = null;
+    this.resizeState = null;
+    this.syncInteractionActivityState();
+    this.options.container.style.cursor = "";
+  }
+
+  /**
    * 绑定左上角信号球的折叠开关。
    *
    * @param nodeId - 目标节点 ID。

@@ -113,13 +113,18 @@ const EXAMPLE_LEAFER_DEBUG_CONFIG = {
  * `graph` 继续交给 `leafergraph` 主包消费，`leaferDebug` 则由 demo 自己在
  * `createLeaferGraph(...)` 前后应用到 Leafer 全局调试开关。
  */
-const EXAMPLE_MINI_GRAPH_CONFIG = {
+export const EXAMPLE_MINI_GRAPH_CONFIG = {
   graph: {
     graph: {
       runtime: {
         linkPropagationAnimation: "expressive"
       },
       history: EXAMPLE_GRAPH_HISTORY_CONFIG
+    },
+    widget: {
+      editing: {
+        enabled: true
+      }
     }
   },
   leaferDebug: EXAMPLE_LEAFER_DEBUG_CONFIG
@@ -1379,11 +1384,12 @@ export function useExampleGraph(): UseExampleGraphResult {
         setHistoryState(createEmptyHistoryState());
         const exampleConfig = {
           graph: {
+            ...EXAMPLE_MINI_GRAPH_CONFIG.graph,
             graph: {
+              ...EXAMPLE_MINI_GRAPH_CONFIG.graph.graph,
               runtime: {
                 linkPropagationAnimation: linkPropagationAnimationPreset
-              },
-              history: EXAMPLE_MINI_GRAPH_CONFIG.graph.graph.history
+              }
             }
           },
           leaferDebug: cloneExampleLeaferDebugConfig(leaferDebugConfig)

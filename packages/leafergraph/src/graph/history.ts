@@ -428,6 +428,42 @@ export function createNodeCollapseHistoryRecord(options: {
 }
 
 /**
+ * 创建节点标题改名历史记录。
+ *
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
+ */
+export function createNodeTitleHistoryRecord(options: {
+  afterDocument: GraphDocument;
+  nodeId: string;
+  beforeTitle: string;
+  afterTitle: string;
+  source: string;
+  label?: string;
+}): LeaferGraphSnapshotHistoryRecord | null {
+  if (options.beforeTitle === options.afterTitle) {
+    return null;
+  }
+
+  const beforeDocument = structuredClone(options.afterDocument);
+  const node = beforeDocument.nodes.find(
+    (currentNode) => currentNode.id === options.nodeId
+  );
+  if (!node) {
+    return null;
+  }
+
+  node.title = options.beforeTitle;
+
+  return createSnapshotHistoryRecord({
+    beforeDocument,
+    afterDocument: options.afterDocument,
+    source: options.source,
+    label: options.label ?? "Rename Node"
+  });
+}
+
+/**
  * 创建节点 Widget 历史记录。
  *
  * @param options - 可选配置项。

@@ -287,6 +287,17 @@ export class LeaferGraphNodeShellHost<
       fill: "transparent",
       hittable: false
     });
+    const hiddenTitleLabel = new LeaferUI.Text({
+      text: "",
+      visible: false,
+      hittable: false
+    });
+    const hiddenTitleHitArea = new Rect({
+      width: 0,
+      height: 0,
+      visible: false,
+      fill: "rgba(255, 255, 255, 0.001)"
+    });
     // 再按当前规则组合结果，并把派生数据一并收口到输出里。
     const hiddenSignalButton = new Rect({
       width: 0,
@@ -344,6 +355,8 @@ export class LeaferGraphNodeShellHost<
       selectedRing,
       card,
       label,
+      hiddenTitleHitArea,
+      hiddenTitleLabel,
       hiddenSignalButton,
       hiddenCategoryBadge,
       hiddenCategoryLabel,
@@ -358,6 +371,8 @@ export class LeaferGraphNodeShellHost<
       header: card,
       headerDivider: hiddenHeaderDivider,
       signalButton: hiddenSignalButton,
+      titleLabel: hiddenTitleLabel,
+      titleHitArea: hiddenTitleHitArea,
       categoryBadge: hiddenCategoryBadge,
       categoryLabel: hiddenCategoryLabel,
       widgetBackground: null,

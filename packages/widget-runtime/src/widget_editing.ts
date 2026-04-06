@@ -33,14 +33,25 @@ const LEAFER_GRAPH_WIDGET_MENU_ITEM_ACTIVE_CLASS =
 const LEAFER_GRAPH_WIDGET_EDITOR_CLASS = "leafergraph-widget-text-editor";
 const LEAFER_GRAPH_WIDGET_EDITOR_TAG = "LeaferGraphWidgetTextEditor";
 const LEAFER_GRAPH_WIDGET_EDIT_META = "__leaferGraphWidgetEditMeta";
+const LEAFER_GRAPH_TEXT_EDIT_META = "__leaferGraphTextEditMeta";
+
+export interface LeaferGraphTextEditMeta {
+  kind: string;
+  nodeId?: string;
+}
 
 type EditorHostApp = App;
 
 interface TextEditRuntimeMeta {
-  request: LeaferGraphWidgetTextEditRequest;
+  request: LeaferGraphSceneTextEditRequest;
   manager: LeaferGraphWidgetEditingManager;
   originalValue: string;
   cancelled: boolean;
+}
+
+interface LeaferGraphSceneTextEditRequest
+  extends Omit<LeaferGraphWidgetTextEditRequest, "widgetIndex"> {
+  focusKey: string;
 }
 
 type LeaferGraphEditableText = Text & {
@@ -59,6 +70,30 @@ type LeaferGraphEditableText = Text & {
   __?: Record<string, unknown>;
   [LEAFER_GRAPH_WIDGET_EDIT_META]?: TextEditRuntimeMeta;
 };
+
+export function setLeaferGraphTextEditMeta(
+  target: object,
+  meta: LeaferGraphTextEditMeta
+): void {
+  (target as Record<string, unknown>)[LEAFER_GRAPH_TEXT_EDIT_META] = {
+    ...meta
+  };
+}
+
+export function getLeaferGraphTextEditMeta(
+  target: unknown
+): LeaferGraphTextEditMeta | null {
+  if (!target || typeof target !== "object") {
+    return null;
+  }
+
+  const meta = (target as Record<string, unknown>)[LEAFER_GRAPH_TEXT_EDIT_META];
+  if (!meta || typeof meta !== "object") {
+    return null;
+  }
+
+  return meta as LeaferGraphTextEditMeta;
+}
 
 interface ActiveOptionsMenuState {
   request: LeaferGraphWidgetOptionsMenuRequest;
@@ -490,6 +525,27 @@ export class LeaferGraphWidgetEditingManager
    * @returns 对应的判断结果。
    */
   beginTextEdit(request: LeaferGraphWidgetTextEditRequest): boolean {
+    return this.beginSceneTextEditInternal({
+      ...request,
+      focusKey: createWidgetFocusKey(request.nodeId, request.widgetIndex)
+    });
+  }
+
+  beginSceneTextEdit(
+    request: Omit<LeaferGraphSceneTextEditRequest, "focusKey"> & {
+      focusKey: string;
+    }
+  ): boolean {
+    if (!getLeaferGraphTextEditMeta(request.target)) {
+      return false;
+    }
+
+    return this.beginSceneTextEditInternal(request);
+  }
+
+  private beginSceneTextEditInternal(
+    request: LeaferGraphSceneTextEditRequest
+  ): boolean {
     if (
       !this.enabled ||
       !this.options.useOfficialTextEditor ||
@@ -512,7 +568,7 @@ export class LeaferGraphWidgetEditingManager
       cancelled: false
     };
 
-    this.focusWidget(createWidgetFocusKey(request.nodeId, request.widgetIndex));
+    this.focusWidget(request.focusKey);
     editor.select(target);
     editor.openInnerEditor(target, LEAFER_GRAPH_WIDGET_EDITOR_TAG);
 

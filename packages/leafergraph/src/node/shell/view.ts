@@ -7,6 +7,7 @@
 
 import "@leafer-in/flow";
 import { Box, Group, Path, Rect, Text } from "leafer-ui";
+import { setLeaferGraphTextEditMeta } from "@leafergraph/widget-runtime";
 export type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
 import type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./layout";
@@ -55,6 +56,8 @@ export interface NodeShellView {
   header: Rect;
   headerDivider: Rect;
   signalButton: Rect;
+  titleLabel: Text;
+  titleHitArea: Rect;
   categoryBadge: Rect;
   categoryLabel: Text;
   widgetBackground: Rect | null;
@@ -140,6 +143,14 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     hittable: false
   });
 
+  const titleHitArea = new Rect({
+    name: `node-title-hit-${nodeId}`,
+    width: shellLayout.width,
+    height: theme.headerHeight,
+    fill: "rgba(255, 255, 255, 0.001)",
+    cursor: "grab"
+  });
+
   const signalGlow = new Rect({
     x: theme.signalGlowX,
     y: theme.signalGlowY,
@@ -175,12 +186,19 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   const titleLabel = new Text({
     x: theme.titleX,
     y: theme.titleY,
+    width: Math.max(categoryLayout.x - theme.titleX - 12, 1),
     text: title,
     fill: theme.titleFill,
     fontFamily: theme.titleFontFamily,
     fontSize: theme.titleFontSize,
     fontWeight: theme.titleFontWeight,
     hittable: false
+  });
+  titleLabel.textWrap = "none";
+  titleLabel.textOverflow = "...";
+  setLeaferGraphTextEditMeta(titleLabel, {
+    kind: "node-title",
+    nodeId
   });
 
   const categoryBadge = new Rect({
@@ -210,6 +228,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     card,
     header,
     headerDivider,
+    titleHitArea,
     signalGlow,
     signalLight,
     signalButton,
@@ -400,6 +419,8 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     header,
     headerDivider,
     signalButton,
+    titleLabel,
+    titleHitArea,
     categoryBadge,
     categoryLabel,
     widgetBackground,

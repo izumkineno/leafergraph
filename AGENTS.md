@@ -12,14 +12,11 @@
 
 以下约束在 `leafergraph` 目录内默认强制执行：
 
+- 使用`RTK`替换一般检索工具，具体参考`RTK - Rust Token Killer (Codex CLI)`章节
 - 凡是需要启动外部工具、应用、服务、测试 runner、浏览器、开发服务器或后端进程时，必须优先通过可见窗口入口启动，例如 `PowerShell`、`Windows Terminal`、`cmd` 或用户明确指定的其他可见终端入口。
 - 禁止使用无窗、隐藏窗口、静默驻留或后台守护式启动方式，例如 `pythonw`、`Start-Process -WindowStyle Hidden`、`start /b`、`nohup`、脱离窗口的 daemon 化启动，或其他用户无法直接看到和接管的后台命令。
 - 如需给用户提供启动命令，默认写成“在可见 PowerShell 窗口中执行”的形式；若需要由代理代为启动，也应优先使用新的可见 PowerShell 窗口承载该进程，而不是把长期任务留在无窗后台环境中。
 - 仅限短生命周期、只读、不会留下后台进程的查询类命令，可以在当前代理 shell 中直接执行；一旦命令会持续运行、监听端口、占用资源或影响联调环境，就必须切回可见窗口入口。
-- Python 相关命令统一使用 `uv`，包括安装依赖、运行脚本、启动服务和执行测试。
-- 禁止直接使用裸 `python`、`pip`、`pytest`、`python -m` 作为默认入口；应分别改为 `uv run python ...`、`uv pip ...`、`uv run pytest ...`、`uv sync` 等 `uv` 统一入口。
-- 若用户明确要求使用某个非 `uv` 的 Python 入口，或仓库中的现存脚本只能通过非 `uv` 方式工作，需要先在说明中明确偏离原因，再执行对应命令。
-
 ---
 
 ## 项目定位
@@ -166,3 +163,37 @@
 - `E:\Code\Node_editor\leafer-docs\reference\UI\forceUpdate.md`
 - `E:\Code\Node_editor\leafer-docs\reference\config\app\canvas.md`
 - `E:\Code\Node_editor\leafer-docs\reference\config\app\type.md`
+
+
+# RTK - Rust Token Killer (Codex CLI)
+
+**Usage**: Token-optimized CLI proxy for shell commands.
+
+## Rule
+
+Always prefix shell commands with `rtk`.
+
+Examples:
+
+```bash
+rtk git status
+rtk cargo test
+rtk npm run build
+rtk pytest -q
+```
+
+## Meta Commands
+
+```bash
+rtk gain            # Token savings analytics
+rtk gain --history  # Recent command savings history
+rtk proxy <cmd>     # Run raw command without filtering
+```
+
+## Verification
+
+```bash
+rtk --version
+rtk gain
+which rtk
+```

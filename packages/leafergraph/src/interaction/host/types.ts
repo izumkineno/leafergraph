@@ -144,6 +144,8 @@ export interface LeaferGraphInteractiveNodeViewState<
   shellView: {
     /** 状态灯按钮事件源。 */
     signalButton: LeaferGraphWidgetEventSource;
+    /** 标题栏双击热区。 */
+    titleHitArea: LeaferGraphWidgetEventSource;
     /** 当前节点的端口视图列表。 */
     portViews: LeaferGraphInteractivePortViewState[];
   };
