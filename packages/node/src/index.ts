@@ -69,6 +69,17 @@ export {
   validateWidgetPropertySpec,
   validateWidgetSpec
 } from "./widget.js";
+/** 共享的深拷贝工具。 */
+export {
+  clonePropertySpec,
+  clonePropertySpecs,
+  cloneRecord,
+  cloneSlotSpec,
+  cloneSlotSpecs,
+  cloneValue,
+  cloneWidgetSpec,
+  cloneWidgetSpecs
+} from "./utils.js";
 /** 节点运行时 API 工厂。 */
 export { createNodeApi } from "./api.js";
 /** 节点实例工厂。 */
