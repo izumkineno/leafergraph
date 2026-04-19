@@ -32,6 +32,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@leafergraph/authoring": "workspace:*",
+        "@leafergraph/authoring-basic-nodes": "workspace:*",
         "@leafergraph/basic-kit": "workspace:*",
         "@leafergraph/context-menu": "workspace:*",
         "@leafergraph/context-menu-builtins": "workspace:*",
@@ -155,6 +156,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@leafer-in/arrow": "^2.0.3",
+        "@leafer-in/flow": "^2.0.3",
         "@leafer-in/resize": "^2.0.3",
         "@leafer-in/state": "^2.0.3",
         "@leafer-in/view": "^2.0.3",
@@ -364,6 +366,8 @@
     "@leafer-in/arrow": ["@leafer-in/arrow@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-ui/draw": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-k1/dNbQYs0bi5FSHENOHkWzx+wjodHuZfYHzWaPA9dbxTVP3yBYZem6yz7ZbUFvFMJoEsS/C7iMV1ARCk2oVSw=="],
 
     "@leafer-in/editor": ["@leafer-in/editor@2.0.3", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.3", "@leafer-in/resize": "^2.0.3", "@leafer-ui/core": "^2.0.3", "@leafer-ui/draw": "^2.0.3", "@leafer-ui/interface": "^2.0.3" } }, "sha512-EzQNbzSpVJ8SPQdOzMQd3gZseqJPNbO/1LO+jNeoC6+tiJb2Jim3y86YYceQpzvJ3d/udGqrSPZrpyyJNzS+aQ=="],
+
+    "@leafer-in/flow": ["@leafer-in/flow@2.0.8", "", { "peerDependencies": { "@leafer-in/interface": "^2.0.8", "@leafer-in/resize": "^2.0.8", "@leafer-ui/draw": "^2.0.8", "@leafer-ui/interface": "^2.0.8" } }, "sha512-DLPzGOfRyUgfq2YvXUfU9y+nZ2y2DsbVmse3vsKCtPxBIa9Xln8dZNvb6L0dBNVpBVbjKF2plKgp6vpDoOIISg=="],
 
     "@leafer-in/interface": ["@leafer-in/interface@2.0.3", "", { "peerDependencies": { "@leafer-ui/interface": "^2.0.3", "@leafer/interface": "^2.0.3" } }, "sha512-5J065dRB7DJC0tjvH+Z7TByWUXWLY/ibN8Zkoq9O2k/PfhIRqrI6JAyjXpBmLWMqr58Yh4nstoj9xBbTpTAXfQ=="],
 

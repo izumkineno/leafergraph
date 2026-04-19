@@ -1259,7 +1259,7 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     const registrationPromise = (async () => {
       try {
-        const module = await import("../../../authoring-basic-nodes/src/index.ts");
+        const module = await import("@leafergraph/authoring-basic-nodes");
         graph.use(module.default);
         autoRegisteredAuthoringBasicNodesRef.current = true;
         appendLog(

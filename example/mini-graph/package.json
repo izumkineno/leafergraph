@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@leafergraph/authoring-basic-nodes": "workspace:*",
     "@leafergraph/widget-runtime": "workspace:*",
     "@leafergraph/authoring": "workspace:*",
     "@leafergraph/basic-kit": "workspace:*",

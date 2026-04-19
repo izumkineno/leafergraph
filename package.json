@@ -11,7 +11,8 @@
     "templates/misc/authoring-browser-plugin-template"
   ],
   "scripts": {
-    "dev:minimal-graph": "bun run --filter leafergraph-minimal-graph-example dev",
+    "ensure:authoring-basic-nodes-dist": "node -e \"const fs = require('node:fs'); const cp = require('node:child_process'); const required = ['example/authoring-basic-nodes/dist/index.js', 'example/authoring-basic-nodes/dist/index.d.ts']; if (required.every((file) => fs.existsSync(file))) process.exit(0); cp.execSync('bun run build:authoring-basic-nodes', { stdio: 'inherit' });\"",
+    "dev:minimal-graph": "bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example dev",
     "check:runtime-only-root": "node ./scripts/check_runtime_only_root.mjs",
     "check:workspace-boundaries": "node ./scripts/check_workspace_boundaries.mjs",
     "check:jsdoc": "node ./scripts/check_jsdoc_coverage.mjs",
@@ -30,7 +31,7 @@
     "build:shortcuts": "bun run --filter @leafergraph/shortcuts build",
     "build:undo-redo": "bun run --filter @leafergraph/undo-redo build",
     "build:leafergraph": "bun run --filter leafergraph build",
-    "build:minimal-graph": "bun run --filter leafergraph-minimal-graph-example build",
+    "build:minimal-graph": "bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example build",
     "build:authoring-basic-nodes": "bun run --filter @leafergraph/authoring-basic-nodes build",
     "build": "bun run build:node && bun run build:execution && bun run build:theme && bun run build:config && bun run build:contracts && bun run build:widget-runtime && bun run build:basic-kit && bun run build:authoring && bun run build:context-menu && bun run build:context-menu-builtins && bun run build:shortcuts && bun run build:undo-redo && bun run build:leafergraph",
     "test:node": "bun run --filter @leafergraph/node test",
@@ -46,11 +47,11 @@
     "test:undo-redo": "bun run --filter @leafergraph/undo-redo test",
     "test:leafergraph": "bun run --filter leafergraph test",
     "test:core": "bun run test:node && bun run test:execution && bun run test:theme && bun run test:contracts && bun run && bun run test:widget-runtime && bun run test:basic-kit && bun run test:authoring && bun run test:context-menu && bun run test:context-menu-builtins && bun run test:shortcuts && bun run test:undo-redo && bun run test:leafergraph",
-    "test:smoke:examples": "bun run build:minimal-graph && bun run check:authoring-basic-nodes && bun run build:authoring-basic-nodes",
+    "test:smoke:examples": "bun run check:authoring-basic-nodes && bun run build:authoring-basic-nodes && bun run build:minimal-graph",
     "test:smoke:templates": "bun run --filter @template/authoring-node-template check && bun run --filter @template/authoring-node-template build && bun run --filter @template/authoring-text-widget-template check && bun run --filter @template/authoring-text-widget-template build && bun run --filter @template/authoring-browser-plugin-template check && bun run --filter @template/authoring-browser-plugin-template build",
     "test:smoke": "bun run test:smoke:examples && bun run test:smoke:templates",
     "test": "bun run check:boundaries && bun run check:jsdoc && bun run test:core && bun run test:smoke",
-    "preview:minimal-graph": "bun run --filter leafergraph-minimal-graph-example preview",
+    "preview:minimal-graph": "bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example preview"
   },
   "devDependencies": {
     "@types/node": "^25.4.0",

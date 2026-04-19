@@ -29,6 +29,7 @@
     "@leafergraph/theme": "workspace:*",
     "@leafergraph/widget-runtime": "workspace:*",
     "@leafer-in/arrow": "^2.0.3",
+    "@leafer-in/flow": "^2.0.3",
     "@leafer-in/resize": "^2.0.3",
     "@leafer-in/state": "^2.0.3",
     "@leafer-in/view": "^2.0.3",
