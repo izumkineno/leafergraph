@@ -28,6 +28,13 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup Pages
+        if: ${{ secrets.PAGES_ENABLEMENT_TOKEN != '' }}
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.PAGES_ENABLEMENT_TOKEN }}
+
       - name: Resolve GitHub Pages base
         shell: bash
         run: |
@@ -37,7 +44,6 @@ jobs:
           else
             echo "GITHUB_PAGES_BASE=/$REPO_NAME/mini-graph/" >> "$GITHUB_ENV"
           fi
-          echo "GITHUB_PAGES_OUT_DIR=mini-graph" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
