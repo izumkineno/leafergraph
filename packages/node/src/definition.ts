@@ -1,3 +1,10 @@
+/**
+ * 节点与模块的正式定义模型。
+ *
+ * 这些结构描述的是“某类节点具备什么静态能力”，
+ * 而不是某个节点实例在当前运行中的状态。
+ */
+
 import type { NodeLifecycle } from "./lifecycle.js";
 import type { NodePropertySpec, NodeSlotSpec, NodeWidgetSpec } from "./types.js";
 
@@ -23,23 +30,43 @@ export interface NodeResizeConfig {
 }
 
 /**
+ * 节点壳静态配置。
+ * 它描述的是“这类节点在宿主壳层应该如何被表达”，不是业务运行时数据。
+ */
+export interface NodeShellConfig {
+  /** 该类节点是否属于长耗时任务。 */
+  longTask?: boolean;
+}
+
+/**
  * 节点类型定义。
  * 它描述的是“某一类节点”的静态能力，而不是某个节点实例的当前状态。
  */
 export interface NodeDefinition extends NodeLifecycle {
+  /** 节点类型标识。 */
   type: string;
+  /** 默认标题。 */
   title?: string;
+  /** 默认分类。 */
   category?: string;
+  /** 描述信息。 */
   description?: string;
+  /** 搜索与归类关键词。 */
   keywords?: string[];
+  /** 默认输入槽位声明。 */
   inputs?: NodeSlotSpec[];
+  /** 默认输出槽位声明。 */
   outputs?: NodeSlotSpec[];
+  /** 默认属性声明。 */
   properties?: NodePropertySpec[];
+  /** 默认 Widget 声明。 */
   widgets?: NodeWidgetSpec[];
   /** 节点默认尺寸。 */
   size?: [number, number];
   /** 节点 resize 约束。建议新代码优先使用该字段。 */
   resize?: NodeResizeConfig;
+  /** 节点壳静态配置。 */
+  shell?: NodeShellConfig;
   /** 兼容旧写法的最小宽度快捷字段。 */
   minWidth?: number;
   /** 兼容旧写法的最小高度快捷字段。 */
@@ -51,10 +78,15 @@ export interface NodeDefinition extends NodeLifecycle {
  * 当前阶段它主要负责值归一化与序列化，不直接承担绘制。
  */
 export interface WidgetDefinition {
+  /** Widget 类型标识。 */
   type: string;
+  /** Widget 标题。 */
   title?: string;
+  /** Widget 描述。 */
   description?: string;
+  /** 运行时值归一化钩子。 */
   normalize?(value: unknown, spec?: NodeWidgetSpec): unknown;
+  /** 持久化值序列化钩子。 */
   serialize?(value: unknown, spec?: NodeWidgetSpec): unknown;
 }
 
@@ -63,7 +95,9 @@ export interface WidgetDefinition {
  * 它用于给同一模块内的节点批量补默认命名空间和默认分组。
  */
 export interface NodeModuleScope {
+  /** 节点类型默认命名空间。 */
   namespace?: string;
+  /** 节点默认分组。 */
   group?: string;
 }
 
@@ -72,6 +106,8 @@ export interface NodeModuleScope {
  * 当前模块只承载节点定义，Widget 需要通过主包单独注册。
  */
 export interface NodeModule {
+  /** 该模块统一应用的默认作用域。 */
   scope?: NodeModuleScope;
+  /** 模块中包含的节点定义。 */
   nodes?: NodeDefinition[];
 }

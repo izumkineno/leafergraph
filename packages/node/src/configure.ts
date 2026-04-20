@@ -1,3 +1,10 @@
+/**
+ * 节点重配置入口。
+ *
+ * 这个模块负责把一份“可恢复的节点输入”重新投影到既有运行时实例上，
+ * 让反序列化、热更新或编辑器属性修改都走同一条整形逻辑。
+ */
+
 import { createNodeApi } from "./api.js";
 import type { NodeRegistry } from "./registry.js";
 import type { NodeRuntimeState, NodeSerializeResult } from "./types.js";
@@ -24,6 +31,11 @@ export type NodeConfigureInput = Partial<NodeSerializeResult> &
 /**
  * 按节点定义和覆写数据重新配置一个既有节点实例。
  * 该函数会同步刷新属性、槽位、Widget 和运行时缓存，并触发 `onConfigure`。
+ *
+ * @param registry - 注册表。
+ * @param node - 节点。
+ * @param data - 当前数据。
+ * @returns 处理后的结果。
  */
 export function configureNode(
   registry: NodeRegistry,

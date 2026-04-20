@@ -1,3 +1,10 @@
+/**
+ * 节点定义注册表。
+ *
+ * 这个模块只负责节点定义的存取与结构性校验，
+ * 不承担图实例管理、执行调度或 Widget 真正的注册持久化。
+ */
+
 import type { NodeDefinition } from "./definition.js";
 import { NodeDefinitionExistsError, UnknownNodeTypeError } from "./errors.js";
 import { cloneDefinition } from "./utils.js";
@@ -23,8 +30,15 @@ export interface RegisterNodeOptions {
  */
 export class NodeRegistry {
   private readonly definitions = new Map<string, NodeDefinition>();
+  /** 只读 Widget 定义读取器，用于节点声明校验。 */
   readonly widgetDefinitions: WidgetDefinitionReader;
 
+  /**
+   * 初始化 NodeRegistry 实例。
+   *
+   * @param widgetDefinitions - Widget 定义。
+   * @param definitions - 定义。
+   */
   constructor(
     widgetDefinitions: WidgetDefinitionReader,
     definitions: NodeDefinition[] = []
@@ -39,6 +53,10 @@ export class NodeRegistry {
   /**
    * 注册一个节点定义。
    * 注册表内部始终保存副本，避免外部继续修改原对象影响宿主状态。
+   *
+   * @param definition - 定义。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
    */
   register(definition: NodeDefinition, options: RegisterNodeOptions = {}): void {
     const type = definition.type.trim();
@@ -62,32 +80,63 @@ export class NodeRegistry {
     );
   }
 
-  /** `register` 的语义化别名。 */
+  /**
+   *  `register` 的语义化别名。
+   *
+   * @param definition - 定义。
+   * @param options - 可选配置项。
+   * @returns 无返回值。
+   */
   registerNode(definition: NodeDefinition, options?: RegisterNodeOptions): void {
     this.register(definition, options);
   }
 
-  /** 从注册表移除节点定义。 */
+  /**
+   *  从注册表移除节点定义。
+   *
+   * @param type - 类型。
+   * @returns 无返回值。
+   */
   unregister(type: string): void {
     this.definitions.delete(type);
   }
 
-  /** `unregister` 的语义化别名。 */
+  /**
+   *  `unregister` 的语义化别名。
+   *
+   * @param type - 类型。
+   * @returns 无返回值。
+   */
   unregisterNode(type: string): void {
     this.unregister(type);
   }
 
-  /** 获取节点定义；未命中时返回 `undefined`。 */
+  /**
+   *  获取节点定义；未命中时返回 `undefined`。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   get(type: string): NodeDefinition | undefined {
     return this.definitions.get(type);
   }
 
-  /** `get` 的语义化别名。 */
+  /**
+   *  `get` 的语义化别名。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   getNode(type: string): NodeDefinition | undefined {
     return this.get(type);
   }
 
-  /** 获取节点定义；未命中时抛出错误。 */
+  /**
+   *  获取节点定义；未命中时抛出错误。
+   *
+   * @param type - 类型。
+   * @returns 处理后的结果。
+   */
   require(type: string): NodeDefinition {
     const definition = this.get(type);
 
@@ -98,22 +147,40 @@ export class NodeRegistry {
     return definition;
   }
 
-  /** 判断节点类型是否已经注册。 */
+  /**
+   *  判断节点类型是否已经注册。
+   *
+   * @param type - 类型。
+   * @returns 对应的判断结果。
+   */
   has(type: string): boolean {
     return this.definitions.has(type);
   }
 
-  /** `has` 的语义化别名。 */
+  /**
+   *  `has` 的语义化别名。
+   *
+   * @param type - 类型。
+   * @returns 对应的判断结果。
+   */
   hasNode(type: string): boolean {
     return this.has(type);
   }
 
-  /** 以数组形式返回当前全部节点定义。 */
+  /**
+   *  以数组形式返回当前全部节点定义。
+   *
+   * @returns 收集到的结果列表。
+   */
   list(): NodeDefinition[] {
     return [...this.definitions.values()];
   }
 
-  /** `list` 的语义化别名。 */
+  /**
+   *  `list` 的语义化别名。
+   *
+   * @returns 收集到的结果列表。
+   */
   listNodes(): NodeDefinition[] {
     return this.list();
   }
@@ -121,6 +188,10 @@ export class NodeRegistry {
   /**
    * 在注册节点前做结构性校验。
    * 当前重点校验节点声明中引用的 Widget 是否已存在。
+   *
+   * @param definition - 定义。
+   * @param validateWidgets - `validate` Widget。
+   * @returns 无返回值。
    */
   private validateDefinition(
     definition: NodeDefinition,

@@ -1,0 +1,38 @@
+{
+  "name": "@leafergraph/authoring-basic-nodes",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && vite build && tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test --preload ../../packages/leafergraph/tests/setup.ts ./tests"
+  },
+  "peerDependencies": {
+    "@leafergraph/authoring": "^0.1.0",
+    "@leafergraph/execution": "^0.1.0",
+    "@leafergraph/node": "^0.1.0",
+    "leafergraph": "^0.1.0"
+  },
+  "devDependencies": {
+    "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/execution": "workspace:*",
+    "@leafergraph/node": "workspace:*",
+    "leafergraph": "workspace:*",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  }
+}

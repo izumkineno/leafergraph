@@ -1,3 +1,10 @@
+/**
+ * 节点序列化入口。
+ *
+ * 它把宿主持有的运行时实例裁剪成稳定的可恢复结构，
+ * 并允许节点定义在最终落盘前做一次输出修整。
+ */
+
 import { createNodeApi } from "./api.js";
 import type { NodeRegistry } from "./registry.js";
 import type { NodeRuntimeState, NodeSerializeResult } from "./types.js";
@@ -14,6 +21,10 @@ import { serializeWidgetSpecs } from "./widget.js";
 /**
  * 将节点运行时状态转成可持久化结构。
  * 它会主动剔除输入输出缓存，只保留可恢复的静态与配置状态。
+ *
+ * @param registry - 注册表。
+ * @param node - 节点。
+ * @returns 处理后的结果。
  */
 export function serializeNode(
   registry: NodeRegistry,

@@ -10,9 +10,9 @@ import type { NodeRuntimeState } from "@leafergraph/node";
 import {
   resolveNodeShellLayout,
   type NodeShellLayoutMetrics
-} from "./node_layout";
-import type { NodeShellView } from "./node_shell";
-import type { LeaferGraphWidgetRenderInstance } from "../api/plugin";
+} from "./shell/layout";
+import type { NodeShellView } from "./shell/view";
+import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/contracts";
 
 type LeaferGraphNodeShellLayout = ReturnType<typeof resolveNodeShellLayout>;
 
@@ -29,6 +29,8 @@ export interface NodeViewState<
   shellView: NodeShellView;
   widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>;
   hovered: boolean;
+  titleLabel?: Text;
+  titleHitArea?: Rect;
 }
 
 /**
@@ -71,6 +73,11 @@ export class LeaferGraphNodeHost<
 > {
   private readonly options: LeaferGraphNodeHostOptions<TNodeState>;
 
+  /**
+   * 初始化 LeaferGraphNodeHost 实例。
+   *
+   * @param options - 可选配置项。
+   */
   constructor(options: LeaferGraphNodeHostOptions<TNodeState>) {
     this.options = options;
   }
@@ -113,6 +120,8 @@ export class LeaferGraphNodeHost<
    * 同时让端口、Widget 区和 resize 句柄按最新布局重新生成。
    *
    * @param state - 待刷新的节点视图状态。
+   *
+   * @returns 无返回值。
    */
   refreshNodeView(state: NodeViewState<TNodeState>): void {
     const shellLayout = resolveNodeShellLayout(

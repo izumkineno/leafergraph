@@ -6,7 +6,7 @@
  * 以最小订阅接口暴露给 editor。
  */
 
-import type { LeaferGraphInteractionCommitEvent } from "../api/graph_api_types";
+import type { LeaferGraphInteractionCommitEvent } from "@leafergraph/contracts";
 
 /** 交互提交事件订阅源。 */
 export interface LeaferGraphInteractionCommitSource {
@@ -22,6 +22,8 @@ export interface LeaferGraphInteractionCommitSource {
  * @remarks
  * 这里刻意不耦合任何场景或 editor 语义，
  * 只负责分发已经归一化完成的提交事件。
+ *
+ * @returns 创建后的结果对象。
  */
 export function createLeaferGraphInteractionCommitSource(): LeaferGraphInteractionCommitSource {
   const listeners = new Set<

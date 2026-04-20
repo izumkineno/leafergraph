@@ -1,0 +1,37 @@
+export type LeaferGraphShortcutPlatform = "mac" | "windows" | "linux";
+
+/**
+ * 解析快捷键`Platform`。
+ *
+ * @param platform - `platform`。
+ * @returns 处理后的结果。
+ */
+export function resolveShortcutPlatform(
+  platform?: LeaferGraphShortcutPlatform
+): LeaferGraphShortcutPlatform {
+  if (platform) {
+    return platform;
+  }
+
+  if (typeof navigator === "undefined") {
+    return "windows";
+  }
+
+  const currentPlatform =
+    (navigator as Navigator & {
+      userAgentData?: {
+        platform?: string;
+      };
+    }).userAgentData?.platform ??
+    navigator.platform ??
+    "";
+  if (/mac/i.test(currentPlatform)) {
+    return "mac";
+  }
+
+  if (/linux/i.test(currentPlatform)) {
+    return "linux";
+  }
+
+  return "windows";
+}

@@ -1,7 +1,12 @@
 node_modules/
-packages/*/dist/
+dist/
+examples/editor/playwright-report/
+examples/editor/test-results/
+examples/editor/src/session/authority_openrpc/_generated/
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+.omx
+.agents

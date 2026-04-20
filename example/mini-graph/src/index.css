@@ -1,0 +1,110 @@
+:root {
+  color-scheme: dark light;
+  --bg: #020617;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #7dd3fc;
+  --accent-strong: #38bdf8;
+  --code-bg: rgba(15, 23, 42, 0.88);
+  --panel-top: rgba(15, 23, 42, 0.58);
+  --panel-bottom: rgba(2, 6, 23, 0.9);
+  --panel-glow: rgba(96, 165, 250, 0.14);
+  --panel-border: rgba(148, 163, 184, 0.14);
+  --panel-shadow: rgba(2, 6, 23, 0.34);
+  --panel-highlight: rgba(255, 255, 255, 0.05);
+  --overlay-bg: rgba(2, 6, 23, 0.7);
+  --overlay-border: rgba(148, 163, 184, 0.2);
+  --overlay-shadow: rgba(2, 6, 23, 0.4);
+  --overlay-section-bg: rgba(15, 23, 42, 0.72);
+  font-family:
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    system-ui,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 34%),
+    linear-gradient(180deg, #0f172a 0%, #020617 42%, #01040d 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #eef4fb;
+    --text: #0f172a;
+    --muted: #475569;
+    --accent: #0369a1;
+    --accent-strong: #0ea5e9;
+    --code-bg: rgba(203, 213, 225, 0.52);
+    --panel-top: rgba(255, 255, 255, 0.82);
+    --panel-bottom: rgba(226, 232, 240, 0.94);
+    --panel-glow: rgba(14, 165, 233, 0.18);
+    --panel-border: rgba(148, 163, 184, 0.28);
+    --panel-shadow: rgba(15, 23, 42, 0.12);
+    --panel-highlight: rgba(255, 255, 255, 0.55);
+    --overlay-bg: rgba(255, 255, 255, 0.76);
+    --overlay-border: rgba(148, 163, 184, 0.24);
+    --overlay-shadow: rgba(15, 23, 42, 0.16);
+    --overlay-section-bg: rgba(255, 255, 255, 0.62);
+    background:
+      radial-gradient(circle at top, rgba(14, 165, 233, 0.18), transparent 32%),
+      linear-gradient(180deg, #f8fbff 0%, #eef4fb 46%, #e2e8f0 100%);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.3vw, 1.85rem);
+  line-height: 1.02;
+  letter-spacing: -0.05em;
+}
+
+p {
+  margin: 0;
+}
+
+code {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #dbeafe;
+  background: var(--code-bg);
+  font-family:
+    "Cascadia Code",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+  font-size: 0.95em;
+}
+
+button {
+  font: inherit;
+}

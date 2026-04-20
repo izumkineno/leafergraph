@@ -1,3 +1,10 @@
+/**
+ * 节点运行时 API 工厂。
+ *
+ * 这里负责把可变的 `NodeRuntimeState` 包装成一组稳定方法，
+ * 供生命周期钩子、执行器和宿主工具层共同调用。
+ */
+
 import type { NodeDefinition } from "./definition.js";
 import type { NodeApi } from "./lifecycle.js";
 import type {
@@ -20,14 +27,21 @@ import { type WidgetDefinitionReader, normalizeWidgetSpec } from "./widget.js";
  * 宿主可以按需注入定义对象和 Widget 注册表，让 API 在运行时补充校验与钩子。
  */
 export interface CreateNodeApiOptions {
+  /** 当前节点对应的正式定义；用于触发生命周期钩子。 */
   definition?: NodeDefinition;
+  /** Widget 定义读取器；用于归一化运行时新增 Widget。 */
   widgetDefinitions?: WidgetDefinitionReader;
+  /** 输出值写入后的宿主回调。 */
   onSetOutputData?(slot: number, data: unknown): void;
 }
 
 /**
  * 为节点运行时状态创建一组可操作 API。
  * 这些 API 会被生命周期钩子和宿主逻辑共同复用。
+ *
+ * @param node - 节点。
+ * @param options - 可选配置项。
+ * @returns 创建后的结果对象。
  */
 export function createNodeApi(
   node: NodeRuntimeState,
@@ -118,6 +132,12 @@ export function createNodeApi(
 
 /**
  * 以宿主统一的拷贝规则创建槽位声明。
+ * 这样运行时新增的槽位也能与静态定义保持同一份结构语义。
+ *
+ * @param name - `name`。
+ * @param type - 类型。
+ * @param extra - `extra`。
+ * @returns 创建后的结果对象。
  */
 function createSlotSpec(
   name: string,

@@ -53,6 +53,9 @@ export interface LinkBezierCurve {
 /**
  * 根据节点边界和端口布局计算连线起止点。
  * 这里保持简单且高性能：布局决策放在外部，调用方可自行选择端口。
+ *
+ * @param input - 输入参数。
+ * @returns 处理后的结果。
  */
 export function resolveLinkEndpoints(input: LinkEndpointInput): LinkEndpoints {
   const start: LinkPoint = [
@@ -72,6 +75,12 @@ export function resolveLinkEndpoints(input: LinkEndpointInput): LinkEndpoints {
  *
  * @remarks
  * 正式连线渲染与数据流动画都应复用这份曲线，避免路径和采样各算各的。
+ *
+ * @param start - `start`。
+ * @param end - `end`。
+ * @param startDir - `startDir` 参数。
+ * @param endDir - `endDir` 参数。
+ * @returns 处理后的结果。
  */
 export function buildLinkCurve(
   start: LinkPoint,
@@ -103,6 +112,11 @@ export function buildLinkCurve(
 
 /**
  * 由节点端口几何直接生成共享的三次贝塞尔曲线。
+ *
+ * @param input - 输入参数。
+ * @param startDir - `startDir` 参数。
+ * @param endDir - `endDir` 参数。
+ * @returns 处理后的结果。
  */
 export function resolveLinkCurve(
   input: LinkEndpointInput,
@@ -113,7 +127,12 @@ export function resolveLinkCurve(
   return buildLinkCurve(endpoints.start, endpoints.end, startDir, endDir);
 }
 
-/** 把共享曲线转成最终路径字符串。 */
+/**
+ *  把共享曲线转成最终路径字符串。
+ *
+ * @param curve - `curve`。
+ * @returns 处理后的结果。
+ */
 export function buildLinkPathFromCurve(curve: LinkBezierCurve): string {
   return `M ${curve.start[0]} ${curve.start[1]} C ${curve.control1[0]} ${curve.control1[1]}, ${curve.control2[0]} ${curve.control2[1]}, ${curve.end[0]} ${curve.end[1]}`;
 }
@@ -121,6 +140,12 @@ export function buildLinkPathFromCurve(curve: LinkBezierCurve): string {
 /**
  * 生成三次贝塞尔路径字符串（LiteGraph 思路）：
  * 使用两个控制点沿端口方向外推，形成清晰的出线扩展。
+ *
+ * @param start - `start`。
+ * @param end - `end`。
+ * @param startDir - `startDir` 参数。
+ * @param endDir - `endDir` 参数。
+ * @returns 处理后的结果。
  */
 export function buildLinkPath(
   start: LinkPoint,
@@ -131,7 +156,13 @@ export function buildLinkPath(
   return buildLinkPathFromCurve(buildLinkCurve(start, end, startDir, endDir));
 }
 
-/** 按进度采样共享曲线上的一个世界坐标点。 */
+/**
+ *  按进度采样共享曲线上的一个世界坐标点。
+ *
+ * @param curve - `curve`。
+ * @param progress - `progress`。
+ * @returns 处理后的结果。
+ */
 export function sampleLinkCurvePoint(
   curve: LinkBezierCurve,
   progress: number
@@ -155,6 +186,11 @@ export function sampleLinkCurvePoint(
 /**
  * 给控制点施加方向偏移，复刻 LiteGraph 的控制柄策略，
  * 让曲线保持稳定可读。
+ *
+ * @param point - 坐标。
+ * @param dir - `dir`。
+ * @param distance - `distance`。
+ * @returns 无返回值。
  */
 export function applyDirectionalHandle(
   point: [number, number],

@@ -1,3 +1,10 @@
+/**
+ * 节点生命周期与运行时 API 协议。
+ *
+ * 这个模块只定义模型层与宿主之间共享的调用约定，
+ * 不负责具体调度策略、执行器实现或 UI 行为。
+ */
+
 import type {
   NodePropertySpec,
   NodeRuntimeState,
@@ -13,15 +20,25 @@ import type {
  * 这些方法主要复刻旧版节点系统里高频使用的实例操作能力。
  */
 export interface NodeApi {
+  /** 追加一个输入槽位，并返回写入后的槽位声明。 */
   addInput(name: string, type?: SlotType, extra?: Partial<NodeSlotSpec>): NodeSlotSpec;
+  /** 追加一个输出槽位，并返回写入后的槽位声明。 */
   addOutput(name: string, type?: SlotType, extra?: Partial<NodeSlotSpec>): NodeSlotSpec;
+  /** 按索引移除一个输入槽位。 */
   removeInput(index: number): void;
+  /** 按索引移除一个输出槽位。 */
   removeOutput(index: number): void;
+  /** 新增或覆写一个属性声明。 */
   addProperty(spec: NodePropertySpec): void;
+  /** 追加一个 Widget 声明。 */
   addWidget(spec: NodeWidgetSpec): void;
+  /** 读取输入缓存中的值。 */
   getInputData(slot: number, forceUpdate?: boolean): unknown;
+  /** 写入输出缓存中的值。 */
   setOutputData(slot: number, data: unknown): void;
+  /** 按名称查找输入槽位索引；未命中时返回 `-1`。 */
   findInputSlot(name: string): number;
+  /** 按名称查找输出槽位索引；未命中时返回 `-1`。 */
   findOutputSlot(name: string): number;
 }
 
@@ -37,7 +54,7 @@ export interface NodeLifecycle {
   /** 节点序列化前触发，可覆写最终输出内容。 */
   onSerialize?(node: NodeRuntimeState, data: NodeSerializeResult, api: NodeApi): void;
   /** 节点执行阶段钩子。 */
-  onExecute?(node: NodeRuntimeState, context?: unknown, api?: NodeApi): void;
+  onExecute?(node: NodeRuntimeState, context?: unknown, api?: NodeApi): void | Promise<void>;
   /** 节点属性变化后触发，可返回 `false` 拦截后续宿主默认行为。 */
   onPropertyChanged?(
     node: NodeRuntimeState,
@@ -71,7 +88,7 @@ export interface NodeLifecycle {
     param: unknown,
     options: Record<string, unknown> | undefined,
     api: NodeApi
-  ): void;
+  ): void | Promise<void>;
   /** 触发型消息入口，语义上更偏事件广播。 */
   onTrigger?(
     node: NodeRuntimeState,
@@ -79,5 +96,5 @@ export interface NodeLifecycle {
     param: unknown,
     options: Record<string, unknown> | undefined,
     api: NodeApi
-  ): void;
+  ): void | Promise<void>;
 }

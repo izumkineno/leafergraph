@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2023",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "skipLibCheck": true,
+    "paths": {
+      "@leafergraph/basic-kit": ["../../packages/basic-kit/src/index.ts"],
+      "@leafergraph/contracts": ["../../packages/contracts/src/index.ts"],
+      "@leafergraph/context-menu": ["../../packages/context-menu/src/index.ts"],
+      "@leafergraph/context-menu-builtins": ["../../packages/context-menu-builtins/src/index.ts"],
+      "@leafergraph/undo-redo": ["../../packages/undo-redo/src/index.ts"],
+      "@leafergraph/undo-redo/graph": ["../../packages/undo-redo/src/graph/index.ts"],
+      "@leafergraph/theme": ["../../packages/theme/src/index.ts"],
+      "react": ["./node_modules/preact/compat/"],
+      "react-dom": ["./node_modules/preact/compat/"]
+    },
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["src"]
+}

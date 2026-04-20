@@ -1,0 +1,48 @@
+import type {
+  LeaferGraphContextMenuBuiltinFeatureDefinition
+} from "../types";
+import { pasteClipboardFragment } from "../editing";
+
+export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
+  id: "canvasPaste",
+  register({
+    clipboard,
+    host,
+    options,
+    registerResolver,
+    createLink,
+    createNode,
+    resolveShortcutLabel
+  }) {
+    return registerResolver("canvas-paste", (context) => {
+      if (context.target.kind !== "canvas") {
+        return [];
+      }
+
+      const fragment = clipboard.getFragment();
+      return [
+        {
+          key: "builtin-canvas-paste",
+          label: "粘贴",
+          shortcut: resolveShortcutLabel("graph.paste"),
+          order: 40,
+          disabled: !fragment?.nodes.length,
+          async onSelect() {
+            if (!fragment?.nodes.length) {
+              return;
+            }
+
+            await pasteClipboardFragment({
+              fragment,
+              host,
+              createLink,
+              createNode,
+              context,
+              offset: options.pasteOffset
+            });
+          }
+        }
+      ];
+    });
+  }
+};
