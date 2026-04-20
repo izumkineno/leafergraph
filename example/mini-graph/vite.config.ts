@@ -3,16 +3,10 @@ import { defineConfig } from "vite";
 import preact from "@preact/preset-vite";
 
 const githubPagesBase = process.env.GITHUB_PAGES_BASE;
-const githubPagesOutDir = process.env.GITHUB_PAGES_OUT_DIR;
 
 export default defineConfig({
   base: githubPagesBase ?? "/",
   plugins: [preact()],
-  build: {
-    outDir: githubPagesOutDir
-      ? resolve(__dirname, "dist", githubPagesOutDir)
-      : resolve(__dirname, "dist")
-  },
   resolve: {
     alias: [
       {
