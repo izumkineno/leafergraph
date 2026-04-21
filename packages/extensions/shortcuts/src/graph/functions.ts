@@ -83,10 +83,7 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canCopySelection?.() ?? true,
         run: ({ data }) => {
-          const result = data.clipboard?.copySelection();
-          if (isPromiseLike(result)) {
-            return result.then(() => undefined);
-          }
+          return data.clipboard?.copySelection();
         }
       }),
       registry.register({
@@ -94,10 +91,7 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canCutSelection?.() ?? true,
         run: ({ data }) => {
-          const result = data.clipboard?.cutSelection();
-          if (isPromiseLike(result)) {
-            return result.then(() => undefined);
-          }
+          return data.clipboard?.cutSelection();
         }
       }),
       registry.register({
@@ -105,10 +99,7 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canPasteClipboard?.() ?? true,
         run: ({ data }) => {
-          const result = data.clipboard?.pasteClipboard();
-          if (isPromiseLike(result)) {
-            return result.then(() => undefined);
-          }
+          return data.clipboard?.pasteClipboard();
         }
       }),
       registry.register({
@@ -116,10 +107,7 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canDuplicateSelection?.() ?? true,
         run: ({ data }) => {
-          const result = data.clipboard?.duplicateSelection();
-          if (isPromiseLike(result)) {
-            return result.then(() => undefined);
-          }
+          return data.clipboard?.duplicateSelection();
         }
       })
     );

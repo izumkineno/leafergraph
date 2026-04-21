@@ -32,7 +32,7 @@ export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition 
               return;
             }
 
-            const pasted = pasteClipboardFragment({
+            return pasteClipboardFragment({
               fragment,
               host,
               createLink,

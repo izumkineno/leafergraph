@@ -38,7 +38,7 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
               return;
             }
 
-            const pasted = pasteClipboardFragment({
+            return pasteClipboardFragment({
               fragment,
               host,
               createLink,
