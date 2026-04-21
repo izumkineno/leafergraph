@@ -117,4 +117,5 @@ bun run test:smoke:templates
 - [Widget Templates](./widget/README.md)
 - [@leafergraph/authoring README](../packages/authoring/README.md)
 - [package split 执行验证矩阵](../docs/package-split-verification.md)
+- 如果你在模板上改文档或依赖说明，建议同时更新上面的验证矩阵，避免 README 和实际 smoke 状态漂移。
 - [外部节点包接入方案](../docs/节点插件接入方案.md)

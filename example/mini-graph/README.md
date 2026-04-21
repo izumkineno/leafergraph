@@ -133,6 +133,7 @@ bun run build
 - [根 README](../../README.md)
 - [leafergraph README](../../packages/leafergraph/README.md)
 - [package split 执行验证矩阵](../../docs/package-split-verification.md)
+- 如果你在兼容层或扩展装配方式上做调整，先看验证矩阵里的 smoke 结果，再决定是不是 README 需要同步改写。
 - [@leafergraph/context-menu-builtins README](../../packages/context-menu-builtins/README.md)
 - [@leafergraph/shortcuts README](../../packages/shortcuts/README.md)
 - [@leafergraph/undo-redo README](../../packages/undo-redo/README.md)

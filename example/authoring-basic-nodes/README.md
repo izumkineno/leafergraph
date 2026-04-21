@@ -94,4 +94,5 @@ bun run build:authoring-basic-nodes
 - [根 README](../../README.md)
 - [@leafergraph/authoring README](../../packages/authoring/README.md)
 - [package split 执行验证矩阵](../../docs/package-split-verification.md)
+- 当 authoring 与 core foundation 的边界继续演进时，优先更新验证矩阵，再回头校正文档示例。
 - [Templates 总览](../../templates/README.md)
