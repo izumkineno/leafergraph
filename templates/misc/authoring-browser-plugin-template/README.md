@@ -35,14 +35,14 @@
 
 这份模板默认建立在这些真源包之上：
 
-- `@leafergraph/authoring`
-- `@leafergraph/contracts`
-- `@leafergraph/node`
+- `@leafergraph/extensions/authoring`
+- `@leafergraph/core/contracts`
+- `@leafergraph/core/node`
 
 如果你直接在宿主里跑它的 demo，通常还会额外用到：
 
 - `leafergraph`
-- `@leafergraph/basic-kit`
+- `@leafergraph/core/basic-kit`
 
 ## 目录速览
 
@@ -93,7 +93,7 @@ bun run build
 
 ```ts
 import { createLeaferGraph } from "leafergraph";
-import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
+import { leaferGraphBasicKitPlugin } from "@leafergraph/core/basic-kit";
 import authoringBrowserTemplatePlugin, {
   authoringBrowserTemplateDemoDocument
 } from "@template/authoring-browser-plugin-template";
@@ -117,5 +117,7 @@ await graph.ready;
 ## 继续阅读
 
 - [Templates 总览](../../README.md)
-- [@leafergraph/authoring README](../../../packages/authoring/README.md)
+- [@leafergraph/extensions/authoring README](../../../packages/extensions/authoring/README.md)
 - [外部节点包接入方案](../../../docs/节点插件接入方案.md)
+
+

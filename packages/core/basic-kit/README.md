@@ -1,6 +1,6 @@
-# `@leafergraph/basic-kit`
+# `@leafergraph/core/basic-kit`
 
-`@leafergraph/basic-kit` 是 LeaferGraph workspace 的默认内容包。
+`@leafergraph/core/basic-kit` 是 LeaferGraph workspace 的默认内容包。
 
 它负责把“基础 widgets + 系统节点”打包成一套显式安装的默认内容，而不再让主包隐式内装这些条目。
 
@@ -48,7 +48,7 @@
 推荐方式是把它作为 plugin 显式装进主包：
 
 ```ts
-import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
+import { leaferGraphBasicKitPlugin } from "@leafergraph/core/basic-kit";
 import { createLeaferGraph } from "leafergraph";
 
 const graph = createLeaferGraph(container, {
@@ -61,8 +61,8 @@ await graph.ready;
 如果你只想要其中一部分内容，也可以拆开用：
 
 ```ts
-import { createBasicSystemNodeModule } from "@leafergraph/basic-kit/node";
-import { BasicWidgetLibrary } from "@leafergraph/basic-kit/widget";
+import { createBasicSystemNodeModule } from "@leafergraph/core/basic-kit/node";
+import { BasicWidgetLibrary } from "@leafergraph/core/basic-kit/widget";
 
 graph.installModule(createBasicSystemNodeModule(), { overwrite: true });
 
@@ -75,10 +75,10 @@ for (const entry of new BasicWidgetLibrary().createEntries()) {
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/basic-kit` | 默认内容包 |
-| `@leafergraph/widget-runtime` | Widget runtime 真源 |
-| `@leafergraph/execution` | 系统执行节点的逻辑真源 |
-| `@leafergraph/theme` | 默认视觉主题真源 |
+| `@leafergraph/core/basic-kit` | 默认内容包 |
+| `@leafergraph/core/widget-runtime` | Widget runtime 真源 |
+| `@leafergraph/core/execution` | 系统执行节点的逻辑真源 |
+| `@leafergraph/core/theme` | 默认视觉主题真源 |
 | `leafergraph` | 消费这套默认内容的图宿主 |
 
 一个简单判断是：
@@ -99,7 +99,7 @@ bun run test:basic-kit
 
 ### 组件分类概览
 
-`@leafergraph/basic-kit` 提供了 11 种内建 Widget 类型，按交互能力分为两类：
+`@leafergraph/core/basic-kit` 提供了 11 种内建 Widget 类型，按交互能力分为两类：
 
 | 分类 | 数量 | 组件类型 |
 |------|------|---------|
@@ -402,6 +402,9 @@ bun run test:basic-kit
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/execution README](../execution/README.md)
-- [@leafergraph/widget-runtime README](../widget-runtime/README.md)
+- [@leafergraph/core/execution README](../execution/README.md)
+- [@leafergraph/core/widget-runtime README](../widget-runtime/README.md)
 - [leafergraph README](../leafergraph/README.md)
+
+
+

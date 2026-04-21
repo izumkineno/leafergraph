@@ -1,6 +1,6 @@
-# `@leafergraph/context-menu`
+# `@leafergraph/extensions/context-menu`
 
-`@leafergraph/context-menu` 是纯 Leafer-first 的右键菜单 runtime 包。
+`@leafergraph/extensions/context-menu` 是纯 Leafer-first 的右键菜单 runtime 包。
 
 它负责菜单目标绑定、resolver 链和 DOM overlay；它不再承载 `leafergraph` 专属 builtins，也不依赖主包。
 
@@ -29,12 +29,12 @@
 - `LeaferContextMenuContext`
 - `LeaferContextMenuTarget`
 
-配置真源来自 `@leafergraph/config`，主题 token 来自 `@leafergraph/theme`。
+配置真源来自 `@leafergraph/core/config`，主题 token 来自 `@leafergraph/core/theme`。
 
 ## 最小使用方式
 
 ```ts
-import { createLeaferContextMenu } from "@leafergraph/context-menu";
+import { createLeaferContextMenu } from "@leafergraph/extensions/context-menu";
 
 const menu = createLeaferContextMenu({
   app: graph.app,
@@ -72,16 +72,16 @@ menu.bindCanvas(graph.app, { title: "画布" });
 
 如果你要直接接节点图常见动作，请额外装：
 
-- `@leafergraph/context-menu-builtins`
+- `@leafergraph/extensions/context-menu-builtins`
 
 ## 与其它包的边界
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/context-menu` | 纯菜单 runtime |
-| `@leafergraph/context-menu-builtins` | 节点图内建菜单动作集成层 |
-| `@leafergraph/config` | 菜单行为配置真源 |
-| `@leafergraph/theme` | 菜单视觉 token 真源 |
+| `@leafergraph/extensions/context-menu` | 纯菜单 runtime |
+| `@leafergraph/extensions/context-menu-builtins` | 节点图内建菜单动作集成层 |
+| `@leafergraph/core/config` | 菜单行为配置真源 |
+| `@leafergraph/core/theme` | 菜单视觉 token 真源 |
 
 ## 常用命令
 
@@ -95,5 +95,8 @@ bun run test:context-menu
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/context-menu-builtins README](../context-menu-builtins/README.md)
+- [@leafergraph/extensions/context-menu-builtins README](../context-menu-builtins/README.md)
 - [mini-graph README](../../example/mini-graph/README.md)
+
+
+

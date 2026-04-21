@@ -59,14 +59,14 @@
 
 模板当前默认建立在这些真源包之上：
 
-- `@leafergraph/authoring`
-- `@leafergraph/node`
-- `@leafergraph/contracts`
+- `@leafergraph/extensions/authoring`
+- `@leafergraph/core/node`
+- `@leafergraph/core/contracts`
 
 部分模板或示例还会额外依赖：
 
 - `leafergraph`
-- `@leafergraph/basic-kit`
+- `@leafergraph/core/basic-kit`
 
 固定原则是：
 
@@ -76,15 +76,15 @@
 
 ## package split 期间如何理解模板依赖
 
-当前模板源码仍然跟着现有 workspace 包名走；但在拆分完成后，这些依赖会收口到更明确的 target package。
+当前模板文档直接以正式 split 包名为准：
 
-| 当前依赖 | 拆分后目标 |
+| 依赖 | 正式位置 |
 | --- | --- |
-| `@leafergraph/node` | `@leafergraph/core/node` |
-| `@leafergraph/contracts` | `@leafergraph/core/contracts` |
-| `@leafergraph/widget-runtime` | `@leafergraph/core/widget-runtime` |
-| `@leafergraph/basic-kit` | `@leafergraph/core/basic-kit` |
-| `@leafergraph/authoring` | `@leafergraph/extensions/authoring` |
+| `@leafergraph/core/node` | core foundation |
+| `@leafergraph/core/contracts` | core foundation |
+| `@leafergraph/core/widget-runtime` | core runtime |
+| `@leafergraph/core/basic-kit` | core runtime |
+| `@leafergraph/extensions/authoring` | extensions / authoring SDK |
 
 文档写法约定：
 
@@ -115,7 +115,9 @@ bun run test:smoke:templates
 
 - [Node Templates](./node/README.md)
 - [Widget Templates](./widget/README.md)
-- [@leafergraph/authoring README](../packages/authoring/README.md)
+- [@leafergraph/extensions/authoring README](../packages/extensions/authoring/README.md)
 - [package split 执行验证矩阵](../docs/package-split-verification.md)
 - 如果你在模板上改文档或依赖说明，建议同时更新上面的验证矩阵，避免 README 和实际 smoke 状态漂移。
 - [外部节点包接入方案](../docs/节点插件接入方案.md)
+
+

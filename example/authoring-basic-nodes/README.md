@@ -8,7 +8,7 @@
 
 适合：
 
-- 想看 `@leafergraph/authoring` 的真实落地样子
+- 想看 `@leafergraph/extensions/authoring` 的真实落地样子
 - 想参考一个纯 ESM 作者层包怎么组织导出
 - 想知道如何把状态读数 Widget 跟节点一起分发
 
@@ -58,19 +58,12 @@ graph.installModule(authoringBasicNodesModule);
 
 这个示例包当前依赖这些真源：
 
-- `@leafergraph/authoring`
-- `@leafergraph/execution`
-- `@leafergraph/node`
+- `@leafergraph/extensions/authoring`
+- `@leafergraph/core/execution`
+- `@leafergraph/core/node`
 - `leafergraph`
 
-如果按 package split 的目标结构来理解，这组依赖会对应为：
-
-| 当前依赖 | 拆分后目标 |
-| --- | --- |
-| `@leafergraph/authoring` | `@leafergraph/extensions/authoring` |
-| `@leafergraph/execution` | `@leafergraph/core/execution` |
-| `@leafergraph/node` | `@leafergraph/core/node` |
-| `leafergraph` | `leafergraph`（兼容主包） |
+其中 `leafergraph` 只承担 runtime-only 宿主接线；模型、执行和作者层真源仍然应从 split 后的 core / extensions 包导入。
 
 它不自动提供：
 
@@ -78,7 +71,7 @@ graph.installModule(authoringBasicNodesModule);
 - `system/timer`
 - 基础 widgets
 
-如果宿主还需要这些默认内容，请额外安装 `@leafergraph/basic-kit`。
+如果宿主还需要这些默认内容，请额外安装 `@leafergraph/core/basic-kit`。
 
 ## 构建与检查
 
@@ -92,7 +85,9 @@ bun run build:authoring-basic-nodes
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/authoring README](../../packages/authoring/README.md)
+- [@leafergraph/extensions/authoring README](../../packages/extensions/authoring/README.md)
 - [package split 执行验证矩阵](../../docs/package-split-verification.md)
 - 当 authoring 与 core foundation 的边界继续演进时，优先更新验证矩阵，再回头校正文档示例。
 - [Templates 总览](../../templates/README.md)
+
+

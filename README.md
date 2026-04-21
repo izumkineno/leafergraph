@@ -18,24 +18,24 @@
 
 | 层级 | 当前包 | 作用 |
 | --- | --- | --- |
-| core foundation | `@leafergraph/node`、`@leafergraph/execution`、`@leafergraph/contracts` | 定义节点模型、执行链、跨包共享协议 |
-| core runtime | `@leafergraph/config`、`@leafergraph/theme`、`@leafergraph/widget-runtime`、`@leafergraph/basic-kit` | 提供配置、主题、Widget runtime 和默认内容包 |
+| core foundation | `@leafergraph/core/node`、`@leafergraph/core/execution`、`@leafergraph/core/contracts` | 定义节点模型、执行链、跨包共享协议 |
+| core runtime | `@leafergraph/core/config`、`@leafergraph/core/theme`、`@leafergraph/core/widget-runtime`、`@leafergraph/core/basic-kit` | 提供配置、主题、Widget runtime 和默认内容包 |
 | 主包兼容层 | `leafergraph` | 作为 runtime-only 主包，对外提供 Leafer 图宿主 façade |
-| 宿主扩展层 | `@leafergraph/context-menu`、`@leafergraph/context-menu-builtins`、`@leafergraph/shortcuts`、`@leafergraph/undo-redo` | 提供菜单、内建动作、快捷键和历史栈扩展 |
-| 作者层 | `@leafergraph/authoring` | 提供节点 / Widget 作者层 SDK |
+| 宿主扩展层 | `@leafergraph/extensions/context-menu`、`@leafergraph/extensions/context-menu-builtins`、`@leafergraph/extensions/shortcuts`、`@leafergraph/extensions/undo-redo` | 提供菜单、内建动作、快捷键和历史栈扩展 |
+| 作者层 | `@leafergraph/extensions/authoring` | 提供节点 / Widget 作者层 SDK |
 | 消费样例层 | `example/`、`templates/` | 提供 dogfood 示例和可复制模板 |
 
 额外记住三个固定约束：
 
 - `leafergraph` 已经收口成 runtime-only 主包，不再聚合 re-export 其它真源包。
-- `@leafergraph/shortcuts`、`@leafergraph/undo-redo` 已进入默认 build/test 聚合，但文档定位仍然是“非核心维护包 / 宿主扩展层”。
+- `@leafergraph/extensions/shortcuts`、`@leafergraph/extensions/undo-redo` 已进入默认 build/test 聚合，但文档定位仍然是“非核心维护包 / 宿主扩展层”。
 - 当前仓库里没有活动中的 `runtime-bridge` 包；凡是还提到它的文档，都应视为历史草案或待清理内容。
 
-## 已批准的包拆分目标（执行中）
+## 当前正式布局与兼容映射
 
-当前正在执行的 package split 会把正式包重新落到 `packages/core/*` 和 `packages/extensions/*` 两条目录下。阅读或维护文档时，可以先按这张映射表理解：
+当前正式包已经落到 `packages/core/*` 和 `packages/extensions/*` 两条目录下。阅读旧文档或迁移笔记时，可以先按这张兼容映射表理解：
 
-| 当前包 | 目标包 | 备注 |
+| 旧名 / 草案名 | 当前正式包 | 备注 |
 | --- | --- | --- |
 | `@leafergraph/node` | `@leafergraph/core/node` | core foundation |
 | `@leafergraph/execution` | `@leafergraph/core/execution` | core foundation |
@@ -49,7 +49,7 @@
 | `@leafergraph/shortcuts` | `@leafergraph/extensions/shortcuts` | extensions |
 | `@leafergraph/undo-redo` | `@leafergraph/extensions/undo-redo` | extensions |
 | `@leafergraph/authoring` | `@leafergraph/extensions/authoring` | extensions / authoring SDK |
-| `leafergraph` | `leafergraph` | 保留为兼容主包，由 lane 4 决定最终 exports/deps 策略 |
+| `leafergraph` | `leafergraph` | runtime-only 兼容主包；根入口只保留 `LeaferGraph` / `createLeaferGraph(...)`，高级兼容子路径按最小集合维护 |
 
 这轮拆分里，README / docs / example / templates 统一遵守下面的写法约定：
 
@@ -80,26 +80,26 @@
 
 ### 我想理解节点模型、文档和插件入口
 
-1. [@leafergraph/node README](./packages/node/README.md)
-2. [@leafergraph/contracts README](./packages/contracts/README.md)
+1. [@leafergraph/core/node README](./packages/core/node/README.md)
+2. [@leafergraph/core/contracts README](./packages/core/contracts/README.md)
 3. [节点 API 与节点壳专题](./docs/节点API方案.md)
 4. [外部节点包接入专题](./docs/节点插件接入方案.md)
 
 ### 我想写节点类、Widget 类或对外模板
 
-1. [@leafergraph/authoring README](./packages/authoring/README.md)
+1. [@leafergraph/extensions/authoring README](./packages/extensions/authoring/README.md)
 2. [authoring-basic-nodes README](./example/authoring-basic-nodes/README.md)
 3. [Templates 总览](./templates/README.md)
 4. [架构演进与提案总览](./docs/架构演进与提案总览.md)
 
 ### 我想接主题、配置、菜单、快捷键或历史栈
 
-1. [@leafergraph/theme README](./packages/theme/README.md)
-2. [@leafergraph/config README](./packages/config/README.md)
-3. [@leafergraph/context-menu README](./packages/context-menu/README.md)
-4. [@leafergraph/context-menu-builtins README](./packages/context-menu-builtins/README.md)
-5. [@leafergraph/shortcuts README](./packages/shortcuts/README.md)
-6. [@leafergraph/undo-redo README](./packages/undo-redo/README.md)
+1. [@leafergraph/core/theme README](./packages/core/theme/README.md)
+2. [@leafergraph/core/config README](./packages/core/config/README.md)
+3. [@leafergraph/extensions/context-menu README](./packages/extensions/context-menu/README.md)
+4. [@leafergraph/extensions/context-menu-builtins README](./packages/extensions/context-menu-builtins/README.md)
+5. [@leafergraph/extensions/shortcuts README](./packages/extensions/shortcuts/README.md)
+6. [@leafergraph/extensions/undo-redo README](./packages/extensions/undo-redo/README.md)
 
 ### 我在维护主包内部装配链
 
@@ -112,19 +112,19 @@
 
 | 路径 | 什么时候看 | 你会在这里找到什么 |
 | --- | --- | --- |
-| [`packages/node`](./packages/node/README.md) | 需要模型真源时 | `NodeDefinition`、`NodeModule`、`GraphDocument`、`NodeRegistry` |
-| [`packages/theme`](./packages/theme/README.md) | 需要视觉主题时 | `themePreset`、`themeMode`、graph/widget/context-menu token |
-| [`packages/config`](./packages/config/README.md) | 需要行为配置时 | `graph`、`widget`、`context-menu`、`leafer` 配置和 normalize helper |
-| [`packages/execution`](./packages/execution/README.md) | 需要执行内核时 | 执行上下文、传播语义、图级状态机和本地反馈适配器 |
-| [`packages/contracts`](./packages/contracts/README.md) | 需要跨包共享协议时 | 插件协议、图 API 输入输出、Widget 契约、history/diff helper |
-| [`packages/widget-runtime`](./packages/widget-runtime/README.md) | 需要 Widget runtime 真源时 | registry、renderer lifecycle、editing、interaction helper |
-| [`packages/basic-kit`](./packages/basic-kit/README.md) | 需要默认内容时 | 基础 widgets、系统节点和一键安装 plugin |
+| [`packages/core/node`](./packages/core/node/README.md) | 需要模型真源时 | `NodeDefinition`、`NodeModule`、`GraphDocument`、`NodeRegistry` |
+| [`packages/core/theme`](./packages/core/theme/README.md) | 需要视觉主题时 | `themePreset`、`themeMode`、graph/widget/context-menu token |
+| [`packages/core/config`](./packages/core/config/README.md) | 需要行为配置时 | `graph`、`widget`、`context-menu`、`leafer` 配置和 normalize helper |
+| [`packages/core/execution`](./packages/core/execution/README.md) | 需要执行内核时 | 执行上下文、传播语义、图级状态机和本地反馈适配器 |
+| [`packages/core/contracts`](./packages/core/contracts/README.md) | 需要跨包共享协议时 | 插件协议、图 API 输入输出、Widget 契约、history/diff helper |
+| [`packages/core/widget-runtime`](./packages/core/widget-runtime/README.md) | 需要 Widget runtime 真源时 | registry、renderer lifecycle、editing、interaction helper |
+| [`packages/core/basic-kit`](./packages/core/basic-kit/README.md) | 需要默认内容时 | 基础 widgets、系统节点和一键安装 plugin |
 | [`packages/leafergraph`](./packages/leafergraph/README.md) | 需要图运行时主包时 | `LeaferGraph`、`createLeaferGraph(...)` 和 runtime façade |
-| [`packages/context-menu`](./packages/context-menu/README.md) | 需要纯 Leafer 菜单 runtime 时 | DOM 菜单 overlay、target 绑定、resolver 链 |
-| [`packages/context-menu-builtins`](./packages/context-menu-builtins/README.md) | 需要节点图内建菜单动作时 | 复制、粘贴、删除、运行、历史和快捷键文案接线 |
-| [`packages/shortcuts`](./packages/shortcuts/README.md) | 需要宿主快捷键时 | 功能注册表、按键注册表、graph 快捷键预设 |
-| [`packages/undo-redo`](./packages/undo-redo/README.md) | 需要历史栈时 | undo/redo controller、graph history 绑定 |
-| [`packages/authoring`](./packages/authoring/README.md) | 需要作者层 SDK 时 | `BaseNode`、`BaseWidget`、plugin / module 组装 |
+| [`packages/extensions/context-menu`](./packages/extensions/context-menu/README.md) | 需要纯 Leafer 菜单 runtime 时 | DOM 菜单 overlay、target 绑定、resolver 链 |
+| [`packages/extensions/context-menu-builtins`](./packages/extensions/context-menu-builtins/README.md) | 需要节点图内建菜单动作时 | 复制、粘贴、删除、运行、历史和快捷键文案接线 |
+| [`packages/extensions/shortcuts`](./packages/extensions/shortcuts/README.md) | 需要宿主快捷键时 | 功能注册表、按键注册表、graph 快捷键预设 |
+| [`packages/extensions/undo-redo`](./packages/extensions/undo-redo/README.md) | 需要历史栈时 | undo/redo controller、graph history 绑定 |
+| [`packages/extensions/authoring`](./packages/extensions/authoring/README.md) | 需要作者层 SDK 时 | `BaseNode`、`BaseWidget`、plugin / module 组装 |
 
 ## 深层文档
 
@@ -163,7 +163,7 @@
   - 同时覆盖 `basic-kit`、菜单、shortcuts、undo-redo、bundle loader 和运行时动画
 - [authoring-basic-nodes](./example/authoring-basic-nodes/README.md)
   - 纯作者层示例包
-  - 适合看 `@leafergraph/authoring` 产物如何收口成 plugin / module
+  - 适合看 `@leafergraph/extensions/authoring` 产物如何收口成 plugin / module
 - `example/web-crawler-nodes`
   - 作为源码级作者层示例存在
   - 当前暂无独立 README，不作为一线对外导航入口
@@ -229,3 +229,5 @@ bun run build:authoring-basic-nodes
 - `docs/` 下的事实型专题以当前源码和包 README 为准；如果二者冲突，优先相信当前源码。
 - package split 仍在执行中的内容，统一写到 `docs/架构演进与提案总览.md`，不要混写成“当前已经落地”的事实。
 - `注意事项.md` 用于维护跨任务复用的踩坑记录，不写成方案草案。
+
+

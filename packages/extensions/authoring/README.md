@@ -1,6 +1,6 @@
-# `@leafergraph/authoring`
+# `@leafergraph/extensions/authoring`
 
-`@leafergraph/authoring` 是 LeaferGraph workspace 的作者层 SDK。
+`@leafergraph/extensions/authoring` 是 LeaferGraph workspace 的作者层 SDK。
 
 它提供面向节点作者和 Widget 作者的类式体验，并把作者代码收口成 `NodeModule`、`LeaferGraphWidgetEntry` 和 `LeaferGraphNodePlugin` 这类正式产物。
 
@@ -46,7 +46,7 @@
 ## 最小使用方式
 
 ```ts
-import { BaseNode, createAuthoringPlugin } from "@leafergraph/authoring";
+import { BaseNode, createAuthoringPlugin } from "@leafergraph/extensions/authoring";
 
 class EchoNode extends BaseNode<
   { message: string },
@@ -87,9 +87,9 @@ const plugin = createAuthoringPlugin({
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/node` | 模型真源 |
-| `@leafergraph/contracts` | 正式插件和 Widget 契约 |
-| `@leafergraph/authoring` | 类式作者层体验 |
+| `@leafergraph/core/node` | 模型真源 |
+| `@leafergraph/core/contracts` | 正式插件和 Widget 契约 |
+| `@leafergraph/extensions/authoring` | 类式作者层体验 |
 | `leafergraph` | 图运行时宿主 |
 | `templates/` | 把作者层产物组织成可分发样例 |
 
@@ -113,3 +113,6 @@ bun run test:authoring
 - [架构演进与提案总览](../../docs/架构演进与提案总览.md)
 - [authoring-basic-nodes 示例](../../example/authoring-basic-nodes/README.md)
 - [Templates 总览](../../templates/README.md)
+
+
+

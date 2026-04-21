@@ -1,6 +1,6 @@
-# `@leafergraph/shortcuts`
+# `@leafergraph/extensions/shortcuts`
 
-`@leafergraph/shortcuts` 是 LeaferGraph workspace 的宿主输入扩展包。
+`@leafergraph/extensions/shortcuts` 是 LeaferGraph workspace 的宿主输入扩展包。
 
 它采用“功能注册表 + 按键注册表”的两层模型，把快捷键 runtime 和 graph 预设从主包里拆出来。它已经进入默认 build/test 聚合，但文档定位仍是“非核心维护包 / 宿主输入扩展层”。
 
@@ -45,7 +45,7 @@ import {
   createShortcutController,
   createShortcutFunctionRegistry,
   createShortcutKeymapRegistry
-} from "@leafergraph/shortcuts";
+} from "@leafergraph/extensions/shortcuts";
 
 const functionRegistry = createShortcutFunctionRegistry();
 const keymapRegistry = createShortcutKeymapRegistry();
@@ -75,7 +75,7 @@ dispose();
 如果你在 `leafergraph` 宿主里直接接 graph 预设：
 
 ```ts
-import { bindLeaferGraphShortcuts } from "@leafergraph/shortcuts/graph";
+import { bindLeaferGraphShortcuts } from "@leafergraph/extensions/shortcuts/graph";
 
 const binding = bindLeaferGraphShortcuts({
   target: document,
@@ -120,9 +120,9 @@ const binding = bindLeaferGraphShortcuts({
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/shortcuts` | 快捷键 runtime 与 graph 预设 |
-| `@leafergraph/context-menu-builtins` | 可消费快捷键标签，但不会反向依赖这个包 |
-| `@leafergraph/undo-redo` | 历史栈真源；`shortcuts` 只可选消费 history host |
+| `@leafergraph/extensions/shortcuts` | 快捷键 runtime 与 graph 预设 |
+| `@leafergraph/extensions/context-menu-builtins` | 可消费快捷键标签，但不会反向依赖这个包 |
+| `@leafergraph/extensions/undo-redo` | 历史栈真源；`shortcuts` 只可选消费 history host |
 | `leafergraph` | 图运行时 façade；`shortcuts` 通过结构兼容对接它 |
 
 ## 常用命令
@@ -137,6 +137,9 @@ bun run test:shortcuts
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/undo-redo README](../undo-redo/README.md)
-- [@leafergraph/context-menu-builtins README](../context-menu-builtins/README.md)
+- [@leafergraph/extensions/undo-redo README](../undo-redo/README.md)
+- [@leafergraph/extensions/context-menu-builtins README](../context-menu-builtins/README.md)
 - [mini-graph README](../../example/mini-graph/README.md)
+
+
+

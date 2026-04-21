@@ -4,7 +4,7 @@
 
 它负责把 `GraphDocument` 恢复成 Leafer 场景，装配交互、刷新和宿主态投影，并通过 `LeaferGraph` / `createLeaferGraph(...)` 暴露稳定实例 API。
 
-执行链真源已经迁到 `@leafergraph/execution`。主包仍然负责把执行状态投影回节点壳、连线和运行反馈，因此 `RuntimeFeedbackEvent` 依旧从 `leafergraph` 暴露，作为 host-level superset 使用。
+执行链真源已经迁到 `@leafergraph/core/execution`。主包仍然负责把执行状态投影回节点壳、连线和运行反馈，但根入口已经收口为 runtime-only façade：共享类型与运行反馈真源应继续从 core / extensions 包导入，而不是要求主包重新聚合。
 
 ## 包定位
 
@@ -33,11 +33,18 @@
 执行相关类型和宿主边界建议这样导入：
 
 - `GraphDocument`、`NodeDefinition`、`NodeModule`
-  - `@leafergraph/node`
+  - `@leafergraph/core/node`
 - `LeaferGraphExecutionContext`、`LeaferGraphActionExecutionOptions`、`ExecutionFeedbackEvent`
-  - `@leafergraph/execution`
+  - `@leafergraph/core/execution`
 - `LeaferGraphOptions`、`LeaferGraphNodePlugin`、`RuntimeFeedbackEvent`
-  - `leafergraph`
+  - `@leafergraph/core/contracts`
+- `LeaferGraphApiHost`
+  - `leafergraph/api/graph_api_host`
+
+也就是说，`leafergraph` 当前只保留两类公开面：
+
+- 根入口：`LeaferGraph`、`createLeaferGraph(...)`
+- 最小兼容子路径：`leafergraph/api/graph_api_host`
 
 ## 内部结构
 
@@ -87,7 +94,7 @@ src/graph/
 其中：
 
 - `assembly/widget_environment.ts` 是 Widget 基础环境的装配工厂，不再是旧的 `*host`
-- 图级执行宿主直接来自 `@leafergraph/execution`
+- 图级执行宿主直接来自 `@leafergraph/core/execution`
 - 主包内部统一使用 `graphExecutionHost` 字段名，不再保留旧 execution 字段名
 
 `link/` 与 `node/` 现在统一直接使用真实实现目录：
@@ -129,9 +136,9 @@ src/node/
 ## 五分钟上手
 
 ```ts
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument } from "@leafergraph/core/node";
 import { createLeaferGraph } from "leafergraph";
-import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
+import { leaferGraphBasicKitPlugin } from "@leafergraph/core/basic-kit";
 
 const documentData: GraphDocument = {
   documentId: "hello-graph",
@@ -177,22 +184,22 @@ await graph.ready;
 
 | 包 | 真源职责 |
 | --- | --- |
-| `@leafergraph/node` | 图模型、节点定义、模块和注册表 |
-| `@leafergraph/execution` | 纯执行内核、图级执行状态机、执行反馈、内建执行节点 |
-| `@leafergraph/contracts` | 公共宿主协议、图 API 输入输出、Widget 契约 |
-| `@leafergraph/theme` | 视觉主题真源 |
-| `@leafergraph/config` | 非视觉配置真源 |
-| `@leafergraph/widget-runtime` | Widget runtime 真源 |
-| `@leafergraph/basic-kit` | 默认内容包 |
-| `@leafergraph/context-menu` | 纯菜单 runtime |
-| `@leafergraph/shortcuts` | 快捷键扩展 |
-| `@leafergraph/undo-redo` | 历史栈扩展 |
+| `@leafergraph/core/node` | 图模型、节点定义、模块和注册表 |
+| `@leafergraph/core/execution` | 纯执行内核、图级执行状态机、执行反馈、内建执行节点 |
+| `@leafergraph/core/contracts` | 公共宿主协议、图 API 输入输出、Widget 契约 |
+| `@leafergraph/core/theme` | 视觉主题真源 |
+| `@leafergraph/core/config` | 非视觉配置真源 |
+| `@leafergraph/core/widget-runtime` | Widget runtime 真源 |
+| `@leafergraph/core/basic-kit` | 默认内容包 |
+| `@leafergraph/extensions/context-menu` | 纯菜单 runtime |
+| `@leafergraph/extensions/shortcuts` | 快捷键扩展 |
+| `@leafergraph/extensions/undo-redo` | 历史栈扩展 |
 
 一个简单判断是：
 
 - 需要图实例和 Leafer 场景宿主，用 `leafergraph`
-- 需要浏览器侧 bridge client 或 transport 抽象，用 `@leafergraph/runtime-bridge`
-- 需要执行类型或执行反馈真源，用 `@leafergraph/execution`
+- 需要执行类型或执行反馈真源，用 `@leafergraph/core/execution` / `@leafergraph/core/contracts`
+- 需要高级 API 宿主兼容面，用 `leafergraph/api/graph_api_host`
 - 需要模型真源类型或 helper，不要再从主包绕路导入
 
 ## 常用命令
@@ -211,3 +218,5 @@ bun run test:leafergraph
 - [渲染刷新策略](./渲染刷新策略.md)
 - [节点状态与外壳规范](../../docs/节点状态与外壳规范.md)
 - [mini-graph 示例](../../example/mini-graph/README.md)
+
+

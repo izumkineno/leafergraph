@@ -1,6 +1,6 @@
-# `@leafergraph/contracts`
+# `@leafergraph/core/contracts`
 
-`@leafergraph/contracts` 是 LeaferGraph workspace 的公共契约层。
+`@leafergraph/core/contracts` 是 LeaferGraph workspace 的公共契约层。
 
 它把多个包共享、但又不应该绑定某个具体宿主实现的类型集中到一起，例如插件协议、图 API 输入输出、Widget 契约、运行反馈和文档 diff helper。
 
@@ -55,11 +55,11 @@ import type {
   LeaferGraphNodePlugin,
   LeaferGraphOptions,
   RuntimeFeedbackEvent
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import {
   applyGraphDocumentDiffToDocument,
   type GraphDocumentDiff
-} from "@leafergraph/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts/graph-document-diff";
 
 const options: LeaferGraphOptions = {
   themeMode: "dark"
@@ -78,14 +78,14 @@ function projectDiff(diff: GraphDocumentDiff, documentData: unknown) {
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/node` | 模型真源，`contracts` 在其之上定义共享协议 |
-| `@leafergraph/execution` | 执行真源，`contracts` 在其之上整理宿主共享类型 |
-| `@leafergraph/config` | 配置真源，`contracts` 只在共享协议里转出相关类型，不接管真源所有权 |
-| `@leafergraph/theme` | 视觉主题真源 |
+| `@leafergraph/core/node` | 模型真源，`contracts` 在其之上定义共享协议 |
+| `@leafergraph/core/execution` | 执行真源，`contracts` 在其之上整理宿主共享类型 |
+| `@leafergraph/core/config` | 配置真源，`contracts` 只在共享协议里转出相关类型，不接管真源所有权 |
+| `@leafergraph/core/theme` | 视觉主题真源 |
 | `leafergraph` | 图运行时主包，消费这些契约实现具体宿主 |
 
 如果你已经知道自己只需要模型、配置或主题本身，仍然优先去对应真源包。  
-`@leafergraph/contracts` 的职责是“跨包共享协议”，不是把所有真源重新聚合一遍。
+`@leafergraph/core/contracts` 的职责是“跨包共享协议”，不是把所有真源重新聚合一遍。
 
 ## 常用命令
 
@@ -99,6 +99,9 @@ bun run test:contracts
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/node README](../node/README.md)
-- [@leafergraph/execution README](../execution/README.md)
+- [@leafergraph/core/node README](../node/README.md)
+- [@leafergraph/core/execution README](../execution/README.md)
 - [leafergraph README](../leafergraph/README.md)
+
+
+

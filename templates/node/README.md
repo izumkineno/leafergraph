@@ -5,7 +5,7 @@
 它们的共同特点是：
 
 - 作者代码集中在 `src/developer/`
-- 以 `@leafergraph/authoring` 和 `@leafergraph/node` 为核心真源
+- 以 `@leafergraph/extensions/authoring` 和 `@leafergraph/core/node` 为核心真源
 - 既能导出 ESM 包，也能构建 `node.iife.js`
 
 ## 当前模板
@@ -32,5 +32,7 @@
 ## 推荐阅读顺序
 
 1. [authoring-node-template README](./authoring-node-template/README.md)
-2. [@leafergraph/authoring README](../../packages/authoring/README.md)
+2. [@leafergraph/extensions/authoring README](../../packages/extensions/authoring/README.md)
 3. [外部节点包接入方案](../../docs/节点插件接入方案.md)
+
+

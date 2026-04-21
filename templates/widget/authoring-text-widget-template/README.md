@@ -35,14 +35,14 @@
 
 这份模板默认建立在这些真源包之上：
 
-- `@leafergraph/authoring`
-- `@leafergraph/contracts`
-- `@leafergraph/node`
+- `@leafergraph/extensions/authoring`
+- `@leafergraph/core/contracts`
+- `@leafergraph/core/node`
 
 如果你的宿主需要真正显示这类 Widget，一般还会消费：
 
 - `leafergraph`
-- `@leafergraph/widget-runtime`
+- `@leafergraph/core/widget-runtime`
 
 ## 目录速览
 
@@ -95,5 +95,7 @@ dist/browser/widget.iife.js
 ## 继续阅读
 
 - [Templates 总览](../../README.md)
-- [@leafergraph/authoring README](../../../packages/authoring/README.md)
-- [@leafergraph/widget-runtime README](../../../packages/widget-runtime/README.md)
+- [@leafergraph/extensions/authoring README](../../../packages/extensions/authoring/README.md)
+- [@leafergraph/core/widget-runtime README](../../../packages/core/widget-runtime/README.md)
+
+

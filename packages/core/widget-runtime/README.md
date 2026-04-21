@@ -1,6 +1,6 @@
-# `@leafergraph/widget-runtime`
+# `@leafergraph/core/widget-runtime`
 
-`@leafergraph/widget-runtime` 是 LeaferGraph workspace 的 Widget runtime 真源。
+`@leafergraph/core/widget-runtime` 是 LeaferGraph workspace 的 Widget runtime 真源。
 
 它负责 Widget registry、renderer 生命周期适配、编辑宿主和交互 helper；它不负责默认 Widget 内容库，也不负责整张图的场景装配。
 
@@ -45,11 +45,11 @@
 ## 最小使用方式
 
 ```ts
-import type { LeaferGraphWidgetEntry } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetEntry } from "@leafergraph/core/contracts";
 import {
   LeaferGraphWidgetRegistry,
   createMissingWidgetRenderer
-} from "@leafergraph/widget-runtime";
+} from "@leafergraph/core/widget-runtime";
 
 const registry = new LeaferGraphWidgetRegistry(createMissingWidgetRenderer());
 
@@ -83,19 +83,19 @@ registry.registerWidget(statusWidget, { overwrite: true });
 
 - `leafergraph`
   - 用它装配主包自己的 Widget runtime 环境
-- `@leafergraph/basic-kit`
+- `@leafergraph/core/basic-kit`
   - 在这个真源之上提供基础 Widget 内容条目
-- `@leafergraph/authoring`
+- `@leafergraph/extensions/authoring`
   - 生成符合这些契约的 Widget entry
 
 ## 与其它包的边界
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/widget-runtime` | Widget runtime 真源 |
-| `@leafergraph/basic-kit` | 默认 Widget 内容库 |
-| `@leafergraph/theme` | Widget 视觉 token 真源 |
-| `@leafergraph/config` | Widget editing 配置真源 |
+| `@leafergraph/core/widget-runtime` | Widget runtime 真源 |
+| `@leafergraph/core/basic-kit` | 默认 Widget 内容库 |
+| `@leafergraph/core/theme` | Widget 视觉 token 真源 |
+| `@leafergraph/core/config` | Widget editing 配置真源 |
 | `leafergraph` | 消费这些能力并接到图运行时里 |
 
 一个简单判断是：
@@ -115,6 +115,9 @@ bun run test:widget-runtime
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/basic-kit README](../basic-kit/README.md)
-- [@leafergraph/theme README](../theme/README.md)
+- [@leafergraph/core/basic-kit README](../basic-kit/README.md)
+- [@leafergraph/core/theme README](../theme/README.md)
 - [leafergraph README](../leafergraph/README.md)
+
+
+

@@ -1,6 +1,6 @@
-# `@leafergraph/node`
+# `@leafergraph/core/node`
 
-`@leafergraph/node` 是 LeaferGraph workspace 的模型真源。
+`@leafergraph/core/node` 是 LeaferGraph workspace 的模型真源。
 
 它负责定义节点、模块、图文档和注册表，也负责把节点定义与运行时快照连接起来；它不负责 Leafer 场景、交互宿主、主题、菜单或页面壳层。
 
@@ -22,8 +22,8 @@
 
 一句话记忆：
 
-- `@leafergraph/node` 只回答“图模型和节点定义是什么”
-- `@leafergraph/authoring` 回答“怎样更舒服地写节点类和 Widget 类”
+- `@leafergraph/core/node` 只回答“图模型和节点定义是什么”
+- `@leafergraph/extensions/authoring` 回答“怎样更舒服地写节点类和 Widget 类”
 - `leafergraph` 回答“怎样把这些模型恢复成可运行的图”
 
 ## 公开入口
@@ -56,13 +56,13 @@
 ## 最小使用方式
 
 ```ts
-import type { GraphDocument, NodeDefinition } from "@leafergraph/node";
+import type { GraphDocument, NodeDefinition } from "@leafergraph/core/node";
 import {
   NodeRegistry,
   createNodeState,
   installNodeModule,
   serializeNode
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 
 const registry = new NodeRegistry({
   get() {
@@ -99,13 +99,13 @@ const documentData: GraphDocument = {
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/node` | 模型真源 |
-| `@leafergraph/authoring` | 在这个真源之上提供作者层体验 |
-| `@leafergraph/execution` | 在这个真源之上提供执行内核 |
-| `@leafergraph/contracts` | 在这个真源之上定义跨包共享协议 |
+| `@leafergraph/core/node` | 模型真源 |
+| `@leafergraph/extensions/authoring` | 在这个真源之上提供作者层体验 |
+| `@leafergraph/core/execution` | 在这个真源之上提供执行内核 |
+| `@leafergraph/core/contracts` | 在这个真源之上定义跨包共享协议 |
 | `leafergraph` | 消费这些模型并恢复成 Leafer 图运行时 |
 
-优先直接依赖 `@leafergraph/node` 的情况：
+优先直接依赖 `@leafergraph/core/node` 的情况：
 
 - 你在写模型层工具或共享类型
 - 你在写插件 / 模块 / 模板
@@ -113,9 +113,9 @@ const documentData: GraphDocument = {
 
 优先改用其它包的情况：
 
-- 你要写类式节点 / Widget：看 `@leafergraph/authoring`
+- 你要写类式节点 / Widget：看 `@leafergraph/extensions/authoring`
 - 你要直接创建图实例：看 `leafergraph`
-- 你要写执行链：看 `@leafergraph/execution`
+- 你要写执行链：看 `@leafergraph/core/execution`
 
 ## 常用命令
 
@@ -131,5 +131,8 @@ bun run test:node
 - [根 README](../../README.md)
 - [节点 API 与节点壳设计](../../docs/节点API方案.md)
 - [外部节点包接入方案](../../docs/节点插件接入方案.md)
-- [@leafergraph/authoring README](../authoring/README.md)
+- [@leafergraph/extensions/authoring README](../../extensions/authoring/README.md)
 - [leafergraph README](../leafergraph/README.md)
+
+
+

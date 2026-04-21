@@ -1,6 +1,6 @@
-# `@leafergraph/theme`
+# `@leafergraph/core/theme`
 
-`@leafergraph/theme` 是 LeaferGraph workspace 的视觉主题真源。
+`@leafergraph/core/theme` 是 LeaferGraph workspace 的视觉主题真源。
 
 它负责 `themePreset`、`themeMode` 以及 graph / widget / context-menu 三类视觉 token；它不负责 `fitView`、菜单延迟、历史栈容量等非视觉行为设置。
 
@@ -37,13 +37,13 @@
 
 ### 子路径
 
-- `@leafergraph/theme/widget`
+- `@leafergraph/core/theme/widget`
   - Widget token 与默认 resolver
-- `@leafergraph/theme/graph`
+- `@leafergraph/core/theme/graph`
   - 节点壳、连线、数据流动画相关 token 与 resolver
-- `@leafergraph/theme/context-menu`
+- `@leafergraph/core/theme/context-menu`
   - 菜单 token 与默认 resolver
-- `@leafergraph/theme/registry`
+- `@leafergraph/core/theme/registry`
   - preset 注册表
 
 ## 最小使用方式
@@ -66,10 +66,10 @@ graph.setThemeMode("light");
 import {
   registerThemePreset,
   type LeaferGraphThemePreset
-} from "@leafergraph/theme";
-import { resolveDefaultGraphTheme } from "@leafergraph/theme/graph";
-import { resolveDefaultWidgetTheme } from "@leafergraph/theme/widget";
-import { resolveDefaultContextMenuTheme } from "@leafergraph/theme/context-menu";
+} from "@leafergraph/core/theme";
+import { resolveDefaultGraphTheme } from "@leafergraph/core/theme/graph";
+import { resolveDefaultWidgetTheme } from "@leafergraph/core/theme/widget";
+import { resolveDefaultContextMenuTheme } from "@leafergraph/core/theme/context-menu";
 
 const oceanPreset: LeaferGraphThemePreset = {
   id: "ocean",
@@ -95,10 +95,10 @@ registerThemePreset(oceanPreset, { overwrite: true });
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/theme` | 视觉主题真源 |
-| `@leafergraph/config` | 非视觉配置真源 |
-| `@leafergraph/context-menu` | 消费菜单主题 token |
-| `@leafergraph/widget-runtime` | 消费 Widget 主题 token |
+| `@leafergraph/core/theme` | 视觉主题真源 |
+| `@leafergraph/core/config` | 非视觉配置真源 |
+| `@leafergraph/extensions/context-menu` | 消费菜单主题 token |
+| `@leafergraph/core/widget-runtime` | 消费 Widget 主题 token |
 | `leafergraph` | 消费 graph 主题并驱动场景刷新 |
 
 ## 常用命令
@@ -113,6 +113,9 @@ bun run test:theme
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/config README](../config/README.md)
-- [@leafergraph/context-menu README](../context-menu/README.md)
+- [@leafergraph/core/config README](../config/README.md)
+- [@leafergraph/extensions/context-menu README](../../extensions/context-menu/README.md)
 - [leafergraph README](../leafergraph/README.md)
+
+
+

@@ -32,5 +32,7 @@
 ## 推荐阅读顺序
 
 1. [authoring-text-widget-template README](./authoring-text-widget-template/README.md)
-2. [@leafergraph/authoring README](../../packages/authoring/README.md)
-3. [@leafergraph/widget-runtime README](../../packages/widget-runtime/README.md)
+2. [@leafergraph/extensions/authoring README](../../packages/extensions/authoring/README.md)
+3. [@leafergraph/core/widget-runtime README](../../packages/core/widget-runtime/README.md)
+
+

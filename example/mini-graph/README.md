@@ -8,38 +8,39 @@
 
 - `leafergraph`
   - 图运行时主包
-- `@leafergraph/basic-kit`
+- `@leafergraph/core/basic-kit`
   - 默认系统节点和基础 widgets
-- `@leafergraph/context-menu`
+- `@leafergraph/extensions/context-menu`
   - 纯菜单 runtime
-- `@leafergraph/context-menu-builtins`
+- `@leafergraph/extensions/context-menu-builtins`
   - 节点图内建菜单动作
-- `@leafergraph/shortcuts`
+- `@leafergraph/extensions/shortcuts`
   - 默认 graph 快捷键预设
-- `@leafergraph/undo-redo`
+- `@leafergraph/extensions/undo-redo`
   - 历史栈和按钮 / 快捷键接线
-- `@leafergraph/authoring`
+- `@leafergraph/extensions/authoring`
   - authoring bundle 注册和动态装载
 
 ## package split 视角下该怎么理解它
 
 `mini-graph` 是这轮拆分里最重要的兼容 smoke 之一：它要继续证明 `leafergraph` 主包可以显式装配 core runtime 和宿主扩展，而不是退回成“把所有真源重新塞回主包”的旧路线。
 
-在目标结构里，这个示例会大致对应下面的依赖映射：
+按当前正式布局理解，这个示例的依赖应该落在下面这些包上：
 
-| 当前依赖 | 拆分后目标 |
+| 依赖 | 角色 |
 | --- | --- |
-| `@leafergraph/basic-kit` | `@leafergraph/core/basic-kit` |
-| `@leafergraph/contracts` | `@leafergraph/core/contracts` |
-| `@leafergraph/execution` | `@leafergraph/core/execution` |
-| `@leafergraph/node` | `@leafergraph/core/node` |
-| `@leafergraph/theme` | `@leafergraph/core/theme` |
-| `@leafergraph/widget-runtime` | `@leafergraph/core/widget-runtime` |
-| `@leafergraph/context-menu` | `@leafergraph/extensions/context-menu` |
-| `@leafergraph/context-menu-builtins` | `@leafergraph/extensions/context-menu-builtins` |
-| `@leafergraph/shortcuts` | `@leafergraph/extensions/shortcuts` |
-| `@leafergraph/undo-redo` | `@leafergraph/extensions/undo-redo` |
-| `@leafergraph/authoring` | `@leafergraph/extensions/authoring` |
+| `@leafergraph/core/basic-kit` | 默认系统节点和基础 widgets |
+| `@leafergraph/core/contracts` | 图级共享协议 |
+| `@leafergraph/core/execution` | 执行链真源 |
+| `@leafergraph/core/node` | 图模型真源 |
+| `@leafergraph/core/theme` | 主题真源 |
+| `@leafergraph/core/widget-runtime` | Widget runtime 真源 |
+| `@leafergraph/extensions/context-menu` | 菜单 runtime |
+| `@leafergraph/extensions/context-menu-builtins` | 菜单 builtins |
+| `@leafergraph/extensions/shortcuts` | 快捷键扩展 |
+| `@leafergraph/extensions/undo-redo` | 历史栈扩展 |
+| `@leafergraph/extensions/authoring` | authoring bundle 装载 |
+| `leafergraph` | runtime-only 主包，仅提供图宿主 façade |
 
 ## 适合什么时候看
 
@@ -94,17 +95,17 @@ bun run build
 
 示例会显式安装：
 
-- `@leafergraph/basic-kit`
+- `@leafergraph/core/basic-kit`
 
 ### 菜单
 
 示例页面自己创建：
 
-- `@leafergraph/context-menu`
+- `@leafergraph/extensions/context-menu`
 
 然后再把 builtins 接上：
 
-- `@leafergraph/context-menu-builtins`
+- `@leafergraph/extensions/context-menu-builtins`
 
 ### 快捷键和历史栈
 
@@ -134,6 +135,8 @@ bun run build
 - [leafergraph README](../../packages/leafergraph/README.md)
 - [package split 执行验证矩阵](../../docs/package-split-verification.md)
 - 如果你在兼容层或扩展装配方式上做调整，先看验证矩阵里的 smoke 结果，再决定是不是 README 需要同步改写。
-- [@leafergraph/context-menu-builtins README](../../packages/context-menu-builtins/README.md)
-- [@leafergraph/shortcuts README](../../packages/shortcuts/README.md)
-- [@leafergraph/undo-redo README](../../packages/undo-redo/README.md)
+- [@leafergraph/extensions/context-menu-builtins README](../../packages/extensions/context-menu-builtins/README.md)
+- [@leafergraph/extensions/shortcuts README](../../packages/extensions/shortcuts/README.md)
+- [@leafergraph/extensions/undo-redo README](../../packages/extensions/undo-redo/README.md)
+
+

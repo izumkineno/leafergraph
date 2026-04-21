@@ -37,9 +37,9 @@
 
 这份模板默认建立在这些真源包之上：
 
-- `@leafergraph/authoring`
-- `@leafergraph/contracts`
-- `@leafergraph/node`
+- `@leafergraph/extensions/authoring`
+- `@leafergraph/core/contracts`
+- `@leafergraph/core/node`
 
 如果你要直接拿它在宿主里跑图，通常还会再用：
 
@@ -111,5 +111,7 @@ dist/browser/node.iife.js
 ## 继续阅读
 
 - [Templates 总览](../../README.md)
-- [@leafergraph/authoring README](../../../packages/authoring/README.md)
+- [@leafergraph/extensions/authoring README](../../../packages/extensions/authoring/README.md)
 - [外部节点包接入方案](../../../docs/节点插件接入方案.md)
+
+

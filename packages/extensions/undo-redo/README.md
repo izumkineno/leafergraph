@@ -1,6 +1,6 @@
-# `@leafergraph/undo-redo`
+# `@leafergraph/extensions/undo-redo`
 
-`@leafergraph/undo-redo` 是 LeaferGraph workspace 的宿主状态扩展包。
+`@leafergraph/extensions/undo-redo` 是 LeaferGraph workspace 的宿主状态扩展包。
 
 它负责 undo / redo controller、历史栈裁剪和 graph history feed 绑定；它不会自动塞进 `createLeaferGraph(...)`，也不承担快捷键 runtime。
 
@@ -38,7 +38,7 @@
 ## 最小使用方式
 
 ```ts
-import { bindLeaferGraphUndoRedo } from "@leafergraph/undo-redo/graph";
+import { bindLeaferGraphUndoRedo } from "@leafergraph/extensions/undo-redo/graph";
 
 const history = bindLeaferGraphUndoRedo({
   host: graph,
@@ -59,17 +59,17 @@ unsubscribe();
 history.destroy();
 ```
 
-这里的 `config` 真源来自 `@leafergraph/config` 的 `graph.history`；  
+这里的 `config` 真源来自 `@leafergraph/core/config` 的 `graph.history`；  
 写了配置并不会自动启用历史栈，仍然需要显式绑定这个包。
 
 ## 与其它包的边界
 
 | 包 | 关系 |
 | --- | --- |
-| `@leafergraph/config` | `graph.history` 配置真源 |
+| `@leafergraph/core/config` | `graph.history` 配置真源 |
 | `leafergraph` | 只负责发出 `subscribeHistory(...)` history feed |
-| `@leafergraph/shortcuts` | 可选消费 history host，但不反向依赖 `undo-redo` |
-| `@leafergraph/context-menu-builtins` | 可选消费 history host，但不承接历史栈本体 |
+| `@leafergraph/extensions/shortcuts` | 可选消费 history host，但不反向依赖 `undo-redo` |
+| `@leafergraph/extensions/context-menu-builtins` | 可选消费 history host，但不承接历史栈本体 |
 
 ## 常用命令
 
@@ -83,6 +83,9 @@ bun run test:undo-redo
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/config README](../config/README.md)
-- [@leafergraph/shortcuts README](../shortcuts/README.md)
+- [@leafergraph/core/config README](../../core/config/README.md)
+- [@leafergraph/extensions/shortcuts README](../shortcuts/README.md)
 - [mini-graph README](../../example/mini-graph/README.md)
+
+
+

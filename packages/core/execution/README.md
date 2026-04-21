@@ -1,6 +1,6 @@
-# `@leafergraph/execution`
+# `@leafergraph/core/execution`
 
-`@leafergraph/execution` 是 LeaferGraph workspace 的纯执行内核。
+`@leafergraph/core/execution` 是 LeaferGraph workspace 的纯执行内核。
 
 它只负责“节点如何执行、数据如何传播、图级运行如何推进、反馈事件如何汇总”这条链，不负责图渲染、交互宿主、主题或菜单。
 
@@ -21,8 +21,8 @@
 
 一句话记忆：
 
-- `@leafergraph/node` 定义“图是什么”
-- `@leafergraph/execution` 定义“图怎么跑”
+- `@leafergraph/core/node` 定义“图是什么”
+- `@leafergraph/core/execution` 定义“图怎么跑”
 - `leafergraph` 负责“图怎么显示、怎么交互、怎么把执行投影到场景里”
 
 ## 公开入口
@@ -56,7 +56,7 @@
 import type {
   LeaferGraphActionExecutionOptions,
   LeaferGraphExecutionContext
-} from "@leafergraph/execution";
+} from "@leafergraph/core/execution";
 
 export function handleExecute(
   context: LeaferGraphExecutionContext,
@@ -69,13 +69,13 @@ export function handleExecute(
 如果你要搭一个自定义执行宿主，入口通常是：
 
 ```ts
-import { NodeRegistry } from "@leafergraph/node";
+import { NodeRegistry } from "@leafergraph/core/node";
 import {
   LeaferGraphGraphExecutionHost,
   LeaferGraphNodeExecutionHost,
   leaferGraphOnPlayNodeDefinition,
   leaferGraphTimerNodeDefinition
-} from "@leafergraph/execution";
+} from "@leafergraph/core/execution";
 
 const registry = new NodeRegistry({
   get() {
@@ -100,9 +100,9 @@ const graphExecutionHost = new LeaferGraphGraphExecutionHost({
 
 在 workspace 内更常见的消费方式是：
 
-- `@leafergraph/basic-kit/node`
+- `@leafergraph/core/basic-kit/node`
   - 直接复用这里的 `on-play` / `timer` 定义来组装默认系统节点
-- `@leafergraph/contracts`
+- `@leafergraph/core/contracts`
   - 复用执行相关类型，统一向宿主层公开共享协议
 - `leafergraph`
   - 消费 `LeaferGraphNodeExecutionHost`、`LeaferGraphGraphExecutionHost` 和本地反馈适配器，把执行结果投影成节点状态、连线动画和 UI 反馈
@@ -111,20 +111,20 @@ const graphExecutionHost = new LeaferGraphGraphExecutionHost({
 
 | 包 | 负责什么 |
 | --- | --- |
-| `@leafergraph/node` | 节点定义、图文档、注册表、序列化模型 |
-| `@leafergraph/execution` | 执行状态机、传播语义、执行反馈、内建执行节点 |
-| `@leafergraph/contracts` | 面向多个包共享的宿主协议和公开类型 |
+| `@leafergraph/core/node` | 节点定义、图文档、注册表、序列化模型 |
+| `@leafergraph/core/execution` | 执行状态机、传播语义、执行反馈、内建执行节点 |
+| `@leafergraph/core/contracts` | 面向多个包共享的宿主协议和公开类型 |
 | `leafergraph` | 图运行时、场景刷新、交互和执行反馈投影 |
 
 这里有一个固定约束：
 
-- `@leafergraph/execution` 只依赖 `@leafergraph/node`
-- 它不依赖 `@leafergraph/contracts`、`@leafergraph/theme`、`@leafergraph/config`
+- `@leafergraph/core/execution` 只依赖 `@leafergraph/core/node`
+- 它不依赖 `@leafergraph/core/contracts`、`@leafergraph/core/theme`、`@leafergraph/core/config`
 - 这保证执行内核可以单独被其它宿主复用
 
 ## 何时直接依赖它
 
-优先直接依赖 `@leafergraph/execution` 的情况：
+优先直接依赖 `@leafergraph/core/execution` 的情况：
 
 - 你在写自定义执行宿主
 - 你在实现运行反馈桥接
@@ -133,8 +133,8 @@ const graphExecutionHost = new LeaferGraphGraphExecutionHost({
 优先依赖别的包的情况：
 
 - 只是要创建图实例：用 `leafergraph`
-- 只是要安装默认系统节点：用 `@leafergraph/basic-kit`
-- 只是要写公开的宿主类型：先看 `@leafergraph/contracts`
+- 只是要安装默认系统节点：用 `@leafergraph/core/basic-kit`
+- 只是要写公开的宿主类型：先看 `@leafergraph/core/contracts`
 
 ## 常用命令
 
@@ -148,6 +148,9 @@ bun run test:execution
 ## 继续阅读
 
 - [根 README](../../README.md)
-- [@leafergraph/contracts README](../contracts/README.md)
+- [@leafergraph/core/contracts README](../contracts/README.md)
 - [leafergraph README](../leafergraph/README.md)
 - [使用与扩展指南](../leafergraph/使用与扩展指南.md)
+
+
+
