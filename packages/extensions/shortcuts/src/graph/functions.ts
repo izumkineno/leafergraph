@@ -193,7 +193,3 @@ function canRunSelectionShortcut(host: LeaferGraphShortcutHost): boolean {
 function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
   return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
 }
-
-function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
-  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
-}
