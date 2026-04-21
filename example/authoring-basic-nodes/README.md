@@ -63,6 +63,15 @@ graph.installModule(authoringBasicNodesModule);
 - `@leafergraph/node`
 - `leafergraph`
 
+如果按 package split 的目标结构来理解，这组依赖会对应为：
+
+| 当前依赖 | 拆分后目标 |
+| --- | --- |
+| `@leafergraph/authoring` | `@leafergraph/extensions/authoring` |
+| `@leafergraph/execution` | `@leafergraph/core/execution` |
+| `@leafergraph/node` | `@leafergraph/core/node` |
+| `leafergraph` | `leafergraph`（兼容主包） |
+
 它不自动提供：
 
 - `system/on-play`

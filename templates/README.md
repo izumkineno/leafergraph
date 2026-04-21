@@ -74,6 +74,24 @@
 - 真正的模型、协议和运行时真源仍然在 `packages/`
 - 模板不重新定义主包 API，也不承担 editor 壳层逻辑
 
+## package split 期间如何理解模板依赖
+
+当前模板源码仍然跟着现有 workspace 包名走；但在拆分完成后，这些依赖会收口到更明确的 target package。
+
+| 当前依赖 | 拆分后目标 |
+| --- | --- |
+| `@leafergraph/node` | `@leafergraph/core/node` |
+| `@leafergraph/contracts` | `@leafergraph/core/contracts` |
+| `@leafergraph/widget-runtime` | `@leafergraph/core/widget-runtime` |
+| `@leafergraph/basic-kit` | `@leafergraph/core/basic-kit` |
+| `@leafergraph/authoring` | `@leafergraph/extensions/authoring` |
+
+文档写法约定：
+
+- 讲模板“现在怎么跑”，继续使用当前真实包名。
+- 讲模板“拆分后会依赖什么”，明确写成 target package。
+- 不要把 `leafergraph` 重新描述成聚合全部真源的单入口；模板仍然应该显式知道自己依赖的是 core 还是 extensions。
+
 ## 开发与验证
 
 模板当前统一采用：

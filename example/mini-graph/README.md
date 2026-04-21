@@ -21,6 +21,26 @@
 - `@leafergraph/authoring`
   - authoring bundle 注册和动态装载
 
+## package split 视角下该怎么理解它
+
+`mini-graph` 是这轮拆分里最重要的兼容 smoke 之一：它要继续证明 `leafergraph` 主包可以显式装配 core runtime 和宿主扩展，而不是退回成“把所有真源重新塞回主包”的旧路线。
+
+在目标结构里，这个示例会大致对应下面的依赖映射：
+
+| 当前依赖 | 拆分后目标 |
+| --- | --- |
+| `@leafergraph/basic-kit` | `@leafergraph/core/basic-kit` |
+| `@leafergraph/contracts` | `@leafergraph/core/contracts` |
+| `@leafergraph/execution` | `@leafergraph/core/execution` |
+| `@leafergraph/node` | `@leafergraph/core/node` |
+| `@leafergraph/theme` | `@leafergraph/core/theme` |
+| `@leafergraph/widget-runtime` | `@leafergraph/core/widget-runtime` |
+| `@leafergraph/context-menu` | `@leafergraph/extensions/context-menu` |
+| `@leafergraph/context-menu-builtins` | `@leafergraph/extensions/context-menu-builtins` |
+| `@leafergraph/shortcuts` | `@leafergraph/extensions/shortcuts` |
+| `@leafergraph/undo-redo` | `@leafergraph/extensions/undo-redo` |
+| `@leafergraph/authoring` | `@leafergraph/extensions/authoring` |
+
 ## 适合什么时候看
 
 适合：
