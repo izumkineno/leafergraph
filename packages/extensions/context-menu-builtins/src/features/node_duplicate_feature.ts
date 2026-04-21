@@ -38,7 +38,7 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
               return;
             }
 
-            return pasteClipboardFragment({
+            const pasted = pasteClipboardFragment({
               fragment,
               host,
               createLink,
@@ -51,6 +51,8 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
             if (isPromiseLike(pasted)) {
               return pasted.then(() => undefined);
             }
+
+            return undefined;
           }
         }
       ];

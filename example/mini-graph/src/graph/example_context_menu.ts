@@ -187,14 +187,10 @@ function createExampleBuiltinsHost(
       return options.graph.setSelectedNodeIds(nodeIds, mode);
     },
     createNode(input, _context) {
-      return {
-        nodeId: options.createNode(input).id
-      };
+      return options.createNode(input);
     },
     createLink(input, _context) {
-      return {
-        linkId: options.createLink(input).id
-      };
+      return options.createLink(input);
     },
     play(_context) {
       options.play();

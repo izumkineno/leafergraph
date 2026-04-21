@@ -17,12 +17,10 @@ import type {
   LeaferGraphWidgetTextEditRequest
 } from "@leafergraph/core/contracts";
 import type {
-  LeaferGraphWidgetEditingConfig,
   NormalizedLeaferGraphLeaferEditorConfig,
   NormalizedLeaferGraphLeaferTextEditorConfig,
   NormalizedLeaferGraphWidgetEditingConfig
 } from "@leafergraph/core/config";
-import { resolveWidgetEditingOptions as resolveCoreWidgetEditingOptions } from "@leafergraph/core/config";
 import type {
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/core/theme";

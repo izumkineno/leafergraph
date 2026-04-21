@@ -32,7 +32,7 @@ export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition 
               return;
             }
 
-            return pasteClipboardFragment({
+            const pasted = pasteClipboardFragment({
               fragment,
               host,
               createLink,
@@ -44,6 +44,8 @@ export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition 
             if (isPromiseLike(pasted)) {
               return pasted.then(() => undefined);
             }
+
+            return undefined;
           }
         }
       ];

@@ -18,6 +18,8 @@
       "@leafergraph/core/contracts": ["../../packages/core/contracts/src/index.ts"],
       "@leafergraph/extensions/context-menu": ["../../packages/extensions/context-menu/src/index.ts"],
       "@leafergraph/extensions/context-menu-builtins": ["../../packages/extensions/context-menu-builtins/src/index.ts"],
+      "@leafergraph/extensions/shortcuts": ["../../packages/extensions/shortcuts/src/index.ts"],
+      "@leafergraph/extensions/shortcuts/graph": ["../../packages/extensions/shortcuts/src/graph/index.ts"],
       "@leafergraph/extensions/undo-redo": ["../../packages/extensions/undo-redo/src/index.ts"],
       "@leafergraph/extensions/undo-redo/graph": ["../../packages/extensions/undo-redo/src/graph/index.ts"],
       "@leafergraph/core/theme": ["../../packages/core/theme/src/index.ts"],
