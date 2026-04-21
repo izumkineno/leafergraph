@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
+  collectPackageInfos,
   collectWorkspacePackages,
   getPackageRule,
   normalizeWorkspaceSpecifier
@@ -38,6 +39,28 @@ describe("normalizeWorkspaceSpecifier", () => {
 });
 
 describe("collectWorkspacePackages", () => {
+  test("discovers nested package directories for boundary scanning", () => {
+    const repoRoot = createTempRepo();
+
+    writeWorkspacePackage(repoRoot, "packages/node", "@leafergraph/node");
+    writeWorkspacePackage(repoRoot, "packages/core/node", "@leafergraph/core/node");
+    writeWorkspacePackage(
+      repoRoot,
+      "packages/extensions/authoring",
+      "@leafergraph/extensions/authoring"
+    );
+
+    const packageInfos = collectPackageInfos(path.join(repoRoot, "packages"), repoRoot);
+
+    expect(
+      [...packageInfos.values()].map((packageInfo) => packageInfo.relativePath).sort()
+    ).toEqual([
+      "packages/core/node",
+      "packages/extensions/authoring",
+      "packages/node"
+    ]);
+  });
+
   test("discovers nested packages/core/* and packages/extensions/* workspaces", () => {
     const repoRoot = createTempRepo();
 
