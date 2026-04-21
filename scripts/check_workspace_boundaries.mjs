@@ -11,17 +11,19 @@ import {
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const rootPackageJson = readJson(path.join(repoRoot, "package.json"));
 const errors = [];
-const packageRules = createWorkspaceBoundaryRules();
-const formalPackages = collectFormalPackageInfos(path.join(repoRoot, "packages"));
-const workspacePackages = collectWorkspacePackages(rootPackageJson.workspaces ?? []);
+const requiredWorkspaceGlobs = ["packages/core/*", "packages/extensions/*"];
 
 const formalPackages = collectPackageInfos(path.join(repoRoot, "packages"), repoRoot);
+const workspacePackages = collectWorkspacePackages(repoRoot, rootPackageJson.workspaces ?? []);
+
+checkRequiredWorkspaceGlobs(rootPackageJson.workspaces ?? []);
+
 for (const packageInfo of formalPackages.values()) {
-  checkPackageRule(packageInfo, formalPackages);
-  checkSourceImports(packageInfo, formalPackages);
+  checkPackageRule(packageInfo, workspacePackages);
+  checkSourceImports(packageInfo, workspacePackages);
 }
 
-checkRootScripts(collectWorkspacePackages(repoRoot, rootPackageJson.workspaces ?? []));
+checkRootScripts(workspacePackages);
 
 if (errors.length) {
   console.error(
@@ -32,7 +34,7 @@ if (errors.length) {
 
 console.log("workspace 边界检查通过");
 
-function checkPackageRule(packageInfo, workspacePackages) {
+function checkPackageRule(packageInfo, workspacePackageInfos) {
   const rule = getPackageRule(packageInfo.name);
   if (!rule) {
     errors.push(`缺少正式包边界规则: ${packageInfo.name}`);
@@ -40,7 +42,7 @@ function checkPackageRule(packageInfo, workspacePackages) {
   }
 
   const declaredWorkspaceDeps = collectDeclaredWorkspaceDeps(packageInfo.packageJson).filter(
-    (dependencyName) => workspacePackages.has(dependencyName)
+    (dependencyName) => workspacePackageInfos.has(dependencyName)
   );
   const invalidDeps = declaredWorkspaceDeps.filter(
     (dependencyName) => !rule.allowedWorkspaceDeps.includes(dependencyName)
@@ -53,7 +55,7 @@ function checkPackageRule(packageInfo, workspacePackages) {
   }
 }
 
-function checkSourceImports(packageInfo, workspacePackages) {
+function checkSourceImports(packageInfo, workspacePackageInfos) {
   const rule = getPackageRule(packageInfo.name);
   if (!rule) {
     return;
@@ -65,21 +67,20 @@ function checkSourceImports(packageInfo, workspacePackages) {
   }
 
   const allowedImports = new Set(rule.allowedSourceImports);
+
   for (const filePath of walkFiles(srcPath)) {
     if (!/\.(?:[cm]?[jt]sx?)$/i.test(filePath)) {
       continue;
     }
 
     const source = readFileSync(filePath, "utf8");
-    for (const specifier of extractWorkspaceSpecifiers(source, workspacePackages)) {
-      if (!workspacePackages.has(specifier)) {
+    for (const specifier of extractWorkspaceSpecifiers(source)) {
+      if (!workspacePackageInfos.has(specifier)) {
         continue;
       }
 
       if (!allowedImports.has(specifier)) {
-        const relativeFilePath = path
-          .relative(repoRoot, filePath)
-          .replaceAll("\\", "/");
+        const relativeFilePath = path.relative(repoRoot, filePath).replaceAll("\\", "/");
         errors.push(`${relativeFilePath} 导入了未允许的 workspace 包: ${specifier}`);
       }
     }
@@ -96,7 +97,7 @@ function checkRequiredWorkspaceGlobs(workspaces) {
   }
 }
 
-function checkRootScripts(workspacePackages) {
+function checkRootScripts(workspacePackageInfos) {
   const rootScripts = rootPackageJson.scripts ?? {};
   const filterPattern = /bun\s+run\s+--filter\s+([^\s]+)\s+([A-Za-z0-9:_-]+)/g;
 
@@ -104,7 +105,7 @@ function checkRootScripts(workspacePackages) {
     for (const match of command.matchAll(filterPattern)) {
       const packageName = match[1];
       const targetScriptName = match[2];
-      const workspacePackage = workspacePackages.get(packageName);
+      const workspacePackage = workspacePackageInfos.get(packageName);
 
       if (!workspacePackage) {
         errors.push(
