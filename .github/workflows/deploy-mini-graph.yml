@@ -41,9 +41,9 @@ jobs:
       - name: Resolve GitHub Pages base
         shell: bash
         run: |
-          # 对于 GitHub Pages，直接部署到根路径
-          echo "GITHUB_PAGES_BASE=/" >> "$GITHUB_ENV"
-          echo "✓ Base path set to: /"
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          echo "GITHUB_PAGES_BASE=/$REPO_NAME/" >> "$GITHUB_ENV"
+          echo "✓ Base path set to: /$REPO_NAME/"
         env:
           MSYS_NO_PATHCONV: 1
 
