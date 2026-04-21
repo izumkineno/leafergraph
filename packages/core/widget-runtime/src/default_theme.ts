@@ -1,4 +1,4 @@
 export {
   resolveBasicWidgetTheme,
   resolveDefaultWidgetTheme
-} from "@leafergraph/core/theme/widget";
+} from "@leafergraph/core/theme";

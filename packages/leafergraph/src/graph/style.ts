@@ -2,13 +2,13 @@ export {
   DEFAULT_FIT_VIEW_PADDING,
   VIEWPORT_MAX_SCALE,
   VIEWPORT_MIN_SCALE
-} from "@leafergraph/core/config/graph";
+} from "@leafergraph/core/config";
 export type {
   LeaferGraphDataFlowAnimationStyleConfig,
   LeaferGraphNodeShellStyleConfig,
   NodeShellLayoutMetrics,
   NodeShellRenderTheme
-} from "@leafergraph/core/theme/graph";
+} from "@leafergraph/core/theme";
 export {
   NODE_SHELL_LAYOUT_METRICS,
   SLOT_TYPE_FILL_MAP,
@@ -19,4 +19,4 @@ export {
   resolveDefaultLinkStroke,
   resolveDefaultNodeShellRenderTheme,
   resolveDefaultSelectedStroke
-} from "@leafergraph/core/theme/graph";
+} from "@leafergraph/core/theme";

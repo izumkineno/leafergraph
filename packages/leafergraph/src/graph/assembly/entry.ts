@@ -14,7 +14,7 @@ import {
 } from "@leafergraph/core/config";
 import { createMissingWidgetRenderer } from "@leafergraph/core/widget-runtime";
 import { resolveThemePreset, type LeaferGraphThemeMode } from "@leafergraph/core/theme";
-import type { LeaferGraphGraphThemeTokens } from "@leafergraph/core/theme/graph";
+import type { LeaferGraphGraphThemeTokens } from "@leafergraph/core/theme";
 import type { LeaferGraphApiHost } from "../../api/graph_api_host";
 import { createLeaferGraphRuntimeAssembly } from "./runtime";
 import { normalizeGraphLinkSlotIndex } from "../host/mutation";

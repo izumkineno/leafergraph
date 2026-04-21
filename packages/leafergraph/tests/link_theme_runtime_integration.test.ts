@@ -2,12 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 import type { GraphDocument } from "@leafergraph/core/node";
 import {
+  resolveDefaultContextMenuTheme,
+  resolveDefaultGraphTheme,
+  resolveDefaultWidgetTheme,
   registerThemePreset,
   unregisterThemePreset
 } from "@leafergraph/core/theme";
-import { resolveDefaultContextMenuTheme } from "@leafergraph/core/theme/context-menu";
-import { resolveDefaultGraphTheme } from "@leafergraph/core/theme/graph";
-import { resolveDefaultWidgetTheme } from "@leafergraph/core/theme/widget";
 import { createLeaferGraph } from "../src";
 
 function createEmptyDocument(): GraphDocument {

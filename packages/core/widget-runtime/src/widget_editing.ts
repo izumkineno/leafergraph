@@ -1124,4 +1124,4 @@ export function createDisabledWidgetEditingContext(): LeaferGraphWidgetEditingCo
   };
 }
 
-export { resolveWidgetEditingOptions } from "@leafergraph/core/config/widget";
+export { resolveWidgetEditingOptions } from "@leafergraph/core/config";

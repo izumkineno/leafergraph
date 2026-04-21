@@ -58,6 +58,27 @@ export type {
   NormalizedLeaferGraphWidgetEditingConfig
 } from "./widget";
 export {
+  DEFAULT_FIT_VIEW_PADDING,
+  DEFAULT_HISTORY_MAX_ENTRIES,
+  DEFAULT_HISTORY_RESET_ON_DOCUMENT_SYNC,
+  DEFAULT_LINK_PROPAGATION_ANIMATION_PRESET,
+  DEFAULT_RESPECT_REDUCED_MOTION,
+  VIEWPORT_MAX_SCALE,
+  VIEWPORT_MIN_SCALE,
+  normalizeLeaferGraphGraphConfig,
+  resolveDefaultLeaferGraphGraphConfig
+} from "./graph";
+export {
+  normalizeLeaferGraphLeaferConfig,
+  resolveDefaultLeaferGraphLeaferConfig
+} from "./leafer";
+export {
+  normalizeLeaferGraphWidgetConfig,
+  resolveDefaultLeaferGraphWidgetConfig,
+  resolveDefaultLeaferGraphWidgetEditingConfig,
+  resolveWidgetEditingOptions
+} from "./widget";
+export {
   normalizeLeaferGraphConfig,
   normalizeLeaferContextMenuConfig,
   resolveDefaultLeaferGraphConfig,
