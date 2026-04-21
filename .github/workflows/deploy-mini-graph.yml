@@ -44,10 +44,9 @@ jobs:
       - name: Resolve GitHub Pages base
         shell: bash
         run: |
-          # GitHub Pages 项目页面的 URL 已经包含仓库名
-          # 所以 base path 只需要子项目路径
-          echo "GITHUB_PAGES_BASE=/mini-graph/" >> "$GITHUB_ENV"
-          echo "✓ Base path set to: /mini-graph/"
+          # 对于 GitHub Pages，直接部署到根路径
+          echo "GITHUB_PAGES_BASE=/" >> "$GITHUB_ENV"
+          echo "✓ Base path set to: /"
         env:
           MSYS_NO_PATHCONV: 1
 
@@ -67,16 +66,10 @@ jobs:
           fi
           echo "✓ Build output verified"
 
-      - name: Prepare deployment structure
-        run: |
-          mkdir -p deploy/mini-graph
-          cp -r ./example/mini-graph/dist/* deploy/mini-graph/
-          echo "✓ Deployment structure prepared"
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ./deploy
+          path: ./example/mini-graph/dist
 
       - name: Deploy to GitHub Pages
         id: deployment
