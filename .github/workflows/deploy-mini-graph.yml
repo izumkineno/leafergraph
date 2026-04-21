@@ -44,14 +44,10 @@ jobs:
       - name: Resolve GitHub Pages base
         shell: bash
         run: |
-          REPO_NAME="${GITHUB_REPOSITORY#*/}"
-          if [[ "$REPO_NAME" == *.github.io ]]; then
-            BASE_PATH="/mini-graph/"
-          else
-            BASE_PATH="/$REPO_NAME/mini-graph/"
-          fi
-          echo "GITHUB_PAGES_BASE=$BASE_PATH" >> "$GITHUB_ENV"
-          echo "✓ Base path set to: $BASE_PATH"
+          # GitHub Pages 项目页面的 URL 已经包含仓库名
+          # 所以 base path 只需要子项目路径
+          echo "GITHUB_PAGES_BASE=/mini-graph/" >> "$GITHUB_ENV"
+          echo "✓ Base path set to: /mini-graph/"
         env:
           MSYS_NO_PATHCONV: 1
 
@@ -71,10 +67,16 @@ jobs:
           fi
           echo "✓ Build output verified"
 
+      - name: Prepare deployment structure
+        run: |
+          mkdir -p deploy/mini-graph
+          cp -r ./example/mini-graph/dist/* deploy/mini-graph/
+          echo "✓ Deployment structure prepared"
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ./example/mini-graph/dist
+          path: ./deploy
 
       - name: Deploy to GitHub Pages
         id: deployment
