@@ -98,29 +98,31 @@ describe("package split boundary rules", () => {
       allowedSourceImports: ["@leafergraph/node", "@leafergraph/core/node"]
     });
 
-    expect(getPackageRule("@leafergraph/extensions/authoring")).toEqual({
-      allowedWorkspaceDeps: [
-        "@leafergraph/contracts",
-        "@leafergraph/execution",
-        "@leafergraph/node",
-        "@leafergraph/theme",
-        "@leafergraph/core/contracts",
-        "@leafergraph/core/execution",
-        "@leafergraph/core/node",
-        "@leafergraph/core/theme",
-        "leafergraph"
-      ],
-      allowedSourceImports: [
-        "@leafergraph/contracts",
-        "@leafergraph/execution",
-        "@leafergraph/node",
-        "@leafergraph/theme",
-        "@leafergraph/core/contracts",
-        "@leafergraph/core/execution",
-        "@leafergraph/core/node",
-        "@leafergraph/core/theme"
-      ]
-    });
+    expect(sortPackageRule(getPackageRule("@leafergraph/extensions/authoring"))).toEqual(
+      sortPackageRule({
+        allowedWorkspaceDeps: [
+          "@leafergraph/contracts",
+          "@leafergraph/execution",
+          "@leafergraph/node",
+          "@leafergraph/theme",
+          "@leafergraph/core/contracts",
+          "@leafergraph/core/execution",
+          "@leafergraph/core/node",
+          "@leafergraph/core/theme",
+          "leafergraph"
+        ],
+        allowedSourceImports: [
+          "@leafergraph/contracts",
+          "@leafergraph/execution",
+          "@leafergraph/node",
+          "@leafergraph/theme",
+          "@leafergraph/core/contracts",
+          "@leafergraph/core/execution",
+          "@leafergraph/core/node",
+          "@leafergraph/core/theme"
+        ]
+      })
+    );
   });
 
   test("root workspace declares the split package globs", () => {
@@ -168,4 +170,14 @@ function writeWorkspacePackage(repoRoot: string, relativePath: string, packageNa
       2
     )
   );
+}
+
+function sortPackageRule(rule: {
+  allowedWorkspaceDeps: string[];
+  allowedSourceImports: string[];
+}) {
+  return {
+    allowedWorkspaceDeps: [...rule.allowedWorkspaceDeps].sort(),
+    allowedSourceImports: [...rule.allowedSourceImports].sort()
+  };
 }
