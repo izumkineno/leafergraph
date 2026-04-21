@@ -36,6 +36,7 @@ import type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode
 } from "@leafergraph/core/theme";
+import { Debug } from "leafer-ui";
 import {
   createLeaferGraph,
   type LeaferGraph

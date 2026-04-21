@@ -264,12 +264,15 @@ function buildPackageRules() {
   const rules = {};
 
   for (const [packageName, rule] of Object.entries(canonicalPackageRules)) {
-    rules[packageName] = rule;
+    rules[packageName] = {
+      allowedWorkspaceDeps: expandRulePackageNames(rule.allowedWorkspaceDeps),
+      allowedSourceImports: expandRulePackageNames(rule.allowedSourceImports)
+    };
 
     for (const alias of ruleAliases[packageName] ?? []) {
       rules[alias] = {
-        allowedWorkspaceDeps: rule.allowedWorkspaceDeps.map(normalizeRulePackageName),
-        allowedSourceImports: rule.allowedSourceImports.map(normalizeRulePackageName)
+        allowedWorkspaceDeps: expandRulePackageNames(rule.allowedWorkspaceDeps),
+        allowedSourceImports: expandRulePackageNames(rule.allowedSourceImports)
       };
     }
   }
@@ -277,14 +280,13 @@ function buildPackageRules() {
   return rules;
 }
 
-function normalizeRulePackageName(packageName) {
-  for (const [canonicalName, aliases] of Object.entries(ruleAliases)) {
-    if (packageName === canonicalName) {
-      return aliases[0] ?? packageName;
-    }
-  }
+function expandRulePackageNames(packageNames) {
+  return [...new Set(packageNames.flatMap(expandRulePackageName))];
+}
 
-  return packageName;
+function expandRulePackageName(packageName) {
+  const aliases = ruleAliases[packageName] ?? [];
+  return [packageName, ...aliases];
 }
 
 function resolveWorkspacePattern(repoRoot, workspacePattern) {

@@ -45,8 +45,24 @@ export default defineConfig({
         replacement: resolve(__dirname, "../../packages/core/basic-kit/src/index.ts")
       },
       {
+        find: /^@leafergraph\/core\/node$/,
+        replacement: resolve(__dirname, "../../packages/core/node/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/core\/execution$/,
+        replacement: resolve(__dirname, "../../packages/core/execution/src/index.ts")
+      },
+      {
         find: /^@leafergraph\/core\/contracts$/,
         replacement: resolve(__dirname, "../../packages/core/contracts/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/widget-runtime$/,
+        replacement: resolve(__dirname, "../../packages/widget-runtime/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/authoring$/,
+        replacement: resolve(__dirname, "../../packages/authoring/src/index.ts")
       },
       {
         find: /^@leafergraph\/context-menu$/,

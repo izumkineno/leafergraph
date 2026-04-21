@@ -94,12 +94,16 @@ describe("package split boundary rules", () => {
     expect(getPackageRule("@leafergraph/core/node")).toEqual(getPackageRule("@leafergraph/node"));
 
     expect(getPackageRule("@leafergraph/core/execution")).toEqual({
-      allowedWorkspaceDeps: ["@leafergraph/core/node"],
-      allowedSourceImports: ["@leafergraph/core/node"]
+      allowedWorkspaceDeps: ["@leafergraph/node", "@leafergraph/core/node"],
+      allowedSourceImports: ["@leafergraph/node", "@leafergraph/core/node"]
     });
 
     expect(getPackageRule("@leafergraph/extensions/authoring")).toEqual({
       allowedWorkspaceDeps: [
+        "@leafergraph/contracts",
+        "@leafergraph/execution",
+        "@leafergraph/node",
+        "@leafergraph/theme",
         "@leafergraph/core/contracts",
         "@leafergraph/core/execution",
         "@leafergraph/core/node",
@@ -107,6 +111,10 @@ describe("package split boundary rules", () => {
         "leafergraph"
       ],
       allowedSourceImports: [
+        "@leafergraph/contracts",
+        "@leafergraph/execution",
+        "@leafergraph/node",
+        "@leafergraph/theme",
         "@leafergraph/core/contracts",
         "@leafergraph/core/execution",
         "@leafergraph/core/node",
