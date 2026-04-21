@@ -1,2 +1,0 @@
-$ bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example dev --host "127.0.0.1" --port "4173"
-$ node -e "const fs = require('node:fs'); const cp = require('node:child_process'); const required = ['example/authoring-basic-nodes/dist/index.js', 'example/authoring-basic-nodes/dist/index.d.ts']; if (required.every((file) => fs.existsSync(file))) process.exit(0); cp.execSync('bun run build:authoring-basic-nodes', { stdio: 'inherit' });"
