@@ -1,9 +1,12 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
-  createWorkspaceBoundaryRules,
-  requiredWorkspaceGlobs
-} from "./package_split_inventory.mjs";
+  collectDeclaredWorkspaceDeps,
+  collectPackageInfos,
+  collectWorkspacePackages,
+  extractWorkspaceSpecifiers,
+  getPackageRule
+} from "./workspace_boundaries.shared.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const rootPackageJson = readJson(path.join(repoRoot, "package.json"));
@@ -12,7 +15,7 @@ const packageRules = createWorkspaceBoundaryRules();
 const formalPackages = collectFormalPackageInfos(path.join(repoRoot, "packages"));
 const workspacePackages = collectWorkspacePackages(rootPackageJson.workspaces ?? []);
 
-checkRequiredWorkspaceGlobs(rootPackageJson.workspaces ?? []);
+const formalPackages = collectPackageInfos(path.join(repoRoot, "packages"), repoRoot);
 for (const packageInfo of formalPackages.values()) {
   checkPackageRule(packageInfo, formalPackages);
   checkSourceImports(packageInfo, formalPackages);
@@ -30,7 +33,7 @@ if (errors.length) {
 console.log("workspace 边界检查通过");
 
 function checkPackageRule(packageInfo, workspacePackages) {
-  const rule = packageRules[packageInfo.name];
+  const rule = getPackageRule(packageInfo.name);
   if (!rule) {
     errors.push(`缺少正式包边界规则: ${packageInfo.name}`);
     return;
@@ -51,7 +54,7 @@ function checkPackageRule(packageInfo, workspacePackages) {
 }
 
 function checkSourceImports(packageInfo, workspacePackages) {
-  const rule = packageRules[packageInfo.name];
+  const rule = getPackageRule(packageInfo.name);
   if (!rule) {
     return;
   }
@@ -117,144 +120,6 @@ function checkRootScripts(workspacePackages) {
       }
     }
   }
-}
-
-function collectFormalPackageInfos(packagesRoot) {
-  const packageInfos = new Map();
-  walkPackageDirectories(packagesRoot, packageInfos);
-
-  return packageInfos;
-}
-
-function walkPackageDirectories(directoryPath, packageInfos) {
-  if (!existsSync(directoryPath)) {
-    return;
-  }
-
-  const packageJsonPath = path.join(directoryPath, "package.json");
-  if (existsSync(packageJsonPath)) {
-    const packageJson = readJson(packageJsonPath);
-    packageInfos.set(packageJson.name, {
-      name: packageJson.name,
-      packageJson,
-      directoryPath,
-      relativePath: path.relative(repoRoot, directoryPath).replaceAll("\\", "/")
-    });
-    return;
-  }
-
-  for (const entry of readdirSync(directoryPath, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    walkPackageDirectories(path.join(directoryPath, entry.name), packageInfos);
-  }
-}
-
-function collectWorkspacePackages(workspaces) {
-  const packageInfos = new Map();
-
-  for (const workspacePattern of workspaces) {
-    const absolutePatternPath = path.join(repoRoot, workspacePattern);
-
-    if (workspacePattern.endsWith("/*")) {
-      const parentPath = absolutePatternPath.slice(0, -2);
-      if (!existsSync(parentPath)) {
-        continue;
-      }
-
-      for (const entry of readdirSync(parentPath, { withFileTypes: true })) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
-
-        const workspacePath = path.join(parentPath, entry.name);
-        const packageJsonPath = path.join(workspacePath, "package.json");
-        if (!existsSync(packageJsonPath)) {
-          continue;
-        }
-
-        const packageJson = readJson(packageJsonPath);
-        packageInfos.set(packageJson.name, {
-          name: packageJson.name,
-          directoryPath: workspacePath,
-          scripts: packageJson.scripts ?? {}
-        });
-      }
-      continue;
-    }
-
-    const packageJsonPath = path.join(absolutePatternPath, "package.json");
-    if (!existsSync(packageJsonPath)) {
-      continue;
-    }
-
-    const packageJson = readJson(packageJsonPath);
-    packageInfos.set(packageJson.name, {
-      name: packageJson.name,
-      directoryPath: absolutePatternPath,
-      scripts: packageJson.scripts ?? {}
-    });
-  }
-
-  return packageInfos;
-}
-
-function collectDeclaredWorkspaceDeps(packageJson) {
-  const dependencyFields = ["dependencies", "peerDependencies"];
-  const dependencyNames = [];
-
-  for (const fieldName of dependencyFields) {
-    const fieldValue = packageJson[fieldName];
-    if (!fieldValue || typeof fieldValue !== "object") {
-      continue;
-    }
-
-    for (const dependencyName of Object.keys(fieldValue)) {
-      if (dependencyName.startsWith("@leafergraph/") || dependencyName === "leafergraph") {
-        dependencyNames.push(dependencyName);
-      }
-    }
-  }
-
-  return dependencyNames;
-}
-
-function extractWorkspaceSpecifiers(source, workspacePackages) {
-  const specifiers = new Set();
-  const specifierPattern =
-    /\bfrom\s+["']((?:@leafergraph\/[^"']+)|leafergraph)["']|\bimport\s*\(\s*["']((?:@leafergraph\/[^"']+)|leafergraph)["']\s*\)/g;
-
-  for (const match of source.matchAll(specifierPattern)) {
-    const rawSpecifier = match[1] ?? match[2];
-    if (!rawSpecifier) {
-      continue;
-    }
-
-    const normalizedSpecifier = normalizeWorkspaceSpecifier(rawSpecifier, workspacePackages);
-    if (normalizedSpecifier) {
-      specifiers.add(normalizedSpecifier);
-    }
-  }
-
-  return specifiers;
-}
-
-function normalizeWorkspaceSpecifier(specifier, workspacePackages) {
-  let matchedWorkspaceName = null;
-
-  for (const workspaceName of workspacePackages.keys()) {
-    if (specifier !== workspaceName && !specifier.startsWith(`${workspaceName}/`)) {
-      continue;
-    }
-
-    if (!matchedWorkspaceName || workspaceName.length > matchedWorkspaceName.length) {
-      matchedWorkspaceName = workspaceName;
-    }
-  }
-
-  return matchedWorkspaceName;
 }
 
 function walkFiles(directoryPath) {

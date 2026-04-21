@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -66,14 +67,29 @@ describe("collectWorkspacePackages", () => {
 });
 
 describe("package split boundary rules", () => {
-  test("maps split package names onto the existing boundary envelopes", () => {
+  test("derives split package rules from the existing dependency envelopes", () => {
     expect(getPackageRule("@leafergraph/core/node")).toEqual(getPackageRule("@leafergraph/node"));
-    expect(getPackageRule("@leafergraph/core/execution")).toEqual(
-      getPackageRule("@leafergraph/execution")
-    );
-    expect(getPackageRule("@leafergraph/extensions/authoring")).toEqual(
-      getPackageRule("@leafergraph/authoring")
-    );
+
+    expect(getPackageRule("@leafergraph/core/execution")).toEqual({
+      allowedWorkspaceDeps: ["@leafergraph/core/node"],
+      allowedSourceImports: ["@leafergraph/core/node"]
+    });
+
+    expect(getPackageRule("@leafergraph/extensions/authoring")).toEqual({
+      allowedWorkspaceDeps: [
+        "@leafergraph/core/contracts",
+        "@leafergraph/core/execution",
+        "@leafergraph/core/node",
+        "@leafergraph/core/theme",
+        "leafergraph"
+      ],
+      allowedSourceImports: [
+        "@leafergraph/core/contracts",
+        "@leafergraph/core/execution",
+        "@leafergraph/core/node",
+        "@leafergraph/core/theme"
+      ]
+    });
   });
 
   test("root workspace declares the split package globs", () => {
@@ -84,6 +100,17 @@ describe("package split boundary rules", () => {
     expect(rootPackageJson.workspaces).toEqual(
       expect.arrayContaining(["packages/core/*", "packages/extensions/*"])
     );
+  });
+
+  test("workspace boundary checker stays executable", () => {
+    const result = spawnSync("node", ["./scripts/check_workspace_boundaries.mjs"], {
+      cwd: path.resolve(import.meta.dir, "../.."),
+      encoding: "utf8"
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("workspace 边界检查通过");
+    expect(result.stderr).toBe("");
   });
 });
 

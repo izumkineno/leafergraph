@@ -49,11 +49,12 @@
     "test:shortcuts": "bun run --filter @leafergraph/shortcuts test",
     "test:undo-redo": "bun run --filter @leafergraph/undo-redo test",
     "test:leafergraph": "bun run --filter leafergraph test",
+    "test:workspace-boundaries": "bun test scripts/tests/workspace_boundaries.test.ts",
     "test:core": "bun run test:node && bun run test:execution && bun run test:theme && bun run test:contracts && bun run && bun run test:widget-runtime && bun run test:basic-kit && bun run test:authoring && bun run test:context-menu && bun run test:context-menu-builtins && bun run test:shortcuts && bun run test:undo-redo && bun run test:leafergraph",
     "test:smoke:examples": "bun run check:authoring-basic-nodes && bun run build:authoring-basic-nodes && bun run build:minimal-graph",
     "test:smoke:templates": "bun run --filter @template/authoring-node-template check && bun run --filter @template/authoring-node-template build && bun run --filter @template/authoring-text-widget-template check && bun run --filter @template/authoring-text-widget-template build && bun run --filter @template/authoring-browser-plugin-template check && bun run --filter @template/authoring-browser-plugin-template build",
     "test:smoke": "bun run test:smoke:examples && bun run test:smoke:templates",
-    "test": "bun run check:boundaries && bun run check:jsdoc && bun run test:core && bun run test:smoke",
+    "test": "bun run test:workspace-boundaries && bun run check:boundaries && bun run check:jsdoc && bun run test:core && bun run test:smoke",
     "preview:minimal-graph": "bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example preview"
   },
   "devDependencies": {
