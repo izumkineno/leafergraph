@@ -14,101 +14,61 @@
 
 ## 项目分层
 
-当前 workspace 可以按七层理解：
+当前仓库里实际存在的正式包可以按六层理解：
 
-| 层级 | 包 | 作用 |
+| 层级 | 当前包 | 作用 |
 | --- | --- | --- |
-| 基础真源 | `@leafergraph/node`、`@leafergraph/theme`、`@leafergraph/config` | 定义模型、视觉主题和非视觉配置真源 |
-| 执行与公共协议 | `@leafergraph/execution`、`@leafergraph/contracts` | 定义执行链、共享宿主类型、图 API 输入输出和 diff helper |
-| 聚合与桥接 | `@leafergraph/runtime-bridge` | 提供浏览器侧 bridge client、最小 transport 抽象和 portable 聚合入口 |
-| 运行时支撑 | `@leafergraph/widget-runtime` | 提供 Widget registry、renderer lifecycle、editing 和 interaction helper |
-| 内容与宿主 | `@leafergraph/basic-kit`、`leafergraph` | 提供默认内容包和 Leafer 图运行时主包 |
-| 菜单与宿主扩展 | `@leafergraph/context-menu`、`@leafergraph/context-menu-builtins`、`@leafergraph/shortcuts`、`@leafergraph/undo-redo` | 提供右键菜单、菜单 builtins、快捷键和历史栈扩展 |
-| 作者层与消费样例 | `@leafergraph/authoring`、`example/`、`templates/` | 提供作者层 SDK、示例工程和可复制模板 |
+| core foundation | `@leafergraph/node`、`@leafergraph/execution`、`@leafergraph/contracts` | 定义节点模型、执行链、跨包共享协议 |
+| core runtime | `@leafergraph/config`、`@leafergraph/theme`、`@leafergraph/widget-runtime`、`@leafergraph/basic-kit` | 提供配置、主题、Widget runtime 和默认内容包 |
+| 主包兼容层 | `leafergraph` | 作为 runtime-only 主包，对外提供 Leafer 图宿主 façade |
+| 宿主扩展层 | `@leafergraph/context-menu`、`@leafergraph/context-menu-builtins`、`@leafergraph/shortcuts`、`@leafergraph/undo-redo` | 提供菜单、内建动作、快捷键和历史栈扩展 |
+| 作者层 | `@leafergraph/authoring` | 提供节点 / Widget 作者层 SDK |
+| 消费样例层 | `example/`、`templates/` | 提供 dogfood 示例和可复制模板 |
 
-额外记住两个固定约束：
+额外记住三个固定约束：
 
 - `leafergraph` 已经收口成 runtime-only 主包，不再聚合 re-export 其它真源包。
 - `@leafergraph/shortcuts`、`@leafergraph/undo-redo` 已进入默认 build/test 聚合，但文档定位仍然是“非核心维护包 / 宿主扩展层”。
+- 当前仓库里没有活动中的 `runtime-bridge` 包；凡是还提到它的文档，都应视为历史草案或待清理内容。
 
-## 包关系
+## 已批准的包拆分目标（执行中）
 
-下面这张图只画 workspace 内部 `dependencies` 方向，不展开 `leafer-ui` 和 Leafer 官方插件依赖：
+当前正在执行的 package split 会把正式包重新落到 `packages/core/*` 和 `packages/extensions/*` 两条目录下。阅读或维护文档时，可以先按这张映射表理解：
 
-```mermaid
-flowchart LR
-    subgraph foundation["基础真源"]
-        nodePkg["@leafergraph/node"]
-        themePkg["@leafergraph/theme"]
-        configPkg["@leafergraph/config"]
-    end
+| 当前包 | 目标包 | 备注 |
+| --- | --- | --- |
+| `@leafergraph/node` | `@leafergraph/core/node` | core foundation |
+| `@leafergraph/execution` | `@leafergraph/core/execution` | core foundation |
+| `@leafergraph/contracts` | `@leafergraph/core/contracts` | core foundation |
+| `@leafergraph/config` | `@leafergraph/core/config` | core runtime |
+| `@leafergraph/theme` | `@leafergraph/core/theme` | core runtime |
+| `@leafergraph/widget-runtime` | `@leafergraph/core/widget-runtime` | core runtime |
+| `@leafergraph/basic-kit` | `@leafergraph/core/basic-kit` | core runtime |
+| `@leafergraph/context-menu` | `@leafergraph/extensions/context-menu` | extensions |
+| `@leafergraph/context-menu-builtins` | `@leafergraph/extensions/context-menu-builtins` | extensions |
+| `@leafergraph/shortcuts` | `@leafergraph/extensions/shortcuts` | extensions |
+| `@leafergraph/undo-redo` | `@leafergraph/extensions/undo-redo` | extensions |
+| `@leafergraph/authoring` | `@leafergraph/extensions/authoring` | extensions / authoring SDK |
+| `leafergraph` | `leafergraph` | 保留为兼容主包，由 lane 4 决定最终 exports/deps 策略 |
 
-    subgraph protocol["执行与公共协议"]
-        executionPkg["@leafergraph/execution"]
-        contractsPkg["@leafergraph/contracts"]
-        runtimeBridgePkg["@leafergraph/runtime-bridge"]
-        widgetRuntimePkg["@leafergraph/widget-runtime"]
-    end
+这轮拆分里，README / docs / example / templates 统一遵守下面的写法约定：
 
-    subgraph host["内容与宿主"]
-        basicKitPkg["@leafergraph/basic-kit"]
-        contextMenuPkg["@leafergraph/context-menu"]
-        contextMenuBuiltinsPkg["@leafergraph/context-menu-builtins"]
-        leafergraphPkg["leafergraph"]
-    end
+| 场景 | 文档应该怎么写 |
+| --- | --- |
+| 描述“当前已落地事实” | 继续使用当前源码里的真实包名和目录 |
+| 描述“拆分后的目标结构” | 明确写成 target package，例如 `@leafergraph/core/node` |
+| 同时覆盖当前与目标 | 写出“当前包 → 目标包”的映射，避免把未来方案误写成现状 |
 
-    subgraph extensions["宿主扩展"]
-        shortcutsPkg["@leafergraph/shortcuts"]
-        undoRedoPkg["@leafergraph/undo-redo"]
-    end
+## 迁移边界与验证矩阵
 
-    executionPkg --> nodePkg
+这轮 package split 的文档/样例边界固定如下：
 
-    contractsPkg --> configPkg
-    contractsPkg --> executionPkg
-    contractsPkg --> nodePkg
-    contractsPkg --> themePkg
-
-    runtimeBridgePkg --> contractsPkg
-    runtimeBridgePkg --> executionPkg
-    runtimeBridgePkg --> nodePkg
-    runtimeBridgePkg --> leafergraphPkg
-
-    widgetRuntimePkg --> configPkg
-    widgetRuntimePkg --> contractsPkg
-    widgetRuntimePkg --> nodePkg
-    widgetRuntimePkg --> themePkg
-
-    basicKitPkg --> contractsPkg
-    basicKitPkg --> executionPkg
-    basicKitPkg --> nodePkg
-    basicKitPkg --> themePkg
-    basicKitPkg --> widgetRuntimePkg
-
-    contextMenuPkg --> configPkg
-    contextMenuPkg --> themePkg
-
-    contextMenuBuiltinsPkg --> contextMenuPkg
-    contextMenuBuiltinsPkg --> contractsPkg
-    contextMenuBuiltinsPkg --> nodePkg
-
-    leafergraphPkg --> configPkg
-    leafergraphPkg --> contractsPkg
-    leafergraphPkg --> executionPkg
-    leafergraphPkg --> nodePkg
-    leafergraphPkg --> themePkg
-    leafergraphPkg --> widgetRuntimePkg
-
-    undoRedoPkg --> configPkg
-    undoRedoPkg --> contractsPkg
-    undoRedoPkg --> nodePkg
-```
-
-补充说明：
-
-- `@leafergraph/authoring` 当前通过 `peerDependencies` 对齐 `@leafergraph/contracts`、`@leafergraph/execution`、`@leafergraph/node`、`@leafergraph/theme` 和 `leafergraph`。
-- `@leafergraph/shortcuts` 当前无 workspace 内部依赖，通过结构兼容方式对接 `leafergraph`、右键菜单和历史栈。
-- `@leafergraph/config` 只依赖外部 `leafer-ui`，不依赖任何其它 `@leafergraph/*` workspace 包。
+| 区域 | 本轮应该证明什么 | 推荐验证 |
+| --- | --- | --- |
+| `README.md` / `docs/` | 当前包边界真实、目标拆分映射清晰、无已删除包导航 | `bun run check:boundaries` |
+| `example/mini-graph` | 主包兼容层仍能显式装配 core + extensions | `bun run build:minimal-graph` |
+| `example/authoring-basic-nodes` | 纯作者层示例仍可说明 `authoring` 与 core foundation 的关系 | `bun run check:authoring-basic-nodes && bun run build:authoring-basic-nodes` |
+| `templates/` | 模板仍然围绕 authoring + core 真源组织，不误导使用者依赖历史壳层 | `bun run test:smoke:templates` |
 
 ## 我现在该先看哪里
 
@@ -157,7 +117,6 @@ flowchart LR
 | [`packages/config`](./packages/config/README.md) | 需要行为配置时 | `graph`、`widget`、`context-menu`、`leafer` 配置和 normalize helper |
 | [`packages/execution`](./packages/execution/README.md) | 需要执行内核时 | 执行上下文、传播语义、图级状态机和本地反馈适配器 |
 | [`packages/contracts`](./packages/contracts/README.md) | 需要跨包共享协议时 | 插件协议、图 API 输入输出、Widget 契约、history/diff helper |
-| [`packages/runtime-bridge`](./packages/runtime-bridge/README.md) | 需要本地后端桥接与聚合入口时 | bridge client、portable helper、execution re-export、transport 抽象 |
 | [`packages/widget-runtime`](./packages/widget-runtime/README.md) | 需要 Widget runtime 真源时 | registry、renderer lifecycle、editing、interaction helper |
 | [`packages/basic-kit`](./packages/basic-kit/README.md) | 需要默认内容时 | 基础 widgets、系统节点和一键安装 plugin |
 | [`packages/leafergraph`](./packages/leafergraph/README.md) | 需要图运行时主包时 | `LeaferGraph`、`createLeaferGraph(...)` 和 runtime façade |
@@ -205,9 +164,9 @@ flowchart LR
 - [authoring-basic-nodes](./example/authoring-basic-nodes/README.md)
   - 纯作者层示例包
   - 适合看 `@leafergraph/authoring` 产物如何收口成 plugin / module
-- [runtime-bridge-node-demo](./example/runtime-bridge-node-demo/README.md)
-  - Node authority + 浏览器 bridge client 的 backend-first 示例
-  - 适合看 `runtime-bridge`、document diff 和 control command 的真实接线
+- `example/web-crawler-nodes`
+  - 作为源码级作者层示例存在
+  - 当前暂无独立 README，不作为一线对外导航入口
 
 ### 模板
 
@@ -240,7 +199,6 @@ bun run build:execution
 bun run build:theme
 bun run build:config
 bun run build:contracts
-bun run build:runtime-bridge
 bun run build:widget-runtime
 bun run build:basic-kit
 bun run build:authoring
@@ -251,7 +209,6 @@ bun run build:undo-redo
 bun run build:leafergraph
 bun run build:minimal-graph
 bun run build:authoring-basic-nodes
-bun run build:runtime-bridge-node-demo
 ```
 
 命令约定：
@@ -270,4 +227,5 @@ bun run build:runtime-bridge-node-demo
 - 根 README 只保留现状入口，不再为已删除目录或历史兼容结构保留导航。
 - 包 README 只讲该包自己的使用入口、职责边界和真实导出。
 - `docs/` 下的事实型专题以当前源码和包 README 为准；如果二者冲突，优先相信当前源码。
+- package split 仍在执行中的内容，统一写到 `docs/架构演进与提案总览.md`，不要混写成“当前已经落地”的事实。
 - `注意事项.md` 用于维护跨任务复用的踩坑记录，不写成方案草案。
