@@ -17,10 +17,12 @@ import type {
   LeaferGraphWidgetTextEditRequest
 } from "@leafergraph/core/contracts";
 import type {
+  LeaferGraphWidgetEditingConfig,
   NormalizedLeaferGraphLeaferEditorConfig,
   NormalizedLeaferGraphLeaferTextEditorConfig,
   NormalizedLeaferGraphWidgetEditingConfig
 } from "@leafergraph/core/config";
+import { resolveWidgetEditingOptions as resolveCoreWidgetEditingOptions } from "@leafergraph/core/config";
 import type {
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/core/theme";
@@ -1124,4 +1126,15 @@ export function createDisabledWidgetEditingContext(): LeaferGraphWidgetEditingCo
   };
 }
 
-export { resolveWidgetEditingOptions } from "@leafergraph/core/config";
+export function resolveWidgetEditingOptions(
+  mode: "light" | "dark",
+  options?: LeaferGraphWidgetEditingConfig
+): {
+  themeMode: "light" | "dark";
+  editing: NormalizedLeaferGraphWidgetEditingConfig;
+} {
+  return resolveCoreWidgetEditingOptions(mode, {
+    enabled: false,
+    ...options
+  });
+}
