@@ -28,12 +28,18 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Check Pages enabled
+        run: |
+          if ! gh api repos/${{ github.repository }}/pages &>/dev/null; then
+            echo "::error::GitHub Pages is not enabled. Please enable it in Settings → Pages → Source: GitHub Actions"
+            exit 1
+          fi
+          echo "✓ GitHub Pages is enabled"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Setup Pages
-        if: ${{ secrets.PAGES_ENABLEMENT_TOKEN != '' }}
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
-          token: ${{ secrets.PAGES_ENABLEMENT_TOKEN }}
 
       - name: Resolve GitHub Pages base
         shell: bash
@@ -44,12 +50,21 @@ jobs:
           else
             echo "GITHUB_PAGES_BASE=/$REPO_NAME/mini-graph/" >> "$GITHUB_ENV"
           fi
+          echo "✓ Base path set to: $GITHUB_PAGES_BASE"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Build mini-graph
         run: bun run build:minimal-graph
+
+      - name: Verify build output
+        run: |
+          if [ ! -f ./example/mini-graph/dist/index.html ]; then
+            echo "::error::Build output missing index.html"
+            exit 1
+          fi
+          echo "✓ Build output verified"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
