@@ -1,4 +1,5 @@
 import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type { LeaferContextMenuContext } from "@leafergraph/extensions/context-menu";
 import type {
   LeaferGraphContextMenuBuiltinFeatureRegistrationContext,
@@ -107,7 +108,7 @@ export function writeClipboardFragment(input: {
  * @param input - 输入参数。
  * @returns 粘贴剪贴板片段的结果。
  */
-export async function pasteClipboardFragment(input: {
+export function pasteClipboardFragment(input: {
   fragment: LeaferGraphContextMenuClipboardFragment;
   host: Pick<LeaferGraphContextMenuBuiltinsHost, "setSelectedNodeIds">;
   createNode: LeaferGraphContextMenuBuiltinFeatureRegistrationContext["createNode"];
@@ -118,7 +119,7 @@ export async function pasteClipboardFragment(input: {
     y: number;
   };
   anchorToContextWorldPoint?: boolean;
-}): Promise<string[]> {
+}): Promise<string[]> | string[] {
   // 先整理当前阶段需要的输入、状态与依赖。
   const offset = input.offset ?? DEFAULT_PASTE_OFFSET;
   const origin = resolveFragmentOrigin(input.fragment);
@@ -144,31 +145,63 @@ export async function pasteClipboardFragment(input: {
   const nodeIdMap = new Map<string, string>();
   const createdNodeIds: string[] = [];
 
+  let pendingNodes: Promise<void> | undefined;
+
   for (const snapshot of input.fragment.nodes) {
     const nextNodeInput = createCreateNodeInputFromNodeSnapshot(snapshot);
-    const createdNode = await input.createNode(
-      {
-        ...nextNodeInput,
-        id: undefined,
-        x: snapshot.layout.x + delta.x,
-        y: snapshot.layout.y + delta.y
-      },
-      input.context as LeaferContextMenuContext
-    );
-    // 再执行核心逻辑，并把结果或副作用统一收口。
-    nodeIdMap.set(snapshot.id, createdNode.nodeId);
-    createdNodeIds.push(createdNode.nodeId);
-  }
+    const createNodeInput = {
+      ...nextNodeInput,
+      id: undefined,
+      x: snapshot.layout.x + delta.x,
+      y: snapshot.layout.y + delta.y
+    };
+    const finishNode = (
+      createdNode: Awaited<
+        ReturnType<
+          LeaferGraphContextMenuBuiltinFeatureRegistrationContext["createNode"]
+        >
+      >
+    ): void => {
+      const createdNodeId = resolveCreatedNodeId(createdNode);
+      nodeIdMap.set(snapshot.id, createdNodeId);
+      createdNodeIds.push(createdNodeId);
+    };
 
-  for (const link of input.fragment.links) {
-    const sourceNodeId = nodeIdMap.get(link.source.nodeId);
-    const targetNodeId = nodeIdMap.get(link.target.nodeId);
-    if (!sourceNodeId || !targetNodeId) {
+    if (pendingNodes) {
+      pendingNodes = pendingNodes.then(() =>
+        Promise.resolve(
+          input.createNode(
+            createNodeInput,
+            input.context as LeaferContextMenuContext
+          )
+        ).then(finishNode)
+      );
       continue;
     }
 
-    await input.createLink(
-      {
+    const createdNode = input.createNode(
+      createNodeInput,
+      input.context as LeaferContextMenuContext
+    );
+    if (isPromiseLike(createdNode)) {
+      pendingNodes = Promise.resolve(createdNode).then(finishNode);
+      continue;
+    }
+
+    finishNode(createdNode);
+  }
+
+  const finalizeLinks = (): Promise<string[]> | string[] => {
+    let pendingLinks: Promise<void> | undefined;
+
+    for (const link of input.fragment.links) {
+      const sourceNodeId = nodeIdMap.get(link.source.nodeId);
+      const targetNodeId = nodeIdMap.get(link.target.nodeId);
+      if (!sourceNodeId || !targetNodeId) {
+        continue;
+      }
+
+      const createLinkInput = {
         source: {
           nodeId: sourceNodeId,
           slot: link.source.slot
@@ -177,13 +210,41 @@ export async function pasteClipboardFragment(input: {
           nodeId: targetNodeId,
           slot: link.target.slot
         }
-      },
-      input.context as LeaferContextMenuContext
-    );
-  }
+      };
 
-  input.host.setSelectedNodeIds(createdNodeIds, "replace");
-  return createdNodeIds;
+      if (pendingLinks) {
+        pendingLinks = pendingLinks.then(() =>
+          Promise.resolve(
+            input.createLink(
+              createLinkInput,
+              input.context as LeaferContextMenuContext
+            )
+          ).then(() => undefined)
+        );
+        continue;
+      }
+
+      const createdLink = input.createLink(
+        createLinkInput,
+        input.context as LeaferContextMenuContext
+      );
+      if (isPromiseLike(createdLink)) {
+        pendingLinks = Promise.resolve(createdLink).then(() => undefined);
+      }
+    }
+
+    if (pendingLinks) {
+      return pendingLinks.then(() => {
+        input.host.setSelectedNodeIds(createdNodeIds, "replace");
+        return createdNodeIds;
+      });
+    }
+
+    input.host.setSelectedNodeIds(createdNodeIds, "replace");
+    return createdNodeIds;
+  };
+
+  return pendingNodes ? pendingNodes.then(finalizeLinks) : finalizeLinks();
 }
 
 /**
@@ -211,4 +272,22 @@ function resolveFragmentOrigin(fragment: LeaferGraphContextMenuClipboardFragment
       y: firstNode.layout.y
     }
   );
+}
+
+function resolveCreatedNodeId(
+  createdNode:
+    | Pick<NodeRuntimeState, "id">
+    | {
+        nodeId: string;
+      }
+): string {
+  if ("nodeId" in createdNode) {
+    return createdNode.nodeId;
+  }
+
+  return createdNode.id;
+}
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
 }

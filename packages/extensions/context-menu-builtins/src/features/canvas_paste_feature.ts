@@ -27,12 +27,12 @@ export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition 
           shortcut: resolveShortcutLabel("graph.paste"),
           order: 40,
           disabled: !fragment?.nodes.length,
-          async onSelect() {
+          onSelect() {
             if (!fragment?.nodes.length) {
               return;
             }
 
-            await pasteClipboardFragment({
+            return pasteClipboardFragment({
               fragment,
               host,
               createLink,

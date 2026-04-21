@@ -17,13 +17,19 @@ export const canvasDeleteSelectionFeature: LeaferGraphContextMenuBuiltinFeatureD
           order: 90,
           danger: true,
           disabled: !selectedNodeIds.length,
-          async onSelect() {
+          onSelect() {
             const nextSelectedNodeIds = host.listSelectedNodeIds();
             if (!nextSelectedNodeIds.length) {
               return;
             }
 
-            await removeNodes(nextSelectedNodeIds, context);
+            const removal = removeNodes(nextSelectedNodeIds, context);
+            if (isPromiseLike(removal)) {
+              return removal.then(() => {
+                host.setSelectedNodeIds([], "replace");
+              });
+            }
+
             host.setSelectedNodeIds([], "replace");
           }
         }
@@ -31,3 +37,7 @@ export const canvasDeleteSelectionFeature: LeaferGraphContextMenuBuiltinFeatureD
     });
   }
 };
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
+}

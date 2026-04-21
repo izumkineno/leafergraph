@@ -80,13 +80,13 @@ function createCategoryItems(
     key: `builtin-canvas-add-node-category:${category}`,
     label: category,
     children: entries.map((entry) => ({
-      key: `builtin-canvas-add-node:${entry.type}`,
-      label: entry.title,
-      description: entry.description,
-      async onSelect() {
-        await onSelect(entry.type);
-      }
-    }))
+          key: `builtin-canvas-add-node:${entry.type}`,
+          label: entry.title,
+          description: entry.description,
+          onSelect() {
+            return onSelect(entry.type);
+          }
+        }))
   }));
 }
 

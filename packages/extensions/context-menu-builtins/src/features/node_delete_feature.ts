@@ -20,14 +20,13 @@ export const nodeDeleteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition =
           shortcut: resolveShortcutLabel("graph.delete-selection"),
           order: 90,
           danger: true,
-          async onSelect() {
+          onSelect() {
             const nextSelectedNodeIds = resolveEditingNodeIds(host, nodeId);
             if (nextSelectedNodeIds.length > 1) {
-              await removeNodes(nextSelectedNodeIds, context);
-              return;
+              return removeNodes(nextSelectedNodeIds, context);
             }
 
-            await removeNode(nodeId, context);
+            return removeNode(nodeId, context);
           }
         }
       ];

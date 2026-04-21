@@ -14,8 +14,8 @@ export const nodeRunFromHereFeature: LeaferGraphContextMenuBuiltinFeatureDefinit
           key: "builtin-node-run-from-here",
           label: "从该节点开始运行",
           order: 10,
-          async onSelect() {
-            await playFromNode(nodeId, context);
+          onSelect() {
+            return playFromNode(nodeId, context);
           }
         }
       ];

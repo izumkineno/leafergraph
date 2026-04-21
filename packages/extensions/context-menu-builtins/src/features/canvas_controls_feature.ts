@@ -18,29 +18,29 @@ export const canvasControlsFeature: LeaferGraphContextMenuBuiltinFeatureDefiniti
             {
               key: "builtin-canvas-controls-play",
               label: "Play",
-              async onSelect() {
-                await play(context);
+              onSelect() {
+                return play(context);
               }
             },
             {
               key: "builtin-canvas-controls-step",
               label: "Step",
-              async onSelect() {
-                await step(context);
+              onSelect() {
+                return step(context);
               }
             },
             {
               key: "builtin-canvas-controls-stop",
               label: "Stop",
-              async onSelect() {
-                await stop(context);
+              onSelect() {
+                return stop(context);
               }
             },
             {
               key: "builtin-canvas-controls-fit",
               label: "Fit View",
-              async onSelect() {
-                await fitView(context);
+              onSelect() {
+                return fitView(context);
               }
             }
           ]

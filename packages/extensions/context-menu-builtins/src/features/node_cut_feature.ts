@@ -29,7 +29,7 @@ export const nodeCutFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
           order: 21,
           danger: true,
           disabled: !host.getNodeSnapshot(nodeId),
-          async onSelect() {
+          onSelect() {
             const nextSelectedNodeIds = resolveEditingNodeIds(host, nodeId);
             const fragment = writeClipboardFragment({
               clipboard,
@@ -41,9 +41,19 @@ export const nodeCutFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
             }
 
             if (nextSelectedNodeIds.length > 1) {
-              await removeNodes(nextSelectedNodeIds, context);
+              const removal = removeNodes(nextSelectedNodeIds, context);
+              if (isPromiseLike(removal)) {
+                return removal.then(() => {
+                  host.setSelectedNodeIds([], "replace");
+                });
+              }
             } else {
-              await removeNode(nextSelectedNodeIds[0], context);
+              const removal = removeNode(nextSelectedNodeIds[0], context);
+              if (isPromiseLike(removal)) {
+                return removal.then(() => {
+                  host.setSelectedNodeIds([], "replace");
+                });
+              }
             }
 
             host.setSelectedNodeIds([], "replace");
@@ -53,3 +63,7 @@ export const nodeCutFeature: LeaferGraphContextMenuBuiltinFeatureDefinition = {
     });
   }
 };
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
+}

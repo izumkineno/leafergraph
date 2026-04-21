@@ -140,12 +140,12 @@ export interface LeaferGraphContextMenuBuiltinsHost {
   createNode(
     input: LeaferGraphCreateNodeInput,
     context: LeaferContextMenuContext
-  ): Promise<{ nodeId: string }> | { nodeId: string };
+  ): Promise<Pick<NodeRuntimeState, "id">> | Pick<NodeRuntimeState, "id">;
   /** 在图中创建连线。 */
   createLink(
     input: LeaferGraphCreateLinkInput,
     context: LeaferContextMenuContext
-  ): Promise<{ linkId: string }> | { linkId: string };
+  ): Promise<GraphLink> | GraphLink;
   /** 启动图执行。 */
   play(context: LeaferContextMenuContext): Promise<void> | void;
   /** 单步执行。 */
@@ -228,12 +228,12 @@ export interface LeaferGraphContextMenuBuiltinFeatureRegistrationContext {
   createNode(
     input: LeaferGraphCreateNodeInput,
     context: LeaferContextMenuContext
-  ): Promise<{ nodeId: string }> | { nodeId: string };
+  ): Promise<Pick<NodeRuntimeState, "id">> | Pick<NodeRuntimeState, "id">;
   /** 在图中创建连线。 */
   createLink(
     input: LeaferGraphCreateLinkInput,
     context: LeaferContextMenuContext
-  ): Promise<{ linkId: string }> | { linkId: string };
+  ): Promise<GraphLink> | GraphLink;
   /** 启动图执行。 */
   play(context: LeaferContextMenuContext): Promise<void> | void;
   /** 单步执行。 */
