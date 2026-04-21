@@ -18,11 +18,18 @@
 
 ## 2026-04-21 验证结果
 
+> 最新刷新：task 2 验证补录（2026-04-21）
+
 ### PASS
 
-- `bun run test:smoke:examples`
-  - `@leafergraph/authoring-basic-nodes` 的 `check` / `build` 通过
-  - `leafergraph-minimal-graph-example` 构建通过
+- `bun run check:runtime-only-root`
+  - runtime-only root 边界检查通过
+- `bun run check:boundaries`
+  - `check:runtime-only-root` 通过
+  - `check:workspace-boundaries` 通过
+- `bun run test:workspace-boundaries`
+  - workspace boundary 规则测试通过
+  - `@leafergraph/extensions/authoring` 的兼容别名断言已更新为顺序无关比较
 - `bun run test:smoke:templates`
   - `@template/authoring-node-template` 的 `check` / `build` 通过
   - `@template/authoring-text-widget-template` 的 `check` / `build` 通过
@@ -30,14 +37,35 @@
 
 ### FAIL（当前已知 blocker）
 
-- `bun run check:boundaries`
-  - `packages/leafergraph/src/index.ts` 仍存在真源包聚合 re-export
-  - `example/mini-graph/src/graph/use_example_graph.ts` 仍从 `leafergraph` 导入了非 runtime 真源 `Debug`
+- `bun run build:leafergraph`
+  - `packages/leafergraph` 仍无法完成完整 typecheck / build
+  - 直接表现为 `@leafergraph/core/config`、`@leafergraph/core/theme`、`@leafergraph/core/widget-runtime` 等模块解析失败
+  - 当前根因是 `tsconfig.base.json` 里这些新 split 包名仍映射到旧路径：
+    - `@leafergraph/core/config` -> `packages/config/*`
+    - `@leafergraph/core/theme` -> `packages/theme/*`
+    - `@leafergraph/core/widget-runtime` -> `packages/widget-runtime/*`
+    - `@leafergraph/core/basic-kit` -> `packages/basic-kit/*`
+    - 而不是 `packages/core/*`
+- `bun run --filter leafergraph test`
+  - 与 build 同样被 `@leafergraph/core/*` 解析失败阻塞
+  - 额外还暴露了主包内已有的严格模式错误，需要后续 lane 决策：
+    - `packages/leafergraph/src/graph/assembly/scene.ts` 中多处 `TS7006`
+    - `packages/leafergraph/src/interaction/host/controller.ts` 中多处 `TS7006`
+- `bun run check:authoring-basic-nodes`
+  - `@leafergraph/authoring-basic-nodes` 无法完成 typecheck
+  - 根因同样是 split 后的新包名仍未被正确解析：
+    - `@leafergraph/core/node`
+    - `@leafergraph/core/execution`
+    - `@leafergraph/core/contracts`
+    - `@leafergraph/core/theme`
+- `bun run build:authoring-basic-nodes`
+  - Vite bundle 阶段本身可以产出 `dist/index.js`
+  - 但随后的 TypeScript 阶段仍然因为上述 `@leafergraph/core/*` 解析失败而整体退出
 
-这两个问题都属于 package split 的 runtime-only root 边界收口工作，应该由主包兼容层 / 边界治理 lane 继续处理；在它们修复前，不要把 `check:boundaries` 的失败误判成 README、example README 或 templates README 的问题。
+换句话说，当前 runtime-only root / boundary gate 已恢复绿色，但 `leafergraph` 主包与 `authoring-basic-nodes` 示例都仍被 split 路径解析问题阻塞；其中 `leafergraph` 还叠加了既有严格类型错误。在这些问题修复前，不要把 task 2 的失败误判成 README、example README 或 templates README 的问题。
 
 ## 使用约定
 
 - README 里只放稳定入口和高层说明，不内嵌一次性命令输出。
 - 需要查看最新 smoke / boundary 结果时，优先更新这份文档。
-- 当 `check:boundaries` 恢复通过后，应把上面的 blocker 说明替换成新的通过记录。
+- 当 `build:leafergraph` 与 `test:leafergraph` 恢复通过后，应继续把上面的 blocker 说明替换成新的通过记录。
