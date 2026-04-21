@@ -83,7 +83,10 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canCopySelection?.() ?? true,
         run: ({ data }) => {
-          return data.clipboard?.copySelection();
+          const copied = data.clipboard?.copySelection();
+          if (isPromiseLike(copied)) {
+            return copied.then(() => undefined);
+          }
         }
       }),
       registry.register({
@@ -91,7 +94,10 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canCutSelection?.() ?? true,
         run: ({ data }) => {
-          return data.clipboard?.cutSelection();
+          const cut = data.clipboard?.cutSelection();
+          if (isPromiseLike(cut)) {
+            return cut.then(() => undefined);
+          }
         }
       }),
       registry.register({
@@ -99,7 +105,10 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canPasteClipboard?.() ?? true,
         run: ({ data }) => {
-          return data.clipboard?.pasteClipboard();
+          const pasted = data.clipboard?.pasteClipboard();
+          if (isPromiseLike(pasted)) {
+            return pasted.then(() => undefined);
+          }
         }
       }),
       registry.register({
@@ -107,7 +116,10 @@ export function registerLeaferGraphShortcutFunctions(
         when: ({ data }) => canRunSelectionShortcut(data.host),
         enabled: ({ data }) => data.clipboard?.canDuplicateSelection?.() ?? true,
         run: ({ data }) => {
-          return data.clipboard?.duplicateSelection();
+          const duplicated = data.clipboard?.duplicateSelection();
+          if (isPromiseLike(duplicated)) {
+            return duplicated.then(() => undefined);
+          }
         }
       })
     );
@@ -176,6 +188,10 @@ function canRunSelectionShortcut(host: LeaferGraphShortcutHost): boolean {
   }
 
   return !state.active || state.mode === "idle";
+}
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
 }
 
 function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
