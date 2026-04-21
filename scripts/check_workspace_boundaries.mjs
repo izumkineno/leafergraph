@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
   collectDeclaredWorkspaceDeps,
@@ -21,7 +21,7 @@ for (const packageInfo of formalPackages.values()) {
   checkSourceImports(packageInfo, formalPackages);
 }
 
-checkRootScripts(workspacePackages);
+checkRootScripts(collectWorkspacePackages(repoRoot, rootPackageJson.workspaces ?? []));
 
 if (errors.length) {
   console.error(
