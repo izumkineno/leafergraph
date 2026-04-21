@@ -1126,15 +1126,4 @@ export function createDisabledWidgetEditingContext(): LeaferGraphWidgetEditingCo
   };
 }
 
-export function resolveWidgetEditingOptions(
-  mode: "light" | "dark",
-  options?: LeaferGraphWidgetEditingConfig
-): {
-  themeMode: "light" | "dark";
-  editing: NormalizedLeaferGraphWidgetEditingConfig;
-} {
-  return resolveCoreWidgetEditingOptions(mode, {
-    enabled: false,
-    ...options
-  });
-}
+export { resolveWidgetEditingOptions } from "@leafergraph/core/config";
