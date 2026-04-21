@@ -1,4 +1,4 @@
-import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts/graph-document-diff";
+import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
 import type { LeaferContextMenuContext } from "@leafergraph/context-menu";
 import type {
   LeaferGraphContextMenuBuiltinFeatureRegistrationContext,

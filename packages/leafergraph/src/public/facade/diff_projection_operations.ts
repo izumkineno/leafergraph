@@ -18,7 +18,7 @@ import type {
 import type {
   ApplyGraphDocumentDiffResult,
   GraphDocumentDiff
-} from "@leafergraph/core/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraph } from "../leafer_graph";
 
 type DiffProjectionOperation = GraphDocumentDiff["operations"][number];

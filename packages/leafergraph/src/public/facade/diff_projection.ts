@@ -11,7 +11,7 @@ import {
   createUpdateNodeInputFromNodeSnapshot,
   type ApplyGraphDocumentDiffResult,
   type GraphDocumentDiff
-} from "@leafergraph/core/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphUpdateNodeInput } from "@leafergraph/core/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";

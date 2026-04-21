@@ -6,7 +6,7 @@ import type { GraphDocument } from "@leafergraph/core/node";
 import type {
   ApplyGraphDocumentDiffResult,
   GraphDocumentDiff
-} from "@leafergraph/core/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts";
 import type {
   GraphOperation,
   GraphOperationApplyResult

@@ -45,7 +45,7 @@ export default defineConfig({
         replacement: resolve(__dirname, "../../packages/basic-kit/src/index.ts")
       },
       {
-        find: /^@leafergraph\/contracts$/,
+        find: /^@leafergraph\/core\/contracts$/,
         replacement: resolve(__dirname, "../../packages/core/contracts/src/index.ts")
       },
       {

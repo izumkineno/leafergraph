@@ -31,7 +31,7 @@ import type {
   LeaferGraphCreateNodeInput,
   RuntimeFeedbackEvent
 } from "@leafergraph/core/contracts";
-import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts/graph-document-diff";
+import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
 import type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode

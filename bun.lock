@@ -14,16 +14,16 @@
       "version": "0.1.0",
       "devDependencies": {
         "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "leafergraph": "workspace:*",
         "typescript": "~5.9.3",
         "vite": "^8.0.1",
       },
       "peerDependencies": {
         "@leafergraph/authoring": "^0.1.0",
-        "@leafergraph/execution": "^0.1.0",
-        "@leafergraph/node": "^0.1.0",
+        "@leafergraph/core/execution": "^0.1.0",
+        "@leafergraph/core/node": "^0.1.0",
         "leafergraph": "^0.1.0",
       },
     },
@@ -36,9 +36,9 @@
         "@leafergraph/basic-kit": "workspace:*",
         "@leafergraph/context-menu": "workspace:*",
         "@leafergraph/context-menu-builtins": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "@leafergraph/shortcuts": "workspace:*",
         "@leafergraph/theme": "workspace:*",
         "@leafergraph/undo-redo": "workspace:*",
@@ -62,16 +62,16 @@
       },
       "devDependencies": {
         "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "typescript": "~5.9.3",
         "vite": "^5.0.0",
       },
       "peerDependencies": {
         "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "leafer-ui": "^2.0.3",
       },
     },
@@ -79,9 +79,9 @@
       "name": "@leafergraph/authoring",
       "version": "0.1.0",
       "peerDependencies": {
-        "@leafergraph/contracts": "^0.1.0",
-        "@leafergraph/execution": "^0.1.0",
-        "@leafergraph/node": "^0.1.0",
+        "@leafergraph/core/contracts": "^0.1.0",
+        "@leafergraph/core/execution": "^0.1.0",
+        "@leafergraph/core/node": "^0.1.0",
         "@leafergraph/theme": "^0.1.0",
         "leafer-ui": "^2.0.3",
         "leafergraph": "^0.1.0",
@@ -91,9 +91,9 @@
       "name": "@leafergraph/basic-kit",
       "version": "0.1.0",
       "dependencies": {
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
         "@leafergraph/widget-runtime": "workspace:*",
         "leafer-ui": "^2.0.3",
@@ -126,30 +126,34 @@
       "version": "0.1.0",
       "dependencies": {
         "@leafergraph/context-menu": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
       },
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.0.10",
       },
     },
-    "packages/contracts": {
-      "name": "@leafergraph/contracts",
+    "packages/core/contracts": {
+      "name": "@leafergraph/core/contracts",
       "version": "0.1.0",
       "dependencies": {
         "@leafergraph/config": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
         "leafer-ui": "^2.0.3",
       },
     },
-    "packages/execution": {
-      "name": "@leafergraph/execution",
+    "packages/core/execution": {
+      "name": "@leafergraph/core/execution",
       "version": "0.1.0",
       "dependencies": {
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
       },
+    },
+    "packages/core/node": {
+      "name": "@leafergraph/core/node",
+      "version": "0.1.0",
     },
     "packages/leafergraph": {
       "name": "leafergraph",
@@ -162,9 +166,9 @@
         "@leafer-in/view": "^2.0.3",
         "@leafer-in/viewport": "^2.0.3",
         "@leafergraph/config": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/execution": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
         "@leafergraph/widget-runtime": "workspace:*",
         "leafer-ui": "^2.0.3",
@@ -172,10 +176,6 @@
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.0.10",
       },
-    },
-    "packages/node": {
-      "name": "@leafergraph/node",
-      "version": "0.1.0",
     },
     "packages/shortcuts": {
       "name": "@leafergraph/shortcuts",
@@ -193,8 +193,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@leafergraph/config": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
       },
     },
     "packages/widget-runtime": {
@@ -204,8 +204,8 @@
         "@leafer-in/editor": "^2.0.3",
         "@leafer-in/text-editor": "^2.0.3",
         "@leafergraph/config": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "@leafergraph/theme": "workspace:*",
         "leafer-ui": "^2.0.3",
       },
@@ -218,8 +218,8 @@
       "version": "0.1.0",
       "devDependencies": {
         "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "leafer-ui": "^2.0.3",
         "typescript": "~5.9.3",
         "vite": "^8.0.0",
@@ -230,8 +230,8 @@
       "version": "0.1.0",
       "devDependencies": {
         "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "leafer-ui": "^2.0.3",
         "typescript": "~5.9.3",
         "vite": "^8.0.0",
@@ -242,8 +242,8 @@
       "version": "0.1.0",
       "devDependencies": {
         "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/contracts": "workspace:*",
-        "@leafergraph/node": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
         "leafer-ui": "^2.0.3",
         "typescript": "~5.9.3",
         "vite": "^8.0.0",
@@ -487,11 +487,11 @@
 
     "@leafergraph/context-menu-builtins": ["@leafergraph/context-menu-builtins@workspace:packages/context-menu-builtins"],
 
-    "@leafergraph/contracts": ["@leafergraph/contracts@workspace:packages/contracts"],
+    "@leafergraph/core/contracts": ["@leafergraph/core/contracts@workspace:packages/core/contracts"],
 
-    "@leafergraph/execution": ["@leafergraph/execution@workspace:packages/execution"],
+    "@leafergraph/core/execution": ["@leafergraph/core/execution@workspace:packages/core/execution"],
 
-    "@leafergraph/node": ["@leafergraph/node@workspace:packages/node"],
+    "@leafergraph/core/node": ["@leafergraph/core/node@workspace:packages/core/node"],
 
     "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:packages/shortcuts"],
 
