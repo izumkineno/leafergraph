@@ -10,6 +10,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./api/graph_api_host": {
+      "types": "./src/api/graph_api_host.ts",
+      "import": "./src/api/graph_api_host.ts"
     }
   },
   "files": [
