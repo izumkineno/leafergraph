@@ -57,37 +57,37 @@ export default defineConfig({
         replacement: resolve(__dirname, "../../packages/core/contracts/src/index.ts")
       },
       {
-        find: /^@leafergraph\/widget-runtime$/,
-        replacement: resolve(__dirname, "../../packages/widget-runtime/src/index.ts")
+        find: /^@leafergraph\/core\/widget-runtime$/,
+        replacement: resolve(__dirname, "../../packages/core/widget-runtime/src/index.ts")
       },
       {
-        find: /^@leafergraph\/authoring$/,
-        replacement: resolve(__dirname, "../../packages/authoring/src/index.ts")
+        find: /^@leafergraph\/extensions\/authoring$/,
+        replacement: resolve(__dirname, "../../packages/extensions/authoring/src/index.ts")
       },
       {
-        find: /^@leafergraph\/context-menu$/,
+        find: /^@leafergraph\/extensions\/context-menu$/,
         replacement: resolve(__dirname, "../../packages/extensions/context-menu/src/index.ts")
       },
       {
-        find: /^@leafergraph\/context-menu-builtins$/,
+        find: /^@leafergraph\/extensions\/context-menu-builtins$/,
         replacement: resolve(
           __dirname,
           "../../packages/extensions/context-menu-builtins/src/index.ts"
         )
       },
       {
-        find: /^@leafergraph\/undo-redo$/,
+        find: /^@leafergraph\/extensions\/undo-redo$/,
         replacement: resolve(__dirname, "../../packages/extensions/undo-redo/src/index.ts")
       },
       {
-        find: /^@leafergraph\/undo-redo\/graph$/,
+        find: /^@leafergraph\/extensions\/undo-redo\/graph$/,
         replacement: resolve(
           __dirname,
           "../../packages/extensions/undo-redo/src/graph/index.ts"
         )
       },
       {
-        find: /^@leafergraph\/theme$/,
+        find: /^@leafergraph\/core\/theme$/,
         replacement: resolve(__dirname, "../../packages/core/theme/src/index.ts")
       }
     ]
