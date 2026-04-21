@@ -10,3 +10,76 @@ leafergraph-minimal-graph-example dev:
 leafergraph-minimal-graph-example dev: Are they installed?
 leafergraph-minimal-graph-example dev:     at file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:31227:33
 leafergraph-minimal-graph-example dev:     at async file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:23088:15[39m
+leafergraph-minimal-graph-example dev: [2m22:22:18[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "@leafergraph/extensions/shortcuts/graph" from "src/graph/use_example_graph.ts". Does the file exist?[39m
+leafergraph-minimal-graph-example dev:   Plugin: [35mvite:import-analysis[39m
+leafergraph-minimal-graph-example dev:   File: [36mE:/Code/leafergraph/.omx/team/mini-graph-bugfix-get-example/worktrees/worker-2/example/mini-graph/src/graph/use_example_graph.ts[39m:27:7
+leafergraph-minimal-graph-example dev: [33m  17 |  import { createLeaferGraphContextMenuClipboardStore } from "@leafergraph/extensions/context-menu-builtins";
+leafergraph-minimal-graph-example dev:   18 |  import { bindLeaferGraphUndoRedo } from "@leafergraph/extensions/undo-redo/graph";
+leafergraph-minimal-graph-example dev:   19 |  import { bindLeaferGraphShortcuts } from "@leafergraph/extensions/shortcuts/graph";
+leafergraph-minimal-graph-example dev:      |                                            ^
+leafergraph-minimal-graph-example dev:   20 |  import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
+leafergraph-minimal-graph-example dev:   21 |  import { Debug } from "leafer-ui";[39m
+leafergraph-minimal-graph-example dev:       at TransformPluginContext._formatLog (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30234:39)
+leafergraph-minimal-graph-example dev:       at TransformPluginContext.error (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30231:14)
+leafergraph-minimal-graph-example dev:       at normalizeUrl (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27519:18)
+leafergraph-minimal-graph-example dev:       at async file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27582:30
+leafergraph-minimal-graph-example dev:       at async Promise.all (index 8)
+leafergraph-minimal-graph-example dev:       at async TransformPluginContext.transform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27550:4)
+leafergraph-minimal-graph-example dev:       at async EnvironmentPluginContainer.transform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30023:14)
+leafergraph-minimal-graph-example dev:       at async loadAndTransform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:24152:26)
+leafergraph-minimal-graph-example dev: [2m22:22:18[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Failed to resolve import "@leafergraph/extensions/shortcuts/graph" from "src/graph/use_example_graph.ts". Does the file exist?
+leafergraph-minimal-graph-example dev:   Plugin: [35mvite:import-analysis[39m
+leafergraph-minimal-graph-example dev:   File: [36mE:/Code/leafergraph/.omx/team/mini-graph-bugfix-get-example/worktrees/worker-2/example/mini-graph/src/graph/use_example_graph.ts[39m:27:7
+leafergraph-minimal-graph-example dev: [33m  17 |  import { createLeaferGraphContextMenuClipboardStore } from "@leafergraph/extensions/context-menu-builtins";
+leafergraph-minimal-graph-example dev:   18 |  import { bindLeaferGraphUndoRedo } from "@leafergraph/extensions/undo-redo/graph";
+leafergraph-minimal-graph-example dev:   19 |  import { bindLeaferGraphShortcuts } from "@leafergraph/extensions/shortcuts/graph";
+leafergraph-minimal-graph-example dev:      |                                            ^
+leafergraph-minimal-graph-example dev:   20 |  import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
+leafergraph-minimal-graph-example dev:   21 |  import { Debug } from "leafer-ui";[39m
+leafergraph-minimal-graph-example dev: [2m22:22:19[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33m@leafer-in/resize, @leafer-in/state, @leafer-in/view, leafer-ui, preact/hooks[32m[39m
+leafergraph-minimal-graph-example dev: [2m22:22:19[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ optimized dependencies changed. reloading[39m
+leafergraph-minimal-graph-example dev: [2m22:22:19[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "@leafergraph/extensions/shortcuts/graph" from "src/graph/use_example_graph.ts". Does the file exist?[39m
+leafergraph-minimal-graph-example dev:   Plugin: [35mvite:import-analysis[39m
+leafergraph-minimal-graph-example dev:   File: [36mE:/Code/leafergraph/.omx/team/mini-graph-bugfix-get-example/worktrees/worker-2/example/mini-graph/src/graph/use_example_graph.ts[39m:27:7
+leafergraph-minimal-graph-example dev: [33m  17 |  import { createLeaferGraphContextMenuClipboardStore } from "@leafergraph/extensions/context-menu-builtins";
+leafergraph-minimal-graph-example dev:   18 |  import { bindLeaferGraphUndoRedo } from "@leafergraph/extensions/undo-redo/graph";
+leafergraph-minimal-graph-example dev:   19 |  import { bindLeaferGraphShortcuts } from "@leafergraph/extensions/shortcuts/graph";
+leafergraph-minimal-graph-example dev:      |                                            ^
+leafergraph-minimal-graph-example dev:   20 |  import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
+leafergraph-minimal-graph-example dev:   21 |  import { Debug } from "leafer-ui";[39m
+leafergraph-minimal-graph-example dev:       at TransformPluginContext._formatLog (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30234:39)
+leafergraph-minimal-graph-example dev:       at TransformPluginContext.error (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30231:14)
+leafergraph-minimal-graph-example dev:       at normalizeUrl (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27519:18)
+leafergraph-minimal-graph-example dev:       at async file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27582:30
+leafergraph-minimal-graph-example dev:       at async Promise.all (index 8)
+leafergraph-minimal-graph-example dev:       at async TransformPluginContext.transform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27550:4)
+leafergraph-minimal-graph-example dev:       at async EnvironmentPluginContainer.transform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30023:14)
+leafergraph-minimal-graph-example dev:       at async loadAndTransform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:24152:26)
+leafergraph-minimal-graph-example dev: [2m22:22:19[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "@leafergraph/extensions/shortcuts/graph" from "src/graph/use_example_graph.ts". Does the file exist?[39m
+leafergraph-minimal-graph-example dev:   Plugin: [35mvite:import-analysis[39m
+leafergraph-minimal-graph-example dev:   File: [36mE:/Code/leafergraph/.omx/team/mini-graph-bugfix-get-example/worktrees/worker-2/example/mini-graph/src/graph/use_example_graph.ts[39m:27:7
+leafergraph-minimal-graph-example dev: [33m  17 |  import { createLeaferGraphContextMenuClipboardStore } from "@leafergraph/extensions/context-menu-builtins";
+leafergraph-minimal-graph-example dev:   18 |  import { bindLeaferGraphUndoRedo } from "@leafergraph/extensions/undo-redo/graph";
+leafergraph-minimal-graph-example dev:   19 |  import { bindLeaferGraphShortcuts } from "@leafergraph/extensions/shortcuts/graph";
+leafergraph-minimal-graph-example dev:      |                                            ^
+leafergraph-minimal-graph-example dev:   20 |  import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
+leafergraph-minimal-graph-example dev:   21 |  import { Debug } from "leafer-ui";[39m
+leafergraph-minimal-graph-example dev:       at TransformPluginContext._formatLog (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30234:39)
+leafergraph-minimal-graph-example dev:       at TransformPluginContext.error (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30231:14)
+leafergraph-minimal-graph-example dev:       at normalizeUrl (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27519:18)
+leafergraph-minimal-graph-example dev:       at async file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27582:30
+leafergraph-minimal-graph-example dev:       at async Promise.all (index 8)
+leafergraph-minimal-graph-example dev:       at async TransformPluginContext.transform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:27550:4)
+leafergraph-minimal-graph-example dev:       at async EnvironmentPluginContainer.transform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:30023:14)
+leafergraph-minimal-graph-example dev:       at async loadAndTransform (file:///E:/Code/leafergraph/node_modules/vite/dist/node/chunks/node.js:24152:26)
+leafergraph-minimal-graph-example dev: [2m22:22:19[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Failed to resolve import "@leafergraph/extensions/shortcuts/graph" from "src/graph/use_example_graph.ts". Does the file exist?
+leafergraph-minimal-graph-example dev:   Plugin: [35mvite:import-analysis[39m
+leafergraph-minimal-graph-example dev:   File: [36mE:/Code/leafergraph/.omx/team/mini-graph-bugfix-get-example/worktrees/worker-2/example/mini-graph/src/graph/use_example_graph.ts[39m:27:7
+leafergraph-minimal-graph-example dev: [33m  17 |  import { createLeaferGraphContextMenuClipboardStore } from "@leafergraph/extensions/context-menu-builtins";
+leafergraph-minimal-graph-example dev:   18 |  import { bindLeaferGraphUndoRedo } from "@leafergraph/extensions/undo-redo/graph";
+leafergraph-minimal-graph-example dev:   19 |  import { bindLeaferGraphShortcuts } from "@leafergraph/extensions/shortcuts/graph";
+leafergraph-minimal-graph-example dev:      |                                            ^
+leafergraph-minimal-graph-example dev:   20 |  import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts";
+leafergraph-minimal-graph-example dev:   21 |  import { Debug } from "leafer-ui";[39m
+leafergraph-minimal-graph-example dev: [2m22:22:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33m@leafer-in/editor, @leafer-in/text-editor, @leafer-in/viewport[32m[39m
+leafergraph-minimal-graph-example dev: [2m22:22:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33m@leafer-in/arrow, @leafer-in/flow[32m[39m
