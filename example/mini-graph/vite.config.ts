@@ -76,6 +76,17 @@ export default defineConfig({
         )
       },
       {
+        find: /^@leafergraph\/extensions\/shortcuts$/,
+        replacement: resolve(__dirname, "../../packages/extensions/shortcuts/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/extensions\/shortcuts\/graph$/,
+        replacement: resolve(
+          __dirname,
+          "../../packages/extensions/shortcuts/src/graph/index.ts"
+        )
+      },
+      {
         find: /^@leafergraph\/extensions\/undo-redo$/,
         replacement: resolve(__dirname, "../../packages/extensions/undo-redo/src/index.ts")
       },
