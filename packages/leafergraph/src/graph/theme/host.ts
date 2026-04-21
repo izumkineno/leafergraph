@@ -8,7 +8,7 @@
 import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
-} from "@leafergraph/theme";
+} from "@leafergraph/core/theme";
 import type { LeaferGraphThemeRuntimeLike } from "./runtime";
 
 /**

@@ -13,12 +13,12 @@ import {
   normalizeLeaferContextMenuConfig,
   type LeaferContextMenuConfig,
   type LeaferContextMenuSubmenuTriggerMode
-} from "@leafergraph/config";
+} from "@leafergraph/core/config";
 import {
   resolveThemePreset,
   type LeaferGraphThemeMode,
   type LeaferGraphThemePresetId
-} from "@leafergraph/theme";
+} from "@leafergraph/core/theme";
 import { createLeaferContextMenuAdapter } from "./adapters/leafer";
 import {
   LEAFER_GRAPH_POINTER_MENU_EVENT,

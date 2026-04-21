@@ -19,7 +19,7 @@ import {
   isFocusableContextMenuItem,
   resolveContextMenuLevelItems
 } from "../core/normalize";
-import type { LeaferGraphContextMenuThemeTokens } from "@leafergraph/theme/context-menu";
+import type { LeaferGraphContextMenuThemeTokens } from "@leafergraph/core/theme/context-menu";
 import type {
   ContextMenuController,
   ContextMenuItem,

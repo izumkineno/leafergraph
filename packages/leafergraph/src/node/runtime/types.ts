@@ -12,7 +12,7 @@ import type {
   LeaferGraphNodeResizeConstraint
 } from "@leafergraph/core/contracts";
 import type { LeaferGraphNodeExecutionHost } from "@leafergraph/core/execution";
-import type { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
+import type { LeaferGraphWidgetRegistry } from "@leafergraph/core/widget-runtime";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type { LeaferGraphSceneRuntimeHost } from "../../graph/host/scene_runtime";
 

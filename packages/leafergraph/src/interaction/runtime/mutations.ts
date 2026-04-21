@@ -6,7 +6,7 @@
  */
 
 import type { NodeRuntimeState } from "@leafergraph/core/node";
-import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
+import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/core/widget-runtime";
 import type {
   GraphDragNodePosition,
   LeaferGraphInteractionRuntimeContext,

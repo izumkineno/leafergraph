@@ -3,7 +3,7 @@
  */
 
 import type { App, Group } from "leafer-ui";
-import type { LeaferGraphThemeMode } from "@leafergraph/theme";
+import type { LeaferGraphThemeMode } from "@leafergraph/core/theme";
 import {
   getLeaferGraphApiHost,
   getLeaferGraphDefaultFitViewPadding

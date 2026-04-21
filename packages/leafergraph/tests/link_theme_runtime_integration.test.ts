@@ -4,10 +4,10 @@ import type { GraphDocument } from "@leafergraph/core/node";
 import {
   registerThemePreset,
   unregisterThemePreset
-} from "@leafergraph/theme";
-import { resolveDefaultContextMenuTheme } from "@leafergraph/theme/context-menu";
-import { resolveDefaultGraphTheme } from "@leafergraph/theme/graph";
-import { resolveDefaultWidgetTheme } from "@leafergraph/theme/widget";
+} from "@leafergraph/core/theme";
+import { resolveDefaultContextMenuTheme } from "@leafergraph/core/theme/context-menu";
+import { resolveDefaultGraphTheme } from "@leafergraph/core/theme/graph";
+import { resolveDefaultWidgetTheme } from "@leafergraph/core/theme/widget";
 import { createLeaferGraph } from "../src";
 
 function createEmptyDocument(): GraphDocument {

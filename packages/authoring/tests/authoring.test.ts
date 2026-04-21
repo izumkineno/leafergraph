@@ -8,7 +8,7 @@ import type {
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRendererContext
 } from "@leafergraph/core/contracts";
-import type { LeaferGraphWidgetThemeContext } from "@leafergraph/theme";
+import type { LeaferGraphWidgetThemeContext } from "@leafergraph/core/theme";
 
 import {
   BaseNode,

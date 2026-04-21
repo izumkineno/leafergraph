@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 import { NodeRegistry, type NodeRuntimeState } from "@leafergraph/core/node";
 import type { LeaferGraphNodeExecutionState } from "@leafergraph/core/contracts";
-import { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
+import { LeaferGraphWidgetRegistry } from "@leafergraph/core/widget-runtime";
 import {
   NODE_SHELL_LAYOUT_METRICS,
   createDefaultNodeShellStyleConfig,

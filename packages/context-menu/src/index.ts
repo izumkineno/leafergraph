@@ -21,8 +21,8 @@ export type {
   LeaferContextMenuConfig,
   LeaferContextMenuSubmenuConfig,
   LeaferContextMenuSubmenuTriggerMode
-} from "@leafergraph/config";
+} from "@leafergraph/core/config";
 export {
   normalizeLeaferContextMenuConfig,
   resolveDefaultLeaferContextMenuConfig
-} from "@leafergraph/config";
+} from "@leafergraph/core/config";

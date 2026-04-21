@@ -8,7 +8,7 @@
 import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
-} from "@leafergraph/theme";
+} from "@leafergraph/core/theme";
 import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type { LeaferGraphSceneRuntimeHost } from "../host/scene_runtime";
 

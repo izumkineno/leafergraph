@@ -22,7 +22,7 @@ import type {
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderInstance
 } from "@leafergraph/core/contracts";
-import type { LeaferGraphThemeMode } from "@leafergraph/theme";
+import type { LeaferGraphThemeMode } from "@leafergraph/core/theme";
 import type {
   GraphOperation,
   GraphOperationApplyResult,

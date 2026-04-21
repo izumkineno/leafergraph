@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { NodeRegistry, type GraphLink, type NodeRuntimeState } from "@leafergraph/core/node";
-import { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
+import { LeaferGraphWidgetRegistry } from "@leafergraph/core/widget-runtime";
 import { LeaferGraphNodeRuntimeHost } from "../src/node/runtime/controller";
 
 function createNodeState(

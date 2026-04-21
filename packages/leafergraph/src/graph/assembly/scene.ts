@@ -11,13 +11,13 @@ import type { LeaferGraphWidgetEditingContext } from "@leafergraph/core/contract
 import type {
   LeaferGraphGraphThemeTokens,
   LeaferGraphThemeMode
-} from "@leafergraph/theme";
+} from "@leafergraph/core/theme";
 import { LeaferGraphGraphExecutionHost } from "@leafergraph/core/execution";
 import {
   LeaferGraphWidgetHost,
   type LeaferGraphWidgetEditingManager,
   type LeaferGraphWidgetRegistry
-} from "@leafergraph/widget-runtime";
+} from "@leafergraph/core/widget-runtime";
 import { LeaferGraphInteractionRuntimeHost } from "../../interaction/graph_interaction_runtime_host";
 import { LeaferGraphInteractionHost } from "../../interaction/interaction_host";
 import { createLeaferGraphInteractionCommitSource } from "../../interaction/interaction_commit_source";

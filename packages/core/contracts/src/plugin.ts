@@ -22,10 +22,10 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphThemePresetId,
   LeaferGraphWidgetThemeContext
-} from "@leafergraph/theme";
+} from "@leafergraph/core/theme";
 import type {
   LeaferGraphConfig
-} from "@leafergraph/config";
+} from "@leafergraph/core/config";
 import type { Group, Text } from "leafer-ui";
 
 /**

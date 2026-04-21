@@ -19,7 +19,7 @@ import type {
 import type { LeaferGraphSelectionBoxHost } from "../selection_box_host";
 import type {
   LeaferGraphWidgetEventSource,
-} from "@leafergraph/widget-runtime";
+} from "@leafergraph/core/widget-runtime";
 
 /**
  * 拖拽中的节点状态。

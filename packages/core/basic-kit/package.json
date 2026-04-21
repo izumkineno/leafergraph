@@ -1,0 +1,42 @@
+{
+  "name": "@leafergraph/core/basic-kit",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./widget": {
+      "types": "./src/widget/index.ts",
+      "import": "./src/widget/index.ts"
+    },
+    "./node": {
+      "types": "./src/node/index.ts",
+      "import": "./src/node/index.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "bun test --preload ./tests/setup.ts ./tests"
+  },
+  "dependencies": {
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/execution": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
+    "@leafergraph/core/theme": "workspace:*",
+    "@leafergraph/core/widget-runtime": "workspace:*",
+    "leafer-ui": "^2.0.3"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.10"
+  }
+}

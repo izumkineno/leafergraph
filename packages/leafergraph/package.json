@@ -22,12 +22,12 @@
     "test": "bun test --preload ./tests/setup.ts ./tests"
   },
   "dependencies": {
-    "@leafergraph/config": "workspace:*",
+    "@leafergraph/core/config": "workspace:*",
     "@leafergraph/core/contracts": "workspace:*",
     "@leafergraph/core/execution": "workspace:*",
     "@leafergraph/core/node": "workspace:*",
-    "@leafergraph/theme": "workspace:*",
-    "@leafergraph/widget-runtime": "workspace:*",
+    "@leafergraph/core/theme": "workspace:*",
+    "@leafergraph/core/widget-runtime": "workspace:*",
     "@leafer-in/arrow": "^2.0.3",
     "@leafer-in/flow": "^2.0.3",
     "@leafer-in/resize": "^2.0.3",

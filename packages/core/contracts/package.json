@@ -25,10 +25,10 @@
     "test": "bun test ./tests"
   },
   "dependencies": {
-    "@leafergraph/config": "workspace:*",
+    "@leafergraph/core/config": "workspace:*",
     "@leafergraph/core/execution": "workspace:*",
     "@leafergraph/core/node": "workspace:*",
-    "@leafergraph/theme": "workspace:*",
+    "@leafergraph/core/theme": "workspace:*",
     "leafer-ui": "^2.0.3"
   }
 }

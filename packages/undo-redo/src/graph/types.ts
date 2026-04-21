@@ -9,7 +9,7 @@
 import type {
   LeaferGraphGraphHistoryConfig,
   NormalizedLeaferGraphGraphHistoryConfig
-} from "@leafergraph/config/graph";
+} from "@leafergraph/core/config/graph";
 import type {
   GraphOperation,
   GraphOperationApplyResult,

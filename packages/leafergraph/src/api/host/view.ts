@@ -18,7 +18,7 @@ import type {
   LeaferGraphSelectionUpdateMode
 } from "@leafergraph/core/contracts";
 import type { NodeSerializeResult } from "@leafergraph/core/node";
-import type { LeaferGraphThemeMode } from "@leafergraph/theme";
+import type { LeaferGraphThemeMode } from "@leafergraph/core/theme";
 
 /**
  * 运行时切换主包主题。

@@ -11,12 +11,12 @@ import type {
   LeaferGraphInteractionCommitEvent,
   LeaferGraphWidgetRenderer
 } from "@leafergraph/core/contracts";
-import type { NormalizedLeaferGraphConfig } from "@leafergraph/config";
+import type { NormalizedLeaferGraphConfig } from "@leafergraph/core/config";
 import type {
   LeaferGraphGraphThemeTokens,
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
-} from "@leafergraph/theme";
+} from "@leafergraph/core/theme";
 import {
   LeaferGraphApiHost,
   type LeaferGraphApiRuntime

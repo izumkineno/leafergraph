@@ -21,8 +21,8 @@
     "test": "bun test --preload ./tests/setup.ts ./tests"
   },
   "dependencies": {
-    "@leafergraph/config": "workspace:*",
-    "@leafergraph/theme": "workspace:*",
+    "@leafergraph/core/config": "workspace:*",
+    "@leafergraph/core/theme": "workspace:*",
     "leafer-ui": "^2.0.3"
   },
   "devDependencies": {

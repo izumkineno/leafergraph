@@ -25,7 +25,7 @@
     "test": "bun test ./tests"
   },
   "dependencies": {
-    "@leafergraph/config": "workspace:*",
+    "@leafergraph/core/config": "workspace:*",
     "@leafergraph/core/contracts": "workspace:*",
     "@leafergraph/core/node": "workspace:*"
   }

@@ -7,8 +7,8 @@
 
 import "@leafer-in/flow";
 import { Box, Group, Path, Rect, Text } from "leafer-ui";
-export type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
-import type { NodeShellRenderTheme } from "@leafergraph/theme/graph";
+export type { NodeShellRenderTheme } from "@leafergraph/core/theme/graph";
+import type { NodeShellRenderTheme } from "@leafergraph/core/theme/graph";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./layout";
 import {
   buildNodeShellProgressSegmentPath,

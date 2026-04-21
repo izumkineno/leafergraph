@@ -12,7 +12,7 @@ import type {
   LeaferGraphConnectionValidationResult,
   LeaferGraphSelectionUpdateMode
 } from "@leafergraph/core/contracts";
-import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
+import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/core/widget-runtime";
 import type { LeaferGraphSceneRuntimeHost } from "../../graph/host/scene_runtime";
 
 /**

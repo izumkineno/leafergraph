@@ -8,13 +8,13 @@
     "types": ["vite/client"],
     "skipLibCheck": true,
     "paths": {
-      "@leafergraph/basic-kit": ["../../packages/basic-kit/src/index.ts"],
+      "@leafergraph/core/basic-kit": ["../../packages/core/basic-kit/src/index.ts"],
       "@leafergraph/core/contracts": ["../../packages/core/contracts/src/index.ts"],
       "@leafergraph/context-menu": ["../../packages/context-menu/src/index.ts"],
       "@leafergraph/context-menu-builtins": ["../../packages/context-menu-builtins/src/index.ts"],
       "@leafergraph/undo-redo": ["../../packages/undo-redo/src/index.ts"],
       "@leafergraph/undo-redo/graph": ["../../packages/undo-redo/src/graph/index.ts"],
-      "@leafergraph/theme": ["../../packages/theme/src/index.ts"],
+      "@leafergraph/core/theme": ["../../packages/core/theme/src/index.ts"],
       "react": ["./node_modules/preact/compat/"],
       "react-dom": ["./node_modules/preact/compat/"]
     },

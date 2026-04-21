@@ -42,7 +42,7 @@ export default defineConfig({
     alias: [
       {
         find: /^@leafergraph\/basic-kit$/,
-        replacement: resolve(__dirname, "../../packages/basic-kit/src/index.ts")
+        replacement: resolve(__dirname, "../../packages/core/basic-kit/src/index.ts")
       },
       {
         find: /^@leafergraph\/core\/contracts$/,
@@ -72,7 +72,7 @@ export default defineConfig({
       },
       {
         find: /^@leafergraph\/theme$/,
-        replacement: resolve(__dirname, "../../packages/theme/src/index.ts")
+        replacement: resolve(__dirname, "../../packages/core/theme/src/index.ts")
       }
     ]
   }

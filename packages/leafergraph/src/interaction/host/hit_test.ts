@@ -10,7 +10,7 @@ import type { LeaferGraphConnectionPortState } from "@leafergraph/core/contracts
 import type {
   LeaferGraphInteractiveNodeViewState
 } from "./types";
-import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
+import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/core/widget-runtime";
 
 /**
  * 判断当前事件命中是否来自节点 resize 句柄。

@@ -23,7 +23,7 @@ import type {
   LeaferGraphOptions,
   LeaferGraphWidgetEntry
 } from "@leafergraph/core/contracts";
-import type { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
+import type { LeaferGraphWidgetRegistry } from "@leafergraph/core/widget-runtime";
 
 /** 已安装插件的登记信息。 */
 interface InstalledPluginRecord {

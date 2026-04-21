@@ -11,10 +11,10 @@ import type { LeaferGraphOptions } from "@leafergraph/core/contracts";
 import {
   normalizeLeaferGraphConfig,
   type NormalizedLeaferGraphConfig
-} from "@leafergraph/config";
-import { createMissingWidgetRenderer } from "@leafergraph/widget-runtime";
-import { resolveThemePreset, type LeaferGraphThemeMode } from "@leafergraph/theme";
-import type { LeaferGraphGraphThemeTokens } from "@leafergraph/theme/graph";
+} from "@leafergraph/core/config";
+import { createMissingWidgetRenderer } from "@leafergraph/core/widget-runtime";
+import { resolveThemePreset, type LeaferGraphThemeMode } from "@leafergraph/core/theme";
+import type { LeaferGraphGraphThemeTokens } from "@leafergraph/core/theme/graph";
 import type { LeaferGraphApiHost } from "../../api/graph_api_host";
 import { createLeaferGraphRuntimeAssembly } from "./runtime";
 import { normalizeGraphLinkSlotIndex } from "../host/mutation";

@@ -1,7 +1,7 @@
 import {
   resolveDefaultLeaferGraphGraphConfig,
   type LeaferGraphGraphHistoryConfig
-} from "@leafergraph/config/graph";
+} from "@leafergraph/core/config/graph";
 import type {
   GraphOperation,
   LeaferGraphHistoryEvent,

@@ -1,7 +1,7 @@
 import * as contractsRuntime from "@leafergraph/core/contracts";
 import * as executionRuntime from "@leafergraph/core/execution";
 import * as nodeRuntime from "@leafergraph/core/node";
-import * as widgetRuntime from "@leafergraph/widget-runtime";
+import * as widgetRuntime from "@leafergraph/core/widget-runtime";
 import * as leaferUiRuntime from "leafer-ui";
 import { LeaferGraph, createLeaferGraph } from "leafergraph";
 
@@ -28,7 +28,7 @@ const STATIC_RUNTIME_DEPENDENCIES: Record<
   "@leafergraph/core/contracts": contractsRuntime,
   "@leafergraph/core/execution": executionRuntime,
   "@leafergraph/core/node": nodeRuntime,
-  "@leafergraph/widget-runtime": widgetRuntime,
+  "@leafergraph/core/widget-runtime": widgetRuntime,
   "leafer-ui": leaferUiRuntime,
   leafergraph: leafergraphRuntime
 };

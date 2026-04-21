@@ -11,7 +11,7 @@
  * 这样页面壳和图运行时可以保持清晰分层。
  */
 import { useEffect, useRef, useState } from "preact/hooks";
-import { leaferGraphBasicKitPlugin } from "@leafergraph/basic-kit";
+import { leaferGraphBasicKitPlugin } from "@leafergraph/core/basic-kit";
 import {
   createLeaferGraphContextMenuClipboardStore,
   type LeaferGraphContextMenuClipboardFragment
@@ -35,8 +35,7 @@ import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contrac
 import type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode
-} from "@leafergraph/theme";
-import { Debug } from "leafer-ui";
+} from "@leafergraph/core/theme";
 import {
   createLeaferGraph,
   type LeaferGraph

@@ -7,8 +7,8 @@
 
 import type { NodeRuntimeState, NodeWidgetType } from "@leafergraph/core/node";
 import type { LeaferGraphWidgetBounds } from "@leafergraph/core/contracts";
-export type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
-import type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
+export type { NodeShellLayoutMetrics } from "@leafergraph/core/theme/graph";
+import type { NodeShellLayoutMetrics } from "@leafergraph/core/theme/graph";
 import type { NodeShellPortLayout } from "./ports";
 import { resolveNodePortsLayout } from "./ports";
 

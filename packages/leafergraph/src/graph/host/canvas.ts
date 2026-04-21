@@ -11,8 +11,8 @@ import type {
   NormalizedLeaferGraphLeaferAppConfig,
   NormalizedLeaferGraphLeaferTreeConfig,
   NormalizedLeaferGraphLeaferViewportConfig
-} from "@leafergraph/config";
-import type { LeaferGraphThemeMode } from "@leafergraph/theme";
+} from "@leafergraph/core/config";
+import type { LeaferGraphThemeMode } from "@leafergraph/core/theme";
 
 interface LeaferGraphCanvasHostOptions {
   container: HTMLElement;
