@@ -32,7 +32,7 @@ export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition 
               return;
             }
 
-            return pasteClipboardFragment({
+            const pasted = pasteClipboardFragment({
               fragment,
               host,
               createLink,
@@ -40,9 +40,17 @@ export const canvasPasteFeature: LeaferGraphContextMenuBuiltinFeatureDefinition 
               context,
               offset: options.pasteOffset
             });
+
+            if (isPromiseLike(pasted)) {
+              return pasted.then(() => undefined);
+            }
           }
         }
       ];
     });
   }
 };
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
+}

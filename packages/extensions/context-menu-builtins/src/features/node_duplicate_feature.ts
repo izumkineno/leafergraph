@@ -38,7 +38,7 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
               return;
             }
 
-            return pasteClipboardFragment({
+            const pasted = pasteClipboardFragment({
               fragment,
               host,
               createLink,
@@ -47,9 +47,17 @@ export const nodeDuplicateFeature: LeaferGraphContextMenuBuiltinFeatureDefinitio
               offset: options.pasteOffset,
               anchorToContextWorldPoint: false
             });
+
+            if (isPromiseLike(pasted)) {
+              return pasted.then(() => undefined);
+            }
           }
         }
       ];
     });
   }
 };
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
+}

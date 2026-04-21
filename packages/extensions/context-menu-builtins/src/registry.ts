@@ -93,15 +93,27 @@ export function registerLeaferGraphContextMenuBuiltins(
         fitView: (context) => host.fitView(context),
         playFromNode: (nodeId, context) => host.playFromNode(nodeId, context),
         removeNode: (nodeId, context) => host.removeNode(nodeId, context),
-        removeNodes: async (nodeIds, context) => {
+        removeNodes: (nodeIds, context) => {
           if (host.removeNodes) {
-            await host.removeNodes(nodeIds, context);
-            return;
+            return host.removeNodes(nodeIds, context);
           }
 
+          let pendingRemoval: Promise<void> | undefined;
           for (const nodeId of nodeIds) {
-            await host.removeNode(nodeId, context);
+            if (pendingRemoval) {
+              pendingRemoval = pendingRemoval.then(() =>
+                Promise.resolve(host.removeNode(nodeId, context)).then(() => undefined)
+              );
+              continue;
+            }
+
+            const removal = host.removeNode(nodeId, context);
+            if (isPromiseLike(removal)) {
+              pendingRemoval = Promise.resolve(removal).then(() => undefined);
+            }
           }
+
+          return pendingRemoval;
         },
         removeLink: (linkId, context) => host.removeLink(linkId, context)
       })
@@ -136,4 +148,8 @@ function isBuiltinFeatureEnabled(
   }
 
   return feature.enabled ?? true;
+}
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return Boolean(value) && typeof (value as { then?: unknown }).then === "function";
 }

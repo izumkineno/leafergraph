@@ -14,6 +14,7 @@ import type {
 import type {
   GraphLink,
   NodeDefinition,
+  NodeRuntimeState,
   NodeSerializeResult
 } from "@leafergraph/core/node";
 import type {
