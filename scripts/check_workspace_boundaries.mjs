@@ -1,159 +1,24 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import {
+  createWorkspaceBoundaryRules,
+  requiredWorkspaceGlobs
+} from "./package_split_inventory.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const rootPackageJson = readJson(path.join(repoRoot, "package.json"));
 const errors = [];
+const packageRules = createWorkspaceBoundaryRules();
+const formalPackages = collectFormalPackageInfos(path.join(repoRoot, "packages"));
+const workspacePackages = collectWorkspacePackages(rootPackageJson.workspaces ?? []);
 
-const packageRules = {
-  "@leafergraph/node": {
-    allowedWorkspaceDeps: [],
-    allowedSourceImports: []
-  },
-  "@leafergraph/theme": {
-    allowedWorkspaceDeps: [],
-    allowedSourceImports: []
-  },
-  "@leafergraph/config": {
-    allowedWorkspaceDeps: [],
-    allowedSourceImports: []
-  },
-  "@leafergraph/execution": {
-    allowedWorkspaceDeps: ["@leafergraph/node"],
-    allowedSourceImports: ["@leafergraph/node"]
-  },
-  "@leafergraph/contracts": {
-    allowedWorkspaceDeps: [
-      "@leafergraph/config",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/config",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme"
-    ]
-  },
-  "@leafergraph/runtime-bridge": {
-    allowedWorkspaceDeps: [
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "leafergraph"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "leafergraph"
-    ]
-  },
-  "@leafergraph/widget-runtime": {
-    allowedWorkspaceDeps: [
-      "@leafergraph/config",
-      "@leafergraph/contracts",
-      "@leafergraph/node",
-      "@leafergraph/theme"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/config",
-      "@leafergraph/contracts",
-      "@leafergraph/node",
-      "@leafergraph/theme"
-    ]
-  },
-  "@leafergraph/basic-kit": {
-    allowedWorkspaceDeps: [
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme",
-      "@leafergraph/widget-runtime"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme",
-      "@leafergraph/widget-runtime"
-    ]
-  },
-  "@leafergraph/context-menu": {
-    allowedWorkspaceDeps: ["@leafergraph/config", "@leafergraph/theme"],
-    allowedSourceImports: ["@leafergraph/config", "@leafergraph/theme"]
-  },
-  "@leafergraph/context-menu-builtins": {
-    allowedWorkspaceDeps: [
-      "@leafergraph/context-menu",
-      "@leafergraph/contracts",
-      "@leafergraph/node"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/context-menu",
-      "@leafergraph/contracts",
-      "@leafergraph/node"
-    ]
-  },
-  "@leafergraph/shortcuts": {
-    allowedWorkspaceDeps: [],
-    allowedSourceImports: []
-  },
-  "@leafergraph/undo-redo": {
-    allowedWorkspaceDeps: [
-      "@leafergraph/config",
-      "@leafergraph/contracts",
-      "@leafergraph/node"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/config",
-      "@leafergraph/contracts",
-      "@leafergraph/node"
-    ]
-  },
-  "@leafergraph/authoring": {
-    allowedWorkspaceDeps: [
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme",
-      "leafergraph"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme"
-    ]
-  },
-  leafergraph: {
-    allowedWorkspaceDeps: [
-      "@leafergraph/config",
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme",
-      "@leafergraph/widget-runtime"
-    ],
-    allowedSourceImports: [
-      "@leafergraph/config",
-      "@leafergraph/contracts",
-      "@leafergraph/execution",
-      "@leafergraph/node",
-      "@leafergraph/theme",
-      "@leafergraph/widget-runtime"
-    ]
-  }
-};
-
-const formalPackages = collectPackageInfos(path.join(repoRoot, "packages"));
+checkRequiredWorkspaceGlobs(rootPackageJson.workspaces ?? []);
 for (const packageInfo of formalPackages.values()) {
   checkPackageRule(packageInfo, formalPackages);
   checkSourceImports(packageInfo, formalPackages);
 }
 
-checkRootScripts(collectWorkspacePackages(rootPackageJson.workspaces ?? []));
+checkRootScripts(workspacePackages);
 
 if (errors.length) {
   console.error(
@@ -203,7 +68,7 @@ function checkSourceImports(packageInfo, workspacePackages) {
     }
 
     const source = readFileSync(filePath, "utf8");
-    for (const specifier of extractWorkspaceSpecifiers(source)) {
+    for (const specifier of extractWorkspaceSpecifiers(source, workspacePackages)) {
       if (!workspacePackages.has(specifier)) {
         continue;
       }
@@ -215,6 +80,16 @@ function checkSourceImports(packageInfo, workspacePackages) {
         errors.push(`${relativeFilePath} 导入了未允许的 workspace 包: ${specifier}`);
       }
     }
+  }
+}
+
+function checkRequiredWorkspaceGlobs(workspaces) {
+  const missingWorkspaces = requiredWorkspaceGlobs.filter(
+    (workspace) => !workspaces.includes(workspace)
+  );
+
+  for (const workspace of missingWorkspaces) {
+    errors.push(`package.json 缺少 package split 必需 workspace: ${workspace}`);
   }
 }
 
@@ -244,19 +119,20 @@ function checkRootScripts(workspacePackages) {
   }
 }
 
-function collectPackageInfos(packagesRoot) {
+function collectFormalPackageInfos(packagesRoot) {
   const packageInfos = new Map();
-  for (const entry of readdirSync(packagesRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
+  walkPackageDirectories(packagesRoot, packageInfos);
 
-    const directoryPath = path.join(packagesRoot, entry.name);
-    const packageJsonPath = path.join(directoryPath, "package.json");
-    if (!existsSync(packageJsonPath)) {
-      continue;
-    }
+  return packageInfos;
+}
 
+function walkPackageDirectories(directoryPath, packageInfos) {
+  if (!existsSync(directoryPath)) {
+    return;
+  }
+
+  const packageJsonPath = path.join(directoryPath, "package.json");
+  if (existsSync(packageJsonPath)) {
     const packageJson = readJson(packageJsonPath);
     packageInfos.set(packageJson.name, {
       name: packageJson.name,
@@ -264,9 +140,16 @@ function collectPackageInfos(packagesRoot) {
       directoryPath,
       relativePath: path.relative(repoRoot, directoryPath).replaceAll("\\", "/")
     });
+    return;
   }
 
-  return packageInfos;
+  for (const entry of readdirSync(directoryPath, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    walkPackageDirectories(path.join(directoryPath, entry.name), packageInfos);
+  }
 }
 
 function collectWorkspacePackages(workspaces) {
@@ -338,7 +221,7 @@ function collectDeclaredWorkspaceDeps(packageJson) {
   return dependencyNames;
 }
 
-function extractWorkspaceSpecifiers(source) {
+function extractWorkspaceSpecifiers(source, workspacePackages) {
   const specifiers = new Set();
   const specifierPattern =
     /\bfrom\s+["']((?:@leafergraph\/[^"']+)|leafergraph)["']|\bimport\s*\(\s*["']((?:@leafergraph\/[^"']+)|leafergraph)["']\s*\)/g;
@@ -349,7 +232,7 @@ function extractWorkspaceSpecifiers(source) {
       continue;
     }
 
-    const normalizedSpecifier = normalizeWorkspaceSpecifier(rawSpecifier);
+    const normalizedSpecifier = normalizeWorkspaceSpecifier(rawSpecifier, workspacePackages);
     if (normalizedSpecifier) {
       specifiers.add(normalizedSpecifier);
     }
@@ -358,17 +241,20 @@ function extractWorkspaceSpecifiers(source) {
   return specifiers;
 }
 
-function normalizeWorkspaceSpecifier(specifier) {
-  if (specifier === "leafergraph") {
-    return specifier;
+function normalizeWorkspaceSpecifier(specifier, workspacePackages) {
+  let matchedWorkspaceName = null;
+
+  for (const workspaceName of workspacePackages.keys()) {
+    if (specifier !== workspaceName && !specifier.startsWith(`${workspaceName}/`)) {
+      continue;
+    }
+
+    if (!matchedWorkspaceName || workspaceName.length > matchedWorkspaceName.length) {
+      matchedWorkspaceName = workspaceName;
+    }
   }
 
-  if (!specifier.startsWith("@leafergraph/")) {
-    return null;
-  }
-
-  const segments = specifier.split("/");
-  return segments.length >= 2 ? `${segments[0]}/${segments[1]}` : specifier;
+  return matchedWorkspaceName;
 }
 
 function walkFiles(directoryPath) {

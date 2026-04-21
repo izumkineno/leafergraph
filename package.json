@@ -5,12 +5,15 @@
   "packageManager": "bun@1.2.21",
   "workspaces": [
     "packages/*",
+    "packages/core/*",
+    "packages/extensions/*",
     "example/*",
     "templates/node/authoring-node-template",
     "templates/widget/authoring-text-widget-template",
     "templates/misc/authoring-browser-plugin-template"
   ],
   "scripts": {
+    "inspect:package-split": "node ./scripts/package_split_inventory.mjs",
     "ensure:authoring-basic-nodes-dist": "node -e \"const fs = require('node:fs'); const cp = require('node:child_process'); const required = ['example/authoring-basic-nodes/dist/index.js', 'example/authoring-basic-nodes/dist/index.d.ts']; if (required.every((file) => fs.existsSync(file))) process.exit(0); cp.execSync('bun run build:authoring-basic-nodes', { stdio: 'inherit' });\"",
     "dev:minimal-graph": "bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example dev",
     "check:runtime-only-root": "node ./scripts/check_runtime_only_root.mjs",
