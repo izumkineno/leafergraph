@@ -6,7 +6,7 @@
  * 以最小订阅接口暴露给 editor。
  */
 
-import type { LeaferGraphInteractionCommitEvent } from "@leafergraph/contracts";
+import type { LeaferGraphInteractionCommitEvent } from "@leafergraph/core/contracts";
 
 /** 交互提交事件订阅源。 */
 export interface LeaferGraphInteractionCommitSource {

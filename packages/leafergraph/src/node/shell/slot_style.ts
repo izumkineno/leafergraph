@@ -12,7 +12,7 @@ import type {
   NodeSlotSpec,
   SlotDirection,
   SlotType
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 
 /** 事件族类型统一映射到同一个可比较语义。 */
 const SLOT_TYPE_COMPARE_ALIAS_MAP: Readonly<Record<string, string>> = {

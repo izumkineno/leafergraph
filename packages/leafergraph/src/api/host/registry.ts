@@ -15,8 +15,8 @@ import type {
   LeaferGraphApiWidgetRegistration
 } from "./types";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
-import type { LeaferGraphWidgetEntry } from "@leafergraph/contracts";
-import type { NodeDefinition } from "@leafergraph/node";
+import type { LeaferGraphWidgetEntry } from "@leafergraph/core/contracts";
+import type { NodeDefinition } from "@leafergraph/core/node";
 
 /**
  * 安装一个外部节点插件。

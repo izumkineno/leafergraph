@@ -3,7 +3,7 @@ import type {
   LeaferGraphActionExecutionOptions,
   LeaferGraphExecutionContext,
   LeaferGraphTimerRuntimePayload
-} from "@leafergraph/execution";
+} from "@leafergraph/core/execution";
 import { AUTHORING_BASIC_STATUS_WIDGET_NAME } from "./shared";
 
 type GenericContext = DevNodeContext<

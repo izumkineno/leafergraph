@@ -9,11 +9,11 @@ import {
   serializeNode,
   type NodeSerializeResult,
   type NodeSlotSpec
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphNodeInspectorState,
   LeaferGraphNodeIoValueEntry
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type {
   LeaferGraphNodeRuntimeContext,

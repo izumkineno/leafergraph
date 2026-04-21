@@ -14,7 +14,7 @@ import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type {
   LeaferGraphConnectionPortState,
   LeaferGraphConnectionValidationResult
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 
 /**
  * 解析某个节点方向和槽位对应的正式端口几何。

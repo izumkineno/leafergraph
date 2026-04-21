@@ -6,7 +6,7 @@
  */
 
 import type { Group } from "leafer-ui";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import { isWidgetInteractionTarget } from "@leafergraph/widget-runtime";
 import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
 import type {

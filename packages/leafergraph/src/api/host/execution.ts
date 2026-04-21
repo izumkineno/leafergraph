@@ -16,7 +16,7 @@ import type {
   LeaferGraphInteractionActivityState,
   LeaferGraphNodeExecutionState,
   LeaferGraphNodeResizeConstraint
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 
 /**
  * 读取某个节点的正式 resize 约束。

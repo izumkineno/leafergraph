@@ -5,7 +5,7 @@
  * 负责拖拽位移、节点 resize、折叠和 page 坐标换算等能力。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
 import type {
   GraphDragNodePosition,

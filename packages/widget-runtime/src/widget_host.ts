@@ -7,12 +7,12 @@
 
 import { Box } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetRenderInstance,
   LeaferGraphWidgetRenderer
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphWidgetThemeContext } from "@leafergraph/theme";
 import { LeaferGraphWidgetRegistry } from "./widget_registry";
 

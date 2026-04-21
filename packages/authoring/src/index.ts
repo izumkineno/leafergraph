@@ -2,7 +2,7 @@
  * `@leafergraph/authoring` 的统一公共入口。
  *
  * 这个包只负责节点 / Widget 作者层体验，以及把作者代码收口成
- * `@leafergraph/node` 与 `leafergraph` 可消费的正式产物。
+ * `@leafergraph/core/node` 与 `leafergraph` 可消费的正式产物。
  * 它不承担 editor 适配、bundle 协议或历史兼容逻辑。
  */
 

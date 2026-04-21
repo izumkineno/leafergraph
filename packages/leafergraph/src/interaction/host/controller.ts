@@ -7,8 +7,8 @@
  */
 
 import type { Group } from "leafer-ui";
-import type { NodeRuntimeState } from "@leafergraph/node";
-import type { LeaferGraphInteractionActivityState } from "@leafergraph/contracts";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
+import type { LeaferGraphInteractionActivityState } from "@leafergraph/core/contracts";
 import { LeaferGraphSelectionBoxHost } from "../selection_box_host";
 import type {
   GraphConnectionState,

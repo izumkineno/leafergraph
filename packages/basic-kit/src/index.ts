@@ -6,7 +6,7 @@
  * 更细的 widgets 和系统节点导出分别通过 `./widget` 与 `./node` 子路径暴露。
  */
 
-import type { LeaferGraphNodePlugin } from "@leafergraph/contracts";
+import type { LeaferGraphNodePlugin } from "@leafergraph/core/contracts";
 import { BasicWidgetLibrary } from "./widget";
 import { createBasicSystemNodeModule } from "./node";
 

@@ -6,7 +6,7 @@
  */
 
 import { Arrow } from "@leafer-in/arrow";
-import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/contracts";
+import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/core/contracts";
 import { Rect } from "leafer-ui";
 import { buildLinkPathFromCurve } from "../link";
 import { resolveGraphLinkCurve } from "../curve";

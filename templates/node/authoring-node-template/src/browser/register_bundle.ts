@@ -1,4 +1,4 @@
-import type { LeaferGraphNodePlugin } from "@leafergraph/contracts";
+import type { LeaferGraphNodePlugin } from "@leafergraph/core/contracts";
 
 interface AuthoringNodeTemplateBundleManifestBase {
   id: string;

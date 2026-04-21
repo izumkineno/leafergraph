@@ -9,7 +9,7 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/theme";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type { LeaferGraphSceneRuntimeHost } from "../host/scene_runtime";
 
 /** 主题宿主对外只依赖这一层运行时壳面。 */

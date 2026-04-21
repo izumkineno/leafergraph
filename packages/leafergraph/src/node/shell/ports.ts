@@ -10,7 +10,7 @@ import type {
   NodeSlotShape,
   SlotDirection,
   SlotType
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type { NodeShellLayoutMetrics } from "./layout";
 import { resolveNodeSlotShape } from "./slot_style";
 

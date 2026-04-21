@@ -12,7 +12,7 @@ import {
   type NodeRegistry,
   type NodeRuntimeState,
   type NodeSerializeResult
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import { normalizeGraphLinkData } from "./mutation";
 import { cloneGraphDocumentRootState } from "../history";
 import type { GraphDocumentRootState } from "../types";

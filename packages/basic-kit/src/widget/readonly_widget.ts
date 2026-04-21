@@ -5,8 +5,8 @@
  * 负责 number、string 和 custom 等只读字段样式的统一实现。
  */
 
-import type { NodeBaseWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
+import type { NodeBaseWidgetOptions } from "@leafergraph/core/node";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/core/contracts";
 import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import { WidgetFieldView } from "./field_view";
 import { BasicWidgetController, runtimeRequestRender } from "./template";

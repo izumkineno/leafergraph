@@ -13,7 +13,7 @@ import type {
   LeaferGraphApiNodeViewState
 } from "./types";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
-import type { GraphDocument, GraphLink } from "@leafergraph/node";
+import type { GraphDocument, GraphLink } from "@leafergraph/core/node";
 import { emitLeaferGraphApiGraphOperationHistory } from "./document_history";
 
 /**

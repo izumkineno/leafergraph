@@ -10,7 +10,7 @@ import type { App, Group } from "leafer-ui";
 import "@leafer-in/resize";
 import "@leafer-in/state";
 import "@leafer-in/view";
-import type { LeaferGraphOptions } from "@leafergraph/contracts";
+import type { LeaferGraphOptions } from "@leafergraph/core/contracts";
 import type { LeaferGraphEntryRuntime } from "../graph/assembly/entry";
 import { createLeaferGraphEntryRuntime } from "../graph/assembly/entry";
 import type { LeaferGraphConnectionFacade } from "./facade/connection";

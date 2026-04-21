@@ -11,7 +11,7 @@ import {
   type GraphLink,
   type NodeRegistry,
   type NodeSlotSpec
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type { GraphDragNodePosition } from "../../interaction/graph_interaction_runtime_host";
 import type {
   LeaferGraphCreateLinkInput,
@@ -21,12 +21,12 @@ import type {
   LeaferGraphNodeSlotInput,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   GraphNodeProperties,
   LeaferGraphRenderableNodeState
 } from "../types";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 
 const DEFAULT_GRAPH_LINK_SLOT = 0;
 

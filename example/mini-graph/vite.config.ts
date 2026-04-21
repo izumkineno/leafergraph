@@ -46,7 +46,7 @@ export default defineConfig({
       },
       {
         find: /^@leafergraph\/contracts$/,
-        replacement: resolve(__dirname, "../../packages/contracts/src/index.ts")
+        replacement: resolve(__dirname, "../../packages/core/contracts/src/index.ts")
       },
       {
         find: /^@leafergraph\/context-menu$/,

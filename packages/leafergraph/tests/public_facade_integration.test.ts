@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument } from "@leafergraph/core/node";
 import { createLeaferGraph, LeaferGraph } from "../src";
 
 /**

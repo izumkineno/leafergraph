@@ -15,7 +15,7 @@ import type {
   LeaferGraphWidgetFocusBinding,
   LeaferGraphWidgetOptionsMenuRequest,
   LeaferGraphWidgetTextEditRequest
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   NormalizedLeaferGraphLeaferEditorConfig,
   NormalizedLeaferGraphLeaferTextEditorConfig,

@@ -3,7 +3,7 @@
  *
  * 当前 demo 已经收口成默认空画布，所以这里只保留最小文档工厂。
  */
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument } from "@leafergraph/core/node";
 
 /**
  *  创建一份新的空图文档，供初始化与 reset 共用。

@@ -12,7 +12,7 @@ import type {
   NodePropertySpec,
   NodeSlotSpec,
   NodeWidgetSpec
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 
 /** 节点属性对象的作者层默认别名。 */
 export type NodeProps = Record<string, unknown>;

@@ -5,7 +5,7 @@
  * 负责节点视图查询、hover / focus 更新，以及节点矩形命中。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   LeaferGraphInteractionRuntimeContext,
   LeaferGraphInteractionRuntimeNodeViewState

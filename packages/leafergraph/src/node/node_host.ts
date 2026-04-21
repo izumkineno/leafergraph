@@ -6,13 +6,13 @@
  */
 
 import { Box, Group, Rect } from "leafer-ui";
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import {
   resolveNodeShellLayout,
   type NodeShellLayoutMetrics
 } from "./shell/layout";
 import type { NodeShellView } from "./shell/view";
-import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/core/contracts";
 
 type LeaferGraphNodeShellLayout = ReturnType<typeof resolveNodeShellLayout>;
 

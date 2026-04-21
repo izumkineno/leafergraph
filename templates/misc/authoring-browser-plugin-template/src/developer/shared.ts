@@ -1,4 +1,4 @@
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument } from "@leafergraph/core/node";
 
 /**
  * 这份文件集中放“项目级信息”。

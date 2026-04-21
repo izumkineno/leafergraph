@@ -6,7 +6,7 @@
  * 收敛成交互层可消费的壳面。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   LeaferGraphInteractionRuntimeHostOptions,
   LeaferGraphInteractionRuntimeLike,

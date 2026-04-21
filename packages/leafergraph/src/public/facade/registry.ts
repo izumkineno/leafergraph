@@ -8,11 +8,11 @@ import type {
   NodeModule,
   RegisterNodeOptions,
   RegisterWidgetOptions
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphWidgetEntry
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";
 

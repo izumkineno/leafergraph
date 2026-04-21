@@ -5,11 +5,11 @@
  * 负责声明主包内部节点、连线和图状态容器所需的共享类型。
  */
 
-import type { GraphDocument, GraphLink, NodeRuntimeState } from "@leafergraph/node";
-import type { GraphNodeDisplayProperties } from "@leafergraph/contracts";
+import type { GraphDocument, GraphLink, NodeRuntimeState } from "@leafergraph/core/node";
+import type { GraphNodeDisplayProperties } from "@leafergraph/core/contracts";
 import type { GraphLinkViewState as LeaferGraphLinkHostViewState } from "../link/link_host";
 import type { NodeViewState as LeaferGraphNodeHostViewState } from "../node/node_host";
-export type { GraphNodeDisplayProperties } from "@leafergraph/contracts";
+export type { GraphNodeDisplayProperties } from "@leafergraph/core/contracts";
 
 /** 主包内部使用的节点属性形态：既允许任意扩展字段，也保留常用展示字段。 */
 export type GraphNodeProperties = Record<string, unknown> &

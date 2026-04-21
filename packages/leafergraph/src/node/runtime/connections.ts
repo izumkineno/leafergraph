@@ -8,7 +8,7 @@
 import {
   createNodeApi,
   type GraphLink
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type {
   LeaferGraphNodeRuntimeContext,

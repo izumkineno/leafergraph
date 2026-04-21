@@ -5,22 +5,22 @@
  * 负责持有运行时状态对象，并把快照、执行、状态分发和连线变化委托给 `runtime/*` 子模块。
  */
 
-import { LeaferGraphNodeExecutionHost } from "@leafergraph/execution";
+import { LeaferGraphNodeExecutionHost } from "@leafergraph/core/execution";
 import type {
   GraphLink
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeResizeConstraint,
   LeaferGraphNodeStateChangeEvent,
   LeaferGraphNodeStateChangeReason
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   LeaferGraphCreateEntryExecutionTaskOptions,
   LeaferGraphNodeExecutionTask,
   LeaferGraphNodeExecutionTaskResult
-} from "@leafergraph/execution";
+} from "@leafergraph/core/execution";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import {
   notifyLeaferGraphLinkCreated,
@@ -61,7 +61,7 @@ export type {
   LeaferGraphCreateEntryExecutionTaskOptions,
   LeaferGraphNodeExecutionTask,
   LeaferGraphNodeExecutionTaskResult
-} from "@leafergraph/execution";
+} from "@leafergraph/core/execution";
 
 /**
  * 节点运行时宿主 controller。

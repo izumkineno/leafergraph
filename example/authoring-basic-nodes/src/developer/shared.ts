@@ -1,4 +1,4 @@
-import type { NodeWidgetSpec } from "@leafergraph/node";
+import type { NodeWidgetSpec } from "@leafergraph/core/node";
 
 export const AUTHORING_BASIC_NODES_PACKAGE_NAME =
   "@leafergraph/authoring-basic-nodes";

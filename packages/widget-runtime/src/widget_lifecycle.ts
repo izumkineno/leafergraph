@@ -11,7 +11,7 @@ import type {
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetRendererContext
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphWidgetThemeTokens } from "@leafergraph/theme";
 
 /**

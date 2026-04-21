@@ -4,7 +4,7 @@
 import type {
   LeaferGraphExecutionContext,
   LeaferGraphTimerRuntimePayload
-} from "@leafergraph/execution";
+} from "@leafergraph/core/execution";
 
 export const WEB_CRAWLER_NODES_PACKAGE_NAME = "@leafergraph/web-crawler-nodes";
 export const WEB_CRAWLER_NODES_VERSION = "0.1.0";

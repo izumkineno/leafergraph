@@ -20,7 +20,7 @@ import type {
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
   RuntimeFeedbackEvent
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 
 /**
  * 订阅节点执行事件。

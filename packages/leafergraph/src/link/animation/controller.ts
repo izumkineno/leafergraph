@@ -6,7 +6,7 @@
  */
 
 import { Group } from "leafer-ui";
-import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/contracts";
+import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/core/contracts";
 import { clamp01, mixColorToward } from "./color";
 import {
   attachLeaferGraphReducedMotionListener,

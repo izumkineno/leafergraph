@@ -5,7 +5,7 @@
  * 负责把正式连线与数据流动画都依赖的锚点和贝塞尔曲线求解规则集中到一处。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import {
   PORT_DIRECTION_LEFT,
   PORT_DIRECTION_RIGHT,

@@ -21,11 +21,11 @@ import {
   type LeaferGraphContextMenuClipboardState,
   type LeaferGraphContextMenuBuiltinsHost
 } from "@leafergraph/context-menu-builtins";
-import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import type {
   LeaferGraph,

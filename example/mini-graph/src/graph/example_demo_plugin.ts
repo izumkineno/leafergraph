@@ -1,5 +1,5 @@
-import type { LeaferGraphNodePlugin } from "@leafergraph/contracts";
-import type { NodeDefinition } from "@leafergraph/node";
+import type { LeaferGraphNodePlugin } from "@leafergraph/core/contracts";
+import type { NodeDefinition } from "@leafergraph/core/node";
 
 export const EXAMPLE_EVENT_RELAY_NODE_TYPE = "example/event-relay";
 export const EXAMPLE_TICK_MONITOR_NODE_TYPE = "example/tick-monitor";

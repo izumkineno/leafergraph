@@ -1,4 +1,4 @@
-import type { NodeDefinition } from "@leafergraph/node";
+import type { NodeDefinition } from "@leafergraph/core/node";
 import type { LeaferContextMenuItem } from "@leafergraph/context-menu";
 import type { LeaferGraphContextMenuBuiltinFeatureDefinition } from "../types";
 

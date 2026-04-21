@@ -15,7 +15,7 @@ import type {
   NodeSerializeResult,
   RegisterNodeOptions,
   RegisterWidgetOptions
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphOptions,
@@ -42,7 +42,7 @@ import type {
   LeaferGraphResizeNodeInput,
   LeaferGraphCreateLinkInput,
   LeaferGraphHistoryRecord
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import {
   applyLeaferGraphApiGraphOperation,

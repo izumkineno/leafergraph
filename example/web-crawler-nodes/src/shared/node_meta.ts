@@ -1,5 +1,5 @@
 import type { DevNodeMeta } from "@leafergraph/authoring";
-import type { NodeDefinition } from "@leafergraph/node";
+import type { NodeDefinition } from "@leafergraph/core/node";
 import {
   WEB_CRAWLER_ARRAY_LIST_TYPE,
   WEB_CRAWLER_CRAWLER_TYPE,

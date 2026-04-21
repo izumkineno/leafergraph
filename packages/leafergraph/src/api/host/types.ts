@@ -15,13 +15,13 @@ import type {
   NodeSerializeResult,
   RegisterNodeOptions,
   RegisterWidgetOptions
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphOptions,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderInstance
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import type {
   GraphOperation,
@@ -45,7 +45,7 @@ import type {
   LeaferGraphSelectionUpdateMode,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type { LeaferGraphBootstrapRuntimeLike } from "../../graph/host/bootstrap";
 import type { LeaferGraphHistorySource } from "../../graph/history";

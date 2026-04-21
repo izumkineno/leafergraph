@@ -6,12 +6,12 @@
  */
 
 import type { Path } from "leafer-ui";
-import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
+import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/core/node";
 import type {
   LeaferGraphConnectionPortState,
   LeaferGraphConnectionValidationResult,
   LeaferGraphSelectionUpdateMode
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
 import type { LeaferGraphSceneRuntimeHost } from "../../graph/host/scene_runtime";
 

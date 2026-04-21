@@ -6,11 +6,11 @@ import type {
   NodeModule,
   RegisterNodeOptions,
   RegisterWidgetOptions
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphNodePluginContext,
   LeaferGraphWidgetEntry
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import {
   BasicWidgetLibrary
 } from "../src/widget";
@@ -33,7 +33,7 @@ function createPluginContextRecorder(): {
 
   return {
     context: {
-      sdk: {} as typeof import("@leafergraph/node"),
+      sdk: {} as typeof import("@leafergraph/core/node"),
       ui: {} as typeof import("leafer-ui"),
       installModule(module: NodeModule, _options?: InstallNodeModuleOptions) {
         operations.push("installModule");

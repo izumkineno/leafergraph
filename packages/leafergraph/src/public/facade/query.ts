@@ -6,14 +6,14 @@ import type {
   GraphLink,
   NodeRuntimeState,
   NodeSerializeResult
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphGraphExecutionState,
   LeaferGraphInteractionActivityState,
   LeaferGraphNodeExecutionState,
   LeaferGraphNodeInspectorState,
   LeaferGraphNodeResizeConstraint
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";
 

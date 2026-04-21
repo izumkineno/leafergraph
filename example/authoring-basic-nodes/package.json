@@ -23,14 +23,14 @@
   },
   "peerDependencies": {
     "@leafergraph/authoring": "^0.1.0",
-    "@leafergraph/execution": "^0.1.0",
-    "@leafergraph/node": "^0.1.0",
+    "@leafergraph/core/execution": "^0.1.0",
+    "@leafergraph/core/node": "^0.1.0",
     "leafergraph": "^0.1.0"
   },
   "devDependencies": {
     "@leafergraph/authoring": "workspace:*",
-    "@leafergraph/execution": "workspace:*",
-    "@leafergraph/node": "workspace:*",
+    "@leafergraph/core/execution": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
     "leafergraph": "workspace:*",
     "typescript": "~5.9.3",
     "vite": "^8.0.1"

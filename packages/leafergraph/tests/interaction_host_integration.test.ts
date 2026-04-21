@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { Group } from "leafer-ui";
 import { LeaferGraphInteractionHost } from "../src/interaction/interaction_host";
 import type { LeaferGraphInteractiveNodeViewState } from "../src/interaction/interaction_host";
-import type { LeaferGraphConnectionPortState } from "@leafergraph/contracts";
+import type { LeaferGraphConnectionPortState } from "@leafergraph/core/contracts";
 
 class FakeEventSource {
   name?: string;

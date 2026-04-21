@@ -10,11 +10,11 @@ import * as LeaferUI from "leafer-ui";
 import type {
   NodeResizeConfig,
   NodeRegistry
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphNodeExecutionState,
   LeaferGraphNodeResizeConstraint
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import {
   resolveNodeCategoryBadgeLayout,
   resolveNodeShellLayout,

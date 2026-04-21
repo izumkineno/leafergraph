@@ -21,9 +21,9 @@
     "test": "bun test ./tests"
   },
   "peerDependencies": {
-    "@leafergraph/contracts": "^0.1.0",
-    "@leafergraph/execution": "^0.1.0",
-    "@leafergraph/node": "^0.1.0",
+    "@leafergraph/core/contracts": "^0.1.0",
+    "@leafergraph/core/execution": "^0.1.0",
+    "@leafergraph/core/node": "^0.1.0",
     "@leafergraph/theme": "^0.1.0",
     "leafer-ui": "^2.0.3",
     "leafergraph": "^0.1.0"

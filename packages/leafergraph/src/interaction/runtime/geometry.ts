@@ -5,8 +5,8 @@
  * 负责端口几何、命中矩形和槽位兼容判断等纯计算逻辑。
  */
 
-import type { NodeRuntimeState, SlotType } from "@leafergraph/node";
-import type { LeaferGraphConnectionPortState } from "@leafergraph/contracts";
+import type { NodeRuntimeState, SlotType } from "@leafergraph/core/node";
+import type { LeaferGraphConnectionPortState } from "@leafergraph/core/contracts";
 import { resolveNodePortHitAreaBounds } from "../../node/shell/ports";
 import { normalizeComparableSlotTypes } from "../../node/shell/slot_style";
 import type {

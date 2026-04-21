@@ -5,10 +5,10 @@
  * 负责把当前手势状态折叠成对外可见的交互活跃态快照。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   LeaferGraphInteractionActivityState
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   LeaferGraphInteractionHostContext,
   LeaferGraphInteractiveNodeViewState

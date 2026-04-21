@@ -8,12 +8,12 @@
 import type {
   LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   LeaferGraphCreateEntryExecutionTaskOptions,
   LeaferGraphNodeExecutionTask,
   LeaferGraphNodeExecutionTaskResult
-} from "@leafergraph/execution";
+} from "@leafergraph/core/execution";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type {
   LeaferGraphNodeRuntimeContext,

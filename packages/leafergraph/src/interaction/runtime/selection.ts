@@ -5,8 +5,8 @@
  * 负责把选区相关能力统一代理到 scene / view 侧。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
-import type { LeaferGraphSelectionUpdateMode } from "@leafergraph/contracts";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
+import type { LeaferGraphSelectionUpdateMode } from "@leafergraph/core/contracts";
 import type {
   LeaferGraphInteractionRuntimeContext,
   LeaferGraphInteractionRuntimeNodeViewState

@@ -6,7 +6,7 @@
  * 让宿主入口文件只保留 `try/catch` 和上下文组装。
  */
 
-import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   GraphOperation,
   GraphOperationApplyResult,
@@ -17,7 +17,7 @@ import type {
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateDocumentInput,
   LeaferGraphUpdateNodeInput
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { GraphDragNodePosition } from "../../interaction/graph_interaction_runtime_host";
 import type { GraphDocumentRootState } from "../types";
 

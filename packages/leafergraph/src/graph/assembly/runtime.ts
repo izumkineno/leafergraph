@@ -5,12 +5,12 @@
  * 负责按固定顺序装配主包运行时宿主，并向入口返回精简的 API 宿主。
  */
 
-import { NodeRegistry } from "@leafergraph/node";
-import { LeaferGraphLocalExecutionFeedbackAdapter } from "@leafergraph/execution";
+import { NodeRegistry } from "@leafergraph/core/node";
+import { LeaferGraphLocalExecutionFeedbackAdapter } from "@leafergraph/core/execution";
 import type {
   LeaferGraphInteractionCommitEvent,
   LeaferGraphWidgetRenderer
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { NormalizedLeaferGraphConfig } from "@leafergraph/config";
 import type {
   LeaferGraphGraphThemeTokens,

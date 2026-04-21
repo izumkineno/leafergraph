@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@leafergraph/config": "workspace:*",
-    "@leafergraph/contracts": "workspace:*",
-    "@leafergraph/node": "workspace:*"
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/node": "workspace:*"
   }
 }

@@ -6,8 +6,8 @@
  */
 
 import type { Path } from "leafer-ui";
-import type { NodeOptionWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
+import type { NodeOptionWidgetOptions } from "@leafergraph/core/node";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/core/contracts";
 import {
   bindPressWidgetInteraction,
   type LeaferGraphWidgetPointerEvent

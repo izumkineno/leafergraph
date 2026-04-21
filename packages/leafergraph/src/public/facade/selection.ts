@@ -2,7 +2,7 @@
  * public façade 的选区与折叠方法组。
  */
 
-import type { LeaferGraphSelectionUpdateMode } from "@leafergraph/contracts";
+import type { LeaferGraphSelectionUpdateMode } from "@leafergraph/core/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";
 

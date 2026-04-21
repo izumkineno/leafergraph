@@ -5,8 +5,8 @@
  * 负责 resize 句柄、端口热区和选择修饰键的最小几何判断。
  */
 
-import type { NodeRuntimeState, SlotDirection } from "@leafergraph/node";
-import type { LeaferGraphConnectionPortState } from "@leafergraph/contracts";
+import type { NodeRuntimeState, SlotDirection } from "@leafergraph/core/node";
+import type { LeaferGraphConnectionPortState } from "@leafergraph/core/contracts";
 import type {
   LeaferGraphInteractiveNodeViewState
 } from "./types";

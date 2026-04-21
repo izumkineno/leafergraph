@@ -9,7 +9,7 @@
     "skipLibCheck": true,
     "paths": {
       "@leafergraph/basic-kit": ["../../packages/basic-kit/src/index.ts"],
-      "@leafergraph/contracts": ["../../packages/contracts/src/index.ts"],
+      "@leafergraph/core/contracts": ["../../packages/core/contracts/src/index.ts"],
       "@leafergraph/context-menu": ["../../packages/context-menu/src/index.ts"],
       "@leafergraph/context-menu-builtins": ["../../packages/context-menu-builtins/src/index.ts"],
       "@leafergraph/undo-redo": ["../../packages/undo-redo/src/index.ts"],

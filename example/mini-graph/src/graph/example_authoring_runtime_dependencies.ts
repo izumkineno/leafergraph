@@ -1,6 +1,6 @@
-import * as contractsRuntime from "@leafergraph/contracts";
-import * as executionRuntime from "@leafergraph/execution";
-import * as nodeRuntime from "@leafergraph/node";
+import * as contractsRuntime from "@leafergraph/core/contracts";
+import * as executionRuntime from "@leafergraph/core/execution";
+import * as nodeRuntime from "@leafergraph/core/node";
 import * as widgetRuntime from "@leafergraph/widget-runtime";
 import * as leaferUiRuntime from "leafer-ui";
 import { LeaferGraph, createLeaferGraph } from "leafergraph";
@@ -25,9 +25,9 @@ const STATIC_RUNTIME_DEPENDENCIES: Record<
   string,
   ExampleAuthoringRuntimeDependencyNamespace
 > = {
-  "@leafergraph/contracts": contractsRuntime,
-  "@leafergraph/execution": executionRuntime,
-  "@leafergraph/node": nodeRuntime,
+  "@leafergraph/core/contracts": contractsRuntime,
+  "@leafergraph/core/execution": executionRuntime,
+  "@leafergraph/core/node": nodeRuntime,
   "@leafergraph/widget-runtime": widgetRuntime,
   "leafer-ui": leaferUiRuntime,
   leafergraph: leafergraphRuntime

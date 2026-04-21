@@ -5,7 +5,7 @@
  * 负责 resize 句柄绑定、尺寸拖拽更新和提交事件发出。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
 import type {
   LeaferGraphInteractionHostContext,

@@ -25,13 +25,13 @@ import {
   bindLeaferGraphShortcuts,
   type BoundLeaferGraphShortcuts
 } from "@leafergraph/shortcuts/graph";
-import type { GraphLink, NodeRuntimeState, NodeSerializeResult } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState, NodeSerializeResult } from "@leafergraph/core/node";
 import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   RuntimeFeedbackEvent
-} from "@leafergraph/contracts";
-import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts";
+import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts/graph-document-diff";
 import type {
   LeaferGraphLinkPropagationAnimationPreset,
   LeaferGraphThemeMode

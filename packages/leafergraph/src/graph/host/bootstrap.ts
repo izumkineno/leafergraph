@@ -5,7 +5,7 @@
  * 负责模块安装、插件安装以及启动期图恢复顺序。
  */
 
-import * as NodeSDK from "@leafergraph/node";
+import * as NodeSDK from "@leafergraph/core/node";
 import {
   installNodeModule,
   type InstallNodeModuleOptions,
@@ -15,14 +15,14 @@ import {
   type RegisterNodeOptions,
   type RegisterWidgetOptions,
   type ResolvedNodeModule
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import * as LeaferUI from "leafer-ui";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext,
   LeaferGraphOptions,
   LeaferGraphWidgetEntry
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
 
 /** 已安装插件的登记信息。 */

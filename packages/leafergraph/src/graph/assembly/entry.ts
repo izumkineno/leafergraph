@@ -7,7 +7,7 @@
  */
 
 import type { App, Group } from "leafer-ui";
-import type { LeaferGraphOptions } from "@leafergraph/contracts";
+import type { LeaferGraphOptions } from "@leafergraph/core/contracts";
 import {
   normalizeLeaferGraphConfig,
   type NormalizedLeaferGraphConfig

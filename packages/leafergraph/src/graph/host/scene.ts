@@ -5,8 +5,8 @@
  * 负责节点视图、连线视图和 Widget 值写回的场景级桥接。
  */
 
-import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
-import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/contracts";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/core/node";
+import type { LeaferGraphWidgetRenderInstance } from "@leafergraph/core/contracts";
 
 type LeaferGraphSceneNodeViewState<
   TNodeState extends NodeRuntimeState = NodeRuntimeState

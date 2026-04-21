@@ -19,13 +19,13 @@ import type {
   NodeSlotSpec,
   NodeWidgetSpec,
   SlotDirection
-} from "@leafergraph/node";
-import type { LeaferGraphExecutionContext } from "@leafergraph/execution";
-import { createNodeApi } from "@leafergraph/node";
+} from "@leafergraph/core/node";
+import type { LeaferGraphExecutionContext } from "@leafergraph/core/execution";
+import { createNodeApi } from "@leafergraph/core/node";
 import type {
   LeaferGraphNodePlugin,
   LeaferGraphNodePluginContext
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 
 import {
   assertNonEmptyText,

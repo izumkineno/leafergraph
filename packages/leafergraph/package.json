@@ -23,9 +23,9 @@
   },
   "dependencies": {
     "@leafergraph/config": "workspace:*",
-    "@leafergraph/contracts": "workspace:*",
-    "@leafergraph/execution": "workspace:*",
-    "@leafergraph/node": "workspace:*",
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/execution": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
     "@leafergraph/theme": "workspace:*",
     "@leafergraph/widget-runtime": "workspace:*",
     "@leafer-in/arrow": "^2.0.3",

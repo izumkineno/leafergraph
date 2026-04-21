@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument } from "@leafergraph/core/node";
 import {
   applyGraphDocumentDiffToDocument,
   type GraphDocumentDiff
-} from "@leafergraph/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts/graph-document-diff";
 import { LeaferGraph } from "../src/index";
 
 function createTestDocument(): GraphDocument {

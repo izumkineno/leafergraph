@@ -3,12 +3,12 @@ import { describe, expect, test } from "bun:test";
 import type {
   GraphDocument,
   NodeSerializeResult
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   GraphOperation,
   LeaferGraphHistoryEvent,
   LeaferGraphInteractionCommitEvent
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import { createLeaferGraph } from "../src";
 
 function createContainer(): HTMLDivElement {

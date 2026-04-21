@@ -16,8 +16,8 @@ import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type {
   LeaferGraphNodeInspectorState,
   LeaferGraphSelectionUpdateMode
-} from "@leafergraph/contracts";
-import type { NodeSerializeResult } from "@leafergraph/node";
+} from "@leafergraph/core/contracts";
+import type { NodeSerializeResult } from "@leafergraph/core/node";
 import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 
 /**

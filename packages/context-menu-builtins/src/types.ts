@@ -10,12 +10,12 @@ import type {
   LeaferGraphCreateLinkInput,
   LeaferGraphCreateNodeInput,
   LeaferGraphSelectionUpdateMode
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   GraphLink,
   NodeDefinition,
   NodeSerializeResult
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferContextMenu,
   LeaferContextMenuContext,

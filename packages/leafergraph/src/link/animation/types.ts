@@ -6,8 +6,8 @@
  */
 
 import type { Arrow } from "@leafer-in/arrow";
-import type { GraphLink } from "@leafergraph/node";
-import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/contracts";
+import type { GraphLink } from "@leafergraph/core/node";
+import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/core/contracts";
 import type { LeaferGraphThemeMode } from "@leafergraph/theme";
 import type { Group, Rect } from "leafer-ui";
 import type { LeaferGraphDataFlowAnimationStyleConfig } from "../../graph/style";

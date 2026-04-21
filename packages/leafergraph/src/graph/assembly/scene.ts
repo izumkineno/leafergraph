@@ -6,13 +6,13 @@
  * 让主装配器只保留“先准备基础环境，再串联场景运行时，再对外暴露 API”三段式结构。
  */
 
-import { NodeRegistry } from "@leafergraph/node";
-import type { LeaferGraphWidgetEditingContext } from "@leafergraph/contracts";
+import { NodeRegistry } from "@leafergraph/core/node";
+import type { LeaferGraphWidgetEditingContext } from "@leafergraph/core/contracts";
 import type {
   LeaferGraphGraphThemeTokens,
   LeaferGraphThemeMode
 } from "@leafergraph/theme";
-import { LeaferGraphGraphExecutionHost } from "@leafergraph/execution";
+import { LeaferGraphGraphExecutionHost } from "@leafergraph/core/execution";
 import {
   LeaferGraphWidgetHost,
   type LeaferGraphWidgetEditingManager,

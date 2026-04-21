@@ -6,13 +6,13 @@ import type { Group } from "leafer-ui";
 import type {
   GraphDocument,
   NodeSerializeResult
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import {
   createUpdateNodeInputFromNodeSnapshot,
   type ApplyGraphDocumentDiffResult,
   type GraphDocumentDiff
-} from "@leafergraph/contracts/graph-document-diff";
-import type { LeaferGraphUpdateNodeInput } from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts/graph-document-diff";
+import type { LeaferGraphUpdateNodeInput } from "@leafergraph/core/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";
 import { projectLeaferGraphDiffOperations } from "./diff_projection_operations";

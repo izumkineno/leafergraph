@@ -1,4 +1,4 @@
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument } from "@leafergraph/core/node";
 
 import { authoringBrowserTemplateDemoPreset } from "../developer";
 

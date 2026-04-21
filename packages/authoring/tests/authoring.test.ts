@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { createNodeApi, type NodeRuntimeState } from "@leafergraph/node";
+import { createNodeApi, type NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   LeaferGraphNodePluginContext,
   LeaferGraphWidgetBounds,
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRendererContext
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphWidgetThemeContext } from "@leafergraph/theme";
 
 import {

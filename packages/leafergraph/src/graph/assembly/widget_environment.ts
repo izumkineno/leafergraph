@@ -10,7 +10,7 @@ import type { App } from "leafer-ui";
 import type {
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetRenderer
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   NormalizedLeaferGraphLeaferEditorConfig,
   NormalizedLeaferGraphLeaferTextEditorConfig,

@@ -1,4 +1,4 @@
-import { serializeNode, type GraphDocument, type GraphLink, type NodeRegistry, type NodeSerializeResult } from "@leafergraph/node";
+import { serializeNode, type GraphDocument, type GraphLink, type NodeRegistry, type NodeSerializeResult } from "@leafergraph/core/node";
 import type {
   GraphOperation,
   LeaferGraphHistoryEvent,
@@ -8,8 +8,8 @@ import type {
   LeaferGraphNodeMoveCommitEntry,
   LeaferGraphOperationHistoryRecord,
   LeaferGraphSnapshotHistoryRecord
-} from "@leafergraph/contracts";
-import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts";
+import { createCreateNodeInputFromNodeSnapshot } from "@leafergraph/core/contracts/graph-document-diff";
 import type {
   GraphDocumentRootState,
   GraphRuntimeState,

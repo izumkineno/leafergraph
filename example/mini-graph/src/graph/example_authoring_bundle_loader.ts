@@ -8,8 +8,8 @@
  * - 从 bundle 导出中解析出可注册的 plugin / module
  */
 
-import type { NodeModule } from "@leafergraph/node";
-import type { LeaferGraphNodePlugin } from "@leafergraph/contracts";
+import type { NodeModule } from "@leafergraph/core/node";
+import type { LeaferGraphNodePlugin } from "@leafergraph/core/contracts";
 import type { LeaferGraph } from "leafergraph";
 import {
   EXAMPLE_AUTHORING_RUNTIME_DEPENDENCY_SPECIFIERS,

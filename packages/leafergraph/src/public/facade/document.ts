@@ -2,15 +2,15 @@
  * public façade 的文档与 diff 方法组。
  */
 
-import type { GraphDocument } from "@leafergraph/node";
+import type { GraphDocument } from "@leafergraph/core/node";
 import type {
   ApplyGraphDocumentDiffResult,
   GraphDocumentDiff
-} from "@leafergraph/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts/graph-document-diff";
 import type {
   GraphOperation,
   GraphOperationApplyResult
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";
 import { projectLeaferGraphDocumentDiff } from "./diff_projection";

@@ -1,5 +1,5 @@
-import type { LeaferGraphNodePlugin } from "@leafergraph/contracts";
-import type { GraphDocument } from "@leafergraph/node";
+import type { LeaferGraphNodePlugin } from "@leafergraph/core/contracts";
+import type { GraphDocument } from "@leafergraph/core/node";
 
 type AuthoringBrowserTemplateBundleSlot = "demo" | "node" | "widget";
 

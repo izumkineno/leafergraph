@@ -28,15 +28,15 @@
   },
   "peerDependencies": {
     "@leafergraph/authoring": "workspace:*",
-    "@leafergraph/contracts": "workspace:*",
-    "@leafergraph/node": "workspace:*",
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
     "leafer-ui": "^2.0.3"
   },
   "devDependencies": {
     "@leafergraph/authoring": "workspace:*",
-    "@leafergraph/contracts": "workspace:*",
-    "@leafergraph/execution": "workspace:*",
-    "@leafergraph/node": "workspace:*",
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/execution": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
     "typescript": "~5.9.3",
     "vite": "^5.0.0"
   }

@@ -14,8 +14,8 @@ import type {
   GraphOperation,
   GraphOperationApplyResult,
   LeaferGraphHistoryEvent
-} from "@leafergraph/contracts";
-import type { GraphDocument } from "@leafergraph/node";
+} from "@leafergraph/core/contracts";
+import type { GraphDocument } from "@leafergraph/core/node";
 import type { UndoRedoController } from "../core/types";
 
 /**

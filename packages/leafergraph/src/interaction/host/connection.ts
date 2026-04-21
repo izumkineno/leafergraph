@@ -5,7 +5,7 @@
  * 负责端口拖线绑定、预览刷新、正式建线提交和临时状态清理。
  */
 
-import type { NodeRuntimeState, SlotDirection } from "@leafergraph/node";
+import type { NodeRuntimeState, SlotDirection } from "@leafergraph/core/node";
 import type { LeaferGraphWidgetPointerEvent } from "@leafergraph/widget-runtime";
 import type {
   LeaferGraphInteractionHostContext,

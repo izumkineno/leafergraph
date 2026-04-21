@@ -8,11 +8,11 @@
 import type {
   NodeTextWidgetOptions,
   NodeTextareaWidgetOptions
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   LeaferGraphWidgetRendererContext,
   LeaferGraphWidgetTextEditRequest
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import { bindPressWidgetInteraction } from "@leafergraph/widget-runtime";
 import {
   WIDGET_FIELD_FONT_SIZE,

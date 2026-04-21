@@ -5,12 +5,12 @@
  * 当前阶段它负责把纯执行反馈和主包 `node.state` 归一成统一 `RuntimeFeedbackEvent`。
  */
 
-import type { ExecutionFeedbackAdapter } from "@leafergraph/execution";
+import type { ExecutionFeedbackAdapter } from "@leafergraph/core/execution";
 import type {
   RuntimeAdapter,
   RuntimeFeedbackEvent,
   LeaferGraphNodeStateChangeEvent
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 
 interface LeaferGraphLocalRuntimeAdapterOptions {
   executionAdapter: ExecutionFeedbackAdapter;

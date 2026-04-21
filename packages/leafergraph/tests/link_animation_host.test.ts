@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { Group } from "leafer-ui";
-import type { GraphLink } from "@leafergraph/node";
-import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/contracts";
+import type { GraphLink } from "@leafergraph/core/node";
+import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/core/contracts";
 import {
   NODE_SHELL_LAYOUT_METRICS,
   createDefaultDataFlowAnimationStyleConfig

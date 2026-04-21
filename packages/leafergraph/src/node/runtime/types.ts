@@ -5,13 +5,13 @@
  * 负责集中声明 `node/runtime/*` 之间共用的宿主选项和上下文结构。
  */
 
-import type { GraphLink, NodeRegistry } from "@leafergraph/node";
+import type { GraphLink, NodeRegistry } from "@leafergraph/core/node";
 import type {
   LeaferGraphNodeStateChangeEvent,
   LeaferGraphNodeStateChangeReason,
   LeaferGraphNodeResizeConstraint
-} from "@leafergraph/contracts";
-import type { LeaferGraphNodeExecutionHost } from "@leafergraph/execution";
+} from "@leafergraph/core/contracts";
+import type { LeaferGraphNodeExecutionHost } from "@leafergraph/core/execution";
 import type { LeaferGraphWidgetRegistry } from "@leafergraph/widget-runtime";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type { LeaferGraphSceneRuntimeHost } from "../../graph/host/scene_runtime";

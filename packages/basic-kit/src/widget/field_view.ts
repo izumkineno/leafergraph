@@ -6,7 +6,7 @@
  */
 
 import type { Rect, Text } from "leafer-ui";
-import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/core/contracts";
 import {
   createWidgetFieldSurface,
   createWidgetFocusRing,

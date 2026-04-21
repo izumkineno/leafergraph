@@ -6,8 +6,8 @@
  */
 
 import type { Rect, Text } from "leafer-ui";
-import type { NodeToggleWidgetOptions } from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
+import type { NodeToggleWidgetOptions } from "@leafergraph/core/node";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/core/contracts";
 import {
   bindPressWidgetInteraction,
   createWidgetSurface,

@@ -11,7 +11,7 @@ import type {
   LeaferGraphApiNodeViewState
 } from "./types";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
-import type { LeaferGraphOptions } from "@leafergraph/contracts";
+import type { LeaferGraphOptions } from "@leafergraph/core/contracts";
 
 /**
  * 执行启动期安装流程并恢复初始图数据。

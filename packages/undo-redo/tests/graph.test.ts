@@ -5,8 +5,8 @@ import type {
   GraphOperation,
   LeaferGraphHistoryEvent,
   LeaferGraphHistoryRecord
-} from "@leafergraph/contracts";
-import type { GraphDocument } from "@leafergraph/node";
+} from "@leafergraph/core/contracts";
+import type { GraphDocument } from "@leafergraph/core/node";
 
 describe("@leafergraph/undo-redo graph", () => {
   it("operation record 会被推入 controller，并可回放 undo/redo", () => {

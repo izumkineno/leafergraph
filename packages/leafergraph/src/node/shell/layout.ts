@@ -5,8 +5,8 @@
  * 负责节点外壳、端口区和 Widget 区的尺寸与坐标计算。
  */
 
-import type { NodeRuntimeState, NodeWidgetType } from "@leafergraph/node";
-import type { LeaferGraphWidgetBounds } from "@leafergraph/contracts";
+import type { NodeRuntimeState, NodeWidgetType } from "@leafergraph/core/node";
+import type { LeaferGraphWidgetBounds } from "@leafergraph/core/contracts";
 export type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
 import type { NodeShellLayoutMetrics } from "@leafergraph/theme/graph";
 import type { NodeShellPortLayout } from "./ports";

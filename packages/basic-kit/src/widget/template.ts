@@ -11,8 +11,8 @@ import type {
   NodeSliderWidgetOptions,
   NodeWidgetOptionItem,
   NodeWidgetSpec
-} from "@leafergraph/node";
-import type { LeaferGraphWidgetRendererContext } from "@leafergraph/contracts";
+} from "@leafergraph/core/node";
+import type { LeaferGraphWidgetRendererContext } from "@leafergraph/core/contracts";
 import type {
   LeaferGraphWidgetInteractionBinding
 } from "@leafergraph/widget-runtime";

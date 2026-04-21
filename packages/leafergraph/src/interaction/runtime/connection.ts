@@ -5,11 +5,11 @@
  * 负责端口解析、端口高亮、预览线更新和正式建线校验。
  */
 
-import type { NodeRuntimeState, SlotDirection } from "@leafergraph/node";
+import type { NodeRuntimeState, SlotDirection } from "@leafergraph/core/node";
 import type {
   LeaferGraphConnectionPortState,
   LeaferGraphConnectionValidationResult
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import {
   PORT_DIRECTION_LEFT,
   PORT_DIRECTION_RIGHT,

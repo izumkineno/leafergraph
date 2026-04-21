@@ -5,7 +5,7 @@
  * 负责空白区框选开始、刷新和结束时的 overlay 与选区同步。
  */
 
-import type { NodeRuntimeState } from "@leafergraph/node";
+import type { NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   GraphSelectionState,
   LeaferGraphInteractionHostContext,

@@ -9,16 +9,16 @@
 import type {
   GraphDocument,
   NodeSerializeResult
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import type {
   GraphOperationApplyResult,
   LeaferGraphCreateLinkInput,
   LeaferGraphUpdateNodeInput
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   ApplyGraphDocumentDiffResult,
   GraphDocumentDiff
-} from "@leafergraph/contracts/graph-document-diff";
+} from "@leafergraph/core/contracts/graph-document-diff";
 import type { LeaferGraph } from "../leafer_graph";
 
 type DiffProjectionOperation = GraphDocumentDiff["operations"][number];

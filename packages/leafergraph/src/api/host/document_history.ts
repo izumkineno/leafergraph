@@ -10,7 +10,7 @@ import type {
   GraphDocument,
   GraphLink,
   NodeSerializeResult
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import {
   createLinkCreateHistoryRecord,
   createLinkReconnectHistoryRecord,

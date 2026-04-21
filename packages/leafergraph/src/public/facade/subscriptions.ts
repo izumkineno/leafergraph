@@ -10,7 +10,7 @@ import type {
   LeaferGraphNodeExecutionEvent,
   LeaferGraphNodeStateChangeEvent,
   RuntimeFeedbackEvent
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import { getLeaferGraphApiHost } from "../leafer_graph";
 import type { LeaferGraph } from "../leafer_graph";
 

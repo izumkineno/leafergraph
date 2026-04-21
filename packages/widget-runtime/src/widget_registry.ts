@@ -9,13 +9,13 @@ import type {
   RegisterWidgetOptions,
   WidgetDefinition,
   WidgetDefinitionReader
-} from "@leafergraph/node";
+} from "@leafergraph/core/node";
 import { createWidgetLifecycleRenderer } from "./widget_lifecycle";
 import type {
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetRenderer,
   LeaferGraphWidgetRendererLike
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 
 /**
  * 注册后的 Widget 条目。
@@ -30,7 +30,7 @@ type RegisteredWidgetEntry = Omit<LeaferGraphWidgetEntry, "renderer"> & {
  * 它同时承担三件事：
  * 1. 保存 Widget 的数据定义
  * 2. 保存并归一化 Widget renderer
- * 3. 作为 `@leafergraph/node` 的 Widget 定义读取源
+ * 3. 作为 `@leafergraph/core/node` 的 Widget 定义读取源
  */
 export class LeaferGraphWidgetRegistry implements WidgetDefinitionReader {
   private readonly entries = new Map<string, RegisteredWidgetEntry>();

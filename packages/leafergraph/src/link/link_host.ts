@@ -7,7 +7,7 @@
 
 import type { Group } from "leafer-ui";
 import { Arrow } from "@leafer-in/arrow";
-import type { GraphLink } from "@leafergraph/node";
+import type { GraphLink } from "@leafergraph/core/node";
 import { buildLinkPathFromCurve } from "./link";
 import {
   resolveGraphLinkCurve,

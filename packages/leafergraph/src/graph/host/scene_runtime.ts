@@ -5,7 +5,7 @@
  * 负责把场景刷新、连线刷新与正式图变更收敛为统一运行时壳面。
  */
 
-import type { GraphLink, NodeRuntimeState } from "@leafergraph/node";
+import type { GraphLink, NodeRuntimeState } from "@leafergraph/core/node";
 import type { GraphDragNodePosition } from "../../interaction/graph_interaction_runtime_host";
 import type {
   GraphOperation,
@@ -16,7 +16,7 @@ import type {
   LeaferGraphNodeStateChangeReason,
   LeaferGraphResizeNodeInput,
   LeaferGraphUpdateNodeInput
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { GraphDocumentRootState } from "../types";
 import {
   dispatchSceneRuntimeGraphOperation,

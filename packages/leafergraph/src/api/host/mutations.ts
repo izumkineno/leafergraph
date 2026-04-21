@@ -26,7 +26,7 @@ import type {
   LeaferGraphApiUpdateNodeInput
 } from "./types";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
-import type { GraphLink } from "@leafergraph/node";
+import type { GraphLink } from "@leafergraph/core/node";
 
 let apiMutationOperationSeed = 1;
 

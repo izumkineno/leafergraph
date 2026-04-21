@@ -6,12 +6,12 @@
  */
 
 import type { Group } from "leafer-ui";
-import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/node";
+import type { NodeRuntimeState, SlotDirection, SlotType } from "@leafergraph/core/node";
 import type {
   LeaferGraphConnectionPortState,
   LeaferGraphInteractionActivityState,
   LeaferGraphInteractionCommitEvent
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type {
   GraphDragNodePosition,
   LeaferGraphInteractionRuntimeLike

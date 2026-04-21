@@ -18,7 +18,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         "@leafergraph/authoring",
-        "@leafergraph/node",
+        "@leafergraph/core/node",
         "leafer-ui",
         "leafergraph"
       ]

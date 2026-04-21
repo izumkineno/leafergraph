@@ -6,7 +6,7 @@ import type {
   GraphOperation,
   LeaferGraphHistoryEvent,
   LeaferGraphHistoryRecord
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import { createUndoRedoController } from "../core/controller";
 import type { UndoRedoEntry } from "../core/types";
 import type {

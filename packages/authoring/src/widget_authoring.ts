@@ -5,14 +5,14 @@
  * 并把宿主提供的渲染上下文投影成更稳定的作者层接口。
  */
 
-import type { NodeRuntimeState, NodeWidgetSpec } from "@leafergraph/node";
+import type { NodeRuntimeState, NodeWidgetSpec } from "@leafergraph/core/node";
 import type {
   LeaferGraphWidgetBounds,
   LeaferGraphWidgetEditingContext,
   LeaferGraphWidgetEntry,
   LeaferGraphWidgetLifecycle,
   LeaferGraphWidgetRendererContext
-} from "@leafergraph/contracts";
+} from "@leafergraph/core/contracts";
 import type { LeaferGraphWidgetThemeContext } from "@leafergraph/theme";
 import type { Group } from "leafer-ui";
 
