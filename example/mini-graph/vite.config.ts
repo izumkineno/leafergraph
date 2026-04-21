@@ -66,24 +66,24 @@ export default defineConfig({
       },
       {
         find: /^@leafergraph\/context-menu$/,
-        replacement: resolve(__dirname, "../../packages/context-menu/src/index.ts")
+        replacement: resolve(__dirname, "../../packages/extensions/context-menu/src/index.ts")
       },
       {
         find: /^@leafergraph\/context-menu-builtins$/,
         replacement: resolve(
           __dirname,
-          "../../packages/context-menu-builtins/src/index.ts"
+          "../../packages/extensions/context-menu-builtins/src/index.ts"
         )
       },
       {
         find: /^@leafergraph\/undo-redo$/,
-        replacement: resolve(__dirname, "../../packages/undo-redo/src/index.ts")
+        replacement: resolve(__dirname, "../../packages/extensions/undo-redo/src/index.ts")
       },
       {
         find: /^@leafergraph\/undo-redo\/graph$/,
         replacement: resolve(
           __dirname,
-          "../../packages/undo-redo/src/graph/index.ts"
+          "../../packages/extensions/undo-redo/src/graph/index.ts"
         )
       },
       {

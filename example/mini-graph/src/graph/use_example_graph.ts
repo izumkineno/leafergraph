@@ -15,16 +15,16 @@ import { leaferGraphBasicKitPlugin } from "@leafergraph/core/basic-kit";
 import {
   createLeaferGraphContextMenuClipboardStore,
   type LeaferGraphContextMenuClipboardFragment
-} from "@leafergraph/context-menu-builtins";
+} from "@leafergraph/extensions/context-menu-builtins";
 import {
   bindLeaferGraphUndoRedo,
   type BoundLeaferGraphUndoRedo
-} from "@leafergraph/undo-redo/graph";
-import type { UndoRedoControllerState } from "@leafergraph/undo-redo";
+} from "@leafergraph/extensions/undo-redo/graph";
+import type { UndoRedoControllerState } from "@leafergraph/extensions/undo-redo";
 import {
   bindLeaferGraphShortcuts,
   type BoundLeaferGraphShortcuts
-} from "@leafergraph/shortcuts/graph";
+} from "@leafergraph/extensions/shortcuts/graph";
 import type { GraphLink, NodeRuntimeState, NodeSerializeResult } from "@leafergraph/core/node";
 import type {
   LeaferGraphCreateLinkInput,
@@ -1259,7 +1259,7 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     const registrationPromise = (async () => {
       try {
-        const module = await import("@leafergraph/authoring-basic-nodes");
+        const module = await import("@leafergraph/extensions/authoring-basic-nodes");
         graph.use(module.default);
         autoRegisteredAuthoringBasicNodesRef.current = true;
         appendLog(

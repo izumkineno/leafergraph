@@ -5,7 +5,7 @@ import {
   type NodeOutputs,
   type NodeProps,
   type NodeState
-} from "@leafergraph/authoring";
+} from "@leafergraph/extensions/authoring";
 import { WEB_CRAWLER_ARRAY_LIST_META } from "../../shared/node_meta";
 
 export class ArrayListNode extends BaseNode<

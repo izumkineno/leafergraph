@@ -1,7 +1,7 @@
 import {
   createAuthoringModule,
   createAuthoringPlugin
-} from "@leafergraph/authoring";
+} from "@leafergraph/extensions/authoring";
 
 import { PulseCounterNode, SumNode, WatchNode } from "./nodes";
 import {

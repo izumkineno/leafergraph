@@ -2,7 +2,7 @@ import {
   BaseNode,
   defineAuthoringNode,
   type DevNodeContext
-} from "@leafergraph/authoring";
+} from "@leafergraph/extensions/authoring";
 
 import {
   AUTHORING_NODE_TEMPLATE_BASIC_SUM_LOCAL_TYPE,

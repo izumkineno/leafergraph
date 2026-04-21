@@ -27,13 +27,13 @@
     "node-html-parser": "^6.1.13"
   },
   "peerDependencies": {
-    "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/extensions/authoring": "workspace:*",
     "@leafergraph/core/contracts": "workspace:*",
     "@leafergraph/core/node": "workspace:*",
     "leafer-ui": "^2.0.3"
   },
   "devDependencies": {
-    "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/extensions/authoring": "workspace:*",
     "@leafergraph/core/contracts": "workspace:*",
     "@leafergraph/core/execution": "workspace:*",
     "@leafergraph/core/node": "workspace:*",

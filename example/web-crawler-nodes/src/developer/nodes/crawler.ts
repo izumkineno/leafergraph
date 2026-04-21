@@ -4,7 +4,7 @@ import {
   type NodeInputs,
   type NodeOutputs,
   type NodeProps
-} from "@leafergraph/authoring";
+} from "@leafergraph/extensions/authoring";
 import {
   createCrawlerTicketId,
   getExecutionContext,

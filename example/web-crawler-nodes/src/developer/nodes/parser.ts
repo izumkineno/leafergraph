@@ -5,7 +5,7 @@ import {
   type NodeOutputs,
   type NodeProps,
   type NodeState
-} from "@leafergraph/authoring";
+} from "@leafergraph/extensions/authoring";
 import { readWidgetString, updateStatus } from "../shared";
 import {
   WEB_CRAWLER_PARSER_DEFAULT_SELECTOR,

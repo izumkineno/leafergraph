@@ -24,7 +24,7 @@
     "build": "bun run build:esm && bun run build:browser"
   },
   "devDependencies": {
-    "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/extensions/authoring": "workspace:*",
     "@leafergraph/core/contracts": "workspace:*",
     "@leafergraph/core/node": "workspace:*",
     "leafer-ui": "^2.0.3",

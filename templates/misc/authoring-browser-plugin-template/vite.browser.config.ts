@@ -59,10 +59,10 @@ export default defineConfig(({ mode }) => {
         fileName: () => bundle.fileName
       },
       rollupOptions: {
-        external: ["@leafergraph/authoring", "leafergraph"],
+        external: ["@leafergraph/extensions/authoring", "leafergraph"],
         output: {
           globals: {
-            "@leafergraph/authoring": "LeaferGraphAuthoring",
+            "@leafergraph/extensions/authoring": "LeaferGraphAuthoring",
             leafergraph: "LeaferGraphRuntime"
           }
         }

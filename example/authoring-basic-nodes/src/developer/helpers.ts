@@ -1,4 +1,4 @@
-import type { DevNodeContext } from "@leafergraph/authoring";
+import type { DevNodeContext } from "@leafergraph/extensions/authoring";
 import type {
   LeaferGraphActionExecutionOptions,
   LeaferGraphExecutionContext,

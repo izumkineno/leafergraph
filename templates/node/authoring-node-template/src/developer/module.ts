@@ -1,4 +1,4 @@
-import { createAuthoringModule, createAuthoringPlugin } from "@leafergraph/authoring";
+import { createAuthoringModule, createAuthoringPlugin } from "@leafergraph/extensions/authoring";
 
 import { BasicSumNode, WatchNode } from "./nodes";
 import {

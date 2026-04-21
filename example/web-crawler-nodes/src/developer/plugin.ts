@@ -1,4 +1,4 @@
-import { createAuthoringPlugin } from "@leafergraph/authoring";
+import { createAuthoringPlugin } from "@leafergraph/extensions/authoring";
 import { CrawlerNode } from "./nodes/crawler";
 import { ParserNode } from "./nodes/parser";
 import { ArrayListNode } from "./nodes/array-list";

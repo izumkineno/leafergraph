@@ -3,7 +3,7 @@
  *
  * @remarks
  * 这个文件只做两层接线：
- * - 先启用 `@leafergraph/context-menu-builtins` 内建节点图动作
+ * - 先启用 `@leafergraph/extensions/context-menu-builtins` 内建节点图动作
  * - 再补上 `mini-graph` 自己特有的 demo 动作
  *
  * 这样通用右键能力能沉到包内复用，而 demo 仍能保留自己的说明性动作。
@@ -14,13 +14,13 @@ import {
   type LeaferContextMenu,
   type LeaferContextMenuContext,
   type LeaferContextMenuItem
-} from "@leafergraph/context-menu";
+} from "@leafergraph/extensions/context-menu";
 import {
   registerLeaferGraphContextMenuBuiltins,
   type LeaferGraphContextMenuBuiltinActionId,
   type LeaferGraphContextMenuClipboardState,
   type LeaferGraphContextMenuBuiltinsHost
-} from "@leafergraph/context-menu-builtins";
+} from "@leafergraph/extensions/context-menu-builtins";
 import type { GraphLink, NodeRuntimeState } from "@leafergraph/core/node";
 import type {
   LeaferGraphCreateLinkInput,

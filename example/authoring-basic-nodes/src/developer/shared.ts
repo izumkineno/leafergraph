@@ -1,7 +1,7 @@
 import type { NodeWidgetSpec } from "@leafergraph/core/node";
 
 export const AUTHORING_BASIC_NODES_PACKAGE_NAME =
-  "@leafergraph/authoring-basic-nodes";
+  "@leafergraph/extensions/authoring-basic-nodes";
 export const AUTHORING_BASIC_NODES_VERSION = "0.1.0";
 
 export const AUTHORING_BASIC_STATUS_WIDGET_TYPE =

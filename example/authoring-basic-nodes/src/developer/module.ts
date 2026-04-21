@@ -1,7 +1,7 @@
 import {
   createAuthoringModule,
   createAuthoringPlugin
-} from "@leafergraph/authoring";
+} from "@leafergraph/extensions/authoring";
 
 import { authoringBasicNodeClasses } from "./nodes";
 import {

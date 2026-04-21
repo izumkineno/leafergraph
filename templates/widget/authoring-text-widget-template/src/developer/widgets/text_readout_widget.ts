@@ -2,7 +2,7 @@ import {
   BaseWidget,
   defineAuthoringWidget,
   type DevWidgetContext
-} from "@leafergraph/authoring";
+} from "@leafergraph/extensions/authoring";
 
 import { AUTHORING_TEXT_WIDGET_TEMPLATE_WIDGET_TYPE } from "../shared";
 

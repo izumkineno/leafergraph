@@ -1,4 +1,4 @@
-import { createAuthoringPlugin } from "@leafergraph/authoring";
+import { createAuthoringPlugin } from "@leafergraph/extensions/authoring";
 
 import {
   AUTHORING_TEXT_WIDGET_TEMPLATE_PACKAGE_NAME,

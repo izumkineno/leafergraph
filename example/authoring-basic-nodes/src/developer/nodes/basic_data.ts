@@ -1,4 +1,4 @@
-import { BaseNode } from "@leafergraph/authoring";
+import { BaseNode } from "@leafergraph/extensions/authoring";
 
 import {
   cloneStructuredValue,

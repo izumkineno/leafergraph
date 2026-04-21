@@ -17,10 +17,10 @@ export default defineConfig({
       fileName: () => "widget.iife.js"
     },
     rollupOptions: {
-      external: ["@leafergraph/authoring", "leafergraph"],
+      external: ["@leafergraph/extensions/authoring", "leafergraph"],
       output: {
         globals: {
-          "@leafergraph/authoring": "LeaferGraphAuthoring",
+          "@leafergraph/extensions/authoring": "LeaferGraphAuthoring",
           leafergraph: "LeaferGraphRuntime"
         }
       }

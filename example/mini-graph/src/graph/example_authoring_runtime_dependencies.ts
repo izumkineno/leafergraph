@@ -33,7 +33,7 @@ const STATIC_RUNTIME_DEPENDENCIES: Record<
   leafergraph: leafergraphRuntime
 };
 
-const LAZY_RUNTIME_DEPENDENCY_SPECIFIERS = ["@leafergraph/authoring"] as const;
+const LAZY_RUNTIME_DEPENDENCY_SPECIFIERS = ["@leafergraph/extensions/authoring"] as const;
 
 export const EXAMPLE_AUTHORING_RUNTIME_DEPENDENCY_SPECIFIERS = [
   ...LAZY_RUNTIME_DEPENDENCY_SPECIFIERS,
@@ -54,9 +54,9 @@ export async function loadExampleAuthoringRuntimeDependency(
     return staticDependency;
   }
 
-  if (specifier === "@leafergraph/authoring") {
+  if (specifier === "@leafergraph/extensions/authoring") {
     return (await import(
-      "@leafergraph/authoring"
+      "@leafergraph/extensions/authoring"
     )) as ExampleAuthoringRuntimeDependencyNamespace;
   }
 

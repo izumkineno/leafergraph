@@ -1,4 +1,4 @@
-import { createAuthoringModule } from "@leafergraph/authoring";
+import { createAuthoringModule } from "@leafergraph/extensions/authoring";
 import { WEB_CRAWLER_NODES_SCOPE } from "./shared";
 import { CrawlerNode } from "./nodes/crawler";
 import { ParserNode } from "./nodes/parser";

@@ -1,5 +1,5 @@
 {
-  "name": "@leafergraph/authoring-basic-nodes",
+  "name": "@leafergraph/extensions/authoring-basic-nodes",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -22,13 +22,13 @@
     "test": "bun test --preload ../../packages/leafergraph/tests/setup.ts ./tests"
   },
   "peerDependencies": {
-    "@leafergraph/authoring": "^0.1.0",
+    "@leafergraph/extensions/authoring": "^0.1.0",
     "@leafergraph/core/execution": "^0.1.0",
     "@leafergraph/core/node": "^0.1.0",
     "leafergraph": "^0.1.0"
   },
   "devDependencies": {
-    "@leafergraph/authoring": "workspace:*",
+    "@leafergraph/extensions/authoring": "workspace:*",
     "@leafergraph/core/execution": "workspace:*",
     "@leafergraph/core/node": "workspace:*",
     "leafergraph": "workspace:*",

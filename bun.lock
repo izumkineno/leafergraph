@@ -10,20 +10,20 @@
       },
     },
     "example/authoring-basic-nodes": {
-      "name": "@leafergraph/authoring-basic-nodes",
+      "name": "@leafergraph/extensions/authoring-basic-nodes",
       "version": "0.1.0",
       "devDependencies": {
-        "@leafergraph/authoring": "workspace:*",
         "@leafergraph/core/execution": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/extensions/authoring": "workspace:*",
         "leafergraph": "workspace:*",
         "typescript": "~5.9.3",
         "vite": "^8.0.1",
       },
       "peerDependencies": {
-        "@leafergraph/authoring": "^0.1.0",
         "@leafergraph/core/execution": "^0.1.0",
         "@leafergraph/core/node": "^0.1.0",
+        "@leafergraph/extensions/authoring": "^0.1.0",
         "leafergraph": "^0.1.0",
       },
     },
@@ -31,18 +31,18 @@
       "name": "leafergraph-minimal-graph-example",
       "version": "0.0.0",
       "dependencies": {
-        "@leafergraph/authoring": "workspace:*",
-        "@leafergraph/authoring-basic-nodes": "workspace:*",
-        "@leafergraph/context-menu": "workspace:*",
-        "@leafergraph/context-menu-builtins": "workspace:*",
         "@leafergraph/core/basic-kit": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/execution": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
         "@leafergraph/core/theme": "workspace:*",
         "@leafergraph/core/widget-runtime": "workspace:*",
-        "@leafergraph/shortcuts": "workspace:*",
-        "@leafergraph/undo-redo": "workspace:*",
+        "@leafergraph/extensions/authoring": "workspace:*",
+        "@leafergraph/extensions/authoring-basic-nodes": "workspace:*",
+        "@leafergraph/extensions/context-menu": "workspace:*",
+        "@leafergraph/extensions/context-menu-builtins": "workspace:*",
+        "@leafergraph/extensions/shortcuts": "workspace:*",
+        "@leafergraph/extensions/undo-redo": "workspace:*",
         "leafer-ui": "^2.0.3",
         "leafergraph": "workspace:*",
         "preact": "^10.29.0",
@@ -61,54 +61,18 @@
         "node-html-parser": "^6.1.13",
       },
       "devDependencies": {
-        "@leafergraph/authoring": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/execution": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/extensions/authoring": "workspace:*",
         "typescript": "~5.9.3",
         "vite": "^5.0.0",
       },
       "peerDependencies": {
-        "@leafergraph/authoring": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/extensions/authoring": "workspace:*",
         "leafer-ui": "^2.0.3",
-      },
-    },
-    "packages/authoring": {
-      "name": "@leafergraph/authoring",
-      "version": "0.1.0",
-      "peerDependencies": {
-        "@leafergraph/core/contracts": "^0.1.0",
-        "@leafergraph/core/execution": "^0.1.0",
-        "@leafergraph/core/node": "^0.1.0",
-        "@leafergraph/core/theme": "^0.1.0",
-        "leafer-ui": "^2.0.3",
-        "leafergraph": "^0.1.0",
-      },
-    },
-    "packages/context-menu": {
-      "name": "@leafergraph/context-menu",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/core/config": "workspace:*",
-        "@leafergraph/core/theme": "workspace:*",
-        "leafer-ui": "^2.0.3",
-      },
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
-      },
-    },
-    "packages/context-menu-builtins": {
-      "name": "@leafergraph/context-menu-builtins",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/context-menu": "workspace:*",
-        "@leafergraph/core/contracts": "workspace:*",
-        "@leafergraph/core/node": "workspace:*",
-      },
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
       },
     },
     "packages/core/basic-kit": {
@@ -175,6 +139,58 @@
         "@happy-dom/global-registrator": "^20.0.10",
       },
     },
+    "packages/extensions/authoring": {
+      "name": "@leafergraph/extensions/authoring",
+      "version": "0.1.0",
+      "peerDependencies": {
+        "@leafergraph/core/contracts": "^0.1.0",
+        "@leafergraph/core/execution": "^0.1.0",
+        "@leafergraph/core/node": "^0.1.0",
+        "@leafergraph/core/theme": "^0.1.0",
+        "leafer-ui": "^2.0.3",
+        "leafergraph": "^0.1.0",
+      },
+    },
+    "packages/extensions/context-menu": {
+      "name": "@leafergraph/extensions/context-menu",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/core/config": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
+        "leafer-ui": "^2.0.3",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "packages/extensions/context-menu-builtins": {
+      "name": "@leafergraph/extensions/context-menu-builtins",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/extensions/context-menu": "workspace:*",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "packages/extensions/shortcuts": {
+      "name": "@leafergraph/extensions/shortcuts",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "packages/extensions/undo-redo": {
+      "name": "@leafergraph/extensions/undo-redo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/core/config": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
+      },
+    },
     "packages/leafergraph": {
       "name": "leafergraph",
       "version": "0.1.0",
@@ -197,29 +213,13 @@
         "@happy-dom/global-registrator": "^20.0.10",
       },
     },
-    "packages/shortcuts": {
-      "name": "@leafergraph/shortcuts",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
-      },
-    },
-    "packages/undo-redo": {
-      "name": "@leafergraph/undo-redo",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/core/config": "workspace:*",
-        "@leafergraph/core/contracts": "workspace:*",
-        "@leafergraph/core/node": "workspace:*",
-      },
-    },
     "templates/misc/authoring-browser-plugin-template": {
       "name": "@template/authoring-browser-plugin-template",
       "version": "0.1.0",
       "devDependencies": {
-        "@leafergraph/authoring": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/extensions/authoring": "workspace:*",
         "leafer-ui": "^2.0.3",
         "typescript": "~5.9.3",
         "vite": "^8.0.0",
@@ -229,9 +229,9 @@
       "name": "@template/authoring-node-template",
       "version": "0.1.0",
       "devDependencies": {
-        "@leafergraph/authoring": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/extensions/authoring": "workspace:*",
         "leafer-ui": "^2.0.3",
         "typescript": "~5.9.3",
         "vite": "^8.0.0",
@@ -241,9 +241,9 @@
       "name": "@template/authoring-text-widget-template",
       "version": "0.1.0",
       "devDependencies": {
-        "@leafergraph/authoring": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/extensions/authoring": "workspace:*",
         "leafer-ui": "^2.0.3",
         "typescript": "~5.9.3",
         "vite": "^8.0.0",
@@ -475,14 +475,6 @@
 
     "@leafer/web-core": ["@leafer/web-core@2.0.3", "", { "dependencies": { "@leafer/canvas-web": "2.0.3", "@leafer/core": "2.0.3", "@leafer/image-web": "2.0.3", "@leafer/interface": "2.0.3", "@leafer/partner": "2.0.3" } }, "sha512-69YJCkAr6VVEWPsXq+PdgwURiPavsCgQYwLGM0/hQAOrTKHqws8GzH/H/ShUJJICs3s+bs7tVyYIUv73DvcUKg=="],
 
-    "@leafergraph/authoring": ["@leafergraph/authoring@workspace:packages/authoring"],
-
-    "@leafergraph/authoring-basic-nodes": ["@leafergraph/authoring-basic-nodes@workspace:example/authoring-basic-nodes"],
-
-    "@leafergraph/context-menu": ["@leafergraph/context-menu@workspace:packages/context-menu"],
-
-    "@leafergraph/context-menu-builtins": ["@leafergraph/context-menu-builtins@workspace:packages/context-menu-builtins"],
-
     "@leafergraph/core/basic-kit": ["@leafergraph/core/basic-kit@workspace:packages/core/basic-kit"],
 
     "@leafergraph/core/config": ["@leafergraph/core/config@workspace:packages/core/config"],
@@ -497,9 +489,17 @@
 
     "@leafergraph/core/widget-runtime": ["@leafergraph/core/widget-runtime@workspace:packages/core/widget-runtime"],
 
-    "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:packages/shortcuts"],
+    "@leafergraph/extensions/authoring": ["@leafergraph/extensions/authoring@workspace:packages/extensions/authoring"],
 
-    "@leafergraph/undo-redo": ["@leafergraph/undo-redo@workspace:packages/undo-redo"],
+    "@leafergraph/extensions/authoring-basic-nodes": ["@leafergraph/extensions/authoring-basic-nodes@workspace:example/authoring-basic-nodes"],
+
+    "@leafergraph/extensions/context-menu": ["@leafergraph/extensions/context-menu@workspace:packages/extensions/context-menu"],
+
+    "@leafergraph/extensions/context-menu-builtins": ["@leafergraph/extensions/context-menu-builtins@workspace:packages/extensions/context-menu-builtins"],
+
+    "@leafergraph/extensions/shortcuts": ["@leafergraph/extensions/shortcuts@workspace:packages/extensions/shortcuts"],
+
+    "@leafergraph/extensions/undo-redo": ["@leafergraph/extensions/undo-redo@workspace:packages/extensions/undo-redo"],
 
     "@leafergraph/web-crawler-nodes": ["@leafergraph/web-crawler-nodes@workspace:example/web-crawler-nodes"],
 
