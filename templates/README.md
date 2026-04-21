@@ -116,4 +116,5 @@ bun run test:smoke:templates
 - [Node Templates](./node/README.md)
 - [Widget Templates](./widget/README.md)
 - [@leafergraph/authoring README](../packages/authoring/README.md)
+- [package split 执行验证矩阵](../docs/package-split-verification.md)
 - [外部节点包接入方案](../docs/节点插件接入方案.md)

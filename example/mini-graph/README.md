@@ -132,6 +132,7 @@ bun run build
 
 - [根 README](../../README.md)
 - [leafergraph README](../../packages/leafergraph/README.md)
+- [package split 执行验证矩阵](../../docs/package-split-verification.md)
 - [@leafergraph/context-menu-builtins README](../../packages/context-menu-builtins/README.md)
 - [@leafergraph/shortcuts README](../../packages/shortcuts/README.md)
 - [@leafergraph/undo-redo README](../../packages/undo-redo/README.md)

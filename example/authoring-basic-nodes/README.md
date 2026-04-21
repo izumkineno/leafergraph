@@ -93,4 +93,5 @@ bun run build:authoring-basic-nodes
 
 - [根 README](../../README.md)
 - [@leafergraph/authoring README](../../packages/authoring/README.md)
+- [package split 执行验证矩阵](../../docs/package-split-verification.md)
 - [Templates 总览](../../templates/README.md)
