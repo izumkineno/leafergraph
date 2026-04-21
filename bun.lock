@@ -33,16 +33,16 @@
       "dependencies": {
         "@leafergraph/authoring": "workspace:*",
         "@leafergraph/authoring-basic-nodes": "workspace:*",
-        "@leafergraph/basic-kit": "workspace:*",
         "@leafergraph/context-menu": "workspace:*",
         "@leafergraph/context-menu-builtins": "workspace:*",
+        "@leafergraph/core/basic-kit": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/execution": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
+        "@leafergraph/core/widget-runtime": "workspace:*",
         "@leafergraph/shortcuts": "workspace:*",
-        "@leafergraph/theme": "workspace:*",
         "@leafergraph/undo-redo": "workspace:*",
-        "@leafergraph/widget-runtime": "workspace:*",
         "leafer-ui": "^2.0.3",
         "leafergraph": "workspace:*",
         "preact": "^10.29.0",
@@ -82,39 +82,17 @@
         "@leafergraph/core/contracts": "^0.1.0",
         "@leafergraph/core/execution": "^0.1.0",
         "@leafergraph/core/node": "^0.1.0",
-        "@leafergraph/theme": "^0.1.0",
+        "@leafergraph/core/theme": "^0.1.0",
         "leafer-ui": "^2.0.3",
         "leafergraph": "^0.1.0",
-      },
-    },
-    "packages/basic-kit": {
-      "name": "@leafergraph/basic-kit",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafergraph/core/contracts": "workspace:*",
-        "@leafergraph/core/execution": "workspace:*",
-        "@leafergraph/core/node": "workspace:*",
-        "@leafergraph/theme": "workspace:*",
-        "@leafergraph/widget-runtime": "workspace:*",
-        "leafer-ui": "^2.0.3",
-      },
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
-      },
-    },
-    "packages/config": {
-      "name": "@leafergraph/config",
-      "version": "0.1.0",
-      "dependencies": {
-        "leafer-ui": "^2.0.3",
       },
     },
     "packages/context-menu": {
       "name": "@leafergraph/context-menu",
       "version": "0.1.0",
       "dependencies": {
-        "@leafergraph/config": "workspace:*",
-        "@leafergraph/theme": "workspace:*",
+        "@leafergraph/core/config": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
         "leafer-ui": "^2.0.3",
       },
       "devDependencies": {
@@ -133,14 +111,36 @@
         "@happy-dom/global-registrator": "^20.0.10",
       },
     },
+    "packages/core/basic-kit": {
+      "name": "@leafergraph/core/basic-kit",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
+        "@leafergraph/core/widget-runtime": "workspace:*",
+        "leafer-ui": "^2.0.3",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "packages/core/config": {
+      "name": "@leafergraph/core/config",
+      "version": "0.1.0",
+      "dependencies": {
+        "leafer-ui": "^2.0.3",
+      },
+    },
     "packages/core/contracts": {
       "name": "@leafergraph/core/contracts",
       "version": "0.1.0",
       "dependencies": {
-        "@leafergraph/config": "workspace:*",
+        "@leafergraph/core/config": "workspace:*",
         "@leafergraph/core/execution": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
-        "@leafergraph/theme": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
         "leafer-ui": "^2.0.3",
       },
     },
@@ -155,6 +155,26 @@
       "name": "@leafergraph/core/node",
       "version": "0.1.0",
     },
+    "packages/core/theme": {
+      "name": "@leafergraph/core/theme",
+      "version": "0.1.0",
+    },
+    "packages/core/widget-runtime": {
+      "name": "@leafergraph/core/widget-runtime",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafer-in/editor": "^2.0.3",
+        "@leafer-in/text-editor": "^2.0.3",
+        "@leafergraph/core/config": "workspace:*",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
+        "leafer-ui": "^2.0.3",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
     "packages/leafergraph": {
       "name": "leafergraph",
       "version": "0.1.0",
@@ -165,12 +185,12 @@
         "@leafer-in/state": "^2.0.3",
         "@leafer-in/view": "^2.0.3",
         "@leafer-in/viewport": "^2.0.3",
-        "@leafergraph/config": "workspace:*",
+        "@leafergraph/core/config": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/execution": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
-        "@leafergraph/theme": "workspace:*",
-        "@leafergraph/widget-runtime": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
+        "@leafergraph/core/widget-runtime": "workspace:*",
         "leafer-ui": "^2.0.3",
       },
       "devDependencies": {
@@ -184,33 +204,13 @@
         "@happy-dom/global-registrator": "^20.0.10",
       },
     },
-    "packages/theme": {
-      "name": "@leafergraph/theme",
-      "version": "0.1.0",
-    },
     "packages/undo-redo": {
       "name": "@leafergraph/undo-redo",
       "version": "0.1.0",
       "dependencies": {
-        "@leafergraph/config": "workspace:*",
+        "@leafergraph/core/config": "workspace:*",
         "@leafergraph/core/contracts": "workspace:*",
         "@leafergraph/core/node": "workspace:*",
-      },
-    },
-    "packages/widget-runtime": {
-      "name": "@leafergraph/widget-runtime",
-      "version": "0.1.0",
-      "dependencies": {
-        "@leafer-in/editor": "^2.0.3",
-        "@leafer-in/text-editor": "^2.0.3",
-        "@leafergraph/config": "workspace:*",
-        "@leafergraph/core/contracts": "workspace:*",
-        "@leafergraph/core/node": "workspace:*",
-        "@leafergraph/theme": "workspace:*",
-        "leafer-ui": "^2.0.3",
-      },
-      "devDependencies": {
-        "@happy-dom/global-registrator": "^20.0.10",
       },
     },
     "templates/misc/authoring-browser-plugin-template": {
@@ -479,13 +479,13 @@
 
     "@leafergraph/authoring-basic-nodes": ["@leafergraph/authoring-basic-nodes@workspace:example/authoring-basic-nodes"],
 
-    "@leafergraph/basic-kit": ["@leafergraph/basic-kit@workspace:packages/basic-kit"],
-
-    "@leafergraph/config": ["@leafergraph/config@workspace:packages/config"],
-
     "@leafergraph/context-menu": ["@leafergraph/context-menu@workspace:packages/context-menu"],
 
     "@leafergraph/context-menu-builtins": ["@leafergraph/context-menu-builtins@workspace:packages/context-menu-builtins"],
+
+    "@leafergraph/core/basic-kit": ["@leafergraph/core/basic-kit@workspace:packages/core/basic-kit"],
+
+    "@leafergraph/core/config": ["@leafergraph/core/config@workspace:packages/core/config"],
 
     "@leafergraph/core/contracts": ["@leafergraph/core/contracts@workspace:packages/core/contracts"],
 
@@ -493,15 +493,15 @@
 
     "@leafergraph/core/node": ["@leafergraph/core/node@workspace:packages/core/node"],
 
-    "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:packages/shortcuts"],
+    "@leafergraph/core/theme": ["@leafergraph/core/theme@workspace:packages/core/theme"],
 
-    "@leafergraph/theme": ["@leafergraph/theme@workspace:packages/theme"],
+    "@leafergraph/core/widget-runtime": ["@leafergraph/core/widget-runtime@workspace:packages/core/widget-runtime"],
+
+    "@leafergraph/shortcuts": ["@leafergraph/shortcuts@workspace:packages/shortcuts"],
 
     "@leafergraph/undo-redo": ["@leafergraph/undo-redo@workspace:packages/undo-redo"],
 
     "@leafergraph/web-crawler-nodes": ["@leafergraph/web-crawler-nodes@workspace:example/web-crawler-nodes"],
-
-    "@leafergraph/widget-runtime": ["@leafergraph/widget-runtime@workspace:packages/widget-runtime"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.1.1", "", { "dependencies": { "@emnapi/core": "^1.7.1", "@emnapi/runtime": "^1.7.1", "@tybys/wasm-util": "^0.10.1" } }, "sha512-p64ah1M1ld8xjWv3qbvFwHiFVWrq1yFvV4f7w+mzaqiR4IlSgkqhcRdHwsGgomwzBH51sRY4NEowLxnaBjcW/A=="],
 
