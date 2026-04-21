@@ -46,17 +46,22 @@ jobs:
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
           if [[ "$REPO_NAME" == *.github.io ]]; then
-            echo "GITHUB_PAGES_BASE=/mini-graph/" >> "$GITHUB_ENV"
+            BASE_PATH="/mini-graph/"
           else
-            echo "GITHUB_PAGES_BASE=/$REPO_NAME/mini-graph/" >> "$GITHUB_ENV"
+            BASE_PATH="/$REPO_NAME/mini-graph/"
           fi
-          echo "✓ Base path set to: $GITHUB_PAGES_BASE"
+          echo "GITHUB_PAGES_BASE=$BASE_PATH" >> "$GITHUB_ENV"
+          echo "✓ Base path set to: $BASE_PATH"
+        env:
+          MSYS_NO_PATHCONV: 1
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Build mini-graph
         run: bun run build:minimal-graph
+        env:
+          MSYS_NO_PATHCONV: 1
 
       - name: Verify build output
         run: |
