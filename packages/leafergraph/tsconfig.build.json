@@ -6,8 +6,7 @@
     "emitDeclarationOnly": true,
     "outDir": "dist",
     "skipLibCheck": true,
-    "paths": {},
-    "ignoreDeprecations": "5.0"
+    "paths": {}
   },
   "include": [
     "src"

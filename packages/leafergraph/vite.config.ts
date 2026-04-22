@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 
 import { defineConfig } from "vite";
+import { createLeafergraphAliases } from "../../vite.config.base";
 
 export default defineConfig({
   build: {
@@ -14,5 +15,8 @@ export default defineConfig({
       external: ["leafer-ui"]
     },
     sourcemap: true
+  },
+  resolve: {
+    alias: createLeafergraphAliases(resolve(__dirname, "../.."))
   }
 });
