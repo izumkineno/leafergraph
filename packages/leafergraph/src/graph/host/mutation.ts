@@ -776,6 +776,7 @@ export class LeaferGraphMutationHost<
 
     return createNodeState(this.options.nodeRegistry, {
       id: node.id,
+      existingNodeIds: this.options.graphNodes.keys(),
       type,
       title: node.title,
       layout: {

@@ -204,7 +204,10 @@ export function createDefaultTitle(type: string): string {
  * @param type - 类型。
  * @returns 创建后的结果对象。
  */
-export function createNodeId(type: string): string {
+export function createNodeId(
+  type: string,
+  existingIds: Iterable<string> = []
+): string {
   const safeType = type
     .trim()
     .toLowerCase()
@@ -212,8 +215,15 @@ export function createNodeId(type: string): string {
     .replace(/^-+|-+$/g, "");
 
   const prefix = safeType || "node";
-  const id = `${prefix}-${nodeIdSeed}`;
+  const reservedIds = new Set(existingIds);
+
+  let id = `${prefix}-${nodeIdSeed}`;
   nodeIdSeed += 1;
+  while (reservedIds.has(id)) {
+    id = `${prefix}-${nodeIdSeed}`;
+    nodeIdSeed += 1;
+  }
+
   return id;
 }
 

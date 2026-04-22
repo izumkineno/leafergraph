@@ -118,7 +118,8 @@ export class NodeRegistry {
    * @returns 处理后的结果。
    */
   get(type: string): NodeDefinition | undefined {
-    return this.definitions.get(type);
+    const definition = this.definitions.get(type);
+    return definition ? cloneDefinition(definition) : undefined;
   }
 
   /**
@@ -173,7 +174,9 @@ export class NodeRegistry {
    * @returns 收集到的结果列表。
    */
   list(): NodeDefinition[] {
-    return [...this.definitions.values()];
+    return [...this.definitions.values()].map((definition) =>
+      cloneDefinition(definition)
+    );
   }
 
   /**

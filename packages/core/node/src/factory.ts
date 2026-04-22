@@ -45,7 +45,7 @@ export function createNodeState(
 
   // 创建阶段只做数据整形与默认值回填，不包含任何渲染逻辑。
   const node: NodeRuntimeState = {
-    id: init.id ?? createNodeId(definition.type),
+    id: init.id ?? createNodeId(definition.type, init.existingNodeIds),
     type: definition.type,
     title: init.title ?? definition.title ?? createDefaultTitle(definition.type),
     layout: resolveNodeLayout(definition, init.layout),

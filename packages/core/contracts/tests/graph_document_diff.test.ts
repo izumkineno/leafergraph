@@ -24,6 +24,8 @@ function createTestDocument(): GraphDocument {
           width: 120,
           height: 80
         },
+        inputs: [{ name: "In" }],
+        outputs: [{ name: "Out" }],
         properties: {
           intervalMs: 1000
         },
@@ -40,9 +42,34 @@ function createTestDocument(): GraphDocument {
             value: 1000
           }
         ]
+      },
+      {
+        id: "node-2",
+        type: "demo/node",
+        title: "Node 2",
+        layout: {
+          x: 240,
+          y: 0,
+          width: 120,
+          height: 80
+        },
+        inputs: [{ name: "In" }],
+        outputs: [{ name: "Out" }]
       }
     ],
-    links: []
+    links: [
+      {
+        id: "link-1",
+        source: {
+          nodeId: "node-1",
+          slot: 0
+        },
+        target: {
+          nodeId: "node-2",
+          slot: 0
+        }
+      }
+    ]
   };
 }
 
@@ -424,5 +451,86 @@ describe("contracts graph_document_diff", () => {
     expect(result.inputs).toEqual([{ name: "Start", type: "event" }]);
     expect(result.outputs).toEqual([{ name: "Tick", type: "event" }]);
     expect(result.widgets?.[0]?.name).toBe("intervalMs");
+  });
+
+  test("applyGraphDocumentDiffToDocument 会拒绝写入 dangling link", () => {
+    const currentDocument = createTestDocument();
+    const diff: GraphDocumentDiff = {
+      documentId: "diff-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 3,
+      operations: [
+        {
+          type: "link.create",
+          input: {
+            id: "link-2",
+            source: {
+              nodeId: "node-1",
+              slot: 1
+            },
+            target: {
+              nodeId: "node-2",
+              slot: 0
+            }
+          },
+          operationId: "diff-link-create-invalid",
+          timestamp: 3,
+          source: "authority.documentDiff"
+        }
+      ],
+      fieldChanges: []
+    };
+
+    const result = applyGraphDocumentDiffToDocument(currentDocument, diff);
+
+    expect(result.success).toBe(false);
+    expect(result.requiresFullReplace).toBe(true);
+    expect(result.reason).toContain("slot 不存在");
+    expect(result.document).toEqual(currentDocument);
+  });
+
+  test("applyGraphDocumentDiffToDocument 会在纯更新时保持 node 和 link 顺序", () => {
+    const currentDocument = createTestDocument();
+    const diff: GraphDocumentDiff = {
+      documentId: "diff-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 4,
+      operations: [
+        {
+          type: "node.rename",
+          nodeId: "node-1",
+          title: "Node 1 Updated",
+          beforeTitle: "Node 1",
+          operationId: "diff-node-rename",
+          timestamp: 4,
+          source: "authority.documentDiff"
+        },
+        {
+          type: "link.reconnect",
+          linkId: "link-1",
+          input: {
+            target: {
+              nodeId: "node-2",
+              slot: 0
+            }
+          },
+          operationId: "diff-link-reconnect",
+          timestamp: 5,
+          source: "authority.documentDiff"
+        }
+      ],
+      fieldChanges: []
+    };
+
+    const result = applyGraphDocumentDiffToDocument(currentDocument, diff);
+
+    expect(result.success).toBe(true);
+    expect(result.document.nodes.map((node) => node.id)).toEqual([
+      "node-1",
+      "node-2"
+    ]);
+    expect(result.document.links.map((link) => link.id)).toEqual(["link-1"]);
   });
 });

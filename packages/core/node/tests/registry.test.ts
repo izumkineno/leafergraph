@@ -77,6 +77,29 @@ describe("@leafergraph/core/node NodeRegistry", () => {
     expect(stored.widgets?.[0]?.value).toEqual({ nested: true });
   });
 
+  it("读取出来的 definition 快照不会反向污染 registry 内部状态", () => {
+    const registry = new NodeRegistry(createWidgetReader([{ type: "input" }]));
+    registry.register({
+      type: "demo/task",
+      title: "Original",
+      inputs: [{ name: "In", type: "event" }],
+      widgets: [{ type: "input", name: "title", value: { nested: true } }]
+    });
+
+    const required = registry.require("demo/task");
+    required.title = "Mutated";
+    required.inputs![0].name = "Changed";
+    (required.widgets![0].value as { nested: boolean }).nested = false;
+
+    const listed = registry.listNodes();
+    listed[0]!.title = "Listed Mutated";
+
+    const stored = registry.require("demo/task");
+    expect(stored.title).toBe("Original");
+    expect(stored.inputs?.[0]?.name).toBe("In");
+    expect(stored.widgets?.[0]?.value).toEqual({ nested: true });
+  });
+
   it("注册节点时会校验 widget 与 property widget 的类型", () => {
     const registry = new NodeRegistry(createWidgetReader([{ type: "input" }]));
 

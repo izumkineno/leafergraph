@@ -232,6 +232,8 @@ export interface NodeLayout {
 export interface NodeInit {
   /** 实例 ID；未提供时由工厂自动生成。 */
   id?: string;
+  /** 自动分配 ID 时需要避开的现有节点 ID 集合。 */
+  existingNodeIds?: Iterable<string>;
   /** 节点类型标识。 */
   type: string;
   /** 实例标题覆写。 */

@@ -989,12 +989,15 @@ function upsertNodeSnapshot(
   document: GraphDocument,
   snapshot: NodeSerializeResult
 ): GraphDocument {
-  const nextNodes = document.nodes.filter((node) => node.id !== snapshot.id);
-  nextNodes.push(structuredClone(snapshot));
-  return {
-    ...document,
-    nodes: nextNodes
-  };
+  const nextSnapshot = structuredClone(snapshot);
+  const index = document.nodes.findIndex((node) => node.id === snapshot.id);
+  if (index >= 0) {
+    document.nodes[index] = nextSnapshot;
+    return document;
+  }
+
+  document.nodes.push(nextSnapshot);
+  return document;
 }
 
 /**
@@ -1008,12 +1011,15 @@ function upsertLinkSnapshot(
   document: GraphDocument,
   snapshot: GraphLink
 ): GraphDocument {
-  const nextLinks = document.links.filter((link) => link.id !== snapshot.id);
-  nextLinks.push(structuredClone(snapshot));
-  return {
-    ...document,
-    links: nextLinks
-  };
+  const nextSnapshot = structuredClone(snapshot);
+  const index = document.links.findIndex((link) => link.id === snapshot.id);
+  if (index >= 0) {
+    document.links[index] = nextSnapshot;
+    return document;
+  }
+
+  document.links.push(nextSnapshot);
+  return document;
 }
 
 /**
@@ -1027,13 +1033,19 @@ function removeNodeSnapshot(
   document: GraphDocument,
   nodeId: string
 ): GraphDocument {
-  return {
-    ...document,
-    nodes: document.nodes.filter((node) => node.id !== nodeId),
-    links: document.links.filter(
-      (link) => link.source.nodeId !== nodeId && link.target.nodeId !== nodeId
-    )
-  };
+  const nodeIndex = document.nodes.findIndex((node) => node.id === nodeId);
+  if (nodeIndex >= 0) {
+    document.nodes.splice(nodeIndex, 1);
+  }
+
+  for (let index = document.links.length - 1; index >= 0; index -= 1) {
+    const link = document.links[index];
+    if (link.source.nodeId === nodeId || link.target.nodeId === nodeId) {
+      document.links.splice(index, 1);
+    }
+  }
+
+  return document;
 }
 
 /**
@@ -1047,10 +1059,12 @@ function removeLinkSnapshot(
   document: GraphDocument,
   linkId: string
 ): GraphDocument {
-  return {
-    ...document,
-    links: document.links.filter((link) => link.id !== linkId)
-  };
+  const linkIndex = document.links.findIndex((link) => link.id === linkId);
+  if (linkIndex >= 0) {
+    document.links.splice(linkIndex, 1);
+  }
+
+  return document;
 }
 
 /**
@@ -1075,4 +1089,36 @@ function normalizeSlotSpecs(
   return inputs.map((input) =>
     typeof input === "string" ? { name: input } : structuredClone(input)
   );
+}
+
+function validateLinkEndpoints(
+  document: GraphDocument,
+  source: GraphLink["source"],
+  target: GraphLink["target"],
+  operationType: "link.create" | "link.reconnect"
+): string | undefined {
+  return (
+    validateLinkEndpoint(document, source, "output", operationType) ??
+    validateLinkEndpoint(document, target, "input", operationType)
+  );
+}
+
+function validateLinkEndpoint(
+  document: GraphDocument,
+  endpoint: GraphLink["source"],
+  direction: "input" | "output",
+  operationType: "link.create" | "link.reconnect"
+): string | undefined {
+  const node = findNodeSnapshot(document, endpoint.nodeId);
+  if (!node) {
+    return `${operationType} ${direction} node 不存在: ${endpoint.nodeId}`;
+  }
+
+  const slotIndex = endpoint.slot ?? 0;
+  const slots = direction === "output" ? node.outputs : node.inputs;
+  if (!Number.isInteger(slotIndex) || slotIndex < 0 || !slots?.[slotIndex]) {
+    return `${operationType} ${direction} slot 不存在: ${endpoint.nodeId}#${slotIndex}`;
+  }
+
+  return undefined;
 }
