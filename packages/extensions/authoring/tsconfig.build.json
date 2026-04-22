@@ -5,7 +5,11 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "outDir": "dist",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "paths": {}
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

@@ -4,7 +4,11 @@
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "paths": {}
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }
