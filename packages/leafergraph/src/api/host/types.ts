@@ -301,6 +301,8 @@ export interface LeaferGraphApiRuntime<
       widgetInstances: Array<LeaferGraphWidgetRenderInstance | null>,
       widgetLayer: Box
     ): void;
+    /** 清理 Widget 宿主资源。 */
+    dispose?(): void;
   };
 }
 

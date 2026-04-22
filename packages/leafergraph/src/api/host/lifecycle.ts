@@ -59,6 +59,7 @@ export function destroyLeaferGraphApiHost<
   runtime.nodeShellHost.destroy();
   runtime.dataFlowAnimationHost.destroy();
   runtime.widgetEditingManager.destroy();
+  runtime.widgetHost.dispose?.();
   runtime.historySource.destroy();
   runtime.graphExecutionHost.dispose?.();
   runtime.nodeExecutionHost.dispose?.();
