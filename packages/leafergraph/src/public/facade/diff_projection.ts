@@ -20,6 +20,7 @@ import { projectLeaferGraphDiffOperations } from "./diff_projection_operations";
 interface LeaferGraphFindHost {
   findId?(id: string): unknown;
   findOne?(query: { id?: string }): unknown;
+  children?: Array<{ id?: string }>;
 }
 
 /**
@@ -31,6 +32,11 @@ interface LeaferGraphFindHost {
  */
 function findGraphicById(host: Group, id: string): unknown {
   const findHost = host as Group & LeaferGraphFindHost;
+  const directMatch = findHost.children?.find((child) => child.id === id);
+  if (directMatch) {
+    return directMatch;
+  }
+
   return findHost.findId?.(id) ?? findHost.findOne?.({ id });
 }
 

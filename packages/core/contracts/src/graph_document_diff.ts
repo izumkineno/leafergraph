@@ -189,12 +189,72 @@ export interface ApplyGraphDocumentDiffResult {
   reason?: string;
 }
 
-/**
- * 根据节点快照创建更新节点输入。
- *
- * @param node - 节点。
- * @returns 创建后的结果对象。
- */
+interface DocumentApplyStepResult {
+  success: boolean;
+  affectedNodeIds: string[];
+  affectedLinkIds: string[];
+  reason?: string;
+}
+
+interface WorkingDocumentState {
+  document: GraphDocument;
+  nodeIndexById: Map<string, number>;
+  linkIndexById: Map<string, number>;
+}
+
+type PatchNodeWidgetValueResult =
+  | { node: NodeSerializeResult }
+  | { reason: string };
+
+function createWorkingDocumentState(
+  currentDocument: GraphDocument
+): WorkingDocumentState {
+  const document: GraphDocument = {
+    ...currentDocument,
+    nodes: currentDocument.nodes.slice(),
+    links: currentDocument.links.slice()
+  };
+
+  return {
+    document,
+    nodeIndexById: createIndexMap(document.nodes, (node) => node.id),
+    linkIndexById: createIndexMap(document.links, (link) => link.id)
+  };
+}
+
+function createIndexMap<T>(
+  items: readonly T[],
+  getId: (item: T) => string
+): Map<string, number> {
+  const indexById = new Map<string, number>();
+  items.forEach((item, index) => {
+    indexById.set(getId(item), index);
+  });
+  return indexById;
+}
+
+function reindexFrom<T>(
+  indexById: Map<string, number>,
+  items: readonly T[],
+  getId: (item: T) => string,
+  startIndex: number
+): void {
+  for (let index = startIndex; index < items.length; index += 1) {
+    indexById.set(getId(items[index]), index);
+  }
+}
+
+function rebuildIndexMap<T>(
+  indexById: Map<string, number>,
+  items: readonly T[],
+  getId: (item: T) => string
+): void {
+  indexById.clear();
+  items.forEach((item, index) => {
+    indexById.set(getId(item), index);
+  });
+}
+
 export function createUpdateNodeInputFromNodeSnapshot(
   node: NodeSerializeResult
 ): LeaferGraphUpdateNodeInput {
@@ -283,18 +343,16 @@ export function applyGraphDocumentDiffToDocument(
     );
   }
 
-  let nextDocument = cloneGraphDocument(currentDocument);
+  const state = createWorkingDocumentState(currentDocument);
   const affectedNodeIds = new Set<string>();
   const affectedLinkIds = new Set<string>();
 
   for (const operation of diff.operations) {
-    const operationResult = applyOperationToDocument(nextDocument, operation);
+    const operationResult = applyOperationToDocument(state, operation);
     if (!operationResult.success) {
       return createFailedDiffResult(currentDocument, operationResult.reason);
     }
 
-    nextDocument = operationResult.document;
-    // 再执行核心更新步骤，并同步派生副作用与收尾状态。
     for (const nodeId of operationResult.affectedNodeIds) {
       affectedNodeIds.add(nodeId);
     }
@@ -304,54 +362,30 @@ export function applyGraphDocumentDiffToDocument(
   }
 
   for (const fieldChange of diff.fieldChanges) {
-    const fieldChangeResult = applyFieldChangeToDocument(nextDocument, fieldChange);
+    const fieldChangeResult = applyFieldChangeToDocument(state, fieldChange);
     if (!fieldChangeResult.success) {
       return createFailedDiffResult(currentDocument, fieldChangeResult.reason);
     }
 
-    nextDocument = fieldChangeResult.document;
     for (const nodeId of fieldChangeResult.affectedNodeIds) {
       affectedNodeIds.add(nodeId);
     }
   }
 
-  nextDocument = {
-    ...nextDocument,
+  state.document = {
+    ...state.document,
     revision: diff.revision
   };
 
   return {
     success: true,
     requiresFullReplace: false,
-    document: nextDocument,
+    document: state.document,
     affectedNodeIds: [...affectedNodeIds],
     affectedLinkIds: [...affectedLinkIds]
   };
 }
 
-/**
- * 单步文档应用过程的内部结果。
- */
-interface DocumentApplyStepResult {
-  /** 当前步骤是否成功。 */
-  success: boolean;
-  /** 当前步骤处理后的文档快照。 */
-  document: GraphDocument;
-  /** 当前步骤影响的节点 ID。 */
-  affectedNodeIds: string[];
-  /** 当前步骤影响的连线 ID。 */
-  affectedLinkIds: string[];
-  /** 当前步骤失败原因。 */
-  reason?: string;
-}
-
-/**
- * 创建`Failed` 差异结果。
- *
- * @param currentDocument - `current` 文档。
- * @param reason - `reason`。
- * @returns 创建后的结果对象。
- */
 function createFailedDiffResult(
   currentDocument: GraphDocument,
   reason: string | undefined
@@ -366,237 +400,191 @@ function createFailedDiffResult(
   };
 }
 
-/**
- * 应用`Operation`到文档。
- *
- * @param document - 文档。
- * @param operation - `operation`。
- * @returns 处理后的结果。
- */
+function createApplyStepResult(
+  affectedNodeIds: string[],
+  affectedLinkIds: string[]
+): DocumentApplyStepResult {
+  return {
+    success: true,
+    affectedNodeIds,
+    affectedLinkIds
+  };
+}
+
+function createRejectedApplyStep(reason: string): DocumentApplyStepResult {
+  return {
+    success: false,
+    affectedNodeIds: [],
+    affectedLinkIds: [],
+    reason
+  };
+}
+
 function applyOperationToDocument(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   operation: GraphOperation
 ): DocumentApplyStepResult {
   // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
   switch (operation.type) {
-    case "document.update":
-      return createApplyStepResult(
-        patchGraphDocumentRoot(document, operation.input),
-        [],
-        []
-      );
+    case "document.update": {
+      state.document = patchGraphDocumentRoot(state.document, operation.input);
+      return createApplyStepResult([], []);
+    }
     case "node.create": {
       const nodeId = operation.input.id;
       if (!nodeId) {
-        return createRejectedApplyStep(document, "node.create 缺少稳定节点 ID");
+        return createRejectedApplyStep("node.create missing stable node id");
       }
 
-      return createApplyStepResult(
-        upsertNodeSnapshot(
-          document,
-          createNodeSnapshotFromCreateInput(operation.input)
-        ),
-        [nodeId],
-        []
-      );
+      upsertNodeSnapshot(state, createNodeSnapshotFromCreateInput(operation.input));
+      return createApplyStepResult([nodeId], []);
     }
     case "node.update": {
-      const node = findNodeSnapshot(document, operation.nodeId);
+      const node = findNodeSnapshot(state, operation.nodeId);
       if (!node) {
         return createRejectedApplyStep(
-          document,
-          `node.update 目标节点不存在: ${operation.nodeId}`
+          `node.update target node not found: ${operation.nodeId}`
         );
       }
 
-      const nextNode = patchNodeSnapshot(node, operation.input);
-      return createApplyStepResult(
-        upsertNodeSnapshot(document, nextNode),
-        [operation.nodeId],
-        []
-      );
+      upsertNodeSnapshot(state, patchNodeSnapshot(node, operation.input));
+      return createApplyStepResult([operation.nodeId], []);
     }
     case "node.move": {
-      const node = findNodeSnapshot(document, operation.nodeId);
+      const node = findNodeSnapshot(state, operation.nodeId);
       if (!node) {
         return createRejectedApplyStep(
-          document,
-          `node.move 目标节点不存在: ${operation.nodeId}`
+          `node.move target node not found: ${operation.nodeId}`
         );
       }
 
-      return createApplyStepResult(
-        upsertNodeSnapshot(document, {
-          ...node,
-          layout: {
-            ...node.layout,
-            x: operation.input.x,
-            y: operation.input.y
-          }
-        }),
-        [operation.nodeId],
-        []
-      );
+      upsertNodeSnapshot(state, {
+        ...node,
+        layout: {
+          ...node.layout,
+          x: operation.input.x,
+          y: operation.input.y
+        }
+      });
+      return createApplyStepResult([operation.nodeId], []);
     }
     case "node.resize": {
-      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
-      const node = findNodeSnapshot(document, operation.nodeId);
+      const node = findNodeSnapshot(state, operation.nodeId);
       if (!node) {
         return createRejectedApplyStep(
-          document,
-          `node.resize 目标节点不存在: ${operation.nodeId}`
+          `node.resize target node not found: ${operation.nodeId}`
         );
       }
 
-      return createApplyStepResult(
-        upsertNodeSnapshot(document, {
-          ...node,
-          layout: {
-            ...node.layout,
-            width: operation.input.width,
-            height: operation.input.height
-          }
-        }),
-        [operation.nodeId],
-        []
-      );
+      upsertNodeSnapshot(state, {
+        ...node,
+        layout: {
+          ...node.layout,
+          width: operation.input.width,
+          height: operation.input.height
+        }
+      });
+      return createApplyStepResult([operation.nodeId], []);
     }
     case "node.collapse": {
-      const node = findNodeSnapshot(document, operation.nodeId);
+      const node = findNodeSnapshot(state, operation.nodeId);
       if (!node) {
         return createRejectedApplyStep(
-          document,
-          `node.collapse 目标节点不存在: ${operation.nodeId}`
+          `node.collapse target node not found: ${operation.nodeId}`
         );
       }
 
-      const nextFlags = structuredClone(node.flags ?? {});
+      const nextFlags = { ...(node.flags ?? {}) };
       if (operation.collapsed) {
         nextFlags.collapsed = true;
       } else {
         delete nextFlags.collapsed;
       }
 
-      const nextNode = {
-        ...node
-      };
-      if (Object.keys(nextFlags).length) {
+      const nextNode: NodeSerializeResult = { ...node };
+      if (Object.keys(nextFlags).length > 0) {
         nextNode.flags = nextFlags;
       } else {
         delete nextNode.flags;
       }
 
-      return createApplyStepResult(
-        upsertNodeSnapshot(document, nextNode),
-        [operation.nodeId],
-        []
-      );
+      upsertNodeSnapshot(state, nextNode);
+      return createApplyStepResult([operation.nodeId], []);
     }
     case "node.widget.value.set": {
-      const node = findNodeSnapshot(document, operation.nodeId);
+      const node = findNodeSnapshot(state, operation.nodeId);
       if (!node) {
         return createRejectedApplyStep(
-          document,
-          `node.widget.value.set 目标节点不存在: ${operation.nodeId}`
+          `node.widget.value.set target node not found: ${operation.nodeId}`
         );
       }
 
-      const widget = node.widgets?.[operation.widgetIndex];
-      if (!widget) {
-        return createRejectedApplyStep(
-          document,
-          `node.widget.value.set 目标 widget 不存在: ${operation.nodeId}#${operation.widgetIndex}`
-        );
-      }
-
-      const nextWidgets = structuredClone(node.widgets ?? []);
-      nextWidgets[operation.widgetIndex] = {
-        ...nextWidgets[operation.widgetIndex],
-        value: structuredClone(operation.value)
-      };
-
-      return createApplyStepResult(
-        upsertNodeSnapshot(document, {
-          ...node,
-          widgets: nextWidgets
-        }),
-        [operation.nodeId],
-        []
+      const patchResult = patchNodeWidgetValue(
+        node,
+        operation.nodeId,
+        operation.widgetIndex,
+        operation.value,
+        "node.widget.value.set"
       );
+      if ("reason" in patchResult) {
+        return createRejectedApplyStep(patchResult.reason);
+      }
+
+      upsertNodeSnapshot(state, patchResult.node);
+      return createApplyStepResult([operation.nodeId], []);
     }
     case "node.rename": {
-      const node = findNodeSnapshot(document, operation.nodeId);
+      const node = findNodeSnapshot(state, operation.nodeId);
       if (!node) {
         return createRejectedApplyStep(
-          document,
           `node.rename 目标节点不存在: ${operation.nodeId}`
         );
       }
 
       if (node.title === operation.title) {
-        return createApplyStepResult(document, [operation.nodeId], []);
+        return createApplyStepResult([operation.nodeId], []);
       }
 
-      const updatedDocument = upsertNodeSnapshot(document, {
+      upsertNodeSnapshot(state, {
         ...node,
         title: operation.title
       });
-
-      return createApplyStepResult(updatedDocument, [operation.nodeId], []);
+      return createApplyStepResult([operation.nodeId], []);
     }
     case "node.remove": {
-      const removedLinkIds = document.links
-        .filter(
-          (link) =>
-            link.source.nodeId === operation.nodeId ||
-            link.target.nodeId === operation.nodeId
-        )
-        .map((link) => link.id);
-      return createApplyStepResult(
-        removeNodeSnapshot(document, operation.nodeId),
-        [operation.nodeId],
-        removedLinkIds
-      );
+      const removedLinkIds = removeNodeSnapshot(state, operation.nodeId);
+      return createApplyStepResult([operation.nodeId], removedLinkIds);
     }
     case "link.create": {
       const linkId = operation.input.id;
       if (!linkId) {
-        return createRejectedApplyStep(document, "link.create 缺少稳定连线 ID");
+        return createRejectedApplyStep("link.create 缺少稳定连线 ID");
       }
 
       const endpointReason = validateLinkEndpoints(
-        document,
+        state,
         operation.input.source,
         operation.input.target,
         "link.create"
       );
       if (endpointReason) {
-        return createRejectedApplyStep(document, endpointReason);
+        return createRejectedApplyStep(endpointReason);
       }
 
+      upsertLinkSnapshot(state, createLinkSnapshotFromCreateInput(operation.input));
       return createApplyStepResult(
-        upsertLinkSnapshot(
-          document,
-          createLinkSnapshotFromCreateInput(operation.input)
-        ),
-        uniqueNodeIds([
-          operation.input.source.nodeId,
-          operation.input.target.nodeId
-        ]),
+        uniqueNodeIds([operation.input.source.nodeId, operation.input.target.nodeId]),
         [linkId]
       );
     }
-    case "link.remove":
-      return createApplyStepResult(
-        removeLinkSnapshot(document, operation.linkId),
-        [],
-        [operation.linkId]
-      );
+    case "link.remove": {
+      removeLinkSnapshot(state, operation.linkId);
+      return createApplyStepResult([], [operation.linkId]);
+    }
     case "link.reconnect": {
-      const link = findLinkSnapshot(document, operation.linkId);
+      const link = findLinkSnapshot(state, operation.linkId);
       if (!link) {
         return createRejectedApplyStep(
-          document,
           `link.reconnect 目标连线不存在: ${operation.linkId}`
         );
       }
@@ -612,17 +600,17 @@ function applyOperationToDocument(
       };
 
       const endpointReason = validateLinkEndpoints(
-        document,
+        state,
         nextLink.source,
         nextLink.target,
         "link.reconnect"
       );
       if (endpointReason) {
-        return createRejectedApplyStep(document, endpointReason);
+        return createRejectedApplyStep(endpointReason);
       }
 
+      upsertLinkSnapshot(state, nextLink);
       return createApplyStepResult(
-        upsertLinkSnapshot(document, nextLink),
         uniqueNodeIds([
           link.source.nodeId,
           link.target.nodeId,
@@ -635,182 +623,177 @@ function applyOperationToDocument(
   }
 }
 
-/**
- * 应用字段`Change`到文档。
- *
- * @param document - 文档。
- * @param fieldChange - 字段`Change`。
- * @returns 处理后的结果。
- */
 function applyFieldChangeToDocument(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   fieldChange: GraphDocumentFieldChange
 ): DocumentApplyStepResult {
   // 先读取当前目标状态与上下文约束，避免处理中出现不一致的中间态。
-  const node = findNodeSnapshot(document, fieldChange.nodeId);
+  const node = findNodeSnapshot(state, fieldChange.nodeId);
   if (!node) {
     return createRejectedApplyStep(
-      document,
-      `fieldChange 目标节点不存在: ${fieldChange.nodeId}`
+      `fieldChange target node not found: ${fieldChange.nodeId}`
     );
   }
 
-  const nextNode = structuredClone(node);
+  let nextNode: NodeSerializeResult;
 
   switch (fieldChange.type) {
-    case "node.title.set":
-      nextNode.title = fieldChange.value;
-      break;
-    case "node.property.set":
-      nextNode.properties = {
-        ...(nextNode.properties ?? {}),
-        [fieldChange.key]: structuredClone(fieldChange.value)
+    case "node.title.set": {
+      nextNode = {
+        ...node,
+        title: fieldChange.value
       };
       break;
-    case "node.property.unset":
-      if (!nextNode.properties || !(fieldChange.key in nextNode.properties)) {
-        return createApplyStepResult(document, [fieldChange.nodeId], []);
+    }
+    case "node.property.set": {
+      nextNode = {
+        ...node,
+        properties: {
+          ...(node.properties ?? {}),
+          [fieldChange.key]: structuredClone(fieldChange.value)
+        }
+      };
+      break;
+    }
+    case "node.property.unset": {
+      if (!node.properties || !(fieldChange.key in node.properties)) {
+        return createApplyStepResult([fieldChange.nodeId], []);
       }
-      nextNode.properties = structuredClone(nextNode.properties);
-      delete nextNode.properties[fieldChange.key];
-      if (!Object.keys(nextNode.properties).length) {
+
+      const nextProperties = { ...node.properties };
+      delete nextProperties[fieldChange.key];
+      nextNode = { ...node };
+      if (Object.keys(nextProperties).length > 0) {
+        nextNode.properties = nextProperties;
+      } else {
         delete nextNode.properties;
       }
       break;
-    case "node.data.set":
-      nextNode.data = {
-        ...(nextNode.data ?? {}),
-        [fieldChange.key]: structuredClone(fieldChange.value)
+    }
+    case "node.data.set": {
+      nextNode = {
+        ...node,
+        data: {
+          ...(node.data ?? {}),
+          [fieldChange.key]: structuredClone(fieldChange.value)
+        }
       };
       break;
-    case "node.data.unset":
-      if (!nextNode.data || !(fieldChange.key in nextNode.data)) {
-        return createApplyStepResult(document, [fieldChange.nodeId], []);
+    }
+    case "node.data.unset": {
+      if (!node.data || !(fieldChange.key in node.data)) {
+        return createApplyStepResult([fieldChange.nodeId], []);
       }
-      nextNode.data = structuredClone(nextNode.data);
-      delete nextNode.data[fieldChange.key];
-      if (!Object.keys(nextNode.data).length) {
+
+      const nextData = { ...node.data };
+      delete nextData[fieldChange.key];
+      nextNode = { ...node };
+      if (Object.keys(nextData).length > 0) {
+        nextNode.data = nextData;
+      } else {
         delete nextNode.data;
       }
       break;
-    case "node.flag.set":
-      // 再执行核心更新步骤，并同步派生副作用与收尾状态。
-      nextNode.flags = {
-        ...(nextNode.flags ?? {}),
-        [fieldChange.key]: fieldChange.value
+    }
+    case "node.flag.set": {
+      nextNode = {
+        ...node,
+        flags: {
+          ...(node.flags ?? {}),
+          [fieldChange.key]: fieldChange.value
+        }
       };
-      break;
-    case "node.widget.value.set": {
-      const widget = nextNode.widgets?.[fieldChange.widgetIndex];
-      if (!widget) {
-        return createRejectedApplyStep(
-          document,
-          `node.widget.value.set 目标 widget 不存在: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
-        );
-      }
-      const nextWidgets = structuredClone(nextNode.widgets ?? []);
-      if (!nextWidgets[fieldChange.widgetIndex]) {
-        return createRejectedApplyStep(
-          document,
-          `node.widget.value.set 目标 widget 不存在: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
-        );
-      }
-      nextWidgets[fieldChange.widgetIndex] = {
-        ...nextWidgets[fieldChange.widgetIndex],
-        value: structuredClone(fieldChange.value)
-      };
-      nextNode.widgets = nextWidgets;
       break;
     }
-    case "node.widget.replace":
-      if (!nextNode.widgets || fieldChange.widgetIndex < 0) {
-        return createRejectedApplyStep(
-          document,
-          `node.widget.replace 目标 widget 不存在: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
-        );
+    case "node.widget.value.set": {
+      const patchResult = patchNodeWidgetValue(
+        node,
+        fieldChange.nodeId,
+        fieldChange.widgetIndex,
+        fieldChange.value,
+        "node.widget.value.set"
+      );
+      if ("reason" in patchResult) {
+        return createRejectedApplyStep(patchResult.reason);
       }
-      nextNode.widgets = structuredClone(nextNode.widgets);
-      if (fieldChange.widgetIndex >= nextNode.widgets.length) {
-        return createRejectedApplyStep(
-          document,
-          `node.widget.replace 目标 widget 不存在: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
-        );
-      }
-      nextNode.widgets[fieldChange.widgetIndex] = structuredClone(fieldChange.widget);
+
+      nextNode = patchResult.node;
       break;
-    case "node.widget.remove":
+    }
+    case "node.widget.replace": {
+      if (!node.widgets || fieldChange.widgetIndex < 0) {
+        return createRejectedApplyStep(
+          `node.widget.replace target widget not found: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
+        );
+      }
+      if (fieldChange.widgetIndex >= node.widgets.length) {
+        return createRejectedApplyStep(
+          `node.widget.replace target widget not found: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
+        );
+      }
+
+      const nextWidgets = node.widgets.slice();
+      nextWidgets[fieldChange.widgetIndex] = structuredClone(fieldChange.widget);
+      nextNode = {
+        ...node,
+        widgets: nextWidgets
+      };
+      break;
+    }
+    case "node.widget.remove": {
       if (
-        !nextNode.widgets ||
+        !node.widgets ||
         fieldChange.widgetIndex < 0 ||
-        fieldChange.widgetIndex >= nextNode.widgets.length
+        fieldChange.widgetIndex >= node.widgets.length
       ) {
         return createRejectedApplyStep(
-          document,
-          `node.widget.remove 目标 widget 不存在: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
+          `node.widget.remove target widget not found: ${fieldChange.nodeId}#${fieldChange.widgetIndex}`
         );
       }
-      nextNode.widgets = structuredClone(nextNode.widgets);
-      nextNode.widgets.splice(fieldChange.widgetIndex, 1);
-      if (!nextNode.widgets.length) {
+
+      const nextWidgets = node.widgets.slice();
+      nextWidgets.splice(fieldChange.widgetIndex, 1);
+      nextNode = { ...node };
+      if (nextWidgets.length > 0) {
+        nextNode.widgets = nextWidgets;
+      } else {
         delete nextNode.widgets;
       }
       break;
+    }
   }
 
-  return createApplyStepResult(
-    upsertNodeSnapshot(document, nextNode),
-    [fieldChange.nodeId],
-    []
-  );
+  upsertNodeSnapshot(state, nextNode);
+  return createApplyStepResult([fieldChange.nodeId], []);
 }
 
-/**
- * 创建`Apply` 步骤结果。
- *
- * @param document - 文档。
- * @param affectedNodeIds - `affected` 节点 ID 列表。
- * @param affectedLinkIds - `affected` 连线 ID 列表。
- * @returns 创建后的结果对象。
- */
-function createApplyStepResult(
-  document: GraphDocument,
-  affectedNodeIds: string[],
-  affectedLinkIds: string[]
-): DocumentApplyStepResult {
+function patchNodeWidgetValue(
+  node: NodeSerializeResult,
+  nodeId: string,
+  widgetIndex: number,
+  value: unknown,
+  operationType: "node.widget.value.set"
+): PatchNodeWidgetValueResult {
+  if (!node.widgets || widgetIndex < 0 || widgetIndex >= node.widgets.length) {
+    return {
+      reason: `${operationType} target widget not found: ${nodeId}#${widgetIndex}`
+    };
+  }
+
+  const nextWidgets = node.widgets.slice();
+  nextWidgets[widgetIndex] = {
+    ...nextWidgets[widgetIndex],
+    value: structuredClone(value)
+  };
+
   return {
-    success: true,
-    document,
-    affectedNodeIds,
-    affectedLinkIds
+    node: {
+      ...node,
+      widgets: nextWidgets
+    }
   };
 }
 
-/**
- * 处理 `createRejectedApplyStep` 相关逻辑。
- *
- * @param document - 文档。
- * @param reason - `reason`。
- * @returns 创建后的结果对象。
- */
-function createRejectedApplyStep(
-  document: GraphDocument,
-  reason: string
-): DocumentApplyStepResult {
-  return {
-    success: false,
-    document,
-    affectedNodeIds: [],
-    affectedLinkIds: [],
-    reason
-  };
-}
-
-/**
- * 根据创建输入创建节点快照。
- *
- * @param input - 输入参数。
- * @returns 创建后的结果对象。
- */
 function createNodeSnapshotFromCreateInput(
   input: LeaferGraphCreateNodeInput
 ): NodeSerializeResult {
@@ -830,9 +813,7 @@ function createNodeSnapshotFromCreateInput(
     ...(input.propertySpecs !== undefined
       ? { propertySpecs: structuredClone(input.propertySpecs) }
       : {}),
-    ...(input.inputs !== undefined
-      ? { inputs: normalizeSlotSpecs(input.inputs) }
-      : {}),
+    ...(input.inputs !== undefined ? { inputs: normalizeSlotSpecs(input.inputs) } : {}),
     ...(input.outputs !== undefined
       ? { outputs: normalizeSlotSpecs(input.outputs) }
       : {}),
@@ -842,12 +823,6 @@ function createNodeSnapshotFromCreateInput(
   };
 }
 
-/**
- * 根据创建输入创建连线快照。
- *
- * @param input - 输入参数。
- * @returns 创建后的结果对象。
- */
 function createLinkSnapshotFromCreateInput(
   input: LeaferGraphCreateLinkInput
 ): GraphLink {
@@ -860,13 +835,6 @@ function createLinkSnapshotFromCreateInput(
   };
 }
 
-/**
- * 修补节点快照。
- *
- * @param node - 节点。
- * @param input - 输入参数。
- * @returns 修补节点快照的结果。
- */
 function patchNodeSnapshot(
   node: NodeSerializeResult,
   input: LeaferGraphUpdateNodeInput
@@ -908,13 +876,6 @@ function patchNodeSnapshot(
   return nextNode;
 }
 
-/**
- * 修补图文档根节点。
- *
- * @param document - 文档。
- * @param input - 输入参数。
- * @returns 修补图文档根节点的结果。
- */
 function patchGraphDocumentRoot(
   document: GraphDocument,
   input: LeaferGraphUpdateDocumentInput
@@ -942,131 +903,94 @@ function patchGraphDocumentRoot(
   };
 }
 
-/**
- * 克隆图文档。
- *
- * @param document - 文档。
- * @returns 处理后的结果。
- */
 function cloneGraphDocument(document: GraphDocument): GraphDocument {
   return structuredClone(document);
 }
 
-/**
- * 查找节点快照。
- *
- * @param document - 文档。
- * @param nodeId - 目标节点 ID。
- * @returns 处理后的结果。
- */
 function findNodeSnapshot(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   nodeId: string
 ): NodeSerializeResult | undefined {
-  return document.nodes.find((node) => node.id === nodeId);
+  const index = state.nodeIndexById.get(nodeId);
+  return index === undefined ? undefined : state.document.nodes[index];
 }
 
-/**
- * 查找连线快照。
- *
- * @param document - 文档。
- * @param linkId - 目标连线 ID。
- * @returns 处理后的结果。
- */
 function findLinkSnapshot(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   linkId: string
 ): GraphLink | undefined {
-  return document.links.find((link) => link.id === linkId);
+  const index = state.linkIndexById.get(linkId);
+  return index === undefined ? undefined : state.document.links[index];
 }
 
-/**
- * 处理 `upsertNodeSnapshot` 相关逻辑。
- *
- * @param document - 文档。
- * @param snapshot - 快照。
- * @returns 处理后的结果。
- */
 function upsertNodeSnapshot(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   snapshot: NodeSerializeResult
-): GraphDocument {
-  const nextSnapshot = structuredClone(snapshot);
-  const index = document.nodes.findIndex((node) => node.id === snapshot.id);
-  if (index >= 0) {
-    document.nodes[index] = nextSnapshot;
-    return document;
+): void {
+  const index = state.nodeIndexById.get(snapshot.id);
+  if (index !== undefined) {
+    state.document.nodes[index] = snapshot;
+    return;
   }
 
-  document.nodes.push(nextSnapshot);
-  return document;
+  state.nodeIndexById.set(snapshot.id, state.document.nodes.length);
+  state.document.nodes.push(snapshot);
 }
 
-/**
- * 处理 `upsertLinkSnapshot` 相关逻辑。
- *
- * @param document - 文档。
- * @param snapshot - 快照。
- * @returns 处理后的结果。
- */
 function upsertLinkSnapshot(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   snapshot: GraphLink
-): GraphDocument {
-  const nextSnapshot = structuredClone(snapshot);
-  const index = document.links.findIndex((link) => link.id === snapshot.id);
-  if (index >= 0) {
-    document.links[index] = nextSnapshot;
-    return document;
+): void {
+  const index = state.linkIndexById.get(snapshot.id);
+  if (index !== undefined) {
+    state.document.links[index] = snapshot;
+    return;
   }
 
-  document.links.push(nextSnapshot);
-  return document;
+  state.linkIndexById.set(snapshot.id, state.document.links.length);
+  state.document.links.push(snapshot);
 }
 
-/**
- * 移除节点快照。
- *
- * @param document - 文档。
- * @param nodeId - 目标节点 ID。
- * @returns 移除节点快照的结果。
- */
 function removeNodeSnapshot(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   nodeId: string
-): GraphDocument {
-  const nodeIndex = document.nodes.findIndex((node) => node.id === nodeId);
-  if (nodeIndex >= 0) {
-    document.nodes.splice(nodeIndex, 1);
+): string[] {
+  const nodeIndex = state.nodeIndexById.get(nodeId);
+  if (nodeIndex !== undefined) {
+    state.document.nodes.splice(nodeIndex, 1);
+    state.nodeIndexById.delete(nodeId);
+    reindexFrom(state.nodeIndexById, state.document.nodes, (node) => node.id, nodeIndex);
   }
 
-  for (let index = document.links.length - 1; index >= 0; index -= 1) {
-    const link = document.links[index];
+  const removedLinkIds: string[] = [];
+  let removedLink = false;
+  for (let index = state.document.links.length - 1; index >= 0; index -= 1) {
+    const link = state.document.links[index];
     if (link.source.nodeId === nodeId || link.target.nodeId === nodeId) {
-      document.links.splice(index, 1);
+      removedLinkIds.push(link.id);
+      state.document.links.splice(index, 1);
+      state.linkIndexById.delete(link.id);
+      removedLink = true;
     }
   }
 
-  return document;
-}
-
-/**
- * 移除连线快照。
- *
- * @param document - 文档。
- * @param linkId - 目标连线 ID。
- * @returns 移除连线快照的结果。
- */
-function removeLinkSnapshot(
-  document: GraphDocument,
-  linkId: string
-): GraphDocument {
-  const linkIndex = document.links.findIndex((link) => link.id === linkId);
-  if (linkIndex >= 0) {
-    document.links.splice(linkIndex, 1);
+  if (removedLink) {
+    rebuildIndexMap(state.linkIndexById, state.document.links, (link) => link.id);
+    removedLinkIds.reverse();
   }
 
-  return document;
+  return removedLinkIds;
+}
+
+function removeLinkSnapshot(state: WorkingDocumentState, linkId: string): void {
+  const linkIndex = state.linkIndexById.get(linkId);
+  if (linkIndex === undefined) {
+    return;
+  }
+
+  state.document.links.splice(linkIndex, 1);
+  state.linkIndexById.delete(linkId);
+  reindexFrom(state.linkIndexById, state.document.links, (link) => link.id, linkIndex);
 }
 
 /**
@@ -1094,32 +1018,32 @@ function normalizeSlotSpecs(
 }
 
 function validateLinkEndpoints(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   source: GraphLink["source"],
   target: GraphLink["target"],
   operationType: "link.create" | "link.reconnect"
 ): string | undefined {
   return (
-    validateLinkEndpoint(document, source, "output", operationType) ??
-    validateLinkEndpoint(document, target, "input", operationType)
+    validateLinkEndpoint(state, source, "output", operationType) ??
+    validateLinkEndpoint(state, target, "input", operationType)
   );
 }
 
 function validateLinkEndpoint(
-  document: GraphDocument,
+  state: WorkingDocumentState,
   endpoint: GraphLink["source"],
   direction: "input" | "output",
   operationType: "link.create" | "link.reconnect"
 ): string | undefined {
-  const node = findNodeSnapshot(document, endpoint.nodeId);
+  const node = findNodeSnapshot(state, endpoint.nodeId);
   if (!node) {
-    return `${operationType} ${direction} node 不存在: ${endpoint.nodeId}`;
+    return `${operationType} ${direction} node not found: ${endpoint.nodeId}`;
   }
 
   const slotIndex = endpoint.slot ?? 0;
   const slots = direction === "output" ? node.outputs : node.inputs;
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || !slots?.[slotIndex]) {
-    return `${operationType} ${direction} slot 不存在: ${endpoint.nodeId}#${slotIndex}`;
+    return `${operationType} ${direction} slot not found: ${endpoint.nodeId}#${slotIndex}`;
   }
 
   return undefined;

@@ -45,7 +45,7 @@ describe("@leafergraph/core/config", () => {
       },
       widget: {
         editing: {
-          enabled: true,
+          enabled: false,
           useOfficialTextEditor: true,
           allowOptionsMenu: true
         }
@@ -97,7 +97,7 @@ describe("@leafergraph/core/config", () => {
       },
       widget: {
         editing: {
-          enabled: true,
+          enabled: false,
           allowOptionsMenu: false
         }
       },
@@ -122,7 +122,7 @@ describe("@leafergraph/core/config", () => {
     expect(config.graph.runtime.respectReducedMotion).toBe(false);
     expect(config.graph.history.maxEntries).toBe(24);
     expect(config.graph.history.resetOnDocumentSync).toBe(false);
-    expect(config.widget.editing.enabled).toBe(true);
+    expect(config.widget.editing.enabled).toBe(false);
     expect(config.widget.editing.allowOptionsMenu).toBe(false);
     expect(config.widget.editing.useOfficialTextEditor).toBe(true);
     expect(config.leafer.app.pixelSnap).toBe(false);
@@ -181,7 +181,7 @@ describe("@leafergraph/core/config", () => {
     );
     const config = resolveDefaultLeaferGraphConfig();
 
-    expect(readme).toContain("`editing.enabled` 被设置为 `false`");
+    expect(readme).toContain("默认值为 `false`");
     expect(config.widget.editing.enabled).toBe(false);
   });
 

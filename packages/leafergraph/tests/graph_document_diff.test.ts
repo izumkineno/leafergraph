@@ -105,7 +105,86 @@ function createTestDocumentWithLink(): GraphDocument {
 }
 
 describe("graph_document_diff", () => {
-  test("LeaferGraph.applyGraphDocumentDiff 应优先走 widget value 快速更新", () => {
+  test("LeaferGraph.applyGraphDocumentDiff falls back to direct child id lookup without find plugin", () => {
+    const currentDocument = createTestDocument();
+    const nextDocument: GraphDocument = {
+      ...currentDocument,
+      revision: "2",
+      nodes: currentDocument.nodes.map((node) =>
+        node.id === "node-1"
+          ? {
+              ...node,
+              layout: {
+                ...node.layout,
+                x: 180,
+                y: 60
+              }
+            }
+          : node
+      )
+    };
+    const diff: GraphDocumentDiff = {
+      documentId: "diff-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 0,
+      operations: [
+        {
+          type: "node.move",
+          nodeId: "node-1",
+          input: {
+            x: 180,
+            y: 60
+          },
+          operationId: "diff-node-move-direct-children",
+          timestamp: 0,
+          source: "authority"
+        }
+      ],
+      fieldChanges: []
+    };
+
+    const moveCalls: unknown[] = [];
+    const fakeGraph = {
+      apiHost: {
+        runWithoutHistoryCapture<T>(callback: () => T): T {
+          return callback();
+        },
+        notifyHistoryReset() {}
+      },
+      nodeLayer: {
+        children: [{ id: "node-node-1" }]
+      },
+      linkLayer: {
+        children: []
+      },
+      moveNode(nodeId: string, input: { x: number; y: number }) {
+        moveCalls.push([nodeId, input]);
+        return currentDocument.nodes[0];
+      }
+    } as unknown as LeaferGraph;
+
+    const result = LeaferGraph.prototype.applyGraphDocumentDiff.call(
+      fakeGraph,
+      diff,
+      nextDocument
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.requiresFullReplace).toBe(false);
+    expect(result.affectedNodeIds).toEqual(["node-1"]);
+    expect(moveCalls).toEqual([
+      [
+        "node-1",
+        {
+          x: 180,
+          y: 60
+        }
+      ]
+    ]);
+  });
+
+  test("LeaferGraph.applyGraphDocumentDiff prefers widget value fast path", () => {
     const currentDocument = createTestDocument();
     const diff: GraphDocumentDiff = {
       documentId: "diff-doc",
@@ -169,7 +248,7 @@ describe("graph_document_diff", () => {
     expect(updateNodeCalled).toBe(false);
   });
 
-  test("LeaferGraph.applyGraphDocumentDiff 在 node.create 图元已存在时应回退到整图替换", () => {
+  test("LeaferGraph.applyGraphDocumentDiff falls back to full replace when node.create target already exists", () => {
     const currentDocument = createTestDocument();
     const nextDocument: GraphDocument = {
       ...currentDocument,
@@ -250,7 +329,7 @@ describe("graph_document_diff", () => {
     expect(historyResetCalls).toBe(0);
   });
 
-  test("LeaferGraph.applyGraphDocumentDiff 在 link.reconnect 被拒绝时应回退到整图替换", () => {
+  test("LeaferGraph.applyGraphDocumentDiff falls back to full replace when link.reconnect is rejected", () => {
     const currentDocument = createTestDocumentWithLink();
     const nextDocument: GraphDocument = {
       ...currentDocument,

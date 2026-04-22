@@ -85,8 +85,6 @@ export interface LeaferGraphLeaferViewportConfig {
 export interface LeaferGraphLeaferViewConfig {
   /** 默认视图适配留白。 */
   fitPadding?: number;
-  /** 预留给 Leafer view 的原始扩展配置。 */
-  raw?: Record<string, unknown>;
 }
 
 /**
@@ -195,8 +193,6 @@ export interface NormalizedLeaferGraphLeaferViewportConfig {
 export interface NormalizedLeaferGraphLeaferViewConfig {
   /** 最终生效的视图适配留白。 */
   fitPadding: number;
-  /** 预留给 Leafer view 的原始扩展配置。 */
-  raw?: Record<string, unknown>;
 }
 
 /**

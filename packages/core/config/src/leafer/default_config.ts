@@ -95,7 +95,6 @@ export function normalizeLeaferGraphLeaferConfig(
     },
     view: {
       fitPadding: config?.view?.fitPadding ?? fitPadding,
-      raw: config?.view?.raw
     },
     editor: {
       raw: config?.editor?.raw
