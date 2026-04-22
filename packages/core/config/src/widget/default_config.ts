@@ -16,7 +16,7 @@ interface NormalizeWidgetConfigOptions {
  */
 export function resolveDefaultLeaferGraphWidgetEditingConfig(): NormalizedLeaferGraphWidgetEditingConfig {
   return {
-    enabled: true,
+    enabled: false,
     useOfficialTextEditor: true,
     allowOptionsMenu: true
   };
