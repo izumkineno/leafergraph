@@ -1,13 +1,7 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    "types": ["node"],
-    "paths": {},
-    "ignoreDeprecations": "5.0"
+    "noEmit": true
   },
   "include": ["src"]
 }

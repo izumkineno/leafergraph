@@ -1,13 +1,10 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": [
+    "./tsconfig.json",
+    "../tsconfig.build.base.json"
+  ],
   "compilerOptions": {
-    "noEmit": false,
-    "declaration": true,
-    "emitDeclarationOnly": true,
-    "outDir": "dist",
-    "skipLibCheck": true,
-    "paths": {},
-    "ignoreDeprecations": "5.0"
+    "emitDeclarationOnly": true
   },
   "include": [
     "src"
