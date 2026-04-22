@@ -562,6 +562,16 @@ function applyOperationToDocument(
         return createRejectedApplyStep(document, "link.create 缺少稳定连线 ID");
       }
 
+      const endpointReason = validateLinkEndpoints(
+        document,
+        operation.input.source,
+        operation.input.target,
+        "link.create"
+      );
+      if (endpointReason) {
+        return createRejectedApplyStep(document, endpointReason);
+      }
+
       return createApplyStepResult(
         upsertLinkSnapshot(
           document,
@@ -598,6 +608,16 @@ function applyOperationToDocument(
           ? structuredClone(operation.input.target)
           : structuredClone(link.target)
       };
+
+      const endpointReason = validateLinkEndpoints(
+        document,
+        nextLink.source,
+        nextLink.target,
+        "link.reconnect"
+      );
+      if (endpointReason) {
+        return createRejectedApplyStep(document, endpointReason);
+      }
 
       return createApplyStepResult(
         upsertLinkSnapshot(document, nextLink),
