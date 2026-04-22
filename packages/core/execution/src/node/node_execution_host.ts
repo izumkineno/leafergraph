@@ -524,6 +524,17 @@ export class LeaferGraphNodeExecutionHost<
   }
 
   /**
+   * 销毁宿主，清理所有资源，防止内存泄漏。
+   *
+   * @returns 无返回值。
+   */
+  dispose(): void {
+    this.linkPropagationListeners.clear();
+    this.executionListeners.clear();
+    this.executionStateByNodeId.clear();
+  }
+
+  /**
    * 更新执行状态。
    *
    * @param nodeId - 目标节点 ID。

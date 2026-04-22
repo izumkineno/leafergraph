@@ -205,6 +205,15 @@ export class LeaferGraphWidgetRegistry implements WidgetDefinitionReader {
   resolveRenderer(type: string): LeaferGraphWidgetRenderer {
     return this.getRenderer(type) ?? this.fallbackRenderer;
   }
+
+  /**
+   * 销毁注册表，清理所有资源，防止内存泄漏。
+   *
+   * @returns 无返回值。
+   */
+  dispose(): void {
+    this.entries.clear();
+  }
 }
 
 /**

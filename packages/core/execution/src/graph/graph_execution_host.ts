@@ -281,6 +281,22 @@ export class LeaferGraphGraphExecutionHost<
   }
 
   /**
+   * 销毁宿主，清理所有资源，防止内存泄漏。
+   *
+   * @returns 无返回值。
+   */
+  dispose(): void {
+    this.clearAllGraphTimers(true);
+    this.activeRun = null;
+    this.listeners.clear();
+    this.state = {
+      status: "idle",
+      queueSize: 0,
+      stepCount: 0
+    };
+  }
+
+  /**
    * 处理 `startRun` 相关逻辑。
    *
    * @param source - 当前来源对象。

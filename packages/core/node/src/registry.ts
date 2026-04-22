@@ -186,6 +186,15 @@ export class NodeRegistry {
   }
 
   /**
+   * 销毁注册表，清理所有资源，防止内存泄漏。
+   *
+   * @returns 无返回值。
+   */
+  dispose(): void {
+    this.definitions.clear();
+  }
+
+  /**
    * 在注册节点前做结构性校验。
    * 当前重点校验节点声明中引用的 Widget 是否已存在。
    *

@@ -358,7 +358,24 @@ export function createWidgetLifecycleRenderer<TState>(
       },
       destroy() {
         lifecycle.destroy?.(state as TState, runtimeContext);
+
+        // 销毁所有子元素
+        for (let i = runtimeContext.group.children.length - 1; i >= 0; i--) {
+          const child = runtimeContext.group.children[i];
+          if (typeof child.destroy === "function") {
+            child.destroy();
+          }
+        }
+
+        // 移除所有子元素
         runtimeContext.group.removeAll();
+
+        // 清理上下文引用，帮助垃圾回收
+        delete (runtimeContext as any).ui;
+        delete (runtimeContext as any).theme;
+        delete (runtimeContext as any).node;
+        delete (runtimeContext as any).editing;
+        delete (runtimeContext as any).group;
       }
     };
   };
