@@ -46,6 +46,50 @@ function createTestDocument(): GraphDocument {
   };
 }
 
+function createLinkedDocument(): GraphDocument {
+  return {
+    documentId: "diff-doc",
+    revision: "1",
+    appKind: "diff-test",
+    nodes: [
+      {
+        id: "node-1",
+        type: "demo/source",
+        title: "Node 1",
+        layout: { x: 0, y: 0, width: 120, height: 80 },
+        outputs: [{ name: "Out" }]
+      },
+      {
+        id: "node-2",
+        type: "demo/middle",
+        title: "Node 2",
+        layout: { x: 160, y: 0, width: 120, height: 80 },
+        inputs: [{ name: "In" }],
+        outputs: [{ name: "Out" }]
+      },
+      {
+        id: "node-3",
+        type: "demo/target",
+        title: "Node 3",
+        layout: { x: 320, y: 0, width: 120, height: 80 },
+        inputs: [{ name: "In" }]
+      }
+    ],
+    links: [
+      {
+        id: "link-1",
+        source: { nodeId: "node-1", slot: 0 },
+        target: { nodeId: "node-2", slot: 0 }
+      },
+      {
+        id: "link-2",
+        source: { nodeId: "node-2", slot: 0 },
+        target: { nodeId: "node-3", slot: 0 }
+      }
+    ]
+  };
+}
+
 function createNodeSnapshot(): NodeSerializeResult {
   return {
     id: "node-1",
@@ -201,6 +245,129 @@ describe("contracts graph_document_diff", () => {
     expect(result.affectedNodeIds).toEqual(["node-1"]);
     expect(result.document.nodes[0]?.flags?.collapsed).toBe(true);
     expect(result.document.nodes[0]?.widgets?.[0]?.value).toBe(250);
+  });
+
+  test("applyGraphDocumentDiffToDocument 应拒绝 dangling link.create", () => {
+    const currentDocument = createLinkedDocument();
+    const diff: GraphDocumentDiff = {
+      documentId: "diff-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 3,
+      operations: [
+        {
+          type: "link.create",
+          input: {
+            id: "link-3",
+            source: {
+              nodeId: "missing-node",
+              slot: 0
+            },
+            target: {
+              nodeId: "node-2",
+              slot: 0
+            }
+          },
+          operationId: "diff-link-create-missing-source",
+          timestamp: 4,
+          source: "authority.documentDiff"
+        }
+      ],
+      fieldChanges: []
+    };
+
+    const result = applyGraphDocumentDiffToDocument(currentDocument, diff);
+
+    expect(result.success).toBe(false);
+    expect(result.requiresFullReplace).toBe(true);
+    expect(result.document).toEqual(currentDocument);
+    expect(result.document.links.map((link) => link.id)).toEqual(["link-1", "link-2"]);
+  });
+
+  test("applyGraphDocumentDiffToDocument 应拒绝 dangling link.reconnect", () => {
+    const currentDocument = createLinkedDocument();
+    const diff: GraphDocumentDiff = {
+      documentId: "diff-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 4,
+      operations: [
+        {
+          type: "link.reconnect",
+          linkId: "link-1",
+          input: {
+            target: {
+              nodeId: "node-3",
+              slot: 9
+            }
+          },
+          operationId: "diff-link-reconnect-missing-slot",
+          timestamp: 5,
+          source: "authority.documentDiff"
+        }
+      ],
+      fieldChanges: []
+    };
+
+    const result = applyGraphDocumentDiffToDocument(currentDocument, diff);
+
+    expect(result.success).toBe(false);
+    expect(result.requiresFullReplace).toBe(true);
+    expect(result.document).toEqual(currentDocument);
+    expect(result.document.links[0]).toEqual({
+      id: "link-1",
+      source: { nodeId: "node-1", slot: 0 },
+      target: { nodeId: "node-2", slot: 0 }
+    });
+  });
+
+  test("applyGraphDocumentDiffToDocument 应在纯更新时保持 node/link 顺序", () => {
+    const currentDocument = createLinkedDocument();
+    const diff: GraphDocumentDiff = {
+      documentId: "diff-doc",
+      baseRevision: "1",
+      revision: "2",
+      emittedAt: 5,
+      operations: [
+        {
+          type: "node.rename",
+          nodeId: "node-1",
+          title: "Node 1 Renamed",
+          operationId: "diff-node-rename-order",
+          timestamp: 6,
+          source: "authority.documentDiff"
+        },
+        {
+          type: "link.reconnect",
+          linkId: "link-1",
+          input: {
+            target: {
+              nodeId: "node-3",
+              slot: 0
+            }
+          },
+          operationId: "diff-link-reconnect-order",
+          timestamp: 7,
+          source: "authority.documentDiff"
+        }
+      ],
+      fieldChanges: []
+    };
+
+    const result = applyGraphDocumentDiffToDocument(currentDocument, diff);
+
+    expect(result.success).toBe(true);
+    expect(result.document.nodes.map((node) => node.id)).toEqual([
+      "node-1",
+      "node-2",
+      "node-3"
+    ]);
+    expect(result.document.links.map((link) => link.id)).toEqual(["link-1", "link-2"]);
+    expect(result.document.nodes[0]?.title).toBe("Node 1 Renamed");
+    expect(result.document.links[0]?.target).toEqual({
+      nodeId: "node-3",
+      slot: 0
+    });
   });
 
   test("createCreateNodeInputFromNodeSnapshot 应保留展示字段与结构字段", () => {

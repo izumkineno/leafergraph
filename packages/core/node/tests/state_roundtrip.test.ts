@@ -231,4 +231,126 @@ describe("@leafergraph/core/node state roundtrip", () => {
     expect("inputValues" in serialized).toBe(false);
     expect("outputValues" in serialized).toBe(false);
   });
+
+  it("configureNode 在切换 type 时应回到新 definition，并仅保留显式 override", () => {
+    const registry = new NodeRegistry(
+      createWidgetReader([
+        {
+          type: "input",
+          normalize(value) {
+            return String(value ?? "").trim();
+          }
+        }
+      ]),
+      [
+        {
+          type: "demo/source",
+          title: "Source Node",
+          size: [200, 100],
+          properties: [
+            {
+              name: "count",
+              type: "number",
+              default: 1
+            }
+          ],
+          inputs: [{ name: "Source In" }],
+          outputs: [{ name: "Source Out" }],
+          widgets: [
+            {
+              type: "input",
+              name: "sourceLabel",
+              value: "source"
+            }
+          ]
+        },
+        {
+          type: "demo/target",
+          title: "Target Node",
+          size: [320, 180],
+          properties: [
+            {
+              name: "ratio",
+              type: "number",
+              default: 2
+            }
+          ],
+          inputs: [{ name: "Target In" }],
+          outputs: [{ name: "Target Out" }],
+          widgets: [
+            {
+              type: "input",
+              name: "targetLabel",
+              value: "target"
+            }
+          ]
+        }
+      ]
+    );
+
+    const node = createNodeState(registry, {
+      id: "switch-1",
+      type: "demo/source",
+      title: "Customized Source",
+      properties: {
+        count: 9,
+        legacy: true
+      },
+      inputs: [{ name: "Custom Source In" }],
+      outputs: [{ name: "Custom Source Out" }],
+      widgets: [
+        {
+          type: "input",
+          name: "sourceLabel",
+          value: "custom source"
+        }
+      ],
+      data: {
+        persisted: "before"
+      }
+    });
+
+    configureNode(registry, node, {
+      type: "demo/target",
+      title: "Target Override",
+      widgets: [
+        {
+          type: "input",
+          name: "targetLabel",
+          value: "custom target"
+        }
+      ]
+    });
+
+    expect(node.type).toBe("demo/target");
+    expect(node.title).toBe("Target Override");
+    expect(node.layout).toEqual({
+      x: 0,
+      y: 0,
+      width: 320,
+      height: 180
+    });
+    expect(node.propertySpecs).toEqual([
+      {
+        name: "ratio",
+        type: "number",
+        default: 2
+      }
+    ]);
+    expect(node.properties).toEqual({
+      ratio: 2
+    });
+    expect(node.inputs).toEqual([{ name: "Target In" }]);
+    expect(node.outputs).toEqual([{ name: "Target Out" }]);
+    expect(node.widgets).toEqual([
+      {
+        type: "input",
+        name: "targetLabel",
+        value: "custom target"
+      }
+    ]);
+    expect(node.data).toEqual({
+      persisted: "before"
+    });
+  });
 });

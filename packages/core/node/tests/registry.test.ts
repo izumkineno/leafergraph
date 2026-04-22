@@ -102,4 +102,35 @@ describe("@leafergraph/core/node NodeRegistry", () => {
       })
     ).toThrow(UnknownWidgetTypeError);
   });
+
+  it("get / require / list 返回值不应泄露 registry 内部可变引用", () => {
+    const registry = new NodeRegistry(createWidgetReader([{ type: "input" }]));
+
+    registry.register({
+      type: "demo/task",
+      title: "Original",
+      inputs: [{ name: "In", type: "event" }],
+      widgets: [{ type: "input", name: "title", value: { nested: true } }]
+    });
+
+    const fromGet = registry.get("demo/task");
+    const fromRequire = registry.require("demo/task");
+    const fromList = registry.list()[0];
+
+    expect(fromGet).toBeDefined();
+    expect(fromList).toBeDefined();
+
+    if (!fromGet || !fromList) {
+      throw new Error("expected registry lookups to resolve");
+    }
+
+    fromGet.title = "Mutated via get";
+    fromRequire.inputs![0]!.name = "Mutated via require";
+    (fromList.widgets![0]!.value as { nested: boolean }).nested = false;
+
+    const stored = registry.require("demo/task");
+    expect(stored.title).toBe("Original");
+    expect(stored.inputs?.[0]?.name).toBe("In");
+    expect(stored.widgets?.[0]?.value).toEqual({ nested: true });
+  });
 });
