@@ -117,6 +117,50 @@ function createLinkedDocument(): GraphDocument {
   };
 }
 
+function createLinkedDocument(): GraphDocument {
+  return {
+    documentId: "diff-doc",
+    revision: "1",
+    appKind: "diff-test",
+    nodes: [
+      {
+        id: "node-1",
+        type: "demo/source",
+        title: "Node 1",
+        layout: { x: 0, y: 0, width: 120, height: 80 },
+        outputs: [{ name: "Out" }]
+      },
+      {
+        id: "node-2",
+        type: "demo/middle",
+        title: "Node 2",
+        layout: { x: 160, y: 0, width: 120, height: 80 },
+        inputs: [{ name: "In" }],
+        outputs: [{ name: "Out" }]
+      },
+      {
+        id: "node-3",
+        type: "demo/target",
+        title: "Node 3",
+        layout: { x: 320, y: 0, width: 120, height: 80 },
+        inputs: [{ name: "In" }]
+      }
+    ],
+    links: [
+      {
+        id: "link-1",
+        source: { nodeId: "node-1", slot: 0 },
+        target: { nodeId: "node-2", slot: 0 }
+      },
+      {
+        id: "link-2",
+        source: { nodeId: "node-2", slot: 0 },
+        target: { nodeId: "node-3", slot: 0 }
+      }
+    ]
+  };
+}
+
 function createNodeSnapshot(): NodeSerializeResult {
   return {
     id: "node-1",
