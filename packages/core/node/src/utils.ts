@@ -16,6 +16,23 @@ import type {
 
 let nodeIdSeed = 1;
 
+function hasReservedNodeId(
+  id: string,
+  reservedIds?: Iterable<string>
+): boolean {
+  if (!reservedIds) {
+    return false;
+  }
+
+  for (const reservedId of reservedIds) {
+    if (reservedId === id) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * 深拷贝任意简单 JSON 风格值。
  * 当前节点 SDK 的大部分结构都通过这套规则保持“输入不可变、内部可变”。
@@ -206,7 +223,7 @@ export function createDefaultTitle(type: string): string {
  */
 export function createNodeId(
   type: string,
-  existingIds: Iterable<string> = []
+  reservedIds?: Iterable<string>
 ): string {
   const safeType = type
     .trim()
@@ -215,11 +232,10 @@ export function createNodeId(
     .replace(/^-+|-+$/g, "");
 
   const prefix = safeType || "node";
-  const reservedIds = new Set(existingIds);
-
   let id = `${prefix}-${nodeIdSeed}`;
   nodeIdSeed += 1;
-  while (reservedIds.has(id)) {
+
+  while (hasReservedNodeId(id, reservedIds)) {
     id = `${prefix}-${nodeIdSeed}`;
     nodeIdSeed += 1;
   }
