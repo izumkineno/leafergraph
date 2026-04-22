@@ -431,4 +431,14 @@ export class LeaferGraphNodeRuntimeHost<
     this.options.sceneRuntime.updateConnectedLinks(nodeId);
     this.options.sceneRuntime.requestRender();
   }
+
+  /**
+   * 清理节点运行时宿主资源。
+   *
+   * @returns 无返回值。
+   */
+  dispose(): void {
+    this.nodeExecutionHost.dispose();
+    this.stateListeners.clear();
+  }
 }

@@ -148,6 +148,21 @@ export interface LeaferGraphApiRuntime<
     LeaferGraphInteractionCommitSource,
     "subscribe"
   >;
+  /** 节点注册表。 */
+  nodeRegistry: {
+    /** 清理注册表资源。 */
+    dispose?(): void;
+  };
+  /** Widget 注册表。 */
+  widgetRegistry: {
+    /** 清理注册表资源。 */
+    dispose?(): void;
+  };
+  /** 节点执行宿主。 */
+  nodeExecutionHost: {
+    /** 清理节点执行宿主资源。 */
+    dispose?(): void;
+  };
   /** 用户交互宿主。 */
   interactionHost: {
     /** 获取当前交互活动状态。 */
@@ -232,6 +247,8 @@ export interface LeaferGraphApiRuntime<
     projectExternalLinkPropagation(
       event: LeaferGraphLinkPropagationEvent
     ): void;
+    /** 清理节点执行宿主资源。 */
+    dispose?(): void;
   };
   /** 图级执行宿主壳面。 */
   graphExecutionHost: {
@@ -247,6 +264,8 @@ export interface LeaferGraphApiRuntime<
     subscribeGraphExecution(
       listener: (event: LeaferGraphGraphExecutionEvent) => void
     ): () => void;
+    /** 清理执行宿主资源。 */
+    dispose?(): void;
     /** 把外部图执行事件投影回宿主。 */
     projectExternalGraphExecution(
       event: LeaferGraphGraphExecutionEvent

@@ -291,7 +291,10 @@ export function createLeaferGraphRuntimeAssembly<
     graphExecutionHost: sceneRuntime.graphExecutionHost,
     themeHost: widgetEnvironment.themeHost,
     viewHost: sceneRuntime.viewHost,
-    widgetHost: sceneRuntime.widgetHost
+    widgetHost: sceneRuntime.widgetHost,
+    nodeRegistry,
+    widgetRegistry: widgetEnvironment.widgetRegistry,
+    nodeExecutionHost: sceneRuntime.nodeRuntimeHost
   };
   const apiHost = new LeaferGraphApiHost({
     runtime: apiRuntime,
