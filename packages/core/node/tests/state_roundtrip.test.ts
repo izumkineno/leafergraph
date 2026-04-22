@@ -106,6 +106,116 @@ describe("@leafergraph/core/node state roundtrip", () => {
     });
   });
 
+  it("createNodeState 自动生成节点 ID 时会避开现有图中的 ID", () => {
+    const registry = new NodeRegistry(createWidgetReader([]), [
+      {
+        type: "demo/task"
+      }
+    ]);
+
+    const node = createNodeState(registry, {
+      type: "demo/task",
+      existingNodeIds: ["demo-task-1", "demo-task-2"]
+    });
+
+    expect(node.id).toBe("demo-task-3");
+  });
+
+  it("configureNode 在 type switch 时会回到新 definition，并只保留显式 override", () => {
+    const registry = new NodeRegistry(
+      createWidgetReader([
+        {
+          type: "input",
+          normalize(value) {
+            return String(value ?? "").trim().toUpperCase();
+          }
+        }
+      ]),
+      [
+        {
+          type: "demo/task",
+          title: "Task",
+          properties: [
+            {
+              name: "count",
+              type: "number",
+              default: 1
+            }
+          ],
+          inputs: [{ name: "Task In", type: "event" }],
+          outputs: [{ name: "Task Out", type: "event" }],
+          widgets: [
+            {
+              type: "input",
+              name: "label",
+              value: "task"
+            }
+          ]
+        },
+        {
+          type: "demo/branch",
+          title: "Branch",
+          properties: [
+            {
+              name: "condition",
+              type: "string",
+              default: "ready"
+            }
+          ],
+          inputs: [{ name: "Branch In", type: "event" }],
+          outputs: [{ name: "Yes", type: "event" }, { name: "No", type: "event" }],
+          widgets: [
+            {
+              type: "input",
+              name: "condition",
+              value: "  branch default  "
+            }
+          ]
+        }
+      ]
+    );
+
+    const node = createNodeState(registry, {
+      id: "task-3",
+      type: "demo/task",
+      data: {
+        persisted: true
+      },
+      flags: {
+        selected: true
+      }
+    });
+
+    configureNode(registry, node, {
+      type: "demo/branch",
+      title: "Manual Branch"
+    });
+
+    expect(node.type).toBe("demo/branch");
+    expect(node.title).toBe("Manual Branch");
+    expect(node.properties).toEqual({
+      condition: "ready"
+    });
+    expect(node.inputs).toEqual([{ name: "Branch In", type: "event" }]);
+    expect(node.outputs).toEqual([
+      { name: "Yes", type: "event" },
+      { name: "No", type: "event" }
+    ]);
+    expect(node.widgets).toEqual([
+      {
+        type: "input",
+        name: "condition",
+        value: "BRANCH DEFAULT"
+      }
+    ]);
+    expect(node.flags).toEqual({
+      selected: true
+    });
+    expect(node.data).toEqual({
+      persisted: true
+    });
+  });
+
   it("configureNode 与 serializeNode 会保持 roundtrip 语义，并隔离 onConfigure 副作用", () => {
     let configureSnapshot: NodeSerializeResult | undefined;
 
