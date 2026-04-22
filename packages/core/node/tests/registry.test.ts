@@ -77,27 +77,36 @@ describe("@leafergraph/core/node NodeRegistry", () => {
     expect(stored.widgets?.[0]?.value).toEqual({ nested: true });
   });
 
-  it("读取出来的 definition 快照不会反向污染 registry 内部状态", () => {
-    const registry = new NodeRegistry(createWidgetReader([{ type: "input" }]));
-    registry.register({
-      type: "demo/task",
-      title: "Original",
-      inputs: [{ name: "In", type: "event" }],
-      widgets: [{ type: "input", name: "title", value: { nested: true } }]
-    });
+  it("get / require / list 返回的定义应与注册表内部状态隔离", () => {
+    const registry = new NodeRegistry(createWidgetReader([{ type: "input" }]), [
+      {
+        type: "demo/task",
+        title: "Original",
+        inputs: [{ name: "Input", type: "event" }],
+        widgets: [{ type: "input", name: "title", value: { nested: true } }]
+      }
+    ]);
 
-    const required = registry.require("demo/task");
-    required.title = "Mutated";
-    required.inputs![0].name = "Changed";
-    (required.widgets![0].value as { nested: boolean }).nested = false;
+    const fromGet = registry.get("demo/task");
+    const fromRequire = registry.require("demo/task");
+    const fromList = registry.list()[0];
 
-    const listed = registry.listNodes();
-    listed[0]!.title = "Listed Mutated";
+    if (!fromGet || !fromList) {
+      throw new Error("expected registry definitions");
+    }
+
+    fromGet.title = "Mutated via get";
+    fromRequire.inputs![0]!.name = "Mutated via require";
+    (fromList.widgets![0]!.value as { nested: boolean }).nested = false;
 
     const stored = registry.require("demo/task");
     expect(stored.title).toBe("Original");
-    expect(stored.inputs?.[0]?.name).toBe("In");
+    expect(stored.inputs?.[0]?.name).toBe("Input");
     expect(stored.widgets?.[0]?.value).toEqual({ nested: true });
+
+    const freshList = registry.list();
+    expect(freshList[0]).not.toBe(fromList);
+    expect(freshList[0]?.title).toBe("Original");
   });
 
   it("注册节点时会校验 widget 与 property widget 的类型", () => {
