@@ -30,8 +30,9 @@ LeaferGraph 采用分层架构设计，各包职责清晰：
 | `@leafergraph/execution` | 执行内核，处理节点执行与数据传播 | `LeaferGraphExecutionContext`, `LeaferGraphGraphExecutionHost` |
 | `@leafergraph/widget-runtime` | Widget 运行时，处理渲染与交互 | `LeaferGraphWidgetRegistry`, 生命周期适配 |
 | `@leafergraph/contracts` | 公共契约，定义跨包共享类型 | 插件接口、Widget 渲染协议、主题上下文 |
-| `@leafergraph/runtime-bridge` | 运行时桥接，支持后端交互 | `LeaferGraphRuntimeBridgeClient`, 操作转换协议 |
 | `leafergraph` | 主包，图运行时与交互宿主 | `createLeaferGraph`, `LeaferGraph` |
+
+> **注意**：`@leafergraph/runtime-bridge` 是演进中的功能，尚未正式发布，相关描述仅作为设计参考。
 
 ### 1.2 基本概念
 

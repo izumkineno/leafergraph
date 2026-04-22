@@ -37,20 +37,19 @@
 
 ### FAIL（当前已知 blocker）
 
-- `bun run build:leafergraph`
-  - `packages/leafergraph` 仍无法完成完整 typecheck / build
-  - 直接表现为 `@leafergraph/core/config`、`@leafergraph/core/theme`、`@leafergraph/core/widget-runtime` 等模块解析失败
-  - 当前根因是 `tsconfig.base.json` 里这些新 split 包名仍映射到旧路径：
-    - `@leafergraph/core/config` -> `packages/config/*`
-    - `@leafergraph/core/theme` -> `packages/theme/*`
-    - `@leafergraph/core/widget-runtime` -> `packages/widget-runtime/*`
-    - `@leafergraph/core/basic-kit` -> `packages/basic-kit/*`
-    - 而不是 `packages/core/*`
 - `bun run --filter leafergraph test`
-  - 与 build 同样被 `@leafergraph/core/*` 解析失败阻塞
-  - 额外还暴露了主包内已有的严格模式错误，需要后续 lane 决策：
+  - 不再被路径解析问题阻塞，但存在功能测试失败：
+    - `history_runtime_integration.test.ts` 中 history.reset 断言失败
+    - `node_shell_host.test.ts` 中信号点和进度环可见性断言失败
+  - 主包内仍存在严格模式类型错误，需要后续 lane 决策：
     - `packages/leafergraph/src/graph/assembly/scene.ts` 中多处 `TS7006`
     - `packages/leafergraph/src/interaction/host/controller.ts` 中多处 `TS7006`
+
+### PASS（路径解析问题已解决）
+
+- `bun run build:leafergraph`
+  - Vite 构建已完全通过，可正常产出 `dist/index.js`
+  - 注意：`tsconfig.base.json` 中 `@leafergraph/core/*` 的路径映射仍指向旧路径（`packages/config/*` 而非 `packages/core/config/*`），但 Vite 配置已单独修复路径解析，不影响构建
 - `bun run check:authoring-basic-nodes`
   - `@leafergraph/authoring-basic-nodes` 无法完成 typecheck
   - 根因同样是 split 后的新包名仍未被正确解析：

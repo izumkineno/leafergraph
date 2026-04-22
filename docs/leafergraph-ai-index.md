@@ -40,19 +40,19 @@
 
 | 包 | 角色 | 适合查什么 |
 | --- | --- | --- |
-| `@leafergraph/node` | 模型真源 | `NodeDefinition`、`GraphDocument`、`NodeRegistry` |
-| `@leafergraph/theme` | 视觉主题真源 | `themePreset`、`themeMode`、graph/widget/context-menu token |
-| `@leafergraph/config` | 非视觉配置真源 | `graph`、`widget`、`context-menu`、`leafer` 配置 |
-| `@leafergraph/execution` | 执行内核 | 执行上下文、传播语义、状态机、反馈 |
-| `@leafergraph/contracts` | 公共契约层 | 插件协议、图 API 输入输出、Widget 契约、diff/history helper |
-| `@leafergraph/widget-runtime` | Widget runtime 真源 | registry、renderer lifecycle、editing、interaction helper |
-| `@leafergraph/basic-kit` | 默认内容包 | 系统节点、基础 widgets、一键安装 plugin |
+| `@leafergraph/core/node` | 模型真源 | `NodeDefinition`、`GraphDocument`、`NodeRegistry` |
+| `@leafergraph/core/theme` | 视觉主题真源 | `themePreset`、`themeMode`、graph/widget/context-menu token |
+| `@leafergraph/core/config` | 非视觉配置真源 | `graph`、`widget`、`context-menu`、`leafer` 配置 |
+| `@leafergraph/core/execution` | 执行内核 | 执行上下文、传播语义、状态机、反馈 |
+| `@leafergraph/core/contracts` | 公共契约层 | 插件协议、图 API 输入输出、Widget 契约、diff/history helper |
+| `@leafergraph/core/widget-runtime` | Widget runtime 真源 | registry、renderer lifecycle、editing、interaction helper |
+| `@leafergraph/core/basic-kit` | 默认内容包 | 系统节点、基础 widgets、一键安装 plugin |
 | `leafergraph` | 图运行时主包 | `LeaferGraph`、`createLeaferGraph(...)`、主包 façade |
-| `@leafergraph/context-menu` | 纯菜单 runtime | target 绑定、resolver、DOM overlay |
-| `@leafergraph/context-menu-builtins` | 节点图菜单集成层 | copy/paste/delete/run/undo/redo 等内建动作 |
-| `@leafergraph/shortcuts` | 宿主输入扩展 | 按键注册表、功能注册表、graph 快捷键预设 |
-| `@leafergraph/undo-redo` | 宿主状态扩展 | 历史栈、graph history feed 绑定 |
-| `@leafergraph/authoring` | 作者层 SDK | `BaseNode`、`BaseWidget`、plugin / module 组装 |
+| `@leafergraph/extensions/context-menu` | 纯菜单 runtime | target 绑定、resolver、DOM overlay |
+| `@leafergraph/extensions/context-menu-builtins` | 节点图菜单集成层 | copy/paste/delete/run/undo/redo 等内建动作 |
+| `@leafergraph/extensions/shortcuts` | 宿主输入扩展 | 按键注册表、功能注册表、graph 快捷键预设 |
+| `@leafergraph/extensions/undo-redo` | 宿主状态扩展 | 历史栈、graph history feed 绑定 |
+| `@leafergraph/extensions/authoring` | 作者层 SDK | `BaseNode`、`BaseWidget`、plugin / module 组装 |
 
 ## 4. 推荐阅读顺序
 

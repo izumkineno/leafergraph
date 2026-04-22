@@ -2,7 +2,7 @@
 
 ## 适用范围
 
-本文件适用于目录 `E:\Code\Node_editor\leafergraph` 及其全部子目录。
+本文件适用于目录 `E:\Code\leafergraph` 及其全部子目录。
 
 在本目录内工作的代理、协作者或自动化工具，应优先遵守本文件；若上层目录也存在 `AGENTS.md`，则以更靠近当前工作目录的文件为准。
 
@@ -124,9 +124,9 @@
 
 ## Leafer 文档索引
 
-`leafergraph` 开发时，可以参考同级目录中的 Leafer 官方文档仓库：
+`leafergraph` 开发时，可以参考 Leafer 官方文档仓库：
 
-- `E:\Code\Node_editor\leafer-docs`
+- `E:\Code\Node_editor\dora_workbench\libs\leafer-docs`
 
 当任务涉及 Leafer 能力选型、布局方式、视口行为、渲染性能时，优先查阅该目录中的相关文档，而不是凭记忆直接实现。
 
