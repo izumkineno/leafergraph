@@ -178,6 +178,17 @@ describe("@leafergraph/core/config", () => {
     });
   });
 
+  test("widget README 声明的 editing.enabled 默认值应与实现一致", () => {
+    const readme = readFileSync(
+      new URL("../src/widget/README.md", import.meta.url),
+      "utf8"
+    );
+    const config = resolveDefaultLeaferGraphConfig();
+
+    expect(readme).toContain("`editing.enabled` 被设置为 `false`");
+    expect(config.widget.editing.enabled).toBe(false);
+  });
+
   test("不应声明任何 workspace 本地包依赖", () => {
     const packageJson = JSON.parse(
       readFileSync(new URL("../package.json", import.meta.url), "utf8")
