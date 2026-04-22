@@ -404,7 +404,7 @@ bun run test:basic-kit
 - [根 README](../../README.md)
 - [@leafergraph/core/execution README](../execution/README.md)
 - [@leafergraph/core/widget-runtime README](../widget-runtime/README.md)
-- [leafergraph README](../leafergraph/README.md)
+- [leafergraph README](../../leafergraph/README.md)
 
 
 

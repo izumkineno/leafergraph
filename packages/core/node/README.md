@@ -132,7 +132,7 @@ bun run test:node
 - [节点 API 与节点壳设计](../../docs/节点API方案.md)
 - [外部节点包接入方案](../../docs/节点插件接入方案.md)
 - [@leafergraph/extensions/authoring README](../../extensions/authoring/README.md)
-- [leafergraph README](../leafergraph/README.md)
+- [leafergraph README](../../leafergraph/README.md)
 
 
 

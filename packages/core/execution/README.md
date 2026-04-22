@@ -149,7 +149,7 @@ bun run test:execution
 
 - [根 README](../../README.md)
 - [@leafergraph/core/contracts README](../contracts/README.md)
-- [leafergraph README](../leafergraph/README.md)
+- [leafergraph README](../../leafergraph/README.md)
 - [使用与扩展指南](../leafergraph/使用与扩展指南.md)
 
 

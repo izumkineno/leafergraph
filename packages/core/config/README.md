@@ -119,7 +119,7 @@ bun run build:config
 - [根 README](../../README.md)
 - [@leafergraph/core/theme README](../theme/README.md)
 - [@leafergraph/extensions/undo-redo README](../../extensions/undo-redo/README.md)
-- [leafergraph README](../leafergraph/README.md)
+- [leafergraph README](../../leafergraph/README.md)
 
 
 

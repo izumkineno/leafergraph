@@ -101,7 +101,7 @@ bun run test:contracts
 - [根 README](../../README.md)
 - [@leafergraph/core/node README](../node/README.md)
 - [@leafergraph/core/execution README](../execution/README.md)
-- [leafergraph README](../leafergraph/README.md)
+- [leafergraph README](../../leafergraph/README.md)
 
 
 

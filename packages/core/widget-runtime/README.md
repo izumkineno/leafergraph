@@ -117,7 +117,7 @@ bun run test:widget-runtime
 - [根 README](../../README.md)
 - [@leafergraph/core/basic-kit README](../basic-kit/README.md)
 - [@leafergraph/core/theme README](../theme/README.md)
-- [leafergraph README](../leafergraph/README.md)
+- [leafergraph README](../../leafergraph/README.md)
 
 
 
