@@ -898,7 +898,15 @@ function cloneReadableValue<T>(value: T): T {
 
   try {
     return structuredClone(value);
-  } catch {
+  } catch (error) {
+    // 添加警告日志，帮助调试克隆失败的情况
+    if (typeof console !== "undefined" && console.warn) {
+      console.warn(
+        "[LeaferGraph] Failed to clone value, returning original reference. " +
+        "This may cause unexpected state sharing.",
+        error
+      );
+    }
     return value;
   }
 }
