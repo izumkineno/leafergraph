@@ -271,6 +271,15 @@ export class LeaferGraphWidgetHost {
   private createWidgetCommitKey(nodeId: string, widgetIndex: number): string {
     return `${nodeId}:${widgetIndex}`;
   }
+
+  /**
+   * 清理 Widget 宿主资源。
+   *
+   * @returns 无返回值。
+   */
+  dispose(): void {
+    this.widgetCommitBaselines.clear();
+  }
 }
 
 /**

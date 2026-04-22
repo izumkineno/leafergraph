@@ -776,6 +776,9 @@ export class LeaferGraphWidgetEditingManager
    * @returns 无返回值。
    */
   destroy(): void {
+    // 确保 RAF 循环首先被停止，防止内存泄漏
+    this.stopEditorFollowLoop();
+
     this.closeActiveEditor();
     this.ownerWindow.document.removeEventListener(
       "pointerdown",
