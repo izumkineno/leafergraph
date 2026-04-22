@@ -342,13 +342,13 @@ describe("@leafergraph/core/node state roundtrip", () => {
     expect("outputValues" in serialized).toBe(false);
   });
 
-  it("configureNode 在切换 type 时应回到新 definition，并仅保留显式 override", () => {
+  it("configureNode 在切换 type 时应回退到新 definition，仅保留显式 override", () => {
     const registry = new NodeRegistry(
       createWidgetReader([
         {
           type: "input",
           normalize(value) {
-            return String(value ?? "").trim();
+            return String(value ?? "").trim().toUpperCase();
           }
         }
       ]),
@@ -380,18 +380,18 @@ describe("@leafergraph/core/node state roundtrip", () => {
           size: [320, 180],
           properties: [
             {
-              name: "ratio",
-              type: "number",
-              default: 2
+              name: "enabled",
+              type: "boolean",
+              default: true
             }
           ],
-          inputs: [{ name: "Target In" }],
-          outputs: [{ name: "Target Out" }],
+          inputs: [{ name: "Target In", type: "event" }],
+          outputs: [{ name: "Target Out", type: "event" }],
           widgets: [
             {
               type: "input",
               name: "targetLabel",
-              value: "target"
+              value: "  target  "
             }
           ]
         }
@@ -401,66 +401,73 @@ describe("@leafergraph/core/node state roundtrip", () => {
     const node = createNodeState(registry, {
       id: "switch-1",
       type: "demo/source",
-      title: "Customized Source",
-      properties: {
-        count: 9,
-        legacy: true
+      layout: {
+        x: 10,
+        y: 20
       },
-      inputs: [{ name: "Custom Source In" }],
-      outputs: [{ name: "Custom Source Out" }],
-      widgets: [
-        {
-          type: "input",
-          name: "sourceLabel",
-          value: "custom source"
-        }
-      ],
+      properties: {
+        count: 99
+      },
       data: {
-        persisted: "before"
+        persisted: true
+      },
+      flags: {
+        selected: true
       }
     });
 
     configureNode(registry, node, {
+      type: "demo/target"
+    });
+
+    expect(node).toMatchObject({
+      id: "switch-1",
       type: "demo/target",
-      title: "Target Override",
+      title: "Target Node",
+      layout: {
+        x: 10,
+        y: 20,
+        width: 320,
+        height: 180
+      },
+      properties: {
+        enabled: true
+      },
+      data: {
+        persisted: true
+      },
+      flags: {
+        selected: true
+      }
+    });
+    expect(node.inputs).toEqual([{ name: "Target In", type: "event" }]);
+    expect(node.outputs).toEqual([{ name: "Target Out", type: "event" }]);
+    expect(node.widgets[0]?.name).toBe("targetLabel");
+    expect(node.widgets[0]?.value).toBe("TARGET");
+
+    configureNode(registry, node, {
+      type: "demo/source",
+      title: "Explicit Override",
+      properties: {
+        count: 7
+      },
+      inputs: [{ name: "Custom In", type: "event" }],
       widgets: [
         {
           type: "input",
-          name: "targetLabel",
-          value: "custom target"
+          name: "customLabel",
+          value: "  custom  "
         }
       ]
     });
 
-    expect(node.type).toBe("demo/target");
-    expect(node.title).toBe("Target Override");
-    expect(node.layout).toEqual({
-      x: 0,
-      y: 0,
-      width: 320,
-      height: 180
-    });
-    expect(node.propertySpecs).toEqual([
-      {
-        name: "ratio",
-        type: "number",
-        default: 2
-      }
-    ]);
+    expect(node.title).toBe("Explicit Override");
     expect(node.properties).toEqual({
-      ratio: 2
+      count: 7
     });
-    expect(node.inputs).toEqual([{ name: "Target In" }]);
-    expect(node.outputs).toEqual([{ name: "Target Out" }]);
-    expect(node.widgets).toEqual([
-      {
-        type: "input",
-        name: "targetLabel",
-        value: "custom target"
-      }
-    ]);
-    expect(node.data).toEqual({
-      persisted: "before"
-    });
+    expect(node.inputs).toEqual([{ name: "Custom In", type: "event" }]);
+    expect(node.outputs).toEqual([{ name: "Source Out" }]);
+    expect(node.widgets[0]?.name).toBe("customLabel");
+    expect(node.widgets[0]?.value).toBe("CUSTOM");
   });
 });

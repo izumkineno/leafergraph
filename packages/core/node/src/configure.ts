@@ -44,9 +44,16 @@ export function configureNode(
 ): NodeRuntimeState {
   const definition = registry.get(data.type) ?? createMissingNodeDefinition(data.type);
   const isTypeSwitch = node.type !== definition.type;
+  const currentLayout = isTypeSwitch
+    ? {
+        x: node.layout.x,
+        y: node.layout.y
+      }
+    : node.layout;
   const propertySpecs = clonePropertySpecs(
     data.propertySpecs ??
-      (isTypeSwitch ? definition.properties : node.propertySpecs ?? definition.properties)
+      (isTypeSwitch ? definition.properties : node.propertySpecs) ??
+      definition.properties
   );
 
   // 先根据传入数据与定义回填静态结构，再重建运行时缓存。
@@ -54,10 +61,10 @@ export function configureNode(
   node.type = definition.type;
   node.title =
     data.title ??
-    (isTypeSwitch
-      ? definition.title ?? createDefaultTitle(definition.type)
-      : node.title ?? definition.title ?? createDefaultTitle(definition.type));
-  node.layout = resolveNodeLayout(definition, data.layout, node.layout);
+    (isTypeSwitch ? definition.title : node.title) ??
+    definition.title ??
+    createDefaultTitle(definition.type);
+  node.layout = resolveNodeLayout(definition, data.layout, currentLayout);
   node.propertySpecs = propertySpecs;
   node.properties = createPropertyValues(
     propertySpecs,
@@ -67,7 +74,8 @@ export function configureNode(
     data.inputs ?? (isTypeSwitch ? definition.inputs : node.inputs ?? definition.inputs)
   );
   node.outputs = cloneSlotSpecs(
-    data.outputs ?? (isTypeSwitch ? definition.outputs : node.outputs ?? definition.outputs)
+    data.outputs ??
+      (isTypeSwitch ? definition.outputs : node.outputs ?? definition.outputs)
   );
   node.widgets = normalizeWidgetSpecs(
     registry.widgetDefinitions,
