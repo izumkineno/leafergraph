@@ -544,18 +544,20 @@ function applyOperationToDocument(
 
       return createApplyStepResult(updatedDocument, [operation.nodeId], []);
     }
-    case "node.remove":
+    case "node.remove": {
+      const removedLinkIds = document.links
+        .filter(
+          (link) =>
+            link.source.nodeId === operation.nodeId ||
+            link.target.nodeId === operation.nodeId
+        )
+        .map((link) => link.id);
       return createApplyStepResult(
         removeNodeSnapshot(document, operation.nodeId),
         [operation.nodeId],
-        document.links
-          .filter(
-            (link) =>
-              link.source.nodeId === operation.nodeId ||
-              link.target.nodeId === operation.nodeId
-          )
-          .map((link) => link.id)
+        removedLinkIds
       );
+    }
     case "link.create": {
       const linkId = operation.input.id;
       if (!linkId) {

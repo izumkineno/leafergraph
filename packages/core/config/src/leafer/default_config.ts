@@ -43,11 +43,7 @@ export function resolveDefaultLeaferGraphLeaferConfig(): NormalizedLeaferGraphLe
     editor: {},
     textEditor: {
       useOfficialTextEditor: true
-    },
-    resize: {},
-    state: {},
-    find: {},
-    flow: {}
+    }
   };
 }
 
@@ -108,18 +104,6 @@ export function normalizeLeaferGraphLeaferConfig(
       useOfficialTextEditor:
         config?.textEditor?.useOfficialTextEditor ?? useOfficialTextEditor,
       raw: config?.textEditor?.raw
-    },
-    resize: {
-      raw: config?.resize?.raw
-    },
-    state: {
-      raw: config?.state?.raw
-    },
-    find: {
-      raw: config?.find?.raw
-    },
-    flow: {
-      raw: config?.flow?.raw
     }
   };
 }

@@ -45,7 +45,7 @@ describe("@leafergraph/core/config", () => {
       },
       widget: {
         editing: {
-          enabled: false,
+          enabled: true,
           useOfficialTextEditor: true,
           allowOptionsMenu: true
         }
@@ -74,11 +74,7 @@ describe("@leafergraph/core/config", () => {
         editor: {},
         textEditor: {
           useOfficialTextEditor: true
-        },
-        resize: {},
-        state: {},
-        find: {},
-        flow: {}
+        }
       }
     });
   });

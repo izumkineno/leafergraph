@@ -115,15 +115,6 @@ export interface LeaferGraphLeaferPluginConfig {
   raw?: Record<string, unknown>;
 }
 
-/** resize 插件配置别名。 */
-export type LeaferGraphLeaferResizeConfig = LeaferGraphLeaferPluginConfig;
-/** state 插件配置别名。 */
-export type LeaferGraphLeaferStateConfig = LeaferGraphLeaferPluginConfig;
-/** find 插件配置别名。 */
-export type LeaferGraphLeaferFindConfig = LeaferGraphLeaferPluginConfig;
-/** flow 插件配置别名。 */
-export type LeaferGraphLeaferFlowConfig = LeaferGraphLeaferPluginConfig;
-
 /**
  * Leafer 相关总配置。
  */
@@ -140,14 +131,6 @@ export interface LeaferGraphLeaferConfig {
   editor?: LeaferGraphLeaferEditorConfig;
   /** 文本编辑器配置。 */
   textEditor?: LeaferGraphLeaferTextEditorConfig;
-  /** Resize 插件配置。 */
-  resize?: LeaferGraphLeaferResizeConfig;
-  /** State 插件配置。 */
-  state?: LeaferGraphLeaferStateConfig;
-  /** Find 插件配置。 */
-  find?: LeaferGraphLeaferFindConfig;
-  /** Flow 插件配置。 */
-  flow?: LeaferGraphLeaferFlowConfig;
 }
 
 /**
@@ -242,19 +225,6 @@ export interface NormalizedLeaferGraphLeaferPluginConfig {
   raw?: Record<string, unknown>;
 }
 
-/** 归一化后的 resize 插件配置别名。 */
-export type NormalizedLeaferGraphLeaferResizeConfig =
-  NormalizedLeaferGraphLeaferPluginConfig;
-/** 归一化后的 state 插件配置别名。 */
-export type NormalizedLeaferGraphLeaferStateConfig =
-  NormalizedLeaferGraphLeaferPluginConfig;
-/** 归一化后的 find 插件配置别名。 */
-export type NormalizedLeaferGraphLeaferFindConfig =
-  NormalizedLeaferGraphLeaferPluginConfig;
-/** 归一化后的 flow 插件配置别名。 */
-export type NormalizedLeaferGraphLeaferFlowConfig =
-  NormalizedLeaferGraphLeaferPluginConfig;
-
 /**
  * 归一化后的 Leafer 总配置。
  */
@@ -271,12 +241,4 @@ export interface NormalizedLeaferGraphLeaferConfig {
   editor: NormalizedLeaferGraphLeaferEditorConfig;
   /** 已补齐默认值的文本编辑器配置。 */
   textEditor: NormalizedLeaferGraphLeaferTextEditorConfig;
-  /** 已补齐默认值的 resize 插件配置。 */
-  resize: NormalizedLeaferGraphLeaferResizeConfig;
-  /** 已补齐默认值的 state 插件配置。 */
-  state: NormalizedLeaferGraphLeaferStateConfig;
-  /** 已补齐默认值的 find 插件配置。 */
-  find: NormalizedLeaferGraphLeaferFindConfig;
-  /** 已补齐默认值的 flow 插件配置。 */
-  flow: NormalizedLeaferGraphLeaferFlowConfig;
 }
