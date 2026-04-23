@@ -146,6 +146,25 @@ config: {
 
 `mini-graph` 现在默认已经打开这项配置。
 
+### Runtime Log 高频反馈批量刷新
+
+为了避免 `Timer` 等高频节点在 `10ms` 间隔下把每一条 runtime feedback 都直接映射成一次 Preact `setState` / 重渲染，`mini-graph` 现在会对 **Runtime Log 面板里的运行反馈** 做本地批量刷新：
+
+- 只对 `graph.subscribeRuntimeFeedback(...)` 产生的日志做批量合并；
+- Play / Stop / Reset / Fit / 删除节点等手动操作日志仍然保持即时写入；
+- 日志条目上限仍然是 `MAX_LOG_ENTRIES`，只是 UI 刷新频率被限制到了一个更稳定的窗口内；
+- Clear Log / Reset / 组件卸载会先取消待刷新的批量任务，避免旧图实例的延迟日志回写到新界面。
+
+这项优化是 `example/mini-graph` 自己的 demo 侧保护，不会改变 `leafergraph` / `@leafergraph/core/execution` 的 runtime feedback 事件语义。
+
+### 内存排查注意：`.heaptimeline` 不是最终 retained heap
+
+如果你在 DevTools 里用 `.heaptimeline` 追 `mini-graph` 的内存变化，需要注意：
+
+- `.heaptimeline` 记录的是一段时间内的**分配历史**，会把 Vite / Preact / DevTools 自己的分配也算进去；
+- 它很适合用来发现“哪里分配得太频繁”，但不等于这些对象最后都还活着；
+- 真正判断修复是否生效，优先看 production build 下的表现，或者在强制 GC 后再比较 retained heap / heap snapshot。
+
 ## 继续阅读
 
 - [根 README](../../README.md)

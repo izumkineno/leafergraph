@@ -55,12 +55,23 @@ import {
   createExampleContextMenu,
   type ExampleContextMenuHandle
 } from "./example_context_menu";
+import {
+  createRuntimeFeedbackSubscriptionTracker
+} from "./runtime_feedback_subscription_tracker";
+import {
+  createRuntimeFeedbackLogBuffer,
+  type RuntimeFeedbackLogBuffer,
+  type RuntimeFeedbackLogBufferSnapshot
+} from "./runtime_feedback_log_buffer";
 
 /** `fitView()` 的统一留白，避免节点紧贴画布边缘。 */
 const DEFAULT_FIT_VIEW_PADDING = 120;
 
 /** 运行日志最多保留的条目数，避免长时间运行后面板无限膨胀。 */
 const MAX_LOG_ENTRIES = 60;
+
+/** 高频 runtime feedback 进入日志面板前的批量刷新窗口。 */
+const RUNTIME_FEEDBACK_LOG_FLUSH_DELAY_MS = 120;
 
 /** demo 默认历史配置；`graph.history` 是真源，但不会因为写了 config 就自动启用历史。 */
 const EXAMPLE_GRAPH_HISTORY_CONFIG = {
@@ -226,6 +237,24 @@ export interface ExampleGraphActions {
   removeNode(nodeId: string): void;
   removeLink(linkId: string): void;
   registerAuthoringBundle(file: File): Promise<void>;
+}
+
+interface ExampleMiniGraphTestSurface {
+  getGraph(): LeaferGraph | null;
+  getStatus(): ExampleGraphStatus;
+  listNodeIds(): string[];
+  createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState;
+  createLink(input: LeaferGraphCreateLinkInput): GraphLink;
+  createLongTaskProbe(position?: { x?: number; y?: number }): NodeRuntimeState;
+  selectNode(nodeId: string): void;
+  fit(): void;
+  playLongTaskProbeDemo(nodeId: string): void;
+  play(): void;
+  stop(): void;
+  reset(): void;
+  appendLog(message: string): void;
+  getRuntimeFeedbackSubscriptionCount(): number;
+  getRuntimeLogBufferSnapshot(): RuntimeFeedbackLogBufferSnapshot | null;
 }
 
 /** 页面层消费 hook 结果时使用的完整返回值结构。 */
@@ -652,6 +681,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     null
   );
   const logEntrySeedRef = useRef(1);
+  const runtimeFeedbackSubscriptionTrackerRef = useRef<
+    ReturnType<typeof createRuntimeFeedbackSubscriptionTracker> | null
+  >(null);
+  const runtimeFeedbackLogBufferRef =
+    useRef<RuntimeFeedbackLogBuffer | null>(null);
   const [logs, setLogs] = useState<ExampleLogEntry[]>([]);
   const [historyState, setHistoryState] =
     useState<ExampleHistoryState>(createEmptyHistoryState);
@@ -676,20 +710,29 @@ export function useExampleGraph(): UseExampleGraphResult {
    * @param message - 消息。
    * @returns 无返回值。
    */
-  const appendLog = (message: string): void => {
+  const createLogEntry = (message: string): ExampleLogEntry => {
     const logEntryId = logEntrySeedRef.current;
     logEntrySeedRef.current += 1;
 
+    return {
+      id: logEntryId,
+      timestamp: Date.now(),
+      message
+    };
+  };
+
+  const appendLog = (message: string): void => {
+    const logEntry = createLogEntry(message);
+
     setLogs((currentLogs) =>
-      [
-        {
-          id: logEntryId,
-          timestamp: Date.now(),
-          message
-        },
-        ...currentLogs
-      ].slice(0, MAX_LOG_ENTRIES)
+      [logEntry, ...currentLogs].slice(0, MAX_LOG_ENTRIES)
     );
+  };
+
+  const clearRuntimeLogSurface = (): void => {
+    runtimeFeedbackLogBufferRef.current?.clear();
+    logEntrySeedRef.current = 1;
+    setLogs([]);
   };
 
   /**
@@ -1381,12 +1424,13 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     clearLongTaskProbeDemoPlayback();
+    clearRuntimeLogSurface();
     graph.stop();
     graph.replaceGraphDocument(createEmptyExampleDocument());
+    clearRuntimeLogSurface();
     clearTrackedLinks();
 
     scheduleFitView();
-    appendLog("已恢复默认空画布");
   };
 
   /**
@@ -1502,7 +1546,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       resetExampleGraph();
     },
     clearLog() {
-      setLogs([]);
+      clearRuntimeLogSurface();
     },
     setLinkPropagationAnimationPreset(preset) {
       if (preset === linkPropagationAnimationPreset) {
@@ -1628,6 +1672,28 @@ export function useExampleGraph(): UseExampleGraphResult {
       return;
     }
 
+    const stageWindow = stageHost.ownerDocument.defaultView ?? window;
+    const runtimeFeedbackLogBuffer = createRuntimeFeedbackLogBuffer<
+      ExampleLogEntry,
+      number
+    >({
+      maxEntries: MAX_LOG_ENTRIES,
+      flushDelayMs: RUNTIME_FEEDBACK_LOG_FLUSH_DELAY_MS,
+      scheduler: {
+        schedule(callback, delayMs) {
+          return stageWindow.setTimeout(callback, delayMs);
+        },
+        cancel(token) {
+          stageWindow.clearTimeout(token);
+        }
+      },
+      createEntry: createLogEntry,
+      applyEntries(createNextEntries) {
+        setLogs((currentLogs) => createNextEntries(currentLogs));
+      }
+    });
+    runtimeFeedbackLogBufferRef.current = runtimeFeedbackLogBuffer;
+
     let disposed = false;
     /**
      * 处理 `cleanupRuntimeFeedback` 相关逻辑。
@@ -1665,6 +1731,10 @@ export function useExampleGraph(): UseExampleGraphResult {
      * @returns 无返回值。
      */
     let restoreLeaferDebugConfig = (): void => {};
+    const runtimeFeedbackSubscriptionTracker =
+      createRuntimeFeedbackSubscriptionTracker();
+    runtimeFeedbackSubscriptionTrackerRef.current =
+      runtimeFeedbackSubscriptionTracker;
 
     /**
      *  浏览器窗口尺寸变化后，重新让图内容适配视图。
@@ -1693,6 +1763,10 @@ export function useExampleGraph(): UseExampleGraphResult {
 
       disposed = true;
       cleanupRuntimeFeedback();
+      runtimeFeedbackLogBuffer.dispose();
+      if (runtimeFeedbackLogBufferRef.current === runtimeFeedbackLogBuffer) {
+        runtimeFeedbackLogBufferRef.current = null;
+      }
       cleanupHistory();
       cleanupNodeState();
       cleanupUndoRedo();
@@ -1701,6 +1775,8 @@ export function useExampleGraph(): UseExampleGraphResult {
       window.removeEventListener("resize", handleWindowResize);
 
       clearLongTaskProbeDemoPlayback();
+      clearRuntimeLogSurface();
+      runtimeFeedbackSubscriptionTrackerRef.current = null;
       clearTrackedLinks();
       setHistoryState(createEmptyHistoryState());
       nodeIdsRef.current.clear();
@@ -1725,6 +1801,7 @@ export function useExampleGraph(): UseExampleGraphResult {
      */
     const bootstrap = async (): Promise<void> => {
       try {
+        runtimeFeedbackSubscriptionTracker.beginBootstrap();
         themeModeRef.current = resolvePreferredThemeMode();
         nodeIdsRef.current.clear();
         setHistoryState(createEmptyHistoryState());
@@ -1796,9 +1873,14 @@ export function useExampleGraph(): UseExampleGraphResult {
         );
 
         // 统一订阅运行反馈，再投影成页面层可直接显示的中文日志。
-        cleanupRuntimeFeedback = graph.subscribeRuntimeFeedback((event) => {
-          appendLog(formatRuntimeFeedback(event));
-        });
+        runtimeFeedbackSubscriptionTracker.attach(
+          graph.subscribeRuntimeFeedback((event) => {
+            runtimeFeedbackLogBuffer.enqueue(formatRuntimeFeedback(event));
+          })
+        );
+        cleanupRuntimeFeedback = () => {
+          runtimeFeedbackSubscriptionTracker.dispose();
+        };
 
         cleanupHistory = graph.subscribeHistory((event) => {
           if (
@@ -1890,6 +1972,7 @@ export function useExampleGraph(): UseExampleGraphResult {
           return;
         }
 
+        cleanupRuntimeFeedback();
         setStatus("error");
         setErrorMessage(
           error instanceof Error ? error.message : "LeaferGraph 初始化失败。"
@@ -2111,21 +2194,7 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     const debugWindow = window as Window & {
-      __MINI_GRAPH_TEST__?: {
-        getGraph(): LeaferGraph | null;
-        getStatus(): typeof status;
-        listNodeIds(): string[];
-        createNode(input: LeaferGraphCreateNodeInput): NodeRuntimeState;
-        createLink(input: LeaferGraphCreateLinkInput): GraphLink;
-        createLongTaskProbe(position?: { x?: number; y?: number }): NodeRuntimeState;
-        selectNode(nodeId: string): void;
-        fit(): void;
-        playLongTaskProbeDemo(nodeId: string): void;
-        play(): void;
-        stop(): void;
-        reset(): void;
-        appendLog(message: string): void;
-      };
+      __MINI_GRAPH_TEST__?: ExampleMiniGraphTestSurface;
     };
 
     debugWindow.__MINI_GRAPH_TEST__ = {
@@ -2159,7 +2228,14 @@ export function useExampleGraph(): UseExampleGraphResult {
       reset() {
         actions.reset();
       },
-      appendLog
+      appendLog,
+      getRuntimeFeedbackSubscriptionCount() {
+        return runtimeFeedbackSubscriptionTrackerRef.current?.getSnapshot()
+          .activeCount ?? 0;
+      },
+      getRuntimeLogBufferSnapshot() {
+        return runtimeFeedbackLogBufferRef.current?.getSnapshot() ?? null;
+      }
     };
 
     return () => {
