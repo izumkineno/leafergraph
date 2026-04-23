@@ -1,4 +1,5 @@
 export { createUndoRedoController } from "./core/controller";
+export { bindLeaferGraphUndoRedo } from "./graph";
 
 export type {
   UndoRedoController,
@@ -6,3 +7,8 @@ export type {
   UndoRedoControllerState,
   UndoRedoEntry
 } from "./core/types";
+export type {
+  BindLeaferGraphUndoRedoOptions,
+  BoundLeaferGraphUndoRedo,
+  LeaferGraphUndoRedoHost
+} from "./graph";

@@ -41,38 +41,81 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@leafergraph\/basic-kit$/,
+        find: /^@leafergraph\/core\/basic-kit$/,
         replacement: resolve(__dirname, "../../packages/core/basic-kit/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/core\/basic-kit\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/core/basic-kit/src/$1")
       },
       {
         find: /^@leafergraph\/core\/node$/,
         replacement: resolve(__dirname, "../../packages/core/node/src/index.ts")
       },
       {
+        find: /^@leafergraph\/core\/node\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/core/node/src/$1")
+      },
+      {
         find: /^@leafergraph\/core\/execution$/,
         replacement: resolve(__dirname, "../../packages/core/execution/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/core\/execution\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/core/execution/src/$1")
       },
       {
         find: /^@leafergraph\/core\/contracts$/,
         replacement: resolve(__dirname, "../../packages/core/contracts/src/index.ts")
       },
       {
+        find: /^@leafergraph\/core\/contracts\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/core/contracts/src/$1")
+      },
+      {
+        find: /^@leafergraph\/core\/theme$/,
+        replacement: resolve(__dirname, "../../packages/core/theme/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/core\/theme\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/core/theme/src/$1")
+      },
+      {
         find: /^@leafergraph\/core\/widget-runtime$/,
         replacement: resolve(__dirname, "../../packages/core/widget-runtime/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/core\/widget-runtime\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/core/widget-runtime/src/$1")
       },
       {
         find: /^@leafergraph\/extensions\/authoring$/,
         replacement: resolve(__dirname, "../../packages/extensions/authoring/src/index.ts")
       },
       {
+        find: /^@leafergraph\/extensions\/authoring\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/extensions/authoring/src/$1")
+      },
+      {
         find: /^@leafergraph\/extensions\/context-menu$/,
         replacement: resolve(__dirname, "../../packages/extensions/context-menu/src/index.ts")
+      },
+      {
+        find: /^@leafergraph\/extensions\/context-menu\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/extensions/context-menu/src/$1")
       },
       {
         find: /^@leafergraph\/extensions\/context-menu-builtins$/,
         replacement: resolve(
           __dirname,
           "../../packages/extensions/context-menu-builtins/src/index.ts"
+        )
+      },
+      {
+        find: /^@leafergraph\/extensions\/context-menu-builtins\/(.*)$/,
+        replacement: resolve(
+          __dirname,
+          "../../packages/extensions/context-menu-builtins/src/$1"
         )
       },
       {
@@ -87,6 +130,10 @@ export default defineConfig({
         )
       },
       {
+        find: /^@leafergraph\/extensions\/shortcuts\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/extensions/shortcuts/src/$1")
+      },
+      {
         find: /^@leafergraph\/extensions\/undo-redo$/,
         replacement: resolve(__dirname, "../../packages/extensions/undo-redo/src/index.ts")
       },
@@ -98,8 +145,16 @@ export default defineConfig({
         )
       },
       {
-        find: /^@leafergraph\/core\/theme$/,
-        replacement: resolve(__dirname, "../../packages/core/theme/src/index.ts")
+        find: /^@leafergraph\/extensions\/undo-redo\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/extensions/undo-redo/src/$1")
+      },
+      {
+        find: /^leafergraph$/,
+        replacement: resolve(__dirname, "../../packages/leafergraph/src/index.ts")
+      },
+      {
+        find: /^leafergraph\/(.*)$/,
+        replacement: resolve(__dirname, "../../packages/leafergraph/src/$1")
       }
     ]
   }

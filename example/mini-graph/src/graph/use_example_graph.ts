@@ -19,12 +19,12 @@ import {
 import {
   bindLeaferGraphUndoRedo,
   type BoundLeaferGraphUndoRedo
-} from "@leafergraph/extensions/undo-redo/graph";
+} from "@leafergraph/extensions/undo-redo";
 import type { UndoRedoControllerState } from "@leafergraph/extensions/undo-redo";
 import {
   bindLeaferGraphShortcuts,
   type BoundLeaferGraphShortcuts
-} from "@leafergraph/extensions/shortcuts/graph";
+} from "@leafergraph/extensions/shortcuts";
 import type { GraphLink, NodeRuntimeState, NodeSerializeResult } from "@leafergraph/core/node";
 import type {
   LeaferGraphCreateLinkInput,
@@ -1737,6 +1737,11 @@ export function useExampleGraph(): UseExampleGraphResult {
                   EXAMPLE_MINI_GRAPH_CONFIG.graph.graph.runtime.respectReducedMotion
               },
               history: EXAMPLE_MINI_GRAPH_CONFIG.graph.graph.history
+            },
+            widget: {
+              editing: {
+                enabled: true
+              }
             }
           },
           leaferDebug: cloneExampleLeaferDebugConfig(leaferDebugConfig)

@@ -129,6 +129,23 @@ bun run build
 - bundle loader 还能和当前宿主协作
 - 注册后的节点能进入右键菜单和运行链
 
+### Widget 文本编辑
+
+如果你要在这个示例里编辑 `input` / `textarea` / `select` 这类 widget，
+需要在 `createLeaferGraph(...)` 的初始化配置里显式开启：
+
+```ts
+config: {
+  widget: {
+    editing: {
+      enabled: true
+    }
+  }
+}
+```
+
+`mini-graph` 现在默认已经打开这项配置。
+
 ## 继续阅读
 
 - [根 README](../../README.md)
