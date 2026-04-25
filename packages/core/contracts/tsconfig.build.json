@@ -4,7 +4,8 @@
     "../tsconfig.build.base.json"
   ],
   "compilerOptions": {
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "outDir": "../../../dist/core/contracts"
   },
   "include": [
     "src"

@@ -5,7 +5,8 @@
   ],
   "compilerOptions": {
     "emitDeclarationOnly": false,
-    "allowImportingTsExtensions": false
+    "allowImportingTsExtensions": false,
+    "outDir": "../../../dist/core/node"
   },
   "include": [
     "src"

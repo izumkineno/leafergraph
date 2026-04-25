@@ -14,7 +14,9 @@ export default defineConfig({
     rollupOptions: {
       external: ["leafer-ui"]
     },
-    sourcemap: true
+    sourcemap: true,
+    // 输出到根目录的dist/leafergraph
+    outDir: resolve(__dirname, "../../dist/leafergraph")
   },
   resolve: {
     alias: createLeafergraphAliases(resolve(__dirname, "../.."))
