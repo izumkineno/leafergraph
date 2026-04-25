@@ -21,6 +21,14 @@ import {
   isNodeTitleHitTarget
 } from "./hit_test";
 
+interface LeaferGraphNodeDragListeners {
+  onPointerEnter: (event: LeaferGraphWidgetPointerEvent) => void;
+  onPointerLeave: () => void;
+  onPointerDown: (event: LeaferGraphWidgetPointerEvent) => void;
+}
+
+const dragListenersMap = new WeakMap<Group, LeaferGraphNodeDragListeners>();
+
 /**
  * 绑定节点拖拽交互。
  *
@@ -38,7 +46,7 @@ export function bindLeaferGraphNodeDragging<
   view: Group
 ): void {
   // 先绑定 hover 反馈，让节点在进入和离开时同步更新 hover 态与 cursor。
-  view.on("pointer.enter", (event: LeaferGraphWidgetPointerEvent) => {
+  const onPointerEnter = (event: LeaferGraphWidgetPointerEvent) => {
     context.options.runtime.setNodeHovered(nodeId, true);
 
     if (
@@ -49,18 +57,18 @@ export function bindLeaferGraphNodeDragging<
     ) {
       context.options.container.style.cursor = "grab";
     }
-  });
+  };
 
-  view.on("pointer.leave", () => {
+  const onPointerLeave = () => {
     context.options.runtime.setNodeHovered(nodeId, false);
 
     if (!context.getDragState() && !context.getResizeState() && !context.getConnectionState()) {
       context.options.container.style.cursor = "";
     }
-  });
+  };
 
   // 再绑定按下逻辑，把选区切换、focus 和拖拽启动收口到同一个入口。
-  view.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
+  const onPointerDown = (event: LeaferGraphWidgetPointerEvent) => {
     const state = context.options.runtime.getNodeView(nodeId);
     if (!state) {
       return;
@@ -98,7 +106,31 @@ export function bindLeaferGraphNodeDragging<
     }
 
     startLeaferGraphNodeDrag(context, nodeId, state, event);
-  });
+  };
+
+  view.on("pointer.enter", onPointerEnter);
+  view.on("pointer.leave", onPointerLeave);
+  view.on("pointer.down", onPointerDown);
+
+  dragListenersMap.set(view, { onPointerEnter, onPointerLeave, onPointerDown });
+}
+
+/**
+ * 解绑节点拖拽交互。
+ *
+ * @param view - 当前节点视图。
+ * @returns 无返回值。
+ */
+export function unbindLeaferGraphNodeDragging(view: Group): void {
+  const listeners = dragListenersMap.get(view);
+  if (!listeners) {
+    return;
+  }
+
+  view.off("pointer.enter", listeners.onPointerEnter);
+  view.off("pointer.leave", listeners.onPointerLeave);
+  view.off("pointer.down", listeners.onPointerDown);
+  dragListenersMap.delete(view);
 }
 
 /**

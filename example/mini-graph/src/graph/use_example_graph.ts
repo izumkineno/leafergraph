@@ -63,6 +63,18 @@ import {
   type RuntimeFeedbackLogBuffer,
   type RuntimeFeedbackLogBufferSnapshot
 } from "./runtime_feedback_log_buffer";
+import {
+  createMiniGraphDiagnosticController,
+  type DiagnosticControllerState,
+  type MiniGraphDiagnosticController
+} from "./diagnostic_controller";
+import {
+  createExampleAnimationFrameScheduler,
+  resolveExampleMemoryControlOptions,
+  type ExampleAnimationFrameScheduler,
+  type ExampleLifecycleDiagnosticsSnapshot,
+  type ExampleMemoryControlWindow
+} from "./lifecycle_diagnostics";
 
 /** `fitView()` 的统一留白，避免节点紧贴画布边缘。 */
 const DEFAULT_FIT_VIEW_PADDING = 120;
@@ -255,6 +267,10 @@ interface ExampleMiniGraphTestSurface {
   appendLog(message: string): void;
   getRuntimeFeedbackSubscriptionCount(): number;
   getRuntimeLogBufferSnapshot(): RuntimeFeedbackLogBufferSnapshot | null;
+  getLifecycleDiagnosticsSnapshot(): ExampleLifecycleDiagnosticsSnapshot | null;
+  createDiagnosticComparisonController(): MiniGraphDiagnosticController;
+  getDiagnosticComparisonState(): DiagnosticControllerState;
+  destroyDiagnosticComparisonController(): void;
 }
 
 /** 页面层消费 hook 结果时使用的完整返回值结构。 */
@@ -676,6 +692,8 @@ export function useExampleGraph(): UseExampleGraphResult {
   const registeredBundlesRef = useRef<ExampleRegisteredBundleEntry[]>([]);
   const trackedLinksRef = useRef(new Map<string, ExampleTrackedLinkEntry>());
   const longTaskProbeDemoTimeoutIdsRef = useRef<number[]>([]);
+  const fitViewSchedulerRef = useRef<ExampleAnimationFrameScheduler | null>(null);
+  const diagnosticComparisonControllerRef = useRef<MiniGraphDiagnosticController | null>(null);
   const autoRegisteredAuthoringBasicNodesRef = useRef(false);
   const authoringBasicNodesRegistrationPromiseRef = useRef<Promise<boolean> | null>(
     null
@@ -743,8 +761,19 @@ export function useExampleGraph(): UseExampleGraphResult {
    *
    * @returns 无返回值。
    */
+  const clearScheduledFitView = (): void => {
+    fitViewSchedulerRef.current?.cancelAll();
+  };
+
   const scheduleFitView = (): void => {
-    requestAnimationFrame(() => {
+    fitViewSchedulerRef.current?.cancelAll();
+    const scheduler = fitViewSchedulerRef.current;
+    if (!scheduler) {
+      graphRef.current?.fitView(DEFAULT_FIT_VIEW_PADDING);
+      return;
+    }
+
+    scheduler.schedule(() => {
       graphRef.current?.fitView(DEFAULT_FIT_VIEW_PADDING);
     });
   };
@@ -1026,6 +1055,21 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     trackedLinksRef.current.clear();
+  };
+
+  /**
+   * reset / 文档替换会直接清空场景，不保证逐个派发节点 removed 事件。
+   * 因此 demo 自己维护的右键菜单节点目标需要显式解绑，避免旧节点视图
+   * 继续通过右键菜单绑定记录保持可达。
+   *
+   * @returns 无返回值。
+   */
+  const clearTrackedNodeMenuTargets = (): void => {
+    for (const nodeId of nodeIdsRef.current) {
+      contextMenuRef.current?.unbindNodeTarget(nodeId);
+    }
+
+    nodeIdsRef.current.clear();
   };
 
   /**
@@ -1425,10 +1469,14 @@ export function useExampleGraph(): UseExampleGraphResult {
 
     clearLongTaskProbeDemoPlayback();
     clearRuntimeLogSurface();
+    clearScheduledFitView();
+    clearTrackedLinks();
+    clearTrackedNodeMenuTargets();
     graph.stop();
     graph.replaceGraphDocument(createEmptyExampleDocument());
     clearRuntimeLogSurface();
     clearTrackedLinks();
+    clearTrackedNodeMenuTargets();
 
     scheduleFitView();
   };
@@ -1491,6 +1539,24 @@ export function useExampleGraph(): UseExampleGraphResult {
    * 这里统一做“实例是否就绪”的防御判断，
    * 这样页面层只管绑定按钮，不需要重复写判空逻辑。
    */
+  /**
+   * 创建与原生对照 demo 共用的诊断控制器。
+   *
+   * 这里不自动 bootstrap 到当前 Preact 画布，避免在同一个 DOM 宿主里创建第二个图实例；
+   * 调试者可以通过开发期测试面拿到同一 controller 实现，挂到独立容器后做 apples-to-apples 对照。
+   */
+  const getDiagnosticComparisonController = (): MiniGraphDiagnosticController => {
+    if (!diagnosticComparisonControllerRef.current) {
+      diagnosticComparisonControllerRef.current = createMiniGraphDiagnosticController({
+        maxLogs: MAX_LOG_ENTRIES,
+        linkPropagationAnimation: linkPropagationAnimationPreset,
+        respectReducedMotion:
+          EXAMPLE_MINI_GRAPH_CONFIG.graph.graph.runtime.respectReducedMotion
+      });
+    }
+
+    return diagnosticComparisonControllerRef.current;
+  };
   const actions: ExampleGraphActions = {
     undo() {
       runHistoryAction("undo");
@@ -1673,6 +1739,11 @@ export function useExampleGraph(): UseExampleGraphResult {
     }
 
     const stageWindow = stageHost.ownerDocument.defaultView ?? window;
+    const memoryControlOptions = resolveExampleMemoryControlOptions(
+      stageWindow as Window & ExampleMemoryControlWindow
+    );
+    const fitViewScheduler = createExampleAnimationFrameScheduler(stageWindow);
+    fitViewSchedulerRef.current = fitViewScheduler;
     const runtimeFeedbackLogBuffer = createRuntimeFeedbackLogBuffer<
       ExampleLogEntry,
       number
@@ -1774,12 +1845,16 @@ export function useExampleGraph(): UseExampleGraphResult {
       restoreLeaferDebugConfig();
       window.removeEventListener("resize", handleWindowResize);
 
+      clearScheduledFitView();
+      if (fitViewSchedulerRef.current === fitViewScheduler) {
+        fitViewSchedulerRef.current = null;
+      }
       clearLongTaskProbeDemoPlayback();
       clearRuntimeLogSurface();
       runtimeFeedbackSubscriptionTrackerRef.current = null;
       clearTrackedLinks();
+      clearTrackedNodeMenuTargets();
       setHistoryState(createEmptyHistoryState());
-      nodeIdsRef.current.clear();
       shortcutsBindingRef.current = null;
       contextMenuRef.current?.destroy();
       contextMenuRef.current = null;
@@ -1803,7 +1878,7 @@ export function useExampleGraph(): UseExampleGraphResult {
       try {
         runtimeFeedbackSubscriptionTracker.beginBootstrap();
         themeModeRef.current = resolvePreferredThemeMode();
-        nodeIdsRef.current.clear();
+        clearTrackedNodeMenuTargets();
         setHistoryState(createEmptyHistoryState());
         const exampleConfig = {
           graph: {
@@ -1873,11 +1948,14 @@ export function useExampleGraph(): UseExampleGraphResult {
         );
 
         // 统一订阅运行反馈，再投影成页面层可直接显示的中文日志。
-        runtimeFeedbackSubscriptionTracker.attach(
-          graph.subscribeRuntimeFeedback((event) => {
-            runtimeFeedbackLogBuffer.enqueue(formatRuntimeFeedback(event));
-          })
-        );
+        // 内存排查控制组可关闭这条投影，验证日志面板是否为主因。
+        if (!memoryControlOptions.disableRuntimeFeedbackProjection) {
+          runtimeFeedbackSubscriptionTracker.attach(
+            graph.subscribeRuntimeFeedback((event) => {
+              runtimeFeedbackLogBuffer.enqueue(formatRuntimeFeedback(event));
+            })
+          );
+        }
         cleanupRuntimeFeedback = () => {
           runtimeFeedbackSubscriptionTracker.dispose();
         };
@@ -2183,13 +2261,20 @@ export function useExampleGraph(): UseExampleGraphResult {
     );
 
     return () => {
-      shortcutsBindingRef.current = null;
       shortcutsBinding.destroy();
+      shortcutsBindingRef.current = null;
     };
   }, [status]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || typeof window === "undefined") {
+      return;
+    }
+
+    const memoryControlOptions = resolveExampleMemoryControlOptions(
+      window as Window & ExampleMemoryControlWindow
+    );
+    if (memoryControlOptions.disableDebugTestSurface) {
       return;
     }
 
@@ -2235,10 +2320,25 @@ export function useExampleGraph(): UseExampleGraphResult {
       },
       getRuntimeLogBufferSnapshot() {
         return runtimeFeedbackLogBufferRef.current?.getSnapshot() ?? null;
+      },
+      getLifecycleDiagnosticsSnapshot() {
+        return fitViewSchedulerRef.current?.getSnapshot() ?? null;
+      },
+      createDiagnosticComparisonController() {
+        return getDiagnosticComparisonController();
+      },
+      getDiagnosticComparisonState() {
+        return getDiagnosticComparisonController().getState();
+      },
+      destroyDiagnosticComparisonController() {
+        diagnosticComparisonControllerRef.current?.destroy();
+        diagnosticComparisonControllerRef.current = null;
       }
     };
 
     return () => {
+      diagnosticComparisonControllerRef.current?.destroy();
+      diagnosticComparisonControllerRef.current = null;
       delete debugWindow.__MINI_GRAPH_TEST__;
     };
   }, [

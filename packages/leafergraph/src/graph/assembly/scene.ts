@@ -248,12 +248,21 @@ export function createLeaferGraphSceneRuntimeAssembly<
       interactionHost.bindNodeCollapseToggle(nodeId, state);
       interactionHost.bindNodeTitleEdit(nodeId, state);
     },
-    onNodeRefreshed: (nodeId, state) => {
-      interactionHost.bindNodePorts(nodeId, state);
-      interactionHost.bindNodeResize(nodeId, state);
-      interactionHost.bindNodeCollapseToggle(nodeId, state);
-      interactionHost.bindNodeTitleEdit(nodeId, state);
+    onNodeRefreshed: (_nodeId, state) => {
+      interactionHost.unbindNodePorts(state);
+      interactionHost.unbindNodeResize(state.resizeHandle);
+      interactionHost.unbindNodeController(state);
+      interactionHost.bindNodePorts(_nodeId, state);
+      interactionHost.bindNodeResize(_nodeId, state);
+      interactionHost.bindNodeCollapseToggle(_nodeId, state);
+      interactionHost.bindNodeTitleEdit(_nodeId, state);
       nodeShellHost.applyNodeShellStatusStyles(state);
+    },
+    onNodeWillUnmount: (_nodeId, state) => {
+      interactionHost.unbindNodeDragging(state.view);
+      interactionHost.unbindNodePorts(state);
+      interactionHost.unbindNodeResize(state.resizeHandle);
+      interactionHost.unbindNodeController(state);
     }
   });
 

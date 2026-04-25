@@ -26,12 +26,19 @@ import {
 } from "./activity";
 import {
   bindLeaferGraphNodeDragging,
+  unbindLeaferGraphNodeDragging,
   finishLeaferGraphNodeDrag,
   updateLeaferGraphNodeDrag
 } from "./drag";
-import { bindLeaferGraphNodeResize, finishLeaferGraphNodeResize, updateLeaferGraphNodeResize } from "./resize";
+import {
+  bindLeaferGraphNodeResize,
+  unbindLeaferGraphNodeResize,
+  finishLeaferGraphNodeResize,
+  updateLeaferGraphNodeResize
+} from "./resize";
 import {
   bindLeaferGraphNodePorts,
+  unbindLeaferGraphNodePorts,
   clearLeaferGraphConnectionState,
   finishLeaferGraphConnection,
   updateLeaferGraphConnectionPreview
@@ -245,6 +252,16 @@ export class LeaferGraphInteractionHostController<
   }
 
   /**
+   * 解绑节点拖拽交互。
+   *
+   * @param view - 当前节点视图。
+   * @returns 无返回值。
+   */
+  unbindNodeDragging(view: Group): void {
+    unbindLeaferGraphNodeDragging(view);
+  }
+
+  /**
    * 绑定节点右下角 resize 句柄。
    *
    * @param nodeId - 目标节点 ID。
@@ -253,6 +270,16 @@ export class LeaferGraphInteractionHostController<
    */
   bindNodeResize(nodeId: string, state: TNodeViewState): void {
     bindLeaferGraphNodeResize(this.context, nodeId, state);
+  }
+
+  /**
+   * 解绑节点 resize 句柄。
+   *
+   * @param resizeHandle - resize 句柄元素。
+   * @returns 无返回值。
+   */
+  unbindNodeResize(resizeHandle: any): void {
+    unbindLeaferGraphNodeResize(resizeHandle);
   }
 
   /**
@@ -267,6 +294,25 @@ export class LeaferGraphInteractionHostController<
   }
 
   /**
+   * 解绑节点端口交互。
+   *
+   * @param state - 当前节点视图状态。
+   * @returns 无返回值。
+   */
+  unbindNodePorts(state: TNodeViewState): void {
+    unbindLeaferGraphNodePorts(state);
+  }
+
+  private readonly nodeControllerListeners = new WeakMap<
+    TNodeViewState,
+    {
+      signalButtonListener: (event: any) => void;
+      titleHitAreaListener: (event: any) => void;
+      clickTimeout: ReturnType<typeof setTimeout> | null;
+    }
+  >();
+
+  /**
    * 绑定左上角信号球的折叠开关。
    *
    * @param nodeId - 目标节点 ID。
@@ -274,7 +320,7 @@ export class LeaferGraphInteractionHostController<
    * @returns 无返回值。
    */
   bindNodeCollapseToggle(nodeId: string, state: TNodeViewState): void {
-    state.shellView.signalButton.on("pointer.down", (event) => {
+    const signalButtonListener = (event: any) => {
       if (!event.right && !event.middle) {
         if (!this.options.runtime.isNodeSelected(nodeId)) {
           this.options.runtime.setSelectedNodeIds([nodeId], "replace");
@@ -298,7 +344,20 @@ export class LeaferGraphInteractionHostController<
           afterCollapsed
         });
       }
-    });
+    };
+
+    state.shellView.signalButton.on("pointer.down", signalButtonListener);
+
+    const existing = this.nodeControllerListeners.get(state);
+    if (existing) {
+      existing.signalButtonListener = signalButtonListener;
+    } else {
+      this.nodeControllerListeners.set(state, {
+        signalButtonListener,
+        titleHitAreaListener: () => {},
+        clickTimeout: null
+      });
+    }
   }
 
   /**
@@ -309,15 +368,19 @@ export class LeaferGraphInteractionHostController<
    * @returns 无返回值。
    */
   bindNodeTitleEdit(nodeId: string, state: TNodeViewState): void {
-    let clickCount = 0;
-    let clickTimeout: ReturnType<typeof setTimeout> | null = null;
-
     const titleHitArea = state.shellView.titleHitArea;
     if (!titleHitArea) {
       return;
     }
 
-    titleHitArea.on("pointer.down", (event) => {
+    let clickCount = 0;
+    const listenerData = this.nodeControllerListeners.get(state) ?? {
+      signalButtonListener: () => {},
+      titleHitAreaListener: () => {},
+      clickTimeout: null
+    };
+
+    const titleHitAreaListener = (event: any) => {
       if (event.right || event.middle) {
         return;
       }
@@ -329,13 +392,14 @@ export class LeaferGraphInteractionHostController<
 
       clickCount++;
       if (clickCount === 1) {
-        clickTimeout = setTimeout(() => {
+        listenerData.clickTimeout = setTimeout(() => {
           clickCount = 0;
           // 单击事件，允许触发拖动
         }, 300);
       } else if (clickCount === 2) {
-        if (clickTimeout) {
-          clearTimeout(clickTimeout);
+        if (listenerData.clickTimeout) {
+          clearTimeout(listenerData.clickTimeout);
+          listenerData.clickTimeout = null;
         }
         clickCount = 0;
         // 双击事件，触发编辑
@@ -343,7 +407,36 @@ export class LeaferGraphInteractionHostController<
         event.stopNow?.();
         event.stop?.();
       }
-    });
+    };
+
+    titleHitArea.on("pointer.down", titleHitAreaListener);
+    listenerData.titleHitAreaListener = titleHitAreaListener;
+    this.nodeControllerListeners.set(state, listenerData);
+  }
+
+  /**
+   * 解绑节点控制器交互（信号球和标题编辑）。
+   *
+   * @param state - 当前节点视图状态。
+   * @returns 无返回值。
+   */
+  unbindNodeController(state: TNodeViewState): void {
+    const listenerData = this.nodeControllerListeners.get(state);
+    if (!listenerData) {
+      return;
+    }
+
+    if (listenerData.clickTimeout) {
+      clearTimeout(listenerData.clickTimeout);
+    }
+
+    state.shellView.signalButton.off("pointer.down", listenerData.signalButtonListener);
+
+    if (state.shellView.titleHitArea) {
+      state.shellView.titleHitArea.off("pointer.down", listenerData.titleHitAreaListener);
+    }
+
+    this.nodeControllerListeners.delete(state);
   }
 
   /**

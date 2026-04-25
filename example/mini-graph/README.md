@@ -176,3 +176,7 @@ config: {
 - [@leafergraph/extensions/undo-redo README](../../packages/extensions/undo-redo/README.md)
 
 
+
+## 原生内存对照 demo
+
+新增 `example/mini-graph-native` 作为不依赖 Preact 的原生 TypeScript 对照页面。它复用本示例的 `src/graph/diagnostic_controller.ts`，用于比较动画诊断链在 stop/reset 后的内存回落行为。

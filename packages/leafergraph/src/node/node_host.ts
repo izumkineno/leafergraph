@@ -61,6 +61,7 @@ interface LeaferGraphNodeHostOptions<
   onNodeViewCreated?(state: NodeViewState<TNodeState>): void;
   onNodeMounted?(nodeId: string, state: NodeViewState<TNodeState>): void;
   onNodeRefreshed?(nodeId: string, state: NodeViewState<TNodeState>): void;
+  onNodeWillUnmount?(nodeId: string, state: NodeViewState<TNodeState>): void;
 }
 
 /**
@@ -107,6 +108,9 @@ export class LeaferGraphNodeHost<
     if (!state) {
       return undefined;
     }
+
+    // 在卸载前调用清理钩子，允许外部解绑事件监听器
+    this.options.onNodeWillUnmount?.(nodeId, state);
 
     this.options.destroyNodeWidgets(state);
     state.view.remove();

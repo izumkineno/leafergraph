@@ -55,7 +55,10 @@
     "test:smoke:templates": "bun run --filter @template/authoring-node-template check && bun run --filter @template/authoring-node-template build && bun run --filter @template/authoring-text-widget-template check && bun run --filter @template/authoring-text-widget-template build && bun run --filter @template/authoring-browser-plugin-template check && bun run --filter @template/authoring-browser-plugin-template build",
     "test:smoke": "bun run test:smoke:examples && bun run test:smoke:templates",
     "test": "bun run test:workspace-boundaries && bun run check:boundaries && bun run check:jsdoc && bun run test:core && bun run test:smoke",
-    "preview:minimal-graph": "bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example preview"
+    "preview:minimal-graph": "bun run ensure:authoring-basic-nodes-dist && bun run --filter leafergraph-minimal-graph-example preview",
+    "dev:minimal-graph-native": "bun run --filter leafergraph-minimal-graph-native-example dev",
+    "build:minimal-graph-native": "bun run --filter leafergraph-minimal-graph-native-example build",
+    "preview:minimal-graph-native": "bun run --filter leafergraph-minimal-graph-native-example preview"
   },
   "devDependencies": {
     "@types/node": "^25.4.0",

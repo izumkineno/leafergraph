@@ -16,6 +16,13 @@ import {
   resolveConnectionEndpoints
 } from "./hit_test";
 
+interface PortListener {
+  hitArea: any;
+  listener: (event: LeaferGraphWidgetPointerEvent) => void;
+}
+
+const portListenersMap = new WeakMap<LeaferGraphInteractiveNodeViewState, PortListener[]>();
+
 /**
  * 绑定节点端口的最小拖线交互。
  *
@@ -32,8 +39,10 @@ export function bindLeaferGraphNodePorts<
   nodeId: string,
   state: TNodeViewState
 ): void {
+  const listeners: PortListener[] = [];
+
   for (const portView of state.shellView.portViews) {
-    portView.hitArea.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
+    const listener = (event: LeaferGraphWidgetPointerEvent) => {
       if (event.right || event.middle) {
         return;
       }
@@ -51,8 +60,35 @@ export function bindLeaferGraphNodePorts<
         portView.layout.index,
         event
       );
-    });
+    };
+
+    portView.hitArea.on("pointer.down", listener);
+    listeners.push({ hitArea: portView.hitArea, listener });
   }
+
+  portListenersMap.set(state, listeners);
+}
+
+/**
+ * 解绑节点端口交互。
+ *
+ * @param state - 当前节点视图状态。
+ * @returns 无返回值。
+ */
+export function unbindLeaferGraphNodePorts<
+  TNodeState extends NodeRuntimeState,
+  TNodeViewState extends LeaferGraphInteractiveNodeViewState<TNodeState>
+>(state: TNodeViewState): void {
+  const listeners = portListenersMap.get(state);
+  if (!listeners) {
+    return;
+  }
+
+  for (const { hitArea, listener } of listeners) {
+    hitArea.off("pointer.down", listener);
+  }
+
+  portListenersMap.delete(state);
 }
 
 /**

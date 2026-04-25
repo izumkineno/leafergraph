@@ -12,6 +12,8 @@ import type {
   LeaferGraphInteractiveNodeViewState
 } from "./types";
 
+const resizeListenersMap = new WeakMap<any, (event: LeaferGraphWidgetPointerEvent) => void>();
+
 /**
  * 绑定节点右下角 resize 句柄。
  *
@@ -32,7 +34,7 @@ export function bindLeaferGraphNodeResize<
     return;
   }
 
-  state.resizeHandle.on("pointer.down", (event: LeaferGraphWidgetPointerEvent) => {
+  const onPointerDown = (event: LeaferGraphWidgetPointerEvent) => {
     event.stopNow?.();
     event.stop?.();
     if (!event.right && !event.middle) {
@@ -58,7 +60,26 @@ export function bindLeaferGraphNodeResize<
     context.syncInteractionActivityState();
     context.options.runtime.syncNodeResizeHandleVisibility(nodeId);
     context.options.container.style.cursor = "nwse-resize";
-  });
+  };
+
+  state.resizeHandle.on("pointer.down", onPointerDown);
+  resizeListenersMap.set(state.resizeHandle, onPointerDown);
+}
+
+/**
+ * 解绑节点 resize 句柄。
+ *
+ * @param resizeHandle - resize 句柄元素。
+ * @returns 无返回值。
+ */
+export function unbindLeaferGraphNodeResize(resizeHandle: any): void {
+  const listener = resizeListenersMap.get(resizeHandle);
+  if (!listener) {
+    return;
+  }
+
+  resizeHandle.off("pointer.down", listener);
+  resizeListenersMap.delete(resizeHandle);
 }
 
 /**
