@@ -12,3 +12,4 @@ __pycache__/
 .omc
 .agents
 .claude
+temp/
