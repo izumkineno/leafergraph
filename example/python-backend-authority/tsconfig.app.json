@@ -7,6 +7,7 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "skipLibCheck": true,
+    "baseUrl": ".",
     "paths": {
       "@leafergraph/core/node": ["../../packages/core/node/src/index.ts"],
       "@leafergraph/core/node/*": ["../../packages/core/node/src/*"],
@@ -15,12 +16,9 @@
       "@leafergraph/core/basic-kit": ["../../packages/core/basic-kit/src/index.ts"],
       "@leafergraph/core/basic-kit/*": ["../../packages/core/basic-kit/src/*"],
       "@leafergraph/core/contracts": ["../../packages/core/contracts/src/index.ts"],
-      "@leafergraph/extensions/context-menu": ["../../packages/extensions/context-menu/src/index.ts"],
-      "@leafergraph/extensions/context-menu-builtins": ["../../packages/extensions/context-menu-builtins/src/index.ts"],
-      "@leafergraph/extensions/shortcuts": ["../../packages/extensions/shortcuts/src/index.ts"],
-      "@leafergraph/extensions/shortcuts/graph": ["../../packages/extensions/shortcuts/src/graph/index.ts"],
-      "@leafergraph/extensions/undo-redo": ["../../packages/extensions/undo-redo/src/index.ts"],
-      "@leafergraph/extensions/undo-redo/graph": ["../../packages/extensions/undo-redo/src/graph/index.ts"],
+      "@leafergraph/core/contracts/*": ["../../packages/core/contracts/src/*"],
+      "@leafergraph/core/config": ["../../packages/core/config/src/index.ts"],
+      "@leafergraph/core/config/*": ["../../packages/core/config/src/*"],
       "@leafergraph/core/theme": ["../../packages/core/theme/src/index.ts"],
       "@leafergraph/core/theme/*": ["../../packages/core/theme/src/*"],
       "@leafergraph/core/widget-runtime": ["../../packages/core/widget-runtime/src/index.ts"],
@@ -30,8 +28,6 @@
       "react": ["./node_modules/preact/compat/"],
       "react-dom": ["./node_modules/preact/compat/"]
     },
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
@@ -39,8 +35,6 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
-
-    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
