@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import queue
 import threading
 import time
@@ -21,6 +22,12 @@ from .protocol import (
     normalize_timer_config,
     resolve_route_nodes,
 )
+
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.INFO)
+logger.info("Logging initialized at INFO level")
 
 
 class TimerRuntimeService:
@@ -58,41 +65,49 @@ class TimerRuntimeService:
 
     def handle_command(self, command: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         graph_id = payload.get("graphId") or DEMO_GRAPH_ID
+        logger.info("Command received: %s graphId=%s", command, graph_id)
         if graph_id != DEMO_GRAPH_ID:
             return HTTPStatus.BAD_REQUEST, {"accepted": False, "error": f"Unknown graphId: {graph_id}"}
 
-        config = normalize_timer_config(payload.get("config"))
+        try:
+            config = normalize_timer_config(payload.get("config"))
 
-        with self._condition:
-            if command == "update-config":
-                self._config = config
-                self._graph_last_source = "config-update"
-                self._condition.notify_all()
-                return HTTPStatus.OK, make_acknowledgement(command, self._current_run_id, self._next_ack_seq_locked())
+            with self._condition:
+                if command == "update-config":
+                    self._config = config
+                    self._graph_last_source = "config-update"
+                    self._condition.notify_all()
+                    logger.info("Configuration updated")
+                    return HTTPStatus.OK, make_acknowledgement(command, self._current_run_id, self._next_ack_seq_locked())
 
-            if command == "start":
-                if self._graph_status == "running":
-                    return self._reject("Run already active")
-                self._config = config
-                self._start_run_locked()
-                ack = make_acknowledgement(command, self._current_run_id, self._next_ack_seq_locked())
-                self._emit_graph_execution_locked("started")
-                self._start_worker_locked()
-                return HTTPStatus.OK, ack
+                if command == "start":
+                    if self._graph_status == "running":
+                        return self._reject("Run already active")
+                    self._config = config
+                    self._start_run_locked()
+                    ack = make_acknowledgement(command, self._current_run_id, self._next_ack_seq_locked())
+                    self._emit_graph_execution_locked("started")
+                    self._start_worker_locked()
+                    logger.info("Run started: %s", self._current_run_id)
+                    return HTTPStatus.OK, ack
 
-            if command == "stop":
-                if self._graph_status == "idle" and self._graph_step_count == 0 and self._timer_thread is None:
-                    return self._reject("No active run to stop")
-                thread = self._timer_thread
-                self._stop_run_locked()
-                ack = make_acknowledgement(command, self._current_run_id, self._next_ack_seq_locked())
+                if command == "stop":
+                    if self._graph_status == "idle" and self._graph_step_count == 0 and self._timer_thread is None:
+                        return self._reject("No active run to stop")
+                    thread = self._timer_thread
+                    self._stop_run_locked()
+                    ack = make_acknowledgement(command, self._current_run_id, self._next_ack_seq_locked())
+                    logger.info("Run stopped: %s", self._current_run_id)
 
-        if thread and thread.is_alive():
-            thread.join(timeout=1.0)
-        with self._condition:
-            if self._timer_thread is thread:
-                self._timer_thread = None
-        return HTTPStatus.OK, ack
+            if thread and thread.is_alive():
+                thread.join(timeout=1.0)
+            with self._condition:
+                if self._timer_thread is thread:
+                    self._timer_thread = None
+            return HTTPStatus.OK, ack
+        except Exception as exc:
+            logger.error("Command %s failed: %s", command, exc, exc_info=True)
+            return HTTPStatus.INTERNAL_SERVER_ERROR, {"accepted": False, "error": str(exc)}
 
     def create_sse_session(self, last_event_id: str | None) -> tuple[queue.Queue[dict[str, Any]], list[dict[str, Any]]]:
         listener: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -128,6 +143,7 @@ class TimerRuntimeService:
         self._graph_last_tick_at = None
         self._active_token += 1
         self._reset_node_states_locked()
+        logger.info("Starting run %s route=%s", self._current_run_id, self._graph_last_route)
 
     def _start_worker_locked(self) -> None:
         if self._timer_thread and self._timer_thread.is_alive():
@@ -157,6 +173,12 @@ class TimerRuntimeService:
         self._graph_last_source = "tick"
         self._graph_last_route = self._config.route
         route_nodes = resolve_route_nodes(self._config.route)
+        logger.debug(
+            "Timer tick step=%s status=%s route=%s",
+            self._graph_step_count,
+            self._graph_status,
+            self._graph_last_route,
+        )
         self._emit_graph_execution_locked("advanced")
 
         for index, node_id in enumerate(route_nodes):
@@ -179,6 +201,7 @@ class TimerRuntimeService:
         self._graph_stopped_at = self._now_ms()
         self._graph_last_source = "stop"
         self._condition.notify_all()
+        logger.info("Stopping run %s step_count=%s", self._current_run_id, self._graph_step_count)
         self._emit_graph_execution_locked("stopped")
         self._reset_node_states_locked()
         for node_id in NODE_IDS:
@@ -268,10 +291,12 @@ class TimerRuntimeService:
         self._broadcast_locked(self._build_node_feedback_locked(node_id))
 
     def _emit_link_propagation_locked(self, source_node_id: str, target_node_id: str, timestamp: int) -> None:
+        source_short = source_node_id.replace("node-", "")
+        target_short = target_node_id.replace("node-", "")
         feedback = {
             "type": "link.propagation",
             "event": {
-                "linkId": f"link-{source_node_id}-{target_node_id}",
+                "linkId": f"link-{source_short}-{target_short}",
                 "chainId": f"{self._current_run_id}:{source_node_id}",
                 "sourceNodeId": source_node_id,
                 "sourceSlot": 0,
@@ -340,6 +365,36 @@ class TimerRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        logger.debug("HTTP POST %s from %s", parsed.path, self.client_address)
+        if parsed.path == "/commands/set-log-level":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+
+            payload: dict[str, Any] = {}
+            if length > 0:
+                raw = self.rfile.read(length)
+                if raw:
+                    payload = json.loads(raw.decode("utf-8"))
+
+            level_name = str(payload.get("level", "")).upper()
+            level_map = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "ERROR": logging.ERROR}
+            if level_name not in level_map:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"accepted": False, "error": f"Invalid level: {level_name}"})
+                return
+
+            new_level = level_map[level_name]
+            with self.runtime._lock:
+                logger.setLevel(new_level)
+
+            if new_level == logging.ERROR:
+                logger.error("Log level changed to %s", level_name)
+            else:
+                logger.info("Log level changed to %s", level_name)
+            self._send_json(HTTPStatus.OK, {"accepted": True, "level": level_name})
+            return
+
         if parsed.path not in {"/commands/start", "/commands/update-config", "/commands/stop"}:
             self._send_json(HTTPStatus.NOT_FOUND, {"accepted": False, "error": "Not found"})
             return
@@ -361,17 +416,22 @@ class TimerRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        logger.debug("HTTP GET %s from %s", parsed.path, self.client_address)
         if parsed.path == "/events":
             self._handle_events()
             return
         if parsed.path == "/health":
             self._send_json(HTTPStatus.OK, {"ok": True})
             return
+        if parsed.path == "/log-level":
+            self._send_json(HTTPStatus.OK, {"level": logging.getLevelName(logger.level)})
+            return
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
     def _handle_events(self) -> None:
         last_event_id = self.headers.get("Last-Event-ID")
         listener, initial_events = self.runtime.create_sse_session(last_event_id)
+        logger.debug("SSE connection established, replaying %s events", len(initial_events))
         self.send_response(HTTPStatus.OK)
         self._send_cors_headers()
         self.send_header("Content-Type", "text/event-stream")
@@ -396,9 +456,11 @@ class TimerRequestHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
         finally:
+            logger.debug("SSE connection closed for %s", self.client_address)
             self.runtime.remove_listener(listener)
 
     def _write_sse(self, event: dict[str, Any]) -> None:
+        logger.debug("SSE broadcast seq=%s type=%s", event["seq"], event.get("event", "runtime"))
         body = json.dumps(event, ensure_ascii=False)
         self.wfile.write(f"id: {event['seq']}\n".encode("utf-8"))
         self.wfile.write(b"event: runtime\n")

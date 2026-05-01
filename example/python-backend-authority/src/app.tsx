@@ -71,6 +71,10 @@ type TimerConfigState = {
   route: string;
 };
 
+type AnimationConfigState = {
+  preset: false | "performance" | "balanced" | "expressive";
+};
+
 type RuntimeFeedbackEnvelope = {
   seq: number;
   runId: string;
@@ -262,11 +266,15 @@ export function App() {
   const [nodeStates, setNodeStates] = useState(createInitialNodeViewState);
   const [isSending, setIsSending] = useState(false);
   const uiLogEnabledRef = useRef(true);
-  const [uiLogEnabled, setUiLogEnabled] = useState(true);
+  const [uiLogEnabled] = useState(true);
   const [timerConfig, setTimerConfig] = useState<TimerConfigState>({
     intervalMs: "1000",
     payload: '{ "message": "backend owned tick" }',
     route: "timer -> processor -> sink",
+  });
+  const [backendLogLevel, setBackendLogLevel] = useState<"DEBUG" | "INFO" | "ERROR">("INFO");
+  const [animationConfig, setAnimationConfig] = useState<AnimationConfigState>({
+    preset: "balanced",
   });
 
   const appendLog = (message: string): void => {
@@ -283,11 +291,58 @@ export function App() {
     setLogs((current) => [...current.slice(-49), nextEntry]);
   };
 
-  const toggleUiLog = (): void => {
-    const nextEnabled = !uiLogEnabledRef.current;
-    uiLogEnabledRef.current = nextEnabled;
-    setUiLogEnabled(nextEnabled);
+  const changeLogLevel = async (level: "DEBUG" | "INFO" | "ERROR"): Promise<void> => {
+    try {
+      const response = await fetch(`${BACKEND_BASE_URL}/commands/set-log-level`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ level }),
+      });
+      if (!response.ok) {
+        appendLog(`Failed to change backend log level to ${level}.`);
+        return;
+      }
+      setBackendLogLevel(level);
+      localStorage.setItem("backendLogLevel", level);
+      appendLog(`Backend log level changed to ${level}.`);
+    } catch (error) {
+      appendLog(
+        error instanceof Error
+          ? `Failed to change backend log level: ${error.message}`
+          : "Failed to change backend log level.",
+      );
+    }
   };
+
+  const fetchLogLevel = async (): Promise<void> => {
+    try {
+      const response = await fetch(`${BACKEND_BASE_URL}/log-level`);
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as { level?: string };
+      if (data.level === "DEBUG" || data.level === "INFO" || data.level === "ERROR") {
+        setBackendLogLevel(data.level);
+        localStorage.setItem("backendLogLevel", data.level);
+      }
+    } catch {
+      return;
+    }
+  };
+
+  useEffect(() => {
+    const savedLevel = localStorage.getItem("backendLogLevel");
+    if (savedLevel === "DEBUG" || savedLevel === "INFO" || savedLevel === "ERROR") {
+      setBackendLogLevel(savedLevel);
+    }
+    void fetchLogLevel();
+  }, []);
+
+  const customAnimationStyle = useMemo(() => {
+    return animationConfig.preset;
+  }, [animationConfig]);
 
   useEffect(() => {
     const stageHost = stageRef.current;
@@ -302,6 +357,13 @@ export function App() {
       const graph = createLeaferGraph(stageHost, {
         document: createEmptyDocument(),
         plugins: [leaferGraphBasicKitPlugin],
+        config: {
+          graph: {
+            runtime: {
+              linkPropagationAnimation: customAnimationStyle,
+            },
+          },
+        },
       });
       graphRef.current = graph;
       await graph.ready;
@@ -347,7 +409,7 @@ export function App() {
       graphRef.current = null;
       graph?.destroy();
     };
-  }, []);
+  }, [customAnimationStyle]);
 
   useEffect(() => {
     const graph = graphRef.current;
@@ -361,6 +423,7 @@ export function App() {
     source.onopen = () => {
       setConnectionState("open");
       appendLog("SSE connected to Python backend.");
+      void fetchLogLevel();
     };
 
     const handleRuntimeEvent = (message: MessageEvent<string>) => {
@@ -387,13 +450,14 @@ export function App() {
     source.onerror = () => {
       setConnectionState("error");
       appendLog("SSE connection dropped. Waiting for the browser to reconnect.");
+      void fetchLogLevel();
     };
 
     return () => {
       source.removeEventListener("runtime", handleRuntimeEvent);
       source.close();
     };
-  }, [graphReady]);
+  }, [graphReady, customAnimationStyle]);
 
   const sendCommand = async (command: CommandName): Promise<void> => {
     setIsSending(true);
@@ -449,9 +513,9 @@ export function App() {
       <section className="hero">
         <h1>Python Backend Timer Authority Demo</h1>
         <p>
-          The browser only sends remote commands to Python and only projects remote
-          RuntimeFeedbackEvent payloads back through LeaferGraph. The timer, route, and
-          tick lifecycle stay on the backend.
+          The browser only sends remote commands to Python and only projects
+          remote RuntimeFeedbackEvent payloads back through LeaferGraph. The
+          timer, route, and tick lifecycle stay on the backend.
         </p>
       </section>
 
@@ -495,7 +559,12 @@ export function App() {
             <div
               className="stage-host"
               ref={stageRef}
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+              }}
             />
           </div>
         </div>
@@ -546,12 +615,17 @@ export function App() {
                   }))
                 }
               />
-              <small>Serialized payload the backend attaches to each tick.</small>
+              <small>
+                Serialized payload the backend attaches to each tick.
+              </small>
             </label>
           </div>
 
           <div className="button-row">
-            <button disabled={!graphReady || isSending} onClick={() => void sendCommand("start")}>
+            <button
+              disabled={!graphReady || isSending}
+              onClick={() => void sendCommand("start")}
+            >
               Start
             </button>
             <button
@@ -568,24 +642,84 @@ export function App() {
             >
               Stop
             </button>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={uiLogEnabled}
-                onChange={toggleUiLog}
-                aria-label="Toggle UI log capture"
-              />
-              <span>UI Log {uiLogEnabled ? "On" : "Off"}</span>
-            </label>
           </div>
 
-          <ul className="control-list">
-            <li>Commands are sent to <code>/commands/start</code>, <code>/commands/update-config</code>, and <code>/commands/stop</code>.</li>
-            <li>The backend owns tick scheduling, route selection, and stop cleanup.</li>
-            <li>Transport envelopes are parsed as <code>{"{ seq, runId, feedback }"}</code>.</li>
-            <li>Only <code>feedback</code> reaches <code>projectRuntimeFeedback(...)</code>.</li>
+          <label className="field">
+            <span>Backend Log Level</span>
+            <select
+              value={backendLogLevel}
+              onChange={(event) =>
+                void changeLogLevel(
+                  event.currentTarget.value as "DEBUG" | "INFO" | "ERROR",
+                )
+              }
+              disabled={!graphReady || isSending}
+            >
+              <option value="DEBUG">DEBUG (Detailed)</option>
+              <option value="INFO">INFO (Normal)</option>
+              <option value="ERROR">ERROR (Errors Only)</option>
+            </select>
+            <small>
+              Adjusts backend logging immediately for all connected clients.
+            </small>
+          </label>
+
+          <ul className="backend-notes">
+            <li>
+              Commands are sent to <code>/commands/start</code>,{" "}
+              <code>/commands/update-config</code>, and{" "}
+              <code>/commands/stop</code>.
+            </li>
+            <li>
+              The backend owns tick scheduling, route selection, and stop
+              cleanup.
+            </li>
+            <li>
+              Transport envelopes are parsed as{" "}
+              <code>{"{ seq, runId, feedback }"}</code>.
+            </li>
+            <li>
+              Only <code>feedback</code> reaches{" "}
+              <code>projectRuntimeFeedback(...)</code>.
+            </li>
             <li>UI log capture is {uiLogEnabled ? "enabled" : "paused"}.</li>
           </ul>
+
+          <h2 style={{ marginTop: "18px" }}>Animation Controls</h2>
+          <div className="control-form">
+            <label className="field">
+              <span>Animation Preset</span>
+              <select
+                value={
+                  animationConfig.preset === false
+                    ? "off"
+                    : animationConfig.preset
+                }
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setAnimationConfig({
+                    preset:
+                      value === "off"
+                        ? false
+                        : (value as "performance" | "balanced" | "expressive"),
+                  });
+                }}
+              >
+                <option value="off">Off</option>
+                <option value="performance">
+                  Performance (16 pulses, 220ms)
+                </option>
+                <option value="balanced">Balanced (48 particles, 420ms)</option>
+                <option value="expressive">
+                  Expressive (24 pulses + 72 particles)
+                </option>
+              </select>
+              <small>
+                Performance: pulse waves only. Balanced: particles only.
+                Expressive: both.
+              </small>
+            </label>
+          </div>
 
           <h2 style={{ marginTop: "18px" }}>Projected Nodes</h2>
           <ul className="node-list">
@@ -593,7 +727,8 @@ export function App() {
               <li key={node.nodeId}>
                 <strong>{node.title}</strong>
                 <span>
-                  {node.nodeId} · status={node.status} · runCount={node.runCount}
+                  {node.nodeId} · status={node.status} · runCount=
+                  {node.runCount}
                 </span>
               </li>
             ))}

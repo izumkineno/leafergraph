@@ -83,7 +83,6 @@
 .control-form {
   display: grid;
   gap: 14px;
-  margin-bottom: 14px;
 }
 
 .field-grid {
@@ -111,7 +110,8 @@
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 10px;
@@ -130,6 +130,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  padding: 8px;
 }
 
 .button-row button,
