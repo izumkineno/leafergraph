@@ -1,0 +1,56 @@
+{
+  "name": "@leafergraph/node-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./controller": {
+      "types": "./src/controller.ts",
+      "import": "./src/controller.ts"
+    },
+    "./connections": {
+      "types": "./src/connections.ts",
+      "import": "./src/connections.ts"
+    },
+    "./execution": {
+      "types": "./src/execution.ts",
+      "import": "./src/execution.ts"
+    },
+    "./snapshot": {
+      "types": "./src/snapshot.ts",
+      "import": "./src/snapshot.ts"
+    },
+    "./state": {
+      "types": "./src/state.ts",
+      "import": "./src/state.ts"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "import": "./src/types.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "bun test --preload ./tests/setup.ts ./tests"
+  },
+  "dependencies": {
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/execution": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
+    "@leafergraph/core/widget-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.10"
+  }
+}
