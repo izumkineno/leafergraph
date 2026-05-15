@@ -30,7 +30,6 @@ import type {
   LeaferGraphGraphExecutionState,
   LeaferGraphHistoryRecord,
   LeaferGraphInteractionActivityState,
-  RuntimeAdapter,
   LeaferGraphConnectionPortState,
   LeaferGraphLinkPropagationEvent,
   LeaferGraphNodeExecutionEvent,
@@ -48,6 +47,7 @@ import type {
 } from "@leafergraph/core/contracts";
 import type { LeaferGraphRenderableNodeState } from "../../graph/types";
 import type { LeaferGraphBootstrapRuntimeLike } from "../../graph/host/bootstrap";
+import type { LeaferGraphRuntimeFeedbackHost } from "../../graph/feedback/local_runtime_adapter";
 import type { LeaferGraphHistorySource } from "../../graph/history";
 import type { LeaferGraphSceneRuntimeHost } from "../../graph/host/scene_runtime";
 import type { LeaferGraphInteractionCommitSource } from "../../interaction/interaction_commit_source";
@@ -107,8 +107,8 @@ export interface LeaferGraphApiRuntime<
   bootstrapRuntime: LeaferGraphBootstrapRuntimeLike;
   /** 读取当前正式图文档。 */
   getGraphDocument(): GraphDocument;
-  /** 宿主反馈与投影适配器。 */
-  runtimeAdapter: RuntimeAdapter;
+  /** 宿主统一运行反馈壳面。 */
+  runtimeFeedbackHost: LeaferGraphRuntimeFeedbackHost;
   /** Widget 编辑管理器。 */
   widgetEditingManager: {
     /** 销毁编辑管理器。 */

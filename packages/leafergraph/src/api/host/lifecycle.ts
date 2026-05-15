@@ -53,7 +53,7 @@ export function destroyLeaferGraphApiHost<
     );
   }
 
-  runtime.runtimeAdapter.destroy?.();
+  runtime.runtimeFeedbackHost.destroy?.();
   runtime.destroyHistoryCapture();
   runtime.interactionHost.destroy();
   runtime.nodeShellHost.destroy();

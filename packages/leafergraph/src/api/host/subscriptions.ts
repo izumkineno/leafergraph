@@ -5,7 +5,6 @@
  * 负责把运行时事件订阅能力和外部反馈投影统一收口。
  */
 
-import { projectExternalRuntimeFeedback } from "../../graph/feedback/projection";
 import type {
   LeaferGraphApiHostContext,
   LeaferGraphApiLinkViewState,
@@ -93,7 +92,7 @@ export function subscribeLeaferGraphApiRuntimeFeedback<
   context: LeaferGraphApiHostContext<TNodeState, TNodeViewState, TLinkViewState>,
   listener: (event: RuntimeFeedbackEvent) => void
 ): () => void {
-  return context.options.runtime.runtimeAdapter.subscribe(listener);
+  return context.options.runtime.runtimeFeedbackHost.subscribe(listener);
 }
 
 /**
@@ -167,23 +166,5 @@ export function projectLeaferGraphApiRuntimeFeedback<
   context: LeaferGraphApiHostContext<TNodeState, TNodeViewState, TLinkViewState>,
   feedback: RuntimeFeedbackEvent
 ): void {
-  projectExternalRuntimeFeedback(
-    {
-      projectExternalGraphExecution: (event) =>
-        context.options.runtime.graphExecutionHost.projectExternalGraphExecution(
-          event
-        ),
-      projectExternalNodeExecution: (event) =>
-        context.options.runtime.nodeRuntimeHost.projectExternalNodeExecution(
-          event
-        ),
-      projectExternalNodeState: (event) =>
-        context.options.runtime.nodeRuntimeHost.projectExternalNodeState(event),
-      projectExternalLinkPropagation: (event) =>
-        context.options.runtime.nodeRuntimeHost.projectExternalLinkPropagation(
-          event
-        )
-    },
-    feedback
-  );
+  context.options.runtime.runtimeFeedbackHost.projectRuntimeFeedback(feedback);
 }
