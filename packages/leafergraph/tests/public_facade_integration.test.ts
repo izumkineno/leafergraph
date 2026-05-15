@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { GraphDocument } from "@leafergraph/core/node";
+import type { RuntimeFeedbackEvent } from "@leafergraph/core/contracts";
 import { createLeaferGraph, LeaferGraph } from "../src";
 
 /**
@@ -132,6 +133,109 @@ describe("public_facade_integration", () => {
       expect(
         graph.listWidgets().some((widget) => widget.type === "demo/unregister-widget")
       ).toBe(false);
+    } finally {
+      graph.destroy();
+      container.remove();
+    }
+  });
+
+  test("subscribeRuntimeFeedback 与 projectRuntimeFeedback 会继续透传统一反馈事件", async () => {
+    const container = createContainer();
+    const graph = createLeaferGraph(container, {
+      document: createEmptyDocument()
+    });
+
+    await graph.ready;
+
+    try {
+      graph.registerNode(
+        {
+          type: "test/runtime-feedback-source",
+          title: "Source",
+          outputs: [{ name: "out" }],
+          onExecute(_node, _context, api) {
+            api.setOutputData(0, { payload: 7 });
+          }
+        },
+        { overwrite: true }
+      );
+      graph.registerNode(
+        {
+          type: "test/runtime-feedback-target",
+          title: "Target",
+          inputs: [{ name: "in" }]
+        },
+        { overwrite: true }
+      );
+
+      graph.createNode({
+        id: "source-node",
+        type: "test/runtime-feedback-source",
+        x: 0,
+        y: 0
+      });
+      graph.createNode({
+        id: "target-node",
+        type: "test/runtime-feedback-target",
+        x: 320,
+        y: 0
+      });
+      graph.createLink({
+        source: { nodeId: "source-node", slot: 0 },
+        target: { nodeId: "target-node", slot: 0 }
+      });
+
+      const receivedEvents: RuntimeFeedbackEvent[] = [];
+      const unsubscribe = graph.subscribeRuntimeFeedback((event) => {
+        receivedEvents.push(event);
+      });
+
+      try {
+        expect(graph.playFromNode("source-node")).toBe(true);
+        expect(receivedEvents.map((event) => event.type)).toEqual([
+          "node.state",
+          "link.propagation",
+          "node.state",
+          "node.execution"
+        ]);
+
+        graph.projectRuntimeFeedback({
+          type: "node.execution",
+          event: {
+            chainId: "external-chain",
+            rootNodeId: "target-node",
+            rootNodeType: "test/runtime-feedback-target",
+            rootNodeTitle: "Target",
+            nodeId: "target-node",
+            nodeType: "test/runtime-feedback-target",
+            nodeTitle: "Target",
+            depth: 0,
+            sequence: 0,
+            source: "node-play",
+            trigger: "direct",
+            timestamp: Date.now(),
+            executionContext: {
+              source: "node-play",
+              entryNodeId: "target-node",
+              stepIndex: 0,
+              startedAt: Date.now()
+            },
+            state: {
+              status: "error",
+              runCount: 99,
+              lastErrorMessage: "external"
+            }
+          }
+        });
+
+        expect(graph.getNodeExecutionState("target-node")).toMatchObject({
+          status: "error",
+          runCount: 99,
+          lastErrorMessage: "external"
+        });
+      } finally {
+        unsubscribe();
+      }
     } finally {
       graph.destroy();
       container.remove();

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
+import { LeaferGraphLinkDataFlowAnimationHost } from "@leafergraph/link-animation";
 import { Group } from "leafer-ui";
 import type { GraphLink } from "@leafergraph/core/node";
 import type { LeaferGraphLinkPropagationEvent } from "@leafergraph/core/contracts";
@@ -7,8 +8,9 @@ import {
   NODE_SHELL_LAYOUT_METRICS,
   createDefaultDataFlowAnimationStyleConfig
 } from "../src/graph/style";
-import { LeaferGraphLinkDataFlowAnimationHost } from "../src/link/animation/controller";
 import type { LeaferGraphLinkNodeState } from "../src/link/link_host";
+import { buildLinkPathFromCurve, sampleLinkCurvePoint } from "../src/link/link";
+import { resolveGraphLinkCurve } from "../src/link/curve";
 
 const originalMatchMedia = window.matchMedia;
 const originalRequestAnimationFrame = window.requestAnimationFrame;
@@ -27,6 +29,23 @@ function installRequestAnimationFrameStub(): void {
   window.cancelAnimationFrame = ((frameId: number) => {
     pendingFrames.delete(frameId);
   }) as typeof window.cancelAnimationFrame;
+
+  (window as typeof window & {
+    __runAnimationFrame(frameId?: number, timestamp?: number): void;
+  }).__runAnimationFrame = (frameId?: number, timestamp = 16) => {
+    const targetFrameId = frameId ?? pendingFrames.keys().next().value;
+    if (!targetFrameId) {
+      return;
+    }
+
+    const callback = pendingFrames.get(targetFrameId);
+    if (!callback) {
+      return;
+    }
+
+    pendingFrames.delete(targetFrameId);
+    callback(timestamp);
+  };
 }
 
 function createContainer(): HTMLDivElement {
@@ -141,28 +160,65 @@ function createHostHarness(
   let propagationListener:
     | ((event: LeaferGraphLinkPropagationEvent) => void)
     | undefined;
+  let requestRenderCount = 0;
+  let renderFrameCount = 0;
   const host = new LeaferGraphLinkDataFlowAnimationHost({
     container,
     linkLayer,
-    graphNodes,
-    graphLinks,
     layoutMetrics: NODE_SHELL_LAYOUT_METRICS,
     defaultNodeWidth: NODE_SHELL_LAYOUT_METRICS.defaultNodeWidth,
     portSize: NODE_SHELL_LAYOUT_METRICS.portSize,
-    resolveLinkStroke: () => "#475569",
-    resolveSlotTypeFillMap: () => ({ number: "#22c55e" }),
     resolveStyle: () => ({
       ...createDefaultDataFlowAnimationStyleConfig("expressive"),
       ...styleOverrides
     }),
     respectReducedMotion: hostOptions?.respectReducedMotion ?? true,
     getThemeMode: () => "light",
-    requestRender() {},
-    renderFrame() {},
+    requestRender() {
+      requestRenderCount += 1;
+    },
     subscribeLinkPropagation(listener) {
       propagationListener = listener;
       return () => {
         propagationListener = undefined;
+      };
+    },
+    resolveAnimatedLink(linkId, sourceSlotOverride) {
+      const link = graphLinks.get(linkId);
+      if (!link) {
+        return null;
+      }
+
+      const sourceNode = graphNodes.get(link.source.nodeId);
+      const targetNode = graphNodes.get(link.target.nodeId);
+      if (!sourceNode || !targetNode) {
+        return null;
+      }
+
+      const sourceSlot = Math.max(
+        0,
+        Math.floor(sourceSlotOverride ?? link.source.slot ?? 0)
+      );
+      const targetSlot = Math.max(0, Math.floor(link.target.slot ?? 0));
+      const curve = resolveGraphLinkCurve({
+        source: sourceNode,
+        target: targetNode,
+        sourceSlot,
+        targetSlot,
+        layoutMetrics: NODE_SHELL_LAYOUT_METRICS,
+        defaultNodeWidth: NODE_SHELL_LAYOUT_METRICS.defaultNodeWidth,
+        portSize: NODE_SHELL_LAYOUT_METRICS.portSize
+      });
+
+      return {
+        link,
+        sourceNode,
+        targetNode,
+        sourceSlot,
+        targetSlot,
+        color: "#22c55e",
+        path: buildLinkPathFromCurve(curve),
+        samplePoint: (progress) => sampleLinkCurvePoint(curve, progress)
       };
     }
   });
@@ -173,6 +229,12 @@ function createHostHarness(
     host,
     emit(event: LeaferGraphLinkPropagationEvent) {
       propagationListener?.(event);
+    },
+    getRenderCounts() {
+      return {
+        requestRenderCount,
+        renderFrameCount
+      };
     }
   };
 }
@@ -295,6 +357,36 @@ describe("link_animation_host", () => {
     host.restoreLayer();
 
     expect(internals.overlayGroup.parent).toBe(linkLayer);
+    host.destroy();
+  });
+
+  test("传播触发与后续帧推进只请求 requestRender，不再依赖 renderFrame", () => {
+    window.matchMedia = createMatchMedia(false);
+    installRequestAnimationFrameStub();
+
+    const { host, emit, getRenderCounts } = createHostHarness({
+      preset: "performance",
+      maxPulses: 1,
+      maxParticles: 0
+    });
+
+    emit(createPropagationEvent("link-a", "source-a", "target-a"));
+
+    expect(getRenderCounts()).toEqual({
+      requestRenderCount: 1,
+      renderFrameCount: 0
+    });
+
+    (
+      window as typeof window & {
+        __runAnimationFrame(frameId?: number, timestamp?: number): void;
+      }
+    ).__runAnimationFrame(undefined, 32);
+
+    expect(getRenderCounts()).toEqual({
+      requestRenderCount: 2,
+      renderFrameCount: 0
+    });
     host.destroy();
   });
 });

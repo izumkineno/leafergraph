@@ -45,6 +45,23 @@ function installRequestAnimationFrameStub(): void {
   window.cancelAnimationFrame = ((frameId: number) => {
     pendingFrames.delete(frameId);
   }) as typeof window.cancelAnimationFrame;
+
+  (window as typeof window & {
+    __runAnimationFrame(frameId?: number, timestamp?: number): void;
+  }).__runAnimationFrame = (frameId?: number, timestamp = 16) => {
+    const targetFrameId = frameId ?? pendingFrames.keys().next().value;
+    if (!targetFrameId) {
+      return;
+    }
+
+    const callback = pendingFrames.get(targetFrameId);
+    if (!callback) {
+      return;
+    }
+
+    pendingFrames.delete(targetFrameId);
+    callback(timestamp);
+  };
 }
 
 function createNodeState(id: string, type: string): NodeRuntimeState {
@@ -366,6 +383,41 @@ describe("node_shell_host", () => {
     expect(state.shellView.progressRing?.path).not.toBe("");
     expect(internals.activeIndeterminateNodeIds.size).toBe(0);
     expect(internals.frameId).toBeNull();
+  });
+
+  test("indeterminate progress RAF 推进只请求 requestRender，不再依赖 renderFrame", () => {
+    window.matchMedia = createMatchMedia(false);
+    installRequestAnimationFrameStub();
+
+    const { host, mountNode, executionStates, getRenderCounts } = createHarness();
+    const node = createNodeState("progress-loop", "demo/task");
+    const state = mountNode(node);
+    executionStates.set(node.id, {
+      status: "running",
+      runCount: 1,
+      lastExecutedAt: 10
+    });
+
+    const internals = host as unknown as {
+      now(): number;
+    };
+    internals.now = () => 0;
+    host.applyNodeShellStatusStyles(state);
+    expect(getRenderCounts()).toEqual({
+      requestRenderCount: 0,
+      renderFrameCount: 0
+    });
+
+    (
+      window as typeof window & {
+        __runAnimationFrame(frameId?: number, timestamp?: number): void;
+      }
+    ).__runAnimationFrame(undefined, 48);
+
+    expect(getRenderCounts()).toEqual({
+      requestRenderCount: 1,
+      renderFrameCount: 0
+    });
   });
 
   test("collapsed 会在 signal cluster 上展示 badge", () => {
