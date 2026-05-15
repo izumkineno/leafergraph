@@ -229,7 +229,36 @@
         "@leafergraph/core/node": "workspace:*",
         "@leafergraph/core/theme": "workspace:*",
         "@leafergraph/core/widget-runtime": "workspace:*",
+        "@leafergraph/link-animation": "workspace:*",
+        "@leafergraph/node-runtime": "workspace:*",
         "leafer-ui": "^2.0.3",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "packages/link-animation": {
+      "name": "@leafergraph/link-animation",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafer-in/arrow": "^2.0.3",
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/core/theme": "workspace:*",
+        "leafer-ui": "^2.0.3",
+      },
+      "devDependencies": {
+        "@happy-dom/global-registrator": "^20.0.10",
+      },
+    },
+    "packages/node-runtime": {
+      "name": "@leafergraph/node-runtime",
+      "version": "0.1.0",
+      "dependencies": {
+        "@leafergraph/core/contracts": "workspace:*",
+        "@leafergraph/core/execution": "workspace:*",
+        "@leafergraph/core/node": "workspace:*",
+        "@leafergraph/core/widget-runtime": "workspace:*",
       },
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.0.10",
@@ -522,6 +551,10 @@
     "@leafergraph/extensions/shortcuts": ["@leafergraph/extensions/shortcuts@workspace:packages/extensions/shortcuts"],
 
     "@leafergraph/extensions/undo-redo": ["@leafergraph/extensions/undo-redo@workspace:packages/extensions/undo-redo"],
+
+    "@leafergraph/link-animation": ["@leafergraph/link-animation@workspace:packages/link-animation"],
+
+    "@leafergraph/node-runtime": ["@leafergraph/node-runtime@workspace:packages/node-runtime"],
 
     "@leafergraph/web-crawler-nodes": ["@leafergraph/web-crawler-nodes@workspace:example/web-crawler-nodes"],
 

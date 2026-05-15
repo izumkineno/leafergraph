@@ -30,6 +30,8 @@
     "@leafergraph/core/contracts": "workspace:*",
     "@leafergraph/core/execution": "workspace:*",
     "@leafergraph/core/node": "workspace:*",
+    "@leafergraph/link-animation": "workspace:*",
+    "@leafergraph/node-runtime": "workspace:*",
     "@leafergraph/core/theme": "workspace:*",
     "@leafergraph/core/widget-runtime": "workspace:*",
     "@leafer-in/arrow": "^2.0.3",
