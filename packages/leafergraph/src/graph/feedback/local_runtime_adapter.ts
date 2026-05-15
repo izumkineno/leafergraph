@@ -5,24 +5,57 @@
  * 当前阶段它负责把纯执行反馈和主包 `node.state` 归一成统一 `RuntimeFeedbackEvent`。
  */
 
-import type { ExecutionFeedbackAdapter } from "@leafergraph/core/execution";
+import {
+  LeaferGraphLocalExecutionFeedbackAdapter,
+  type ExecutionFeedbackAdapter
+} from "@leafergraph/core/execution";
 import type {
+  LeaferGraphGraphExecutionEvent,
+  LeaferGraphLinkPropagationEvent,
+  LeaferGraphNodeExecutionEvent,
   RuntimeAdapter,
   RuntimeFeedbackEvent,
   LeaferGraphNodeStateChangeEvent
 } from "@leafergraph/core/contracts";
+import {
+  projectExternalRuntimeFeedback,
+  type LeaferGraphExternalRuntimeFeedbackProjectionHost
+} from "./projection";
+
+export interface LeaferGraphRuntimeFeedbackEventSource {
+  subscribeNodeExecution(
+    listener: (event: LeaferGraphNodeExecutionEvent) => void
+  ): () => void;
+  subscribeGraphExecution(
+    listener: (event: LeaferGraphGraphExecutionEvent) => void
+  ): () => void;
+  subscribeLinkPropagation(
+    listener: (event: LeaferGraphLinkPropagationEvent) => void
+  ): () => void;
+  subscribeNodeState(
+    listener: (event: LeaferGraphNodeStateChangeEvent) => void
+  ): () => void;
+}
+
+export interface LeaferGraphRuntimeFeedbackHost
+  extends RuntimeAdapter {
+  projectRuntimeFeedback(feedback: RuntimeFeedbackEvent): void;
+}
 
 interface LeaferGraphLocalRuntimeAdapterOptions {
   executionAdapter: ExecutionFeedbackAdapter;
   subscribeNodeState(
     listener: (event: LeaferGraphNodeStateChangeEvent) => void
   ): () => void;
+  projectionHost: LeaferGraphExternalRuntimeFeedbackProjectionHost;
 }
 
 /**
  * 封装 LeaferGraphLocalRuntimeAdapter 的适配逻辑。
  */
-export class LeaferGraphLocalRuntimeAdapter implements RuntimeAdapter {
+export class LeaferGraphLocalRuntimeAdapter
+  implements LeaferGraphRuntimeFeedbackHost
+{
   private readonly listeners = new Set<
     (event: RuntimeFeedbackEvent) => void
   >();
@@ -31,6 +64,8 @@ export class LeaferGraphLocalRuntimeAdapter implements RuntimeAdapter {
 
   private readonly executionAdapter: ExecutionFeedbackAdapter;
 
+  private readonly projectionHost: LeaferGraphExternalRuntimeFeedbackProjectionHost;
+
   /**
    * 初始化 LeaferGraphLocalRuntimeAdapter 实例。
    *
@@ -38,6 +73,7 @@ export class LeaferGraphLocalRuntimeAdapter implements RuntimeAdapter {
    */
   constructor(options: LeaferGraphLocalRuntimeAdapterOptions) {
     this.executionAdapter = options.executionAdapter;
+    this.projectionHost = options.projectionHost;
     this.disposers = [
       this.executionAdapter.subscribe((event) => {
         this.emit(event);
@@ -49,6 +85,16 @@ export class LeaferGraphLocalRuntimeAdapter implements RuntimeAdapter {
         });
       })
     ];
+  }
+
+  /**
+   * 把外部 runtime feedback 投影回当前图运行时。
+   *
+   * @param feedback - 需要投影的运行反馈。
+   * @returns 无返回值。
+   */
+  projectRuntimeFeedback(feedback: RuntimeFeedbackEvent): void {
+    projectExternalRuntimeFeedback(this.projectionHost, feedback);
   }
 
   /**
@@ -93,4 +139,30 @@ export class LeaferGraphLocalRuntimeAdapter implements RuntimeAdapter {
       listener(event);
     }
   }
+}
+
+/**
+ * 创建主包本地 runtime feedback 宿主。
+ *
+ * @param options - feedback 事件源与投影宿主。
+ * @returns 统一运行反馈宿主。
+ */
+export function createLeaferGraphLocalRuntimeFeedbackHost(
+  options: LeaferGraphRuntimeFeedbackEventSource &
+    LeaferGraphExternalRuntimeFeedbackProjectionHost
+): LeaferGraphRuntimeFeedbackHost {
+  const executionAdapter = new LeaferGraphLocalExecutionFeedbackAdapter({
+    subscribeNodeExecution: (listener) =>
+      options.subscribeNodeExecution(listener),
+    subscribeGraphExecution: (listener) =>
+      options.subscribeGraphExecution(listener),
+    subscribeLinkPropagation: (listener) =>
+      options.subscribeLinkPropagation(listener)
+  });
+
+  return new LeaferGraphLocalRuntimeAdapter({
+    executionAdapter,
+    subscribeNodeState: (listener) => options.subscribeNodeState(listener),
+    projectionHost: options
+  });
 }

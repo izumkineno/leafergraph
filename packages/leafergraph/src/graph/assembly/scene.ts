@@ -12,7 +12,9 @@ import type {
   LeaferGraphGraphThemeTokens,
   LeaferGraphThemeMode
 } from "@leafergraph/core/theme";
-import { LeaferGraphGraphExecutionHost } from "@leafergraph/core/execution";
+import type { LeaferGraphGraphExecutionHost } from "@leafergraph/core/execution";
+import type { LeaferGraphLinkDataFlowAnimationHost } from "@leafergraph/link-animation";
+import type { LeaferGraphNodeRuntimeHost } from "@leafergraph/node-runtime";
 import {
   LeaferGraphWidgetHost,
   type LeaferGraphWidgetEditingManager,
@@ -21,10 +23,8 @@ import {
 import { LeaferGraphInteractionRuntimeHost } from "../../interaction/graph_interaction_runtime_host";
 import { LeaferGraphInteractionHost } from "../../interaction/interaction_host";
 import { createLeaferGraphInteractionCommitSource } from "../../interaction/interaction_commit_source";
-import { LeaferGraphLinkDataFlowAnimationHost } from "../../link/animation/controller";
 import { LeaferGraphLinkHost, type GraphLinkViewState } from "../../link/link_host";
 import { LeaferGraphNodeHost, type NodeViewState } from "../../node/node_host";
-import { LeaferGraphNodeRuntimeHost } from "../../node/runtime/controller";
 import { LeaferGraphNodeShellHost } from "../../node/shell/host";
 import type { NodeShellLayoutMetrics } from "../../node/shell/layout";
 import type { NodeShellRenderTheme } from "../../node/shell/view";
@@ -43,8 +43,10 @@ import { LeaferGraphSceneHost } from "../host/scene";
 import { LeaferGraphSceneRuntimeHost } from "../host/scene_runtime";
 import { LeaferGraphRestoreHost } from "../host/restore";
 import type { LeaferGraphThemeHost } from "../theme/host";
-import { LeaferGraphThemeRuntimeHost } from "../theme/runtime";
 import { LeaferGraphViewHost } from "../host/view";
+import type { LeaferGraphRuntimeFeedbackHost } from "../feedback/local_runtime_adapter";
+import { createLeaferGraphExecutionChainAssembly } from "./scene_execution";
+import { createLeaferGraphSceneInteractionAssembly } from "./scene_interaction";
 
 /**
  * 图场景运行时装配输入。
@@ -68,7 +70,6 @@ export interface LeaferGraphSceneRuntimeAssemblyOptions<
   widgetEditingManager: LeaferGraphWidgetEditingManager;
   widgetEditingContext: LeaferGraphWidgetEditingContext;
   requestRender(): void;
-  renderFrame(): void;
   resolveGraphTheme(mode: LeaferGraphThemeMode): LeaferGraphGraphThemeTokens;
   nodeShellLayoutMetrics: NodeShellLayoutMetrics;
   nodeShellStyle: LeaferGraphNodeShellStyleConfig;
@@ -102,6 +103,7 @@ export interface LeaferGraphSceneRuntimeAssemblyResult<
     TNodeState,
     NodeViewState<TNodeState>
   >;
+  runtimeFeedbackHost: LeaferGraphRuntimeFeedbackHost;
   dataFlowAnimationHost: LeaferGraphLinkDataFlowAnimationHost<TNodeState>;
   graphExecutionHost: LeaferGraphGraphExecutionHost<TNodeState>;
   interactionHost: LeaferGraphInteractionHost<
@@ -147,8 +149,6 @@ export function createLeaferGraphSceneRuntimeAssembly<
     TNodeState,
     NodeViewState<TNodeState>
   >;
-  let dataFlowAnimationHost!: LeaferGraphLinkDataFlowAnimationHost<TNodeState>;
-  let graphExecutionHost!: LeaferGraphGraphExecutionHost<TNodeState>;
   const interactionCommitSource = createLeaferGraphInteractionCommitSource();
 
   const widgetHost = new LeaferGraphWidgetHost({
@@ -213,7 +213,6 @@ export function createLeaferGraphSceneRuntimeAssembly<
     canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
     isNodeResizing: (nodeId) => interactionHost.isResizingNode(nodeId),
     requestRender: options.requestRender,
-    renderFrame: options.renderFrame,
     respectReducedMotion: options.respectReducedMotion
   });
 
@@ -325,196 +324,56 @@ export function createLeaferGraphSceneRuntimeAssembly<
       nodeRuntimeHost.notifyNodeStateChanged(nodeId, reason)
   });
 
-  nodeRuntimeHost = new LeaferGraphNodeRuntimeHost({
+  const executionChain = createLeaferGraphExecutionChainAssembly({
+    container: options.container,
+    graphState: options.graphState,
+    nodeViews: options.nodeViews,
+    canvasState: options.canvasState,
     nodeRegistry: options.nodeRegistry,
     widgetRegistry: options.widgetRegistry,
-    graphNodes: options.graphState.nodes,
-    graphLinks: options.graphState.links,
-    nodeViews: options.nodeViews,
-    sceneRuntime: sceneRuntimeHost,
-    resolveNodeResizeConstraint: (node) =>
-      nodeShellHost.resolveNodeResizeConstraint(node)
-  });
-
-  dataFlowAnimationHost = new LeaferGraphLinkDataFlowAnimationHost({
-    container: options.container,
-    linkLayer: options.canvasState.linkLayer,
-    graphNodes: options.graphState.nodes,
-    graphLinks: options.graphState.links,
-    layoutMetrics: options.nodeShellLayoutMetrics,
-    defaultNodeWidth: options.linkDefaultNodeWidth,
-    portSize: options.linkPortSize,
-    resolveLinkStroke: () =>
-      options.resolveGraphTheme(options.themeHost.getMode()).linkStroke,
-    resolveSlotTypeFillMap: () =>
-      options.resolveGraphTheme(options.themeHost.getMode()).nodeShellStyle.slotTypeFillMap,
-    resolveStyle: () => {
-      const graphTheme = options.resolveGraphTheme(options.themeHost.getMode());
-      const preset = options.dataFlowAnimationStyle.preset;
-
-      return options.dataFlowAnimationStyle.enabled
-        ? graphTheme.dataFlowAnimationStyles[preset]
-        : {
-            ...graphTheme.dataFlowAnimationStyles.performance,
-            ...options.dataFlowAnimationStyle
-          };
-    },
+    themeHost: options.themeHost,
+    sceneRuntimeHost,
+    nodeShellHost,
+    requestRender: options.requestRender,
+    resolveGraphTheme: options.resolveGraphTheme,
+    nodeShellLayoutMetrics: options.nodeShellLayoutMetrics,
+    linkDefaultNodeWidth: options.linkDefaultNodeWidth,
+    linkPortSize: options.linkPortSize,
     respectReducedMotion: options.respectReducedMotion,
-    getThemeMode: () => options.themeHost.getMode(),
-    requestRender: options.requestRender,
-    renderFrame: options.renderFrame,
-    subscribeLinkPropagation: (listener) =>
-      nodeRuntimeHost.subscribeLinkPropagation(listener)
+    dataFlowAnimationStyle: options.dataFlowAnimationStyle
   });
+  nodeRuntimeHost = executionChain.nodeRuntimeHost;
+  const runtimeFeedbackHost = executionChain.runtimeFeedbackHost;
+  const dataFlowAnimationHost = executionChain.dataFlowAnimationHost;
+  const graphExecutionHost = executionChain.graphExecutionHost;
 
-  graphExecutionHost = new LeaferGraphGraphExecutionHost({
-    nodeExecutionHost: nodeRuntimeHost
-  });
-
-  const interactionRuntimeHost = new LeaferGraphInteractionRuntimeHost<
-    TNodeState,
-    NodeViewState<TNodeState>
-  >({
-    nodeViews: options.nodeViews,
-    linkLayer: options.canvasState.linkLayer,
-    bringNodeViewToFront: (state) => viewHost.bringNodeViewToFront(state),
-    syncNodeResizeHandleVisibility: (state) =>
-      nodeShellHost.syncNodeResizeHandleVisibility(state),
-    requestRender: options.requestRender,
-    resolveDraggedNodeIds: (nodeId) => viewHost.resolveDraggedNodeIds(nodeId),
-    listSelectedNodeIds: () => viewHost.listSelectedNodeIds(),
-    isNodeSelected: (nodeId) => viewHost.isNodeSelected(nodeId),
-    setSelectedNodeIds: (nodeIds, mode) =>
-      viewHost.setSelectedNodeIds(nodeIds, mode),
-    clearSelectedNodes: () => viewHost.clearSelectedNodes(),
-    sceneRuntime: sceneRuntimeHost,
-    setNodeCollapsed: (nodeId, collapsed) =>
-      sceneRuntimeHost.setNodeCollapsed(nodeId, collapsed),
-    beginNodeTitleEdit: (nodeId) => {
-      const state = options.nodeViews.get(nodeId);
-      if (!state || !options.widgetEditingManager.enabled) {
-        return;
-      }
-
-      const originalTitle = state.state.title;
-      const titleLabel = state.shellView.titleLabel;
-      if (!titleLabel) {
-        return;
-      }
-      
-      const headerHeight =
-        options.nodeShellLayoutMetrics.headerHeight;
-
-      const textWidth = titleLabel.width ?? (originalTitle.length * 10);
-      const textHeight = titleLabel.height ?? headerHeight;
-
-      options.widgetEditingManager.beginTextEdit({
-        nodeId,
-        widgetIndex: -1,
-        value: originalTitle,
-        readOnly: false,
-        multiline: false,
-        maxLength: 100,
-        target: titleLabel,
-        frame: {
-          width: Math.max(textWidth + 20, 120),
-          height: textHeight,
-          offsetX: 0,
-          offsetY: -8,
-          paddingLeft: 10,
-          paddingRight: 10,
-          paddingTop: 4,
-          paddingBottom: 4
-        },
-        placeholder: "Enter node title",
-        onCommit: (newTitleRaw) => {
-          let trimmedTitle = newTitleRaw.trim();
-          if (!trimmedTitle) {
-            trimmedTitle = originalTitle;
-          }
-
-          trimmedTitle = trimmedTitle.replace(/[\r\n]/g, " ").slice(0, 100);
-
-          if (trimmedTitle === originalTitle) {
-            return;
-          }
-
-          sceneRuntimeHost.updateNode(nodeId, { title: trimmedTitle });
-          interactionCommitSource.emit({
-            type: "node.rename.commit",
-            nodeId,
-            beforeTitle: originalTitle,
-            afterTitle: trimmedTitle
-          });
-        },
-        onCancel: () => {}
-      });
-    },
-    canResizeNode: (nodeId) => nodeRuntimeHost.canResizeNode(nodeId),
-    getPagePointByClient: (event) => viewHost.getPagePointByClient(event),
-    getPagePointFromGraphEvent: (event) =>
-      viewHost.getPagePointFromGraphEvent(event),
-    resolveNodeSize: (state) => ({
-      width:
-        state.state.layout.width ?? options.nodeShellStyle.defaultNodeWidth,
-      height:
-        state.state.layout.height ??
-        options.nodeShellStyle.defaultNodeMinHeight
-    }),
-    slotTypeFillMap: options.nodeShellStyle.slotTypeFillMap,
-    genericPortFill: options.nodeShellStyle.genericPortFill,
-    resolveConnectionPreviewStrokeFallback: () =>
-      options.resolveSelectedStroke(options.themeHost.getMode())
-  });
-
-  interactionHost = new LeaferGraphInteractionHost<
-    TNodeState,
-    NodeViewState<TNodeState>
-  >({
+  const sceneInteraction = createLeaferGraphSceneInteractionAssembly({
     container: options.container,
-    runtime: interactionRuntimeHost,
-    selectionLayer: options.canvasState.selectionLayer,
-    resolveSelectionStroke: () =>
-      options.resolveSelectedStroke(options.themeHost.getMode()),
-    requestRender: options.requestRender,
-    emitInteractionCommit: (event) => interactionCommitSource.emit(event)
-  });
-
-  const themeRuntimeHost = new LeaferGraphThemeRuntimeHost({
-    widgetEditingManager: options.widgetEditingManager,
-    canvasHost: options.canvasHost,
-    sceneRuntime: sceneRuntimeHost
-  });
-  options.themeHost.attachRuntime(themeRuntimeHost);
-
-  const restoreHost = new LeaferGraphRestoreHost<
-    TNodeState,
-    NodeViewState<TNodeState>
-  >({
-    nodeRegistry: options.nodeRegistry,
-    graphDocument: options.graphState.document,
-    graphNodes: options.graphState.nodes,
-    graphLinks: options.graphState.links,
+    graphState: options.graphState,
     nodeViews: options.nodeViews,
     linkViews: options.linkViews,
-    clearInteractionState: () => interactionHost.clearInteractionState(),
-    resetRuntimeState: () => viewHost.resetViewState(),
-    resetNodeExecutionStates: () => nodeRuntimeHost.clearAllExecutionStates(),
-    resetGraphExecutionState: () => graphExecutionHost.resetState(),
-    destroyNodeViewWidgets: (state) =>
-      widgetHost.destroyNodeWidgets(state.widgetInstances, state.widgetLayer),
-    clearNodeLayer: () => options.canvasState.nodeLayer.removeAll(),
-    clearLinkLayer: () => {
-      dataFlowAnimationHost.clear();
-      options.canvasState.linkLayer.removeAll();
-      dataFlowAnimationHost.restoreLayer();
-      interactionRuntimeHost.restoreConnectionPreviewLayer();
-    },
-    mountNodeView: (node) => sceneHost.mountNodeView(node),
-    mountLinkView: (link) => sceneHost.mountLinkView(link),
-    handleLinkRestored: (link) => nodeRuntimeHost.notifyLinkCreated(link),
-    requestRender: options.requestRender
+    canvasState: options.canvasState,
+    canvasHost: options.canvasHost,
+    nodeRegistry: options.nodeRegistry,
+    themeHost: options.themeHost,
+    widgetEditingManager: options.widgetEditingManager,
+    nodeShellHost,
+    viewHost,
+    sceneHost,
+    sceneRuntimeHost,
+    nodeRuntimeHost,
+    graphExecutionHost,
+    dataFlowAnimationHost,
+    widgetHost,
+    interactionCommitSource,
+    requestRender: options.requestRender,
+    nodeShellLayoutMetrics: options.nodeShellLayoutMetrics,
+    nodeShellStyle: options.nodeShellStyle,
+    resolveSelectedStroke: options.resolveSelectedStroke
   });
+  interactionHost = sceneInteraction.interactionHost;
+  const interactionRuntimeHost = sceneInteraction.interactionRuntimeHost;
+  const restoreHost = sceneInteraction.restoreHost;
 
   return {
     nodeShellHost,
@@ -522,6 +381,7 @@ export function createLeaferGraphSceneRuntimeAssembly<
     viewHost,
     sceneRuntimeHost,
     nodeRuntimeHost,
+    runtimeFeedbackHost,
     dataFlowAnimationHost,
     graphExecutionHost,
     interactionHost,

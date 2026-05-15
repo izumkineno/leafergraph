@@ -71,6 +71,7 @@ export class LeaferGraphCanvasHost {
       usePartRender: this.options.leaferAppConfig.usePartRender,
       usePartLayout: this.options.leaferAppConfig.usePartLayout,
       tree: {
+        usePartRender: true,
         ...(appTreeRaw ?? {}),
         ...(this.options.leaferTreeConfig.raw ?? {})
       }

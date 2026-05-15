@@ -6,21 +6,14 @@
  */
 
 import { NodeRegistry } from "@leafergraph/core/node";
-import { LeaferGraphLocalExecutionFeedbackAdapter } from "@leafergraph/core/execution";
-import type {
-  LeaferGraphInteractionCommitEvent,
-  LeaferGraphWidgetRenderer
-} from "@leafergraph/core/contracts";
+import type { LeaferGraphWidgetRenderer } from "@leafergraph/core/contracts";
 import type { NormalizedLeaferGraphConfig } from "@leafergraph/core/config";
 import type {
   LeaferGraphGraphThemeTokens,
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/core/theme";
-import {
-  LeaferGraphApiHost,
-  type LeaferGraphApiRuntime
-} from "../../api/graph_api_host";
+import { LeaferGraphApiHost } from "../../api/graph_api_host";
 import { LeaferGraphBootstrapHost } from "../host/bootstrap";
 import { LeaferGraphCanvasHost } from "../host/canvas";
 import type { GraphLinkViewState } from "../../link/link_host";
@@ -35,18 +28,8 @@ import type {
   GraphRuntimeState,
   LeaferGraphRenderableNodeState
 } from "../types";
-import { LeaferGraphLocalRuntimeAdapter } from "../feedback/local_runtime_adapter";
-import {
-  createHistoryRecordEvent,
-  createLeaferGraphHistorySource,
-  createLinkCreateHistoryRecord,
-  createNodeCollapseHistoryRecord,
-  createNodeMoveCommitHistoryRecord,
-  createNodeRenameHistoryRecord,
-  createNodeResizeHistoryRecord,
-  createNodeWidgetHistoryRecord,
-  serializeRuntimeGraphDocument
-} from "../history";
+import { createLeaferGraphRuntimeApiAssembly } from "./runtime_api";
+import { createLeaferGraphRuntimeHistoryCapture } from "./runtime_history";
 import { createLeaferGraphSceneRuntimeAssembly } from "./scene";
 import { createLeaferGraphWidgetEnvironment } from "./widget_environment";
 
@@ -94,7 +77,7 @@ export interface LeaferGraphRuntimeAssemblyResult<
  */
 export function createLeaferGraphRuntimeAssembly<
   TNodeState extends LeaferGraphRenderableNodeState
->( 
+>(
   options: LeaferGraphRuntimeAssemblyOptions<TNodeState>
 ): LeaferGraphRuntimeAssemblyResult<TNodeState> {
   // 先归一化输入和默认值，为后续组装阶段提供稳定基线。
@@ -125,16 +108,7 @@ export function createLeaferGraphRuntimeAssembly<
    * @returns 无返回值。
    */
   const requestRender = (): void => {
-    canvasState.app.forceRender();
-  };
-  /**
-   * 处理 `renderFrame` 相关逻辑。
-   *
-   * @returns 无返回值。
-   */
-  const renderFrame = (): void => {
-    canvasState.app.forceUpdate();
-    canvasState.app.forceRender(undefined, true);
+    canvasState.app.requestRender(true);
   };
   const sceneRuntime = createLeaferGraphSceneRuntimeAssembly({
     container: options.container,
@@ -149,7 +123,6 @@ export function createLeaferGraphRuntimeAssembly<
     widgetEditingManager: widgetEnvironment.widgetEditingManager,
     widgetEditingContext: widgetEnvironment.widgetEditingContext,
     requestRender,
-    renderFrame,
     resolveGraphTheme: options.resolveGraphTheme,
     nodeShellLayoutMetrics: options.nodeShellLayoutMetrics,
     nodeShellStyle: options.nodeShellStyle,
@@ -168,136 +141,20 @@ export function createLeaferGraphRuntimeAssembly<
     replaceGraphDocument: (document) =>
       sceneRuntime.restoreHost.replaceGraphDocument(document)
   });
-  // 再按当前规则组合结果，并把派生数据一并收口到输出里。
-  const executionAdapter = new LeaferGraphLocalExecutionFeedbackAdapter({
-    subscribeNodeExecution: (listener) =>
-      sceneRuntime.nodeRuntimeHost.subscribeNodeExecution(listener),
-    subscribeGraphExecution: (listener) =>
-      sceneRuntime.graphExecutionHost.subscribeGraphExecution(listener),
-    subscribeLinkPropagation: (listener) =>
-      sceneRuntime.nodeRuntimeHost.subscribeLinkPropagation(listener)
-  });
-  const runtimeAdapter = new LeaferGraphLocalRuntimeAdapter({
-    executionAdapter,
-    subscribeNodeState: (listener) =>
-      sceneRuntime.nodeRuntimeHost.subscribeNodeState(listener)
-  });
-  const historySource = createLeaferGraphHistorySource();
-  /**
-   * 获取图文档。
-   *
-   * @returns 处理后的结果。
-   */
-  const getGraphDocument = () =>
-    serializeRuntimeGraphDocument(nodeRegistry, options.graphState);
-  const interactionCommitHandlers = {
-    "node.move.commit": (event) => {
-      const record = createNodeMoveCommitHistoryRecord({
-        entries: event.entries,
-        source: "interaction.commit"
-      });
-      if (record) {
-        historySource.emit(createHistoryRecordEvent(record));
-      }
-    },
-    "node.resize.commit": (event) => {
-      const record = createNodeResizeHistoryRecord({
-        nodeId: event.nodeId,
-        before: event.before,
-        after: event.after,
-        source: "interaction.commit"
-      });
-      if (record) {
-        historySource.emit(createHistoryRecordEvent(record));
-      }
-    },
-    "node.collapse.commit": (event) => {
-      const record = createNodeCollapseHistoryRecord({
-        nodeId: event.nodeId,
-        beforeCollapsed: event.beforeCollapsed,
-        afterCollapsed: event.afterCollapsed,
-        source: "interaction.commit"
-      });
-      if (record) {
-        historySource.emit(createHistoryRecordEvent(record));
-      }
-    },
-    "node.widget.commit": (event) => {
-      const record = createNodeWidgetHistoryRecord({
-        nodeId: event.nodeId,
-        widgetIndex: event.widgetIndex,
-        beforeValue: event.beforeValue,
-        afterValue: event.afterValue,
-        source: "interaction.commit"
-      });
-      if (record) {
-        historySource.emit(createHistoryRecordEvent(record));
-      }
-    },
-    "node.rename.commit": (event) => {
-      const record = createNodeRenameHistoryRecord({
-        nodeId: event.nodeId,
-        beforeTitle: event.beforeTitle,
-        afterTitle: event.afterTitle,
-        source: "interaction.commit"
-      });
-      if (record) {
-        historySource.emit(createHistoryRecordEvent(record));
-      }
-    },
-    "link.create.commit": (event) => {
-      try {
-        const link = sceneRuntime.sceneRuntimeHost.createLink(
-          event.input,
-          "interaction.commit"
-        );
-        const record = createLinkCreateHistoryRecord({
-          link,
-          source: "interaction.commit"
-        });
-        historySource.emit(createHistoryRecordEvent(record));
-      } catch {
-        // 当前阶段让正式交互事件继续可观测，但不重复抛出运行时错误。
-      }
-    }
-  } satisfies {
-    [TType in LeaferGraphInteractionCommitEvent["type"]]: (
-      event: Extract<LeaferGraphInteractionCommitEvent, { type: TType }>
-    ) => void;
-  };
-  const disposeHistoryCapture = sceneRuntime.interactionCommitSource.subscribe(
-    (event) => {
-      const handler = interactionCommitHandlers[event.type] as (
-        nextEvent: LeaferGraphInteractionCommitEvent
-      ) => void;
-      handler(event);
-    }
-  );
-  const apiRuntime: LeaferGraphApiRuntime<TNodeState> = {
-    app: canvasState.app,
-    bootstrapRuntime: bootstrapHost,
-    getGraphDocument,
-    runtimeAdapter,
-    widgetEditingManager: widgetEnvironment.widgetEditingManager,
-    sceneRuntime: sceneRuntime.sceneRuntimeHost,
-    historySource,
-    destroyHistoryCapture: disposeHistoryCapture,
-    interactionCommitSource: sceneRuntime.interactionCommitSource,
-    interactionHost: sceneRuntime.interactionHost,
-    interactionRuntime: sceneRuntime.interactionRuntimeHost,
-    nodeRuntimeHost: sceneRuntime.nodeRuntimeHost,
-    nodeShellHost: sceneRuntime.nodeShellHost,
-    dataFlowAnimationHost: sceneRuntime.dataFlowAnimationHost,
-    graphExecutionHost: sceneRuntime.graphExecutionHost,
-    themeHost: widgetEnvironment.themeHost,
-    viewHost: sceneRuntime.viewHost,
-    widgetHost: sceneRuntime.widgetHost,
+  const historyCapture = createLeaferGraphRuntimeHistoryCapture({
     nodeRegistry,
-    widgetRegistry: widgetEnvironment.widgetRegistry,
-    nodeExecutionHost: sceneRuntime.nodeRuntimeHost
-  };
+    graphState: options.graphState,
+    sceneRuntime
+  });
   const apiHost = new LeaferGraphApiHost({
-    runtime: apiRuntime,
+    runtime: createLeaferGraphRuntimeApiAssembly({
+      app: canvasState.app,
+      bootstrapRuntime: bootstrapHost,
+      sceneRuntime,
+      widgetEnvironment,
+      historyCapture,
+      nodeRegistry
+    }),
     nodeViews: options.nodeViews,
     linkViews: options.linkViews
   });
