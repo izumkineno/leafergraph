@@ -5,12 +5,28 @@
  * 负责把传播事件中的 `linkId/sourceSlot` 解析成可直接用于动画绘制的正式连线快照。
  */
 
+import {
+  buildLinkPathFromCurve,
+  sampleLinkCurvePoint
+} from "../link";
+import { resolveGraphLinkCurve } from "../curve";
+import type { GraphLink } from "@leafergraph/core/node";
 import { resolveNodeSlotFill } from "../../node/shell/slot_style";
+import type { NodeShellLayoutMetrics } from "../../node/shell/layout";
 import type { LeaferGraphLinkNodeState } from "../curve";
-import type {
-  LeaferGraphLinkDataFlowAnimationHostOptions,
-  LeaferGraphResolvedAnimatedLink
-} from "./types";
+import type { LeaferGraphResolvedAnimatedLink } from "./types";
+
+export interface LeaferGraphResolvedLinkAdapterOptions<
+  TNodeState extends LeaferGraphLinkNodeState
+> {
+  graphNodes: Map<string, TNodeState>;
+  graphLinks: Map<string, GraphLink>;
+  layoutMetrics: NodeShellLayoutMetrics;
+  defaultNodeWidth: number;
+  portSize: number;
+  resolveLinkStroke(): string;
+  resolveSlotTypeFillMap(): Readonly<Record<string, string>>;
+}
 
 /**
  * 根据正式图状态解析一条可动画化的连线。
@@ -23,7 +39,7 @@ import type {
 export function resolveLeaferGraphAnimatedLink<
   TNodeState extends LeaferGraphLinkNodeState
 >(
-  options: LeaferGraphLinkDataFlowAnimationHostOptions<TNodeState>,
+  options: LeaferGraphResolvedLinkAdapterOptions<TNodeState>,
   linkId: string,
   sourceSlotOverride?: number
 ): LeaferGraphResolvedAnimatedLink<TNodeState> | null {
@@ -45,6 +61,15 @@ export function resolveLeaferGraphAnimatedLink<
       slotTypeFillMap: options.resolveSlotTypeFillMap(),
       genericFill: options.resolveLinkStroke()
     }) ?? options.resolveLinkStroke();
+  const curve = resolveGraphLinkCurve({
+    source: sourceNode,
+    target: targetNode,
+    sourceSlot,
+    targetSlot,
+    layoutMetrics: options.layoutMetrics,
+    defaultNodeWidth: options.defaultNodeWidth,
+    portSize: options.portSize
+  });
 
   return {
     link,
@@ -52,7 +77,9 @@ export function resolveLeaferGraphAnimatedLink<
     targetNode,
     sourceSlot,
     targetSlot,
-    color
+    color,
+    path: buildLinkPathFromCurve(curve),
+    samplePoint: (progress: number) => sampleLinkCurvePoint(curve, progress)
   };
 }
 
