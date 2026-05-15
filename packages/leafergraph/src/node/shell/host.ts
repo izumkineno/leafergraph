@@ -67,7 +67,6 @@ export interface LeaferGraphNodeShellHostOptions {
   canResizeNode(nodeId: string): boolean;
   isNodeResizing(nodeId: string): boolean;
   requestRender(): void;
-  renderFrame(): void;
   respectReducedMotion: boolean;
 }
 
@@ -704,7 +703,7 @@ export class LeaferGraphNodeShellHost<
       }
 
       if (changed) {
-        this.options.renderFrame();
+        this.options.requestRender();
       }
       return;
     }
@@ -729,7 +728,7 @@ export class LeaferGraphNodeShellHost<
     }
 
     if (changed) {
-      this.options.renderFrame();
+      this.options.requestRender();
     }
 
     if (hasActiveNodes) {

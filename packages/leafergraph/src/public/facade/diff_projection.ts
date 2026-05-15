@@ -20,6 +20,9 @@ import { projectLeaferGraphDiffOperations } from "./diff_projection_operations";
 interface LeaferGraphFindHost {
   findId?(id: string): unknown;
   findOne?(query: { id?: string }): unknown;
+  children?: unknown[];
+  id?: string;
+  name?: string;
 }
 
 /**
@@ -31,7 +34,40 @@ interface LeaferGraphFindHost {
  */
 function findGraphicById(host: Group, id: string): unknown {
   const findHost = host as Group & LeaferGraphFindHost;
-  return findHost.findId?.(id) ?? findHost.findOne?.({ id });
+  return (
+    findHost.findId?.(id) ??
+    findHost.findOne?.({ id }) ??
+    findGraphicByIdFallback(findHost, id)
+  );
+}
+
+/**
+ * 当运行环境未注入 `@leafer-in/find` 时，退回到本地主动遍历。
+ *
+ * @param host - 目标图层宿主。
+ * @param id - 目标图元 ID。
+ * @returns 匹配到的图元结果。
+ */
+function findGraphicByIdFallback(
+  host: LeaferGraphFindHost | null | undefined,
+  id: string
+): unknown {
+  if (!host) {
+    return undefined;
+  }
+
+  if (host.id === id || host.name === id) {
+    return host;
+  }
+
+  for (const child of host.children ?? []) {
+    const match = findGraphicByIdFallback(child as LeaferGraphFindHost, id);
+    if (match) {
+      return match;
+    }
+  }
+
+  return undefined;
 }
 
 /**
