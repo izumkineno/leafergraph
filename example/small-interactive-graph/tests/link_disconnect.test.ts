@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createSmallInteractiveGraphDocument } from "../src/graph/example_document";
+import { createSmallInteractiveGraphDocument, SMALL_INTERACTIVE_GRAPH_NODE_IDS } from "../src/graph/example_document";
 import { installSmallInteractiveGraphLinkDisconnect } from "../src/graph/link_disconnect";
 
 type Listener = (event: { stopDefault?(): void; origin?: { preventDefault?(): void } }) => void;
@@ -57,17 +57,17 @@ describe("small-interactive-graph link disconnect", () => {
 
     const controller = installSmallInteractiveGraphLinkDisconnect(graph);
 
-    linkViews.get("small-link-1")?.emit("pointer.menu");
-    expect(removedLinks).toEqual(["small-link-1"]);
+    linkViews.get("custom-link-1")?.emit("pointer.menu");
+    expect(removedLinks).toEqual(["custom-link-1"]);
 
     const nextLinkView = createLinkViewStub();
-    linkViews.set("small-link-3", nextLinkView);
+    linkViews.set("custom-link-3", nextLinkView);
     document.links = [
       ...document.links,
       {
-        id: "small-link-3",
-        source: { nodeId: "small-transform", slot: 0 },
-        target: { nodeId: "small-sink", slot: 0 }
+        id: "custom-link-3",
+        source: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.config, slot: 0 },
+        target: { nodeId: "custom-node-3", slot: 0 }
       }
     ];
 
@@ -80,7 +80,7 @@ describe("small-interactive-graph link disconnect", () => {
             {
               type: "link.create",
               input: {
-                id: "small-link-3"
+                id: "custom-link-3"
               }
             }
           ]
@@ -89,7 +89,7 @@ describe("small-interactive-graph link disconnect", () => {
     }
 
     nextLinkView.emit("pointer.menu");
-    expect(removedLinks).toEqual(["small-link-1", "small-link-3"]);
+  expect(removedLinks).toEqual(["custom-link-1", "custom-link-3"]);
 
     controller.destroy();
   });
