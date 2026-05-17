@@ -9,7 +9,8 @@ import { Box, Group, Rect } from "leafer-ui";
 import * as LeaferUI from "leafer-ui";
 import type {
   NodeResizeConfig,
-  NodeRegistry
+  NodeRegistry,
+  NodeShellConfig
 } from "@leafergraph/core/node";
 import type {
   LeaferGraphNodeExecutionState,
@@ -152,6 +153,7 @@ export class LeaferGraphNodeShellHost<
     const mode = this.options.getThemeMode();
     const theme = this.options.resolveRenderTheme(mode);
     const visualState = this.resolveNodeShellVisualState(node);
+    const shell = this.resolveNodeShellConfig(node);
 
     const shellOptions: CreateNodeShellOptions = {
       nodeId: node.id,
@@ -166,7 +168,8 @@ export class LeaferGraphNodeShellHost<
       selectedStroke: this.resolveSelectedNodeStroke(),
       shellLayout: resolvedShellLayout,
       categoryLayout,
-      theme
+      theme,
+      shell
     };
 
     return createNodeShell(shellOptions);
@@ -465,6 +468,10 @@ export class LeaferGraphNodeShellHost<
    */
   private resolveSelectedNodeStroke(): string {
     return this.options.resolveSelectedStroke(this.options.getThemeMode());
+  }
+
+  private resolveNodeShellConfig(node: TNodeState): NodeShellConfig | undefined {
+    return this.options.nodeRegistry.getNode(node.type)?.shell;
   }
 
   /**

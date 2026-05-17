@@ -117,6 +117,23 @@ function createHarness(options?: {
       longTask: true
     }
   });
+  nodeRegistry.registerNode({
+    type: "demo/minimal-shell",
+    title: "Minimal",
+    category: "Testing",
+    size: [180, 96],
+    inputs: [{ name: "in", label: "In", type: "number" }],
+    outputs: [{ name: "out", label: "Out", type: "number" }],
+    shell: {
+      variant: "minimal",
+      hideHeaderSignal: true,
+      hideCategoryBadge: true,
+      cardFill: "#071815",
+      cardStroke: "#34d399",
+      headerFill: "#0c2f29",
+      widgetFill: "#071815"
+    }
+  });
 
   const executionStates = new Map<string, LeaferGraphNodeExecutionState>();
   const nodeViews = new Map<string, NodeViewState<NodeRuntimeState>>();
@@ -430,6 +447,23 @@ describe("node_shell_host", () => {
     expect(state.shellView.headerDivider.visible).toBe(false);
     expect(state.shellView.widgetBackground).toBeNull();
     expect(state.shellView.widgetDivider).toBeNull();
+  });
+
+  test("minimal shell 会隐藏标题栏左右内容并应用壳颜色", () => {
+    window.matchMedia = createMatchMedia(false);
+
+    const { mountNode } = createHarness();
+    const node = createNodeState("minimal-shell", "demo/minimal-shell");
+    const state = mountNode(node);
+
+    expect(state.shellView.signalGlow.visible).toBe(false);
+    expect(state.shellView.signalLight.visible).toBe(false);
+    expect(state.shellView.signalButton.visible).toBe(false);
+    expect(state.shellView.categoryBadge.visible).toBe(false);
+    expect(state.shellView.categoryLabel.visible).toBe(false);
+    expect(state.shellView.card.fill).toBe("#071815");
+    expect(state.shellView.card.stroke).toBe("#34d399");
+    expect(state.shellView.header.fill).toBe("#0c2f29");
   });
 
   test("missing node 会展示缺失态外壳并隐藏 badge 图元", () => {

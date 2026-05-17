@@ -7,6 +7,7 @@
 
 import "@leafer-in/flow";
 import { Box, Group, Path, Rect, Text } from "leafer-ui";
+import type { NodeShellConfig } from "@leafergraph/core/node";
 export type { NodeShellRenderTheme } from "@leafergraph/core/theme";
 import type { NodeShellRenderTheme } from "@leafergraph/core/theme";
 import type { NodeShellCategoryLayout, NodeShellLayout } from "./layout";
@@ -40,6 +41,7 @@ export interface CreateNodeShellOptions {
   shellLayout: NodeShellLayout;
   categoryLayout: NodeShellCategoryLayout;
   theme: NodeShellRenderTheme;
+  shell?: NodeShellConfig;
 }
 
 /**
@@ -102,9 +104,14 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     selectedStroke,
     shellLayout,
     categoryLayout,
-    theme
+    theme,
+    shell
   } = options;
   const normalizedErrorMessage = normalizeNodeErrorMessage(errorMessage);
+  const minimalShell = shell?.variant === "minimal";
+  const hideHeaderSignal = Boolean(shell?.hideHeaderSignal);
+  const hideCategoryBadge = Boolean(shell?.hideCategoryBadge);
+  const nodeRadius = minimalShell ? Math.max(theme.nodeRadius + 6, 16) : theme.nodeRadius;
 
   const group = new Group({
     x,
@@ -118,7 +125,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     y: -theme.progressRingOutset,
     width: shellLayout.width + theme.progressRingOutset * 2,
     height: shellLayout.height + theme.progressRingOutset * 2,
-    radius: theme.nodeRadius + theme.progressRingOutset
+    radius: nodeRadius + theme.progressRingOutset
   });
 
   const progressTrack = new Path({
@@ -164,7 +171,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     fill: "transparent",
     stroke: selectedStroke,
     strokeWidth: theme.selectedRingStrokeWidth,
-    cornerRadius: theme.nodeRadius + theme.selectedRingOutset,
+    cornerRadius: nodeRadius + theme.selectedRingOutset,
     opacity: 0,
     selectedStyle: {
       stroke: selectedStroke,
@@ -176,10 +183,10 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   const card = new Rect({
     width: shellLayout.width,
     height: shellLayout.height,
-    fill: theme.cardFill,
-    stroke: theme.cardStroke,
+    fill: shell?.cardFill ?? theme.cardFill,
+    stroke: shell?.cardStroke ?? theme.cardStroke,
     strokeWidth: 1,
-    cornerRadius: theme.nodeRadius,
+    cornerRadius: nodeRadius,
     cursor: "grab",
     shadow: {
       color: theme.cardShadow.normal.color,
@@ -211,10 +218,10 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
   const header = new Rect({
     width: shellLayout.width,
     height: theme.headerHeight,
-    fill: theme.headerFill,
+    fill: shell?.headerFill ?? theme.headerFill,
     cornerRadius: shellLayout.collapsed
-      ? theme.nodeRadius
-      : [theme.nodeRadius, theme.nodeRadius, 0, 0],
+      ? nodeRadius
+      : [nodeRadius, nodeRadius, 0, 0],
     shadow: {
       color: theme.headerShadow.color,
       blur: theme.headerShadow.blur,
@@ -242,6 +249,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     fill: signalColor,
     opacity: theme.signalGlowOpacity,
     cornerRadius: 999,
+    visible: !hideHeaderSignal,
     hittable: false
   });
 
@@ -252,6 +260,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     height: theme.signalLightSize,
     fill: signalColor,
     cornerRadius: 999,
+    visible: !hideHeaderSignal,
     hittable: false
   });
 
@@ -263,13 +272,16 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     height: theme.signalGlowSize + theme.signalHitPadding * 2,
     fill: "rgba(255, 255, 255, 0.001)",
     cornerRadius: 999,
-    cursor: "pointer"
+    cursor: "pointer",
+    visible: !hideHeaderSignal
   });
 
-  const titleX = Math.max(
-    theme.titleX,
-    theme.signalGlowX + theme.signalGlowSize + theme.titleSignalGap
-  );
+  const titleX = hideHeaderSignal
+    ? theme.titleX
+    : Math.max(
+        theme.titleX,
+        theme.signalGlowX + theme.signalGlowSize + theme.titleSignalGap
+      );
   
   const titleLabel = new Text({
     x: titleX,
@@ -302,6 +314,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     stroke: theme.categoryStroke,
     strokeWidth: 1,
     cornerRadius: 999,
+    visible: !hideCategoryBadge,
     hittable: false
   });
 
@@ -313,6 +326,7 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
     fontFamily: theme.categoryFontFamily,
     fontSize: theme.categoryFontSize,
     fontWeight: theme.categoryFontWeight,
+    visible: !hideCategoryBadge,
     hittable: false
   });
 
@@ -337,8 +351,8 @@ export function createNodeShell(options: CreateNodeShellOptions): NodeShellView 
       y: shellLayout.widgetTop,
       width: shellLayout.width,
       height: shellLayout.height - shellLayout.widgetTop,
-      fill: theme.widgetFill,
-      cornerRadius: [0, 0, theme.nodeRadius, theme.nodeRadius],
+      fill: shell?.widgetFill ?? theme.widgetFill,
+      cornerRadius: [0, 0, nodeRadius, nodeRadius],
       shadow: {
         color: theme.widgetShadow.color,
         blur: theme.widgetShadow.blur,
