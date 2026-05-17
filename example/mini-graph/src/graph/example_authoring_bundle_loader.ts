@@ -77,15 +77,16 @@ async function rewriteRuntimeDependencies(
   let nextSource = sourceText;
 
   for (const specifier of EXAMPLE_AUTHORING_RUNTIME_DEPENDENCY_SPECIFIERS) {
-    if (!nextSource.includes(specifier)) {
-      continue;
-    }
-
-    const shimUrl = await ensureRuntimeDependencyShim(specifier);
     const specifierPattern = new RegExp(
       `(["'])${escapeRegExp(specifier)}\\1`,
       "g"
     );
+    if (!specifierPattern.test(nextSource)) {
+      continue;
+    }
+
+    specifierPattern.lastIndex = 0;
+    const shimUrl = await ensureRuntimeDependencyShim(specifier);
     nextSource = nextSource.replace(specifierPattern, `"${shimUrl}"`);
   }
 

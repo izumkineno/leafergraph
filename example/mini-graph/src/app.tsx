@@ -239,20 +239,10 @@ export function App() {
         <div class="toolbar-copy">
           <p class="eyebrow">LeaferGraph Mini Demo</p>
           <h1>最小空画布 Demo</h1>
-          <p class="toolbar-description">
-            这里直接通过公开 API 启动一个默认空画布，并让画布尽量占满页面。
-            当前默认不注入任何节点；可以先选择编译后的单文件 JS bundle 来注册
-            authoring 库，再继续扩展图内容。顶部默认使用更容易观察的
-            Expressive 连线动画预设，也可以继续切换其它运行时动画预设，
-            用来对比性能优先和平衡表现两类反馈。
-            右键画布即可验证 Leafer-first 上下文菜单，并直接插入动画示例链、
-            长任务测试链或 Delay 长任务示例链，或从当前注册表继续添加
-            System / Example 节点。
-          </p>
         </div>
 
         <div class="toolbar-side">
-          <div class="toolbar-actions">
+          <div class="toolbar-actions" role="group" aria-label="画布快捷操作">
             <label class="toolbar-select-wrap">
               <span class="toolbar-select-label">Link Animation</span>
               <select
@@ -279,18 +269,20 @@ export function App() {
               </select>
             </label>
 
-            {actionItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                class={`toolbar-button ${item.accent ? "toolbar-button--accent" : ""}`}
-                disabled={item.disabled}
-                title={item.title}
-                onClick={item.onClick}
-              >
-                {item.label}
-              </button>
-            ))}
+            <div class="toolbar-button-grid">
+              {actionItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  class={`toolbar-button ${item.accent ? "toolbar-button--accent" : ""}`}
+                  disabled={item.disabled}
+                  title={item.title}
+                  onClick={item.onClick}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div class="toolbar-debug">
@@ -536,9 +528,9 @@ export function App() {
 
               {logs.length > 0 ? (
                 <ol id="mini-graph-runtime-log" class="log-list">
-                  {logs.map((entry) => (
+                  {logs.map((entry, index) => (
                     <li
-                      key={entry.id}
+                      key={`${entry.id}-${entry.timestamp}-${index}`}
                       class="log-item"
                     >
                       <span class="log-time">{formatLogTime(entry.timestamp)}</span>

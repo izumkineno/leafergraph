@@ -1,0 +1,22 @@
+{
+  "name": "leafergraph-small-interactive-graph-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "bun test --preload ./tests/setup.ts ./tests"
+  },
+  "dependencies": {
+    "@leafergraph/core/node": "workspace:*",
+    "leafergraph": "workspace:*"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.10",
+    "@types/node": "^24.12.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  }
+}

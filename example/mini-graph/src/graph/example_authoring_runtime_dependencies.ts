@@ -1,7 +1,12 @@
+import * as apiHostRuntime from "@leafergraph/api-host";
+import * as configRuntime from "@leafergraph/core/config";
 import * as contractsRuntime from "@leafergraph/core/contracts";
 import * as executionRuntime from "@leafergraph/core/execution";
-import * as nodeRuntime from "@leafergraph/core/node";
+import * as coreNodeRuntime from "@leafergraph/core/node";
 import * as widgetRuntime from "@leafergraph/core/widget-runtime";
+import * as linkAnimationRuntime from "@leafergraph/link-animation";
+import * as nodeRuntimeRuntime from "@leafergraph/node-runtime";
+import * as sceneRuntime from "@leafergraph/scene-runtime";
 import * as leaferUiRuntime from "leafer-ui";
 import { LeaferGraph, createLeaferGraph } from "leafergraph";
 
@@ -25,15 +30,21 @@ const STATIC_RUNTIME_DEPENDENCIES: Record<
   string,
   ExampleAuthoringRuntimeDependencyNamespace
 > = {
+  "@leafergraph/api-host": apiHostRuntime,
+  "@leafergraph/core/config": configRuntime,
   "@leafergraph/core/contracts": contractsRuntime,
   "@leafergraph/core/execution": executionRuntime,
-  "@leafergraph/core/node": nodeRuntime,
+  "@leafergraph/core/node": coreNodeRuntime,
   "@leafergraph/core/widget-runtime": widgetRuntime,
+  "@leafergraph/link-animation": linkAnimationRuntime,
+  "@leafergraph/node-runtime": nodeRuntimeRuntime,
+  "@leafergraph/scene-runtime": sceneRuntime,
   "leafer-ui": leaferUiRuntime,
   leafergraph: leafergraphRuntime
 };
 
 const LAZY_RUNTIME_DEPENDENCY_SPECIFIERS = ["@leafergraph/extensions/authoring"] as const;
+// Browser bundles must externalize exact public package roots; subpaths are intentionally unsupported.
 
 export const EXAMPLE_AUTHORING_RUNTIME_DEPENDENCY_SPECIFIERS = [
   ...LAZY_RUNTIME_DEPENDENCY_SPECIFIERS,

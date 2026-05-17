@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import preact from "@preact/preset-vite";
+import { createLeafergraphAliases } from "../../vite.config.base";
 
 const githubPagesBase = process.env.GITHUB_PAGES_BASE;
 
@@ -39,68 +40,6 @@ export default defineConfig({
   base: normalizeBase(githubPagesBase),
   plugins: [preact()],
   resolve: {
-    alias: [
-      {
-        find: /^@leafergraph\/basic-kit$/,
-        replacement: resolve(__dirname, "../../packages/core/basic-kit/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/core\/node$/,
-        replacement: resolve(__dirname, "../../packages/core/node/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/core\/execution$/,
-        replacement: resolve(__dirname, "../../packages/core/execution/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/core\/contracts$/,
-        replacement: resolve(__dirname, "../../packages/core/contracts/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/core\/widget-runtime$/,
-        replacement: resolve(__dirname, "../../packages/core/widget-runtime/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/extensions\/authoring$/,
-        replacement: resolve(__dirname, "../../packages/extensions/authoring/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/extensions\/context-menu$/,
-        replacement: resolve(__dirname, "../../packages/extensions/context-menu/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/extensions\/context-menu-builtins$/,
-        replacement: resolve(
-          __dirname,
-          "../../packages/extensions/context-menu-builtins/src/index.ts"
-        )
-      },
-      {
-        find: /^@leafergraph\/extensions\/shortcuts$/,
-        replacement: resolve(__dirname, "../../packages/extensions/shortcuts/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/extensions\/shortcuts\/graph$/,
-        replacement: resolve(
-          __dirname,
-          "../../packages/extensions/shortcuts/src/graph/index.ts"
-        )
-      },
-      {
-        find: /^@leafergraph\/extensions\/undo-redo$/,
-        replacement: resolve(__dirname, "../../packages/extensions/undo-redo/src/index.ts")
-      },
-      {
-        find: /^@leafergraph\/extensions\/undo-redo\/graph$/,
-        replacement: resolve(
-          __dirname,
-          "../../packages/extensions/undo-redo/src/graph/index.ts"
-        )
-      },
-      {
-        find: /^@leafergraph\/core\/theme$/,
-        replacement: resolve(__dirname, "../../packages/core/theme/src/index.ts")
-      }
-    ]
+    alias: createLeafergraphAliases(resolve(__dirname, "../.."))
   }
 });

@@ -1,0 +1,174 @@
+:root {
+  color-scheme: dark;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  color: #e2e8f0;
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.2), transparent 34%),
+    radial-gradient(circle at right center, rgba(99, 102, 241, 0.18), transparent 28%),
+    linear-gradient(180deg, #050816 0%, #0f172a 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.hero {
+  max-width: 960px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #7dd3fc;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.02;
+}
+
+.hero p {
+  margin: 12px 0 0;
+  max-width: 720px;
+  color: #cbd5e1;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 0.8fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.card {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 22px;
+  background: rgba(2, 6, 23, 0.74);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.34);
+}
+
+.stage-card {
+  height: 940px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 0;
+}
+
+.card-header h2,
+.notes-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.card-header p {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: #38bdf8;
+  color: #082f49;
+  cursor: pointer;
+}
+
+.actions button.secondary {
+  background: rgba(148, 163, 184, 0.18);
+  color: #e2e8f0;
+}
+
+.stage-host {
+  min-height: 0;
+  height: 100%;
+  margin: 18px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f8fafc 0%, #dbeafe 100%);
+}
+
+.notes-card {
+  padding: 20px;
+}
+
+.notes-card ol {
+  margin: 16px 0;
+  padding-left: 20px;
+  color: #e2e8f0;
+}
+
+.notes-card li + li {
+  margin-top: 10px;
+}
+
+.note {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.error {
+  margin: 0;
+  padding: 24px;
+  color: #fecaca;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-card {
+    min-height: 560px;
+  }
+
+  .stage-host {
+    height: 100%;
+  }
+}

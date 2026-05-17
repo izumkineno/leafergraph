@@ -14,3 +14,4 @@ __pycache__/
 .claude
 temp/
 .sisyphus
+.playwright-mcp

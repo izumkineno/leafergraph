@@ -1,56 +1,53 @@
 /* 页面整体布局：尽量压缩非画布区域，把剩余空间留给图画布。 */
 .page-shell {
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 6px;
-  padding: 6px;
+  gap: 5px;
+  padding: 5px;
+  overflow: hidden;
 }
 
 /* 顶部工具栏：保留最小信息密度，但不抢占画布面积。 */
 .toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px 18px;
-  padding: 2px 4px 0;
+  display: grid;
+  grid-template-columns: minmax(12rem, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: 6px 12px;
+  padding: 1px 3px 0;
 }
 
 /* 左侧标题区。 */
 .toolbar-copy {
   min-width: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 /* 小号眉题，用来提示这是最小 demo。 */
 .eyebrow {
   margin: 0;
   color: var(--accent);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-/* 一行简短说明，控制为辅助信息，不盖过主画布。 */
-.toolbar-description {
-  max-width: 56rem;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 /* 右侧工具区：动作按钮、状态与 badge 都收口到这里。 */
 .toolbar-side {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.82fr);
+  grid-template-areas:
+    "actions debug"
+    "meta meta";
+  align-items: start;
+  gap: 4px 6px;
 }
 
 /* 顶部的按钮组、状态组和 badge 组统一用紧凑横向流布局。 */
@@ -60,73 +57,103 @@
 .status-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 /* 顶栏按钮减少后，把按钮区间距再收紧一点。 */
 .toolbar-actions {
-  gap: 5px;
+  grid-area: actions;
+  width: 100%;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+/* 顶部按钮区使用网格占位，避免按钮文案变化时挤压选择器或产生跳动。 */
+.toolbar-button-grid {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(7.8rem, 1.5fr) repeat(5, minmax(3.4rem, 0.78fr));
+  gap: 4px;
+  align-items: stretch;
 }
 
 .toolbar-debug {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  grid-area: debug;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
 }
 
 .toolbar-debug-title {
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .toolbar-debug-grid {
-  gap: 5px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(3.2rem, 1fr));
+  gap: 4px;
+  width: 100%;
 }
 
 .toolbar-select-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
+  flex: 0 1 auto;
+  gap: 6px;
+  padding: 3px 8px;
+  min-width: 0;
   border-radius: 999px;
   border: 1px solid var(--panel-border);
   background: var(--overlay-section-bg);
 }
 
 .toolbar-select-wrap--debug {
-  padding: 4px 8px;
+  min-width: 0;
+  width: 100%;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 2px 5px;
 }
 
 .toolbar-select-label {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toolbar-select {
   appearance: none;
-  min-height: 28px;
-  padding: 4px 26px 4px 8px;
+  min-height: 26px;
+  min-width: 0;
+  padding: 3px 22px 3px 6px;
   border: 0;
   border-radius: 999px;
   background:
-    linear-gradient(135deg, transparent 50%, var(--muted) 50%) calc(100% - 12px)
+    linear-gradient(135deg, transparent 50%, var(--muted) 50%) calc(100% - 10px)
       calc(50% - 1px) / 6px 6px no-repeat,
-    linear-gradient(45deg, var(--muted) 50%, transparent 50%) calc(100% - 8px)
+    linear-gradient(45deg, var(--muted) 50%, transparent 50%) calc(100% - 6px)
       calc(50% - 1px) / 6px 6px no-repeat,
     transparent;
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -141,17 +168,21 @@
 }
 
 .toolbar-select--compact {
-  min-height: 24px;
-  padding-right: 24px;
-  font-size: 11px;
+  min-height: 22px;
+  width: min(5.4rem, 100%);
+  padding-right: 20px;
+  font-size: 10px;
 }
 
 /* 按钮与状态区域再做一层垂直组织。 */
 .toolbar-meta {
+  grid-area: meta;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 6px;
+  width: 100%;
+  min-width: 0;
 }
 
 .bundle-file-input {
@@ -165,15 +196,20 @@
 /* 顶部控制按钮。 */
 .toolbar-button {
   appearance: none;
+  width: 100%;
+  min-height: 30px;
   border: 1px solid var(--panel-border);
   border-radius: 999px;
-  padding: 7px 10px;
+  padding: 5px 8px;
   background: var(--overlay-section-bg);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition:
     transform 120ms ease,
@@ -219,12 +255,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  padding: 5px 10px;
+  min-height: 22px;
+  padding: 2px 7px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   border: 1px solid transparent;
 }
@@ -251,8 +287,8 @@
 .status-copy {
   max-width: min(32rem, 100%);
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 10px;
+  line-height: 1.25;
 }
 
 /* 右上角 badge 只做补充说明。 */
@@ -489,11 +525,49 @@
   word-break: break-word;
 }
 
-/* 中等宽度下把顶栏改为上下结构，优先保证画布宽度。 */
-@media (max-width: 900px) {
+@media (max-width: 1180px) {
   .toolbar {
-    flex-direction: column;
+    grid-template-columns: minmax(10rem, auto) minmax(0, 1fr);
+  }
+
+  .toolbar-side {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "actions"
+      "debug"
+      "meta";
+  }
+
+  .toolbar-debug-grid {
+    grid-template-columns: repeat(6, minmax(3.6rem, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
+  }
+
+  .toolbar-copy {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .toolbar-actions {
+    display: grid;
+    grid-template-columns: minmax(11rem, 0.42fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .toolbar-actions > .toolbar-select-wrap {
+    justify-content: space-between;
+  }
+
+  .toolbar-button-grid {
+    grid-template-columns: minmax(7.5rem, 1.35fr) repeat(5, minmax(3.25rem, 1fr));
   }
 
   .toolbar-side,
@@ -514,14 +588,53 @@
   }
 }
 
-/* 手机宽度下进一步压缩边距和浮层占位。 */
+@media (max-width: 760px) {
+  .toolbar-copy {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
+
+  .toolbar-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .toolbar-button-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .toolbar-debug {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .toolbar-debug-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .toolbar-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+  }
+
+  .status-row,
+  .badge-row {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 640px) {
   .page-shell {
     padding: 4px;
   }
 
   .toolbar {
-    gap: 8px;
+    gap: 6px;
+  }
+
+  .toolbar-actions > .toolbar-select-wrap,
+  .toolbar-select-wrap--debug {
+    justify-content: space-between;
   }
 
   .graph-card {
@@ -544,5 +657,21 @@
     bottom: 8px;
     width: calc(100% - 16px);
     max-height: min(32vh, 240px);
+  }
+}
+
+@media (max-width: 460px) {
+  .toolbar-button-grid,
+  .toolbar-debug-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar-select-wrap,
+  .toolbar-button {
+    min-height: 32px;
+  }
+
+  .status-copy {
+    white-space: normal;
   }
 }

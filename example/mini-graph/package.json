@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@leafergraph/extensions/authoring-basic-nodes": "workspace:*",
+    "@leafergraph/api-host": "workspace:*",
+    "@leafergraph/core/config": "workspace:*",
     "@leafergraph/core/widget-runtime": "workspace:*",
     "@leafergraph/extensions/authoring": "workspace:*",
     "@leafergraph/core/basic-kit": "workspace:*",
@@ -18,6 +20,9 @@
     "@leafergraph/extensions/context-menu-builtins": "workspace:*",
     "@leafergraph/core/execution": "workspace:*",
     "@leafergraph/core/node": "workspace:*",
+    "@leafergraph/link-animation": "workspace:*",
+    "@leafergraph/node-runtime": "workspace:*",
+    "@leafergraph/scene-runtime": "workspace:*",
     "@leafergraph/extensions/shortcuts": "workspace:*",
     "@leafergraph/core/theme": "workspace:*",
     "@leafergraph/extensions/undo-redo": "workspace:*",
