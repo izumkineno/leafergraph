@@ -1,10 +1,10 @@
 import type { GraphDocument } from "@leafergraph/core/node";
-import { SMALL_GRAPH_NODE_DEFINITIONS } from "./node_definitions";
+import { DASHBOARD_NODE_TYPE, CONFIG_NODE_TYPE, TRANSFORM_NODE_TYPE } from "./node_definitions";
 
 export const SMALL_INTERACTIVE_GRAPH_NODE_IDS = {
-  source: "small-source",
-  transform: "small-transform",
-  sink: "small-sink"
+  dashboard: "custom-dashboard",
+  transform: "custom-transform",
+  config: "custom-config"
 } as const;
 
 export function createSmallInteractiveGraphDocument(): GraphDocument {
@@ -14,49 +14,67 @@ export function createSmallInteractiveGraphDocument(): GraphDocument {
     appKind: "leafergraph-local",
     nodes: [
       {
-        id: SMALL_INTERACTIVE_GRAPH_NODE_IDS.source,
-        type: SMALL_GRAPH_NODE_DEFINITIONS[0].type,
-        title: "Source",
-        layout: { x: 80, y: 144 },
-        inputs: [],
-        outputs: [{ name: "out", label: "Out", type: "number", shape: "circle" }],
-        properties: {},
+        id: SMALL_INTERACTIVE_GRAPH_NODE_IDS.dashboard,
+        type: DASHBOARD_NODE_TYPE,
+        title: "Dashboard",
+        layout: { x: 100, y: 120 },
+        inputs: [{ name: "data", label: "Data In", type: "any", shape: "circle" }],
+        outputs: [{ name: "processed", label: "Processed", type: "any", shape: "circle" }],
+        properties: { value: 72, status: "active" },
         flags: { selected: false },
-        data: {}
+        data: { progress: 72, metric: "96.5 ms", message: "System Healthy" }
+      },
+      {
+        id: SMALL_INTERACTIVE_GRAPH_NODE_IDS.config,
+        type: CONFIG_NODE_TYPE,
+        title: "Configuration",
+        layout: { x: 820, y: 110 },
+        inputs: [{ name: "input", label: "Input", type: "any", shape: "circle" }],
+        outputs: [{ name: "output", label: "Output", type: "any", shape: "circle" }],
+        properties: { mode: "advanced", timeout: 5000, retries: 3 },
+        flags: { selected: false },
+        data: { params: [{ key: "mode", value: "advanced" }, { key: "timeout", value: "5000" }] }
       },
       {
         id: SMALL_INTERACTIVE_GRAPH_NODE_IDS.transform,
-        type: SMALL_GRAPH_NODE_DEFINITIONS[1].type,
+        type: TRANSFORM_NODE_TYPE,
         title: "Transform",
-        layout: { x: 324, y: 136 },
-        inputs: [{ name: "in", label: "In", type: "number", shape: "circle" }],
-        outputs: [{ name: "out", label: "Out", type: "number", shape: "circle" }],
-        properties: {},
+        layout: { x: 450, y: 300 },
+        inputs: [
+          { name: "source", label: "Source", type: "object", shape: "circle" },
+          { name: "schema", label: "Schema", type: "object", shape: "circle" }
+        ],
+        outputs: [
+          { name: "result", label: "Result", type: "object", shape: "circle" },
+          { name: "warnings", label: "Warnings", type: "array", shape: "circle" }
+        ],
+        properties: { strategy: "normalize", outputFormat: "typed-json", strict: true },
         flags: { selected: false },
-        data: {}
-      },
-      {
-        id: SMALL_INTERACTIVE_GRAPH_NODE_IDS.sink,
-        type: SMALL_GRAPH_NODE_DEFINITIONS[2].type,
-        title: "Sink",
-        layout: { x: 576, y: 144 },
-        inputs: [{ name: "in", label: "In", type: "number", shape: "circle" }],
-        outputs: [],
-        properties: {},
-        flags: { selected: false },
-        data: {}
+        data: {
+          rules: [
+            { from: "payload.user.name", to: "profile.displayName" },
+            { from: "payload.score", to: "metrics.score" },
+            { from: "payload.tags[]", to: "labels[]" }
+          ],
+          preview: {
+            profile: { displayName: "Ada" },
+            metrics: { score: 98 },
+            labels: ["active", "trial"]
+          },
+          warnings: 1
+        }
       }
     ],
     links: [
       {
-        id: "small-link-1",
-        source: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.source, slot: 0 },
+        id: "custom-link-1",
+        source: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.dashboard, slot: 0 },
         target: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.transform, slot: 0 }
       },
       {
-        id: "small-link-2",
+        id: "custom-link-2",
         source: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.transform, slot: 0 },
-        target: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.sink, slot: 0 }
+        target: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.config, slot: 0 }
       }
     ]
   };

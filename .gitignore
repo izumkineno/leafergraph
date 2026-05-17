@@ -10,8 +10,15 @@ __pycache__/
 *.egg-info/
 .omx
 .omc
+.omg
 .agents
 .claude
 temp/
 .sisyphus
 .playwright-mcp
+mcp-server
+.github/agents
+.github/hooks
+.github/prompts
+.github/skills
+.github/copilot-instructions.md

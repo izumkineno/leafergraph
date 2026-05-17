@@ -1,33 +1,45 @@
 import type { NodeDefinition } from "@leafergraph/core/node";
 
-export const SMALL_INTERACTIVE_SOURCE_NODE_TYPE = "small-interactive/source";
-export const SMALL_INTERACTIVE_TRANSFORM_NODE_TYPE = "small-interactive/transform";
-export const SMALL_INTERACTIVE_SINK_NODE_TYPE = "small-interactive/sink";
+export const DASHBOARD_NODE_TYPE = "custom-showcase/dashboard";
+export const CONFIG_NODE_TYPE = "custom-showcase/config";
+export const TRANSFORM_NODE_TYPE = "custom-showcase/transform";
+export const SHOWCASE_WIDGET_TYPE = "custom-showcase/panel";
 
 export const SMALL_GRAPH_NODE_DEFINITIONS: readonly NodeDefinition[] = [
   {
-    type: SMALL_INTERACTIVE_SOURCE_NODE_TYPE,
-    title: "Source",
-    category: "Small Interactive",
-    description: "A minimal source node for connection and drag tests.",
-    outputs: [{ name: "out", label: "Out", type: "number", shape: "circle" }],
-    size: [180, 96]
+    type: DASHBOARD_NODE_TYPE,
+    title: "Dashboard",
+    category: "Custom Showcase",
+    description: "Showcase node with real-time data visualization, circular progress, and status indicators.",
+    inputs: [{ name: "data", label: "Data In", type: "any", shape: "circle" }],
+    outputs: [{ name: "processed", label: "Processed", type: "any", shape: "circle" }],
+    widgets: [{ type: SHOWCASE_WIDGET_TYPE, name: "showcase" }],
+    size: [240, 200]
   },
   {
-    type: SMALL_INTERACTIVE_TRANSFORM_NODE_TYPE,
+    type: CONFIG_NODE_TYPE,
+    title: "Configuration",
+    category: "Custom Showcase",
+    description: "Showcase node with editable parameters, dropdowns, and interactive form controls.",
+    inputs: [{ name: "input", label: "Input", type: "any", shape: "circle" }],
+    outputs: [{ name: "output", label: "Output", type: "any", shape: "circle" }],
+    widgets: [{ type: SHOWCASE_WIDGET_TYPE, name: "showcase" }],
+    size: [260, 220]
+  },
+  {
+    type: TRANSFORM_NODE_TYPE,
     title: "Transform",
-    category: "Small Interactive",
-    description: "A middle node used to keep the graph interactive.",
-    inputs: [{ name: "in", label: "In", type: "number", shape: "circle" }],
-    outputs: [{ name: "out", label: "Out", type: "number", shape: "circle" }],
-    size: [200, 104]
-  },
-  {
-    type: SMALL_INTERACTIVE_SINK_NODE_TYPE,
-    title: "Sink",
-    category: "Small Interactive",
-    description: "A terminal node to complete the small chain.",
-    inputs: [{ name: "in", label: "In", type: "number", shape: "circle" }],
-    size: [180, 96]
+    category: "Custom Showcase",
+    description: "Showcase node with multiple ports, mapping rules, and a compact data preview.",
+    inputs: [
+      { name: "source", label: "Source", type: "object", shape: "circle" },
+      { name: "schema", label: "Schema", type: "object", shape: "circle" }
+    ],
+    outputs: [
+      { name: "result", label: "Result", type: "object", shape: "circle" },
+      { name: "warnings", label: "Warnings", type: "array", shape: "circle" }
+    ],
+    widgets: [{ type: SHOWCASE_WIDGET_TYPE, name: "showcase" }],
+    size: [300, 240]
   }
 ] as const;

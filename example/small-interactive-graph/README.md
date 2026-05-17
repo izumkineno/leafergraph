@@ -2,21 +2,21 @@
 
 `small-interactive-graph` is the smallest interaction-focused LeaferGraph example in this workspace.
 
-It exists to show the minimum browser integration needed to work with a real graph:
+It now showcases **custom node capabilities** through two visually distinct nodes:
 
-- native DOM, not Preact
-- a preseeded three-node chain
-- node select and drag
-- port connection interaction
-- right-click link disconnect
-- canvas pan and zoom
+- **Dashboard Node** - Demonstrates data visualization with circular progress indicator, real-time metrics, and status indicators
+- **Configuration Node** - Demonstrates interactive parameters, editable form controls, and custom styling
 
 ## What it covers
 
 - `leafergraph`
   - viewer-first root graph host
+  - custom node definitions and styling
 - `@leafergraph/core/node`
   - local `NodeDefinition` and `GraphDocument` helpers
+- Custom rendering
+  - Advanced CSS for node internals (progress rings, animations, gradients)
+  - Dynamic data binding and state visualization
 
 ## What it does not cover
 
@@ -48,16 +48,19 @@ bun run --filter leafergraph-small-interactive-graph-example preview
 ## Manual interaction checklist
 
 1. Open the example in a browser.
-2. Select a node.
-3. Drag a node to a new position.
-4. Reconnect the chain through the ports.
-5. Right-click a link to remove it.
-6. Pan the canvas.
-7. Zoom the canvas.
+2. Observe the two custom nodes with distinct visual styles.
+3. Select a node.
+4. Drag a node to a new position.
+5. Reconnect nodes via the ports.
+6. Right-click a link to remove it.
+7. Pan the canvas.
+8. Zoom the canvas.
 
 ## Files to inspect first
 
-- `src/main.ts`
-- `src/graph/node_definitions.ts`
-- `src/graph/example_document.ts`
-- `tests/example_graph.test.ts`
+- `src/main.ts` - Bootstrap and app shell
+- `src/graph/node_definitions.ts` - Dashboard and Config node definitions
+- `src/graph/example_document.ts` - Graph structure with two custom nodes
+- `src/graph/custom_node_renderers.ts` - Render configuration and templates
+- `src/style.css` - Advanced styling for node internals
+- `tests/example_graph.test.ts` - Test suite
