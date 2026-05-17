@@ -96,6 +96,7 @@ graph.node.create({
 | 📚 使用指南   | [使用与扩展指南](./packages/leafergraph/使用与扩展指南.md)                            | 需要深入了解API和扩展能力的开发者 |
 | 🔧 节点开发   | [@leafergraph/extensions/authoring README](./packages/extensions/authoring/README.md) | 想要自定义开发节点和Widget的作者  |
 | 🏗️ 架构设计 | [内部架构地图](./packages/leafergraph/内部架构地图.md)                                | 核心开发者和贡献者                |
+| 🧭 迁移记录 | [viewer-first root split manifest](./docs/viewer-first-root-split-manifest.md)        | 想追踪 viewer-first root 拆分状态 |
 | 🎨 主题定制   | [@leafergraph/core/theme README](./packages/core/theme/README.md)                     | 需要定制界面风格的开发者          |
 
 ## 🎯 项目定位
@@ -108,6 +109,13 @@ graph.node.create({
 - 神经网络设计器
 - 低代码搭建平台
 - 任何需要节点式交互的应用
+
+### Viewer-first split 状态
+
+- `leafergraph` 现在是 viewer-first root，默认入口保留 `LeaferGraph` / `createLeaferGraph(...)`，并通过 extracted 包的薄适配层提供完整能力。
+- `@leafergraph/scene-runtime` 负责 scene、interaction、node shell、link visuals、theme runtime 和 runtime-feedback 投影。
+- `@leafergraph/api-host` 负责 full API host、facade groups、history、registry、document/mutation/execution integration，以及 `leafergraph/api/graph_api_host` 的兼容替换面。
+- 这轮 split 的可追踪记录放在 [viewer-first root split manifest](./docs/viewer-first-root-split-manifest.md) 和 [viewer-first root migration](./docs/viewer-first-root-migration.md)。
 
 ---
 
@@ -125,26 +133,27 @@ graph.node.create({
 
 ## 项目分层
 
-当前仓库里实际存在的正式包可以按六层理解：
+当前仓库里实际存在的正式包可以按七层理解：
 
 | 层级            | 当前包                                                                                                                                                                    | 作用                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | core foundation | `@leafergraph/core/node`、`@leafergraph/core/execution`、`@leafergraph/core/contracts`                                                                              | 定义节点模型、执行链、跨包共享协议                     |
 | core runtime    | `@leafergraph/core/config`、`@leafergraph/core/theme`、`@leafergraph/core/widget-runtime`、`@leafergraph/core/basic-kit`                                          | 提供配置、主题、Widget runtime 和默认内容包            |
-| 主包兼容层      | `leafergraph`                                                                                                                                                           | 作为 runtime-only 主包，对外提供 Leafer 图宿主 façade |
+| 主包根层        | `leafergraph`                                                                                                                                                           | viewer-first root；默认入口保留最小视图契约并安装兼容 façade |
+| 运行时包        | `@leafergraph/scene-runtime`、`@leafergraph/api-host`                                                                                                                  | 已落地的 extracted runtime packages                   |
 | 宿主扩展层      | `@leafergraph/extensions/context-menu`、`@leafergraph/extensions/context-menu-builtins`、`@leafergraph/extensions/shortcuts`、`@leafergraph/extensions/undo-redo` | 提供菜单、内建动作、快捷键和历史栈扩展                 |
 | 作者层          | `@leafergraph/extensions/authoring`                                                                                                                                     | 提供节点 / Widget 作者层 SDK                           |
 | 消费样例层      | `example/`、`templates/`                                                                                                                                              | 提供 dogfood 示例和可复制模板                          |
 
 额外记住三个固定约束：
 
-- `leafergraph` 已经收口成 runtime-only 主包，不再聚合 re-export 其它真源包。
+- `leafergraph` 已经是 viewer-first root；完整 runtime / editor 责任已经拆到 `@leafergraph/scene-runtime` 和 `@leafergraph/api-host`。
 - `@leafergraph/extensions/shortcuts`、`@leafergraph/extensions/undo-redo` 已进入默认 build/test 聚合，但文档定位仍然是“非核心维护包 / 宿主扩展层”。
 - 当前仓库里没有活动中的 `runtime-bridge` 包；凡是还提到它的文档，都应视为历史草案或待清理内容。
 
 ## 当前正式布局与兼容映射
 
-当前正式包已经落到 `packages/core/*` 和 `packages/extensions/*` 两条目录下。阅读旧文档或迁移笔记时，可以先按这张兼容映射表理解：
+当前正式包已经落到 `packages/core/*`、`packages/extensions/*`、`packages/scene-runtime/*` 和 `packages/api-host/*` 四条目录线下。阅读旧文档或迁移笔记时，可以先按这张兼容映射表理解：
 
 | 旧名 / 草案名                          | 当前正式包                                        | 备注                                                                                                           |
 | -------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -160,7 +169,7 @@ graph.node.create({
 | `@leafergraph/shortcuts`             | `@leafergraph/extensions/shortcuts`             | extensions                                                                                                     |
 | `@leafergraph/undo-redo`             | `@leafergraph/extensions/undo-redo`             | extensions                                                                                                     |
 | `@leafergraph/authoring`             | `@leafergraph/extensions/authoring`             | extensions / authoring SDK                                                                                     |
-| `leafergraph`                        | `leafergraph`                                   | runtime-only 兼容主包；根入口只保留 `LeaferGraph` / `createLeaferGraph(...)`，高级兼容子路径按最小集合维护 |
+| `leafergraph`                        | `leafergraph`                                   | viewer-first root；根入口保留 `LeaferGraph` / `createLeaferGraph(...)`，并保留最小兼容子路径 |
 
 这轮拆分里，README / docs / example / templates 统一遵守下面的写法约定：
 
@@ -177,6 +186,7 @@ graph.node.create({
 | 区域                              | 本轮应该证明什么                                                 | 推荐验证                                                                       |
 | --------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `README.md` / `docs/`         | 当前包边界真实、目标拆分映射清晰、无已删除包导航                 | `bun run check:boundaries`                                                   |
+| `example/small-interactive-graph` | 最小交互样例可 build/test，并保持 dependency-minimal           | `bun run build:small-interactive-graph && bun run test:smoke:examples`       |
 | `example/mini-graph`            | 主包兼容层仍能显式装配 core + extensions                         | `bun run build:minimal-graph`                                                |
 | `example/authoring-basic-nodes` | 纯作者层示例仍可说明 `authoring` 与 core foundation 的关系     | `bun run check:authoring-basic-nodes && bun run build:authoring-basic-nodes` |
 | `templates/`                    | 模板仍然围绕 authoring + core 真源组织，不误导使用者依赖历史壳层 | `bun run test:smoke:templates`                                               |
@@ -187,7 +197,8 @@ graph.node.create({
 
 1. [leafergraph README](./packages/leafergraph/README.md)
 2. [使用与扩展指南](./packages/leafergraph/使用与扩展指南.md)
-3. [mini-graph README](./example/mini-graph/README.md)
+3. [small-interactive-graph README](./example/small-interactive-graph/README.md)
+4. [mini-graph README](./example/mini-graph/README.md)
 
 ### 我想理解节点模型、文档和插件入口
 
@@ -251,6 +262,8 @@ graph.node.create({
 - [使用与扩展指南](./packages/leafergraph/使用与扩展指南.md)
 - [内部架构地图](./packages/leafergraph/内部架构地图.md)
 - [渲染刷新策略](./packages/leafergraph/渲染刷新策略.md)
+- [viewer-first root migration](./docs/viewer-first-root-migration.md)
+- [viewer-first root split manifest](./docs/viewer-first-root-split-manifest.md)
 
 ### 前瞻性提案
 
@@ -272,6 +285,9 @@ graph.node.create({
 - [mini-graph](./example/mini-graph/README.md)
   - 当前最完整的公开 API 集成示例
   - 同时覆盖 `basic-kit`、菜单、shortcuts、undo-redo、bundle loader 和运行时动画
+- [small-interactive-graph](./example/small-interactive-graph/README.md)
+  - 当前最小的交互-focused 示例
+  - 只演示原生 DOM、预置图和最基本的节点/连线/画布交互
 - [authoring-basic-nodes](./example/authoring-basic-nodes/README.md)
   - 纯作者层示例包
   - 适合看 `@leafergraph/extensions/authoring` 产物如何收口成 plugin / module
@@ -320,11 +336,14 @@ bun run build:shortcuts
 bun run build:undo-redo
 bun run build:leafergraph
 bun run build:minimal-graph
+bun run build:small-interactive-graph
 bun run build:authoring-basic-nodes
 
 # 开发与预览
 bun run dev:minimal-graph
+bun run dev:small-interactive-graph
 bun run preview:minimal-graph
+bun run preview:small-interactive-graph
 
 # 检查与测试
 bun run check:jsdoc

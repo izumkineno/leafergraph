@@ -31,10 +31,12 @@
 | --- | --- | --- |
 | `README.md` | workspace 总入口 | 包分层、命令面、阅读导航 |
 | `packages/` | 正式包源码 | 各包 README 与真实导出 |
-| `example/` | 维护中的示例工程 | `mini-graph` 与 `authoring-basic-nodes` |
+| `example/` | 维护中的示例工程 | `small-interactive-graph`、`mini-graph` 与 `authoring-basic-nodes` |
 | `templates/` | 可复制模板工程 | 节点、Widget、browser bundle 模板 |
 | `docs/` | 专题和维护文档 | 事实型专题、AI 索引、提案总览 |
 | `注意事项.md` | 工程踩坑记录 | 坐标系、交互和文档维护注意点 |
+| `docs/viewer-first-root-migration.md` | viewer-first 迁移说明 | root viewer 与 replacement package paths 的当前状态 |
+| `docs/viewer-first-root-split-manifest.md` | split 记录 | source -> destination ledger、adapter-left-in-root 行、验证备注 |
 
 ## 3. 包级速览
 
@@ -61,7 +63,8 @@
 1. `README.md`
 2. `packages/leafergraph/README.md`
 3. `packages/leafergraph/使用与扩展指南.md`
-4. `example/mini-graph/README.md`
+4. `example/small-interactive-graph/README.md`
+5. `example/mini-graph/README.md`
 
 ### 想理解模型和扩展真源
 
@@ -85,6 +88,8 @@
 2. `packages/leafergraph/内部架构地图.md`
 3. `packages/leafergraph/渲染刷新策略.md`
 4. `注意事项.md`
+5. `docs/viewer-first-root-migration.md`
+6. `docs/viewer-first-root-split-manifest.md`
 
 ## 5. 查询路由
 
