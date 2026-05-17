@@ -1,8 +1,8 @@
 import { createLeaferGraph } from "leafergraph";
 import type { LeaferGraph } from "leafergraph";
-import { SMALL_GRAPH_NODE_DEFINITIONS } from "./graph/node_definitions";
 import { createSmallInteractiveGraphDocument } from "./graph/example_document";
 import { installSmallInteractiveGraphLinkDisconnect } from "./graph/link_disconnect";
+import { smallInteractiveGraphShowcasePlugin } from "./graph/custom_node_renderers";
 import "./style.css";
 
 interface SmallInteractiveGraphDebugSurface {
@@ -22,9 +22,9 @@ function createAppShell(): HTMLDivElement {
   shell.innerHTML = `
     <section class="hero">
       <p class="eyebrow">LeaferGraph sample</p>
-      <h1>Small interactive graph</h1>
+      <h1>Custom node showcase</h1>
       <p>
-        A minimal native DOM example. Drag nodes, reconnect ports, pan, and zoom.
+        Three visually distinct nodes demonstrating custom styling, data visualization, data transformation, and interactive elements.
       </p>
     </section>
     <section class="layout">
@@ -32,7 +32,7 @@ function createAppShell(): HTMLDivElement {
         <div class="card-header">
           <div>
             <h2>Graph</h2>
-            <p>Preseeded three-node chain, ready for interaction.</p>
+            <p>Dashboard, Transform, and Configuration nodes with advanced customization.</p>
           </div>
           <div class="actions">
             <button type="button" data-action="fit">Fit view</button>
@@ -41,14 +41,15 @@ function createAppShell(): HTMLDivElement {
         <div id="stage-host" class="stage-host" aria-label="Graph stage"></div>
       </div>
       <aside class="card notes-card">
-        <h2>What to try</h2>
-        <ol>
-          <li>Select a node.</li>
-          <li>Drag a node to a new position.</li>
-          <li>Reconnect the chain using the ports.</li>
-          <li>Pan and zoom the canvas.</li>
-        </ol>
-        <p class="note">This example intentionally avoids Preact and editor-shell extras.</p>
+        <h2>Node capabilities</h2>
+        <ul class="features">
+          <li><strong>Dashboard:</strong> Real-time progress visualization, status indicators</li>
+          <li><strong>Transform:</strong> Multi-port mapping rules, typed preview output</li>
+          <li><strong>Config:</strong> Editable parameters, form controls</li>
+          <li><strong>Shared:</strong> Drag, resize, reconnect via ports</li>
+          <li><strong>Themes:</strong> Dark mode with dynamic color schemes</li>
+        </ul>
+        <p class="note">Try dragging, connecting ports, zooming, and panning the canvas.</p>
       </aside>
     </section>
   `;
@@ -81,11 +82,7 @@ async function bootstrap(): Promise<void> {
   }
 
   const graph = createLeaferGraph(stageHost, {
-    modules: [
-      {
-        nodes: [...SMALL_GRAPH_NODE_DEFINITIONS]
-      }
-    ],
+    plugins: [smallInteractiveGraphShowcasePlugin],
     document: createSmallInteractiveGraphDocument(),
     themeMode: "dark"
   });
