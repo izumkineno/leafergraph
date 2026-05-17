@@ -61,11 +61,11 @@ describe("small-interactive-graph link disconnect", () => {
     expect(removedLinks).toEqual(["custom-link-1"]);
 
     const nextLinkView = createLinkViewStub();
-    linkViews.set("custom-link-3", nextLinkView);
+    linkViews.set("custom-link-4", nextLinkView);
     document.links = [
       ...document.links,
       {
-        id: "custom-link-3",
+        id: "custom-link-4",
         source: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.config, slot: 0 },
         target: { nodeId: "custom-node-3", slot: 0 }
       }
@@ -80,7 +80,7 @@ describe("small-interactive-graph link disconnect", () => {
             {
               type: "link.create",
               input: {
-                id: "custom-link-3"
+                id: "custom-link-4"
               }
             }
           ]
@@ -89,7 +89,7 @@ describe("small-interactive-graph link disconnect", () => {
     }
 
     nextLinkView.emit("pointer.menu");
-  expect(removedLinks).toEqual(["custom-link-1", "custom-link-3"]);
+    expect(removedLinks).toEqual(["custom-link-1", "custom-link-4"]);
 
     controller.destroy();
   });
