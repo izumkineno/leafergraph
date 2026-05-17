@@ -12,6 +12,7 @@ import {
   SMALL_GRAPH_NODE_DEFINITIONS,
   TRANSFORM_NODE_TYPE
 } from "./node_definitions";
+import { customStructureWidget } from "./custom_structure_node";
 
 /**
  * Custom node renderers for the showcase nodes.
@@ -184,6 +185,7 @@ export const smallInteractiveGraphShowcasePlugin: LeaferGraphNodePlugin = {
   version: "0.0.0",
   install(context) {
     context.registerWidget(smallInteractiveGraphShowcaseWidget, { overwrite: true });
+    context.registerWidget(customStructureWidget, { overwrite: true });
     for (const definition of SMALL_GRAPH_NODE_DEFINITIONS) {
       context.registerNode(definition as NodeDefinition, { overwrite: true });
     }

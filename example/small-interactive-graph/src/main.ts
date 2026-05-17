@@ -24,7 +24,7 @@ function createAppShell(): HTMLDivElement {
       <p class="eyebrow">LeaferGraph sample</p>
       <h1>Custom node showcase</h1>
       <p>
-        Three visually distinct nodes demonstrating custom styling, data visualization, data transformation, and interactive elements.
+        Four distinct nodes demonstrating custom styling, data transformation, and a SIG-local runtime-structure extension.
       </p>
     </section>
     <section class="layout">
@@ -32,7 +32,7 @@ function createAppShell(): HTMLDivElement {
         <div class="card-header">
           <div>
             <h2>Graph</h2>
-            <p>Dashboard, Transform, and Configuration nodes with advanced customization.</p>
+            <p>Dashboard, Transform, Runtime Structure, and Configuration nodes with advanced customization.</p>
           </div>
           <div class="actions">
             <button type="button" data-action="fit">Fit view</button>
@@ -45,6 +45,7 @@ function createAppShell(): HTMLDivElement {
         <ul class="features">
           <li><strong>Dashboard:</strong> Real-time progress visualization, status indicators</li>
           <li><strong>Transform:</strong> Multi-port mapping rules, typed preview output</li>
+          <li><strong>Runtime Structure:</strong> SIG-local authored structure projected into ports and view state</li>
           <li><strong>Config:</strong> Editable parameters, form controls</li>
           <li><strong>Shared:</strong> Drag, resize, reconnect via ports</li>
           <li><strong>Themes:</strong> Dark mode with dynamic color schemes</li>

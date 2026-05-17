@@ -1,9 +1,11 @@
 import type { GraphDocument } from "@leafergraph/core/node";
 import { DASHBOARD_NODE_TYPE, CONFIG_NODE_TYPE, TRANSFORM_NODE_TYPE } from "./node_definitions";
+import { createCustomStructureNodeDocumentEntry } from "./custom_structure_node";
 
 export const SMALL_INTERACTIVE_GRAPH_NODE_IDS = {
   dashboard: "custom-dashboard",
   transform: "custom-transform",
+  runtimeStructure: "custom-runtime-structure",
   config: "custom-config"
 } as const;
 
@@ -34,6 +36,13 @@ export function createSmallInteractiveGraphDocument(): GraphDocument {
         properties: { mode: "advanced", timeout: 5000, retries: 3 },
         flags: { selected: false },
         data: { params: [{ key: "mode", value: "advanced" }, { key: "timeout", value: "5000" }] }
+      },
+      {
+        ...createCustomStructureNodeDocumentEntry({
+          id: SMALL_INTERACTIVE_GRAPH_NODE_IDS.runtimeStructure,
+          x: 690,
+          y: 285
+        })
       },
       {
         id: SMALL_INTERACTIVE_GRAPH_NODE_IDS.transform,
@@ -74,6 +83,11 @@ export function createSmallInteractiveGraphDocument(): GraphDocument {
       {
         id: "custom-link-2",
         source: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.transform, slot: 0 },
+        target: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.runtimeStructure, slot: 0 }
+      },
+      {
+        id: "custom-link-3",
+        source: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.runtimeStructure, slot: 0 },
         target: { nodeId: SMALL_INTERACTIVE_GRAPH_NODE_IDS.config, slot: 0 }
       }
     ]

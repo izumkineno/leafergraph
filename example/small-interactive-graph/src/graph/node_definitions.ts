@@ -1,4 +1,7 @@
 import type { NodeDefinition } from "@leafergraph/core/node";
+import { customStructureNodeDefinition } from "./custom_structure_node";
+
+export { CUSTOM_STRUCTURE_NODE_TYPE, CUSTOM_STRUCTURE_WIDGET_TYPE } from "./custom_structure_node";
 
 export const DASHBOARD_NODE_TYPE = "custom-showcase/dashboard";
 export const CONFIG_NODE_TYPE = "custom-showcase/config";
@@ -44,5 +47,6 @@ export const SMALL_GRAPH_NODE_DEFINITIONS: readonly NodeDefinition[] = [
     widgets: [{ type: SHOWCASE_WIDGET_TYPE, name: "showcase" }],
     size: [260, 340],
     resize: { minHeight: 360 }
-  }
+  },
+  customStructureNodeDefinition
 ] as const;
