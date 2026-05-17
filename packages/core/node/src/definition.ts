@@ -36,6 +36,20 @@ export interface NodeResizeConfig {
 export interface NodeShellConfig {
   /** 该类节点是否属于长耗时任务。 */
   longTask?: boolean;
+  /** 节点壳视觉变体。默认使用标准卡片壳。 */
+  variant?: "default" | "minimal";
+  /** 是否隐藏标题栏左侧的信号灯与命中区。 */
+  hideHeaderSignal?: boolean;
+  /** 是否隐藏标题栏右侧的分类徽标。 */
+  hideCategoryBadge?: boolean;
+  /** 可选卡片填充色覆写。 */
+  cardFill?: string;
+  /** 可选卡片描边色覆写。 */
+  cardStroke?: string;
+  /** 可选标题栏填充色覆写。 */
+  headerFill?: string;
+  /** 可选 widget 区域填充色覆写。 */
+  widgetFill?: string;
 }
 
 /**
