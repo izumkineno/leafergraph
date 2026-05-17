@@ -1,0 +1,15 @@
+{
+  "extends": [
+    "./tsconfig.json",
+    "../core/tsconfig.build.base.json"
+  ],
+  "compilerOptions": {
+    "emitDeclarationOnly": false,
+    "allowImportingTsExtensions": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": [
+    "src"
+  ]
+}

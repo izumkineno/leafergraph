@@ -1,0 +1,79 @@
+{
+  "name": "@leafergraph/scene-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./assembly": {
+      "types": "./src/assembly.ts",
+      "import": "./src/assembly.ts"
+    },
+    "./feedback": {
+      "types": "./src/feedback.ts",
+      "import": "./src/feedback.ts"
+    },
+    "./host": {
+      "types": "./src/host.ts",
+      "import": "./src/host.ts"
+    },
+    "./interaction": {
+      "types": "./src/interaction.ts",
+      "import": "./src/interaction.ts"
+    },
+    "./link": {
+      "types": "./src/link.ts",
+      "import": "./src/link.ts"
+    },
+    "./node": {
+      "types": "./src/node.ts",
+      "import": "./src/node.ts"
+    },
+    "./style": {
+      "types": "./src/style.ts",
+      "import": "./src/style.ts"
+    },
+    "./theme": {
+      "types": "./src/theme.ts",
+      "import": "./src/theme.ts"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "import": "./src/types.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "bun test --preload ./tests/setup.ts ./tests"
+  },
+  "dependencies": {
+    "@leafergraph/core/config": "workspace:*",
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/execution": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
+    "@leafergraph/core/theme": "workspace:*",
+    "@leafergraph/core/widget-runtime": "workspace:*",
+    "@leafergraph/link-animation": "workspace:*",
+    "@leafergraph/node-runtime": "workspace:*",
+    "@leafer-in/arrow": "^2.0.3",
+    "@leafer-in/flow": "^2.0.3",
+    "@leafer-in/resize": "^2.0.3",
+    "@leafer-in/state": "^2.0.3",
+    "@leafer-in/view": "^2.0.3",
+    "@leafer-in/viewport": "^2.0.3",
+    "leafer-ui": "^2.0.3"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.10"
+  }
+}

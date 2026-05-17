@@ -20,11 +20,11 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/core/theme";
-import { LeaferGraphThemeHost } from "../theme/host";
 import {
   LeaferGraphWidgetEditingManager,
   LeaferGraphWidgetRegistry
 } from "@leafergraph/core/widget-runtime";
+import { LeaferGraphThemeHost } from "@leafergraph/scene-runtime/theme";
 
 /**
  * Widget 环境装配输入。

@@ -86,6 +86,60 @@ const canonicalPackageRules = {
       "@leafergraph/widget-runtime"
     ]
   },
+  "@leafergraph/scene-runtime": {
+    allowedWorkspaceDeps: [
+      "@leafergraph/contracts",
+      "@leafergraph/core/config",
+      "@leafergraph/core/contracts",
+      "@leafergraph/execution",
+      "@leafergraph/core/execution",
+      "@leafergraph/node",
+      "@leafergraph/core/node",
+      "@leafergraph/theme",
+      "@leafergraph/core/theme",
+      "@leafergraph/widget-runtime",
+      "@leafergraph/core/widget-runtime",
+      "@leafergraph/link-animation",
+      "@leafergraph/node-runtime"
+    ],
+    allowedSourceImports: [
+      "@leafergraph/contracts",
+      "@leafergraph/core/config",
+      "@leafergraph/core/contracts",
+      "@leafergraph/execution",
+      "@leafergraph/core/execution",
+      "@leafergraph/node",
+      "@leafergraph/core/node",
+      "@leafergraph/theme",
+      "@leafergraph/core/theme",
+      "@leafergraph/widget-runtime",
+      "@leafergraph/core/widget-runtime",
+      "@leafergraph/link-animation",
+      "@leafergraph/node-runtime"
+    ]
+  },
+  "@leafergraph/api-host": {
+    allowedWorkspaceDeps: [
+      "@leafergraph/contracts",
+      "@leafergraph/execution",
+      "@leafergraph/node",
+      "@leafergraph/theme",
+      "@leafergraph/widget-runtime",
+      "@leafergraph/link-animation",
+      "@leafergraph/node-runtime",
+      "@leafergraph/scene-runtime"
+    ],
+    allowedSourceImports: [
+      "@leafergraph/contracts",
+      "@leafergraph/execution",
+      "@leafergraph/node",
+      "@leafergraph/theme",
+      "@leafergraph/widget-runtime",
+      "@leafergraph/link-animation",
+      "@leafergraph/node-runtime",
+      "@leafergraph/scene-runtime"
+    ]
+  },
   "@leafergraph/basic-kit": {
     allowedWorkspaceDeps: [
       "@leafergraph/contracts",
@@ -153,6 +207,8 @@ const canonicalPackageRules = {
     allowedWorkspaceDeps: [
       "@leafergraph/config",
       "@leafergraph/contracts",
+      "@leafergraph/api-host",
+      "@leafergraph/scene-runtime",
       "@leafergraph/link-animation",
       "@leafergraph/execution",
       "@leafergraph/node",
@@ -163,6 +219,8 @@ const canonicalPackageRules = {
     allowedSourceImports: [
       "@leafergraph/config",
       "@leafergraph/contracts",
+      "@leafergraph/api-host",
+      "@leafergraph/scene-runtime",
       "@leafergraph/link-animation",
       "@leafergraph/execution",
       "@leafergraph/node",
@@ -182,6 +240,8 @@ const ruleAliases = {
   "@leafergraph/widget-runtime": ["@leafergraph/core/widget-runtime"],
   "@leafergraph/link-animation": [],
   "@leafergraph/node-runtime": [],
+  "@leafergraph/scene-runtime": [],
+  "@leafergraph/api-host": [],
   "@leafergraph/basic-kit": ["@leafergraph/core/basic-kit"],
   "@leafergraph/context-menu": ["@leafergraph/extensions/context-menu"],
   "@leafergraph/context-menu-builtins": ["@leafergraph/extensions/context-menu-builtins"],

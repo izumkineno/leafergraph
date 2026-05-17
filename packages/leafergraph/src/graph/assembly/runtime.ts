@@ -13,24 +13,23 @@ import type {
   LeaferGraphThemeMode,
   LeaferGraphWidgetThemeContext
 } from "@leafergraph/core/theme";
-import { LeaferGraphApiHost } from "../../api/graph_api_host";
-import { LeaferGraphBootstrapHost } from "../host/bootstrap";
-import { LeaferGraphCanvasHost } from "../host/canvas";
-import type { GraphLinkViewState } from "../../link/link_host";
-import type { NodeViewState } from "../../node/node_host";
-import type { NodeShellLayoutMetrics } from "../../node/shell/layout";
-import type { NodeShellRenderTheme } from "../../node/shell/view";
+import { LeaferGraphApiHost } from "@leafergraph/api-host";
+import { LeaferGraphBootstrapHost, LeaferGraphCanvasHost } from "@leafergraph/scene-runtime/host";
+import type { GraphLinkViewState } from "@leafergraph/scene-runtime/link";
+import type { NodeViewState } from "@leafergraph/scene-runtime/node";
+import type { NodeShellLayoutMetrics } from "@leafergraph/scene-runtime/node";
+import type { NodeShellRenderTheme } from "@leafergraph/scene-runtime/node";
 import type {
   LeaferGraphDataFlowAnimationStyleConfig,
   LeaferGraphNodeShellStyleConfig
-} from "../style";
+} from "@leafergraph/scene-runtime/style";
 import type {
   GraphRuntimeState,
   LeaferGraphRenderableNodeState
-} from "../types";
+} from "@leafergraph/scene-runtime/types";
 import { createLeaferGraphRuntimeApiAssembly } from "./runtime_api";
 import { createLeaferGraphRuntimeHistoryCapture } from "./runtime_history";
-import { createLeaferGraphSceneRuntimeAssembly } from "./scene";
+import { createLeaferGraphSceneRuntimeAssembly } from "@leafergraph/scene-runtime/assembly";
 import { createLeaferGraphWidgetEnvironment } from "./widget_environment";
 
 interface LeaferGraphRuntimeAssemblyOptions<

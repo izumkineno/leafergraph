@@ -15,6 +15,11 @@ const packageAliases: PackageAlias[] = [
   { alias: "@leafergraph/core/theme", packagePath: "packages/core/theme" },
   { alias: "@leafergraph/core/widget-runtime", packagePath: "packages/core/widget-runtime" },
   { alias: "@leafergraph/core/basic-kit", packagePath: "packages/core/basic-kit" },
+  { alias: "@leafergraph/api-host", packagePath: "packages/api-host" },
+  { alias: "@leafergraph/scene-runtime", packagePath: "packages/scene-runtime" },
+  { alias: "@leafergraph/link-animation", packagePath: "packages/link-animation" },
+  { alias: "@leafergraph/node-runtime", packagePath: "packages/node-runtime" },
+  { alias: "@leafergraph/extensions/authoring", packagePath: "packages/extensions/authoring" },
   { alias: "@leafergraph/extensions/context-menu", packagePath: "packages/extensions/context-menu" },
   {
     alias: "@leafergraph/extensions/context-menu-builtins",

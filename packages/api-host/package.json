@@ -1,0 +1,69 @@
+{
+  "name": "@leafergraph/api-host",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./graph_api_host": {
+      "types": "./src/graph_api_host.ts",
+      "import": "./src/graph_api_host.ts"
+    },
+    "./facade/install": {
+      "types": "./src/facade/install.ts",
+      "import": "./src/facade/install.ts"
+    },
+    "./host/controller": {
+      "types": "./src/host/controller.ts",
+      "import": "./src/host/controller.ts"
+    },
+    "./host/types": {
+      "types": "./src/host/types.ts",
+      "import": "./src/host/types.ts"
+    },
+    "./history": {
+      "types": "./src/history.ts",
+      "import": "./src/history.ts"
+    },
+    "./runtime_api": {
+      "types": "./src/runtime_api.ts",
+      "import": "./src/runtime_api.ts"
+    },
+    "./runtime_history": {
+      "types": "./src/runtime_history.ts",
+      "import": "./src/runtime_history.ts"
+    },
+    "./runtime_types": {
+      "types": "./src/runtime_types.ts",
+      "import": "./src/runtime_types.ts"
+    },
+    "./types": {
+      "types": "./src/types.ts",
+      "import": "./src/types.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "bun test --preload ./tests/setup.ts ./tests"
+  },
+  "dependencies": {
+    "@leafergraph/core/contracts": "workspace:*",
+    "@leafergraph/core/node": "workspace:*",
+    "@leafergraph/core/theme": "workspace:*",
+    "@leafergraph/core/widget-runtime": "workspace:*",
+    "leafer-ui": "^2.0.3"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.10"
+  }
+}

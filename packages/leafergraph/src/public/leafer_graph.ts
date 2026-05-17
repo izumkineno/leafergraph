@@ -2,27 +2,31 @@
  * 主包公共 façade 实现。
  *
  * @remarks
- * 负责承载 `LeaferGraph` 类与 `createLeaferGraph(...)` 工厂，
- * 并把主包外部 API 统一委托到内部运行时宿主。
+ * 负责承载 `LeaferGraph` 类与 `createLeaferGraph(...)` 工厂。
+ * 默认入口保持 viewer-first：只公开最小视图契约，
+ * 更完整的 API 宿主能力通过兼容子路径继续提供。
  */
 
 import type { App, Group } from "leafer-ui";
 import "@leafer-in/resize";
 import "@leafer-in/state";
 import "@leafer-in/view";
+import { installLeaferGraphFacade } from "@leafergraph/api-host/facade/install";
+import type { LeaferGraphConnectionFacade } from "@leafergraph/api-host/facade/connection";
+import type { LeaferGraphDocumentFacade } from "@leafergraph/api-host/facade/document";
+import type { LeaferGraphExecutionFacade } from "@leafergraph/api-host/facade/execution";
+import type { LeaferGraphMutationFacade } from "@leafergraph/api-host/facade/mutations";
+import type { LeaferGraphQueryFacade } from "@leafergraph/api-host/facade/query";
+import type { LeaferGraphRegistryFacade } from "@leafergraph/api-host/facade/registry";
+import type { LeaferGraphSelectionFacade } from "@leafergraph/api-host/facade/selection";
+import type { LeaferGraphSubscriptionFacade } from "@leafergraph/api-host/facade/subscriptions";
 import type { LeaferGraphOptions } from "@leafergraph/core/contracts";
 import type { LeaferGraphEntryRuntime } from "../graph/assembly/entry";
 import { createLeaferGraphEntryRuntime } from "../graph/assembly/entry";
-import type { LeaferGraphConnectionFacade } from "./facade/connection";
-import type { LeaferGraphDocumentFacade } from "./facade/document";
-import type { LeaferGraphExecutionFacade } from "./facade/execution";
-import { installLeaferGraphFacade } from "./facade/install";
-import type { LeaferGraphMutationFacade } from "./facade/mutations";
-import type { LeaferGraphQueryFacade } from "./facade/query";
-import type { LeaferGraphRegistryFacade } from "./facade/registry";
-import type { LeaferGraphSelectionFacade } from "./facade/selection";
-import type { LeaferGraphSubscriptionFacade } from "./facade/subscriptions";
-import type { LeaferGraphViewFacade } from "./facade/view";
+import type {
+  LeaferGraphInteractionTargetLike,
+  LeaferGraphViewerFacade
+} from "./viewer_model";
 
 interface LeaferGraphInternalState {
   apiHost: LeaferGraphEntryRuntime["apiHost"];
@@ -80,9 +84,10 @@ export function getLeaferGraphDefaultFitViewPadding(graph: LeaferGraph): number 
  * LeaferGraph 主包运行时。
  *
  * @remarks
- * 当前既提供插件安装入口，也负责节点图渲染与交互。
+ * 当前默认入口仅保留 viewer-first 的最小公开面：
+ * 场景挂载、节点/连线视图查询、主题切换与 fitView。
  */
-export class LeaferGraph {
+export class LeaferGraph implements LeaferGraphViewerFacade {
   readonly container: HTMLElement;
   readonly app: App;
   readonly root: Group;
@@ -123,11 +128,52 @@ export class LeaferGraph {
   destroy(): void {
     getLeaferGraphApiHost(this).destroy();
   }
+
+  /**
+   * 运行时切换主包主题，并局部刷新现有节点壳与 Widget。
+   *
+   * @param mode - 新的主题模式。
+   * @returns 无返回值。
+   */
+  setThemeMode(mode: import("@leafergraph/core/theme").LeaferGraphThemeMode): void {
+    getLeaferGraphApiHost(this).setThemeMode(mode);
+  }
+
+  /**
+   * 获取某个节点对应的 Leafer 视图宿主。
+   *
+   * @param nodeId - 目标节点 ID。
+   * @returns 节点视图对象。
+   */
+  getNodeView(nodeId: string): Group | undefined {
+    return getLeaferGraphApiHost(this).getNodeView(nodeId);
+  }
+
+  /**
+   * 获取某条连线对应的 Leafer 视图宿主。
+   *
+   * @param linkId - 目标连线 ID。
+   * @returns 连线视图对象。
+   */
+  getLinkView(linkId: string): LeaferGraphInteractionTargetLike | undefined {
+    return getLeaferGraphApiHost(this).getLinkView(linkId);
+  }
+
+  /**
+   * 让当前画布内容适配到可视区域内。
+   *
+   * @param padding - 可选内边距。
+   * @returns 是否成功执行适配。
+   */
+  fitView(padding?: number): boolean {
+    return getLeaferGraphApiHost(this).fitView(
+      padding ?? getLeaferGraphDefaultFitViewPadding(this)
+    );
+  }
 }
 
 export interface LeaferGraph
   extends LeaferGraphRegistryFacade,
-    LeaferGraphViewFacade,
     LeaferGraphSelectionFacade,
     LeaferGraphQueryFacade,
     LeaferGraphExecutionFacade,
@@ -135,8 +181,6 @@ export interface LeaferGraph
     LeaferGraphDocumentFacade,
     LeaferGraphConnectionFacade,
     LeaferGraphMutationFacade {}
-
-installLeaferGraphFacade(LeaferGraph);
 
 /**
  * 创建 `LeaferGraph` 的便捷工厂函数。
@@ -151,3 +195,6 @@ export function createLeaferGraph(
 ): LeaferGraph {
   return new LeaferGraph(container, options);
 }
+
+// 保留从 extracted api-host 安装的兼容 façade，确保旧入口仍可委托到新包实现。
+installLeaferGraphFacade(LeaferGraph);

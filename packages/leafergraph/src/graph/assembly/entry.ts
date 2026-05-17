@@ -15,16 +15,16 @@ import {
 import { createMissingWidgetRenderer } from "@leafergraph/core/widget-runtime";
 import { resolveThemePreset, type LeaferGraphThemeMode } from "@leafergraph/core/theme";
 import type { LeaferGraphGraphThemeTokens } from "@leafergraph/core/theme";
-import type { LeaferGraphApiHost } from "../../api/graph_api_host";
+import type { LeaferGraphApiHost } from "@leafergraph/api-host";
 import { createLeaferGraphRuntimeAssembly } from "./runtime";
-import { normalizeGraphLinkSlotIndex } from "../host/mutation";
-import { createDisabledDataFlowAnimationStyleConfig } from "../style";
+import { normalizeGraphLinkSlotIndex } from "@leafergraph/scene-runtime/host";
+import { createDisabledDataFlowAnimationStyleConfig } from "@leafergraph/scene-runtime/style";
 import type {
   GraphLinkViewState,
   GraphNodeState,
   GraphNodeViewState,
   GraphRuntimeState
-} from "../types";
+} from "@leafergraph/scene-runtime/types";
 
 /**
  * 主包入口运行时结果。

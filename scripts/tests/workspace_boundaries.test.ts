@@ -123,6 +123,72 @@ describe("package split boundary rules", () => {
         ]
       })
     );
+
+    expect(getPackageRule("@leafergraph/scene-runtime")).toEqual({
+      allowedWorkspaceDeps: [
+        "@leafergraph/contracts",
+        "@leafergraph/core/contracts",
+        "@leafergraph/core/config",
+        "@leafergraph/execution",
+        "@leafergraph/core/execution",
+        "@leafergraph/node",
+        "@leafergraph/core/node",
+        "@leafergraph/theme",
+        "@leafergraph/core/theme",
+        "@leafergraph/widget-runtime",
+        "@leafergraph/core/widget-runtime",
+        "@leafergraph/link-animation",
+        "@leafergraph/node-runtime"
+      ],
+      allowedSourceImports: [
+        "@leafergraph/contracts",
+        "@leafergraph/core/contracts",
+        "@leafergraph/core/config",
+        "@leafergraph/execution",
+        "@leafergraph/core/execution",
+        "@leafergraph/node",
+        "@leafergraph/core/node",
+        "@leafergraph/theme",
+        "@leafergraph/core/theme",
+        "@leafergraph/widget-runtime",
+        "@leafergraph/core/widget-runtime",
+        "@leafergraph/link-animation",
+        "@leafergraph/node-runtime"
+      ]
+    });
+
+    expect(getPackageRule("@leafergraph/api-host")).toEqual({
+      allowedWorkspaceDeps: [
+        "@leafergraph/contracts",
+        "@leafergraph/core/contracts",
+        "@leafergraph/execution",
+        "@leafergraph/core/execution",
+        "@leafergraph/node",
+        "@leafergraph/core/node",
+        "@leafergraph/theme",
+        "@leafergraph/core/theme",
+        "@leafergraph/widget-runtime",
+        "@leafergraph/core/widget-runtime",
+        "@leafergraph/link-animation",
+        "@leafergraph/node-runtime",
+        "@leafergraph/scene-runtime"
+      ],
+      allowedSourceImports: [
+        "@leafergraph/contracts",
+        "@leafergraph/core/contracts",
+        "@leafergraph/execution",
+        "@leafergraph/core/execution",
+        "@leafergraph/node",
+        "@leafergraph/core/node",
+        "@leafergraph/theme",
+        "@leafergraph/core/theme",
+        "@leafergraph/widget-runtime",
+        "@leafergraph/core/widget-runtime",
+        "@leafergraph/link-animation",
+        "@leafergraph/node-runtime",
+        "@leafergraph/scene-runtime"
+      ]
+    });
   });
 
   test("root workspace declares the split package globs", () => {
@@ -132,6 +198,19 @@ describe("package split boundary rules", () => {
 
     expect(rootPackageJson.workspaces).toEqual(
       expect.arrayContaining(["packages/core/*", "packages/extensions/*"])
+    );
+  });
+
+  test("root package keeps viewer-first compatibility exports available", () => {
+    const rootPackageJson = JSON.parse(
+      readFileSync(path.resolve(import.meta.dir, "../../packages/leafergraph/package.json"), "utf8")
+    );
+
+    expect(rootPackageJson.exports?.["./api/graph_api_host"]).toEqual(
+      expect.objectContaining({
+        import: "./src/api/graph_api_host.ts",
+        types: "./src/api/graph_api_host.ts"
+      })
     );
   });
 
