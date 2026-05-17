@@ -19,6 +19,8 @@ describe("small-interactive-graph helpers", () => {
     expect(SMALL_GRAPH_NODE_DEFINITIONS[1]?.outputs).toHaveLength(1);
     expect(SMALL_GRAPH_NODE_DEFINITIONS[2]?.inputs).toHaveLength(2);
     expect(SMALL_GRAPH_NODE_DEFINITIONS[2]?.outputs).toHaveLength(2);
+    expect(SMALL_GRAPH_NODE_DEFINITIONS[2]?.size?.[1]).toBe(340);
+    expect(SMALL_GRAPH_NODE_DEFINITIONS[2]?.resize?.minHeight).toBe(360);
     expect(
       SMALL_GRAPH_NODE_DEFINITIONS.every((definition) =>
         definition.widgets?.some((widget) => widget.type === SHOWCASE_WIDGET_TYPE)

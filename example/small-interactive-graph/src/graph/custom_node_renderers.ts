@@ -63,7 +63,7 @@ export const DASHBOARD_RENDER_CONFIG = {
       createLabel("Dashboard", 10, 10, 12, "#67e8f9", 800),
       new Rect({ x: width - 22, y: 13, width: 8, height: 8, cornerRadius: 4, fill: "#34d399", hittable: false }),
       createLabel("Load", 10, 43, 10, "#bae6fd"),
-      createLabel(`${progress}%`, width - 58, 36, 22, "#22d3ee", 800),
+      createLabel(`${progress}%`, width - 58, 36, 22, "#22d3ee", 800, "Inter, Segoe UI, Arial", 48),
       new Rect({ x: 10, y: 67, width: width - 20, height: 9, cornerRadius: 5, fill: "#083047", stroke: "#7dd3fc30", strokeWidth: 1, hittable: false }),
       new Rect({ x: 10, y: 67, width: Math.round((width - 20) * progress / 100), height: 9, cornerRadius: 5, fill: "#22d3ee", hittable: false }),
       createMetricBox(10, metricTop, metricWidth, "Response", formatText(data.metric, "96.5 ms"), "#67e8f9"),
@@ -84,21 +84,21 @@ export const CONFIG_RENDER_CONFIG = {
     group.add([
       createPanel(width, height, "#32124f", "#a855f7"),
       createLabel("Settings", 10, 10, 12, "#d8b4fe", 800),
-      createLabel("advanced", width - 66, 12, 10, "#fed7aa")
+      createLabel("advanced", width - 66, 12, 10, "#fed7aa", 500, "Inter, Segoe UI, Arial", 56)
     ]);
 
     params.slice(0, 2).forEach((param, index) => {
       const y = 39 + index * 30;
       group.add([
         new Rect({ x: 10, y, width: width - 20, height: 23, cornerRadius: 8, fill: "#02061766", stroke: "#a855f73d", strokeWidth: 1, hittable: false }),
-        createLabel(param.key, 18, y + 7, 10, "#d8b4fe", 700),
-        createLabel(String(param.value), width - 74, y + 7, 10, "#fdba74", 600, "Consolas")
+        createLabel(param.key, 18, y + 7, 10, "#d8b4fe", 700, "Inter, Segoe UI, Arial", Math.max(28, width - 110)),
+        createLabel(String(param.value), width - 74, y + 7, 10, "#fdba74", 600, "Consolas", 56)
       ]);
     });
 
     group.add([
       new Rect({ x: 10, y: buttonTop, width: width - 20, height: 21, cornerRadius: 8, fill: "#a855f7", stroke: "#f97316", strokeWidth: 1, hittable: false }),
-      createLabel("Edit Config", Math.round(width / 2) - 31, buttonTop + 5, 11, "#ffffff", 800)
+      createLabel("Edit Config", Math.round(width / 2) - 31, buttonTop + 5, 11, "#ffffff", 800, "Inter, Segoe UI, Arial", 62)
     ]);
 
     return group;
@@ -123,9 +123,9 @@ export const TRANSFORM_RENDER_CONFIG = {
       const y = 36 + index * 25;
       group.add([
         new Rect({ x: 10, y, width: width - 20, height: 19, cornerRadius: 7, fill: "#02061766", stroke: "#14b8a638", strokeWidth: 1, hittable: false }),
-        createLabel(truncateMiddle(rule.from, 18), 17, y + 5, 9, "#99f6e4", 500, "Consolas"),
-        createLabel("→", Math.round(width / 2) - 4, y + 4, 11, "#facc15", 800),
-        createLabel(truncateMiddle(rule.to, 18), Math.round(width / 2) + 15, y + 5, 9, "#fde68a", 500, "Consolas")
+        createLabel(truncateMiddle(rule.from, 18), 17, y + 5, 9, "#99f6e4", 500, "Consolas", Math.max(32, Math.round(width / 2) - 28)),
+        createLabel("→", Math.round(width / 2) - 4, y + 4, 11, "#facc15", 800, "Inter, Segoe UI, Arial", 12),
+        createLabel(truncateMiddle(rule.to, 18), Math.round(width / 2) + 15, y + 5, 9, "#fde68a", 500, "Consolas", Math.max(32, width - Math.round(width / 2) - 25))
       ]);
     });
 
@@ -134,7 +134,7 @@ export const TRANSFORM_RENDER_CONFIG = {
     const previewHeight = Math.max(18, height - previewTop - 8);
     group.add(new Rect({ x: 10, y: previewTop, width: width - 20, height: previewHeight, cornerRadius: 7, fill: "#0206177a", stroke: "#14b8a633", strokeWidth: 1, hittable: false }));
     preview.forEach((line, index) => {
-      group.add(createLabel(line, 18, previewTop + 8 + index * 11, 9, "#ccfbf1", 500, "Consolas"));
+      group.add(createLabel(line, 18, previewTop + 8 + index * 11, 9, "#ccfbf1", 500, "Consolas", Math.max(32, width - 36)));
     });
 
     return group;
@@ -224,9 +224,10 @@ function createLabel(
   fontSize: number,
   fill: string,
   fontWeight = 500,
-  fontFamily = "Inter, Segoe UI, Arial"
+  fontFamily = "Inter, Segoe UI, Arial",
+  width?: number
 ): Text {
-  return new Text({
+  const label = new Text({
     x,
     y,
     text,
@@ -234,8 +235,16 @@ function createLabel(
     fontSize,
     fontWeight,
     fontFamily,
+    width,
     hittable: false
   });
+
+  if (width !== undefined) {
+    label.textWrap = "none";
+    label.textOverflow = "...";
+  }
+
+  return label;
 }
 
 function createMetricBox(x: number, y: number, width: number, label: string, value: string, valueColor: string): Group {
@@ -244,7 +253,7 @@ function createMetricBox(x: number, y: number, width: number, label: string, val
   group.add([
     new Rect({ width, height: 28, cornerRadius: 8, fill: "#0206175c", hittable: false }),
     createLabel(label, 6, 4, 9, "#bae6fd"),
-    createLabel(value, 6, 16, 10, valueColor, 800)
+    createLabel(value, 6, 16, 10, valueColor, 800, "Inter, Segoe UI, Arial", Math.max(20, width - 12))
   ]);
 
   return group;
