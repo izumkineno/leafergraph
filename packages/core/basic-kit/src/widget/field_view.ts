@@ -74,8 +74,10 @@ export class WidgetFieldView {
     );
     const valueX = options.valueX ?? WIDGET_FIELD_PADDING_X;
     const valueY = options.valueY ?? WIDGET_FIELD_Y + WIDGET_VALUE_TOP_OFFSET;
-    const valueWidth =
-      options.valueWidth ?? bounds.width - valueX - WIDGET_FIELD_PADDING_X;
+    const valueWidth = Math.max(
+      0,
+      options.valueWidth ?? bounds.width - valueX - WIDGET_FIELD_PADDING_X
+    );
     const valueHeight =
       options.valueHeight ??
       Math.max(fieldHeight - WIDGET_FIELD_PADDING_Y * 2, WIDGET_FIELD_FONT_SIZE + 4);
@@ -100,11 +102,11 @@ export class WidgetFieldView {
       theme: options.theme
     });
     this.focusRing = createWidgetFocusRing(ui, {
-      x: -1.5,
-      y: WIDGET_FIELD_Y - 1.5,
-      width: bounds.width + 3,
-      height: fieldHeight + 3,
-      cornerRadius: options.theme.fieldRadius + 2,
+      x: 0,
+      y: WIDGET_FIELD_Y,
+      width: bounds.width,
+      height: fieldHeight,
+      cornerRadius: options.theme.fieldRadius,
       stroke: options.theme.focusRing
     });
     this.valueText = createWidgetValueText(ui, {
